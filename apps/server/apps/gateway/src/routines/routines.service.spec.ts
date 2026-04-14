@@ -1841,7 +1841,11 @@ describe('RoutinesService — TaskCast integration', () => {
       );
     });
 
-    it('does not call hardDeleteRoutineSessionChannel for non-draft routines', async () => {
+    it('hard-deletes the creation channel for non-draft routines too', async () => {
+      // The creation channel remains linked to the routine even after it
+      // transitions to upcoming (archived, but row still exists). Deleting
+      // the routine must also drop the channel — the FK ON DELETE SET NULL
+      // goes the other direction (channel→routine column), not routine→channel.
       db.limit.mockResolvedValueOnce([
         {
           ...DRAFT_WITH_CHANNEL,
@@ -1852,6 +1856,23 @@ describe('RoutinesService — TaskCast integration', () => {
       await expect(
         service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
       ).resolves.toEqual({ success: true });
+
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith('channel-1', 'tenant-1');
+      expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('does not call hardDeleteRoutineSessionChannel for non-draft routines without creationChannelId', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...DRAFT_WITH_CHANNEL,
+          status: 'upcoming' as const,
+          creationChannelId: null,
+        },
+      ] as any);
+
+      await service.delete(ROUTINE_ID, 'user-1', 'tenant-1');
 
       expect(
         channelsService.hardDeleteRoutineSessionChannel,
@@ -1935,7 +1956,11 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     it('is idempotent — returns current routine when already upcoming', async () => {
-      const upcomingRoutine = { ...DRAFT_ROUTINE, status: 'upcoming' as const };
+      const upcomingRoutine = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: null,
+      };
       db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
 
       const result = await service.completeCreation(
@@ -1947,6 +1972,55 @@ describe('RoutinesService — TaskCast integration', () => {
 
       expect(result).toEqual(upcomingRoutine);
       expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('retries archive on idempotent-upcoming path when creationChannelId still set', async () => {
+      // Earlier completeCreation call succeeded status-flip but failed
+      // archive — the routine is now upcoming AND creationChannelId is
+      // still set. A retry should re-attempt archival.
+      const upcomingWithChannel = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: 'ch-1',
+      };
+      db.limit.mockResolvedValueOnce([upcomingWithChannel] as any);
+      channelsService.archiveCreationChannel.mockResolvedValueOnce(undefined);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(upcomingWithChannel);
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'ch-1',
+        'tenant-1',
+      );
+      // Status flip is NOT re-executed (idempotent path)
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('idempotent-upcoming archive failure is non-fatal', async () => {
+      const upcomingWithChannel = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: 'ch-1',
+      };
+      db.limit.mockResolvedValueOnce([upcomingWithChannel] as any);
+      channelsService.archiveCreationChannel.mockRejectedValueOnce(
+        new Error('transient'),
+      );
+
+      // Still returns the routine without throwing
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result).toEqual(upcomingWithChannel);
     });
 
     it('throws 400 when status is not draft or upcoming (e.g. completed)', async () => {
@@ -2215,29 +2289,43 @@ describe('RoutinesService — TaskCast integration', () => {
         draftRoutine = DRAFT_NEW_ROUTINE,
       } = overrides;
 
+      // Outer createWithCreationTask wrapper:
+      //   1. getBotById (bot lookup for pre-flight)
       botsService.getBotById.mockResolvedValueOnce(botResult as any);
 
-      // Bot-tenant validation: db.select().from().leftJoin().where().limit()
+      //   2. Bot-tenant validation: db.select().from().leftJoin().where().limit()
       db.where.mockReturnValueOnce(db as any);
       db.limit.mockResolvedValueOnce(
         botTenantRow ? [botTenantRow] : ([] as any),
       );
 
-      // Count query: db.select().from().where() — terminal, must return Promise
+      //   3. Count query: db.select().from().where() — terminal Promise
       db.where.mockResolvedValueOnce([{ count: 0 }] as any);
 
-      // Draft-conflict check: db.select().from().where().limit() → no existing draft
+      //   4. Draft-conflict check: db.select().from().where().limit() → empty
       db.limit.mockResolvedValueOnce([] as any);
 
-      // create() → documentsService.create() + db.insert().values().returning()
+      //   5. create() → documentsService.create() + db.insert().values().returning()
       documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
       db.returning.mockResolvedValueOnce([draftRoutine] as any);
 
-      // startCreationSession's inner getRoutineOrThrow: returns the same draft
+      // Inner startCreationSession:
+      //   6. getRoutineOrThrow: db.select().from().where().limit() → draft
       db.limit.mockResolvedValueOnce([draftRoutine] as any);
 
-      // startCreationSession's inner getBotById re-validation
+      //   7. Bot-tenant re-validation inside startCreationSession
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce(
+        botTenantRow ? [botTenantRow] : ([] as any),
+      );
+
+      //   8. getBotById (inner) for bot.userId
       botsService.getBotById.mockResolvedValueOnce(botResult as any);
+
+      //   9. Atomic claim UPDATE with .returning() → 1-row array means won
+      db.returning.mockResolvedValueOnce([
+        { id: draftRoutine.id } as any,
+      ] as any);
     }
 
     it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
@@ -2483,7 +2571,24 @@ describe('RoutinesService — TaskCast integration', () => {
     const AGENT_ID = 'agent-1';
     const CHANNEL_ID = 'channel-1';
 
-    function mockGetRoutine(overrides: Record<string, unknown> = {}) {
+    /**
+     * Mock the sequence of DB calls that startCreationSession performs
+     * when it needs to actually materialize a creation session.
+     *
+     * Flow:
+     *   1. getRoutineOrThrow: db.select().from().where().limit()
+     *   2. [fast-idempotent check: inline, no db call if short-circuit]
+     *   3. Bot-tenant validation: db.select().from().leftJoin().where().limit()
+     *   4. Atomic claim UPDATE: db.update().set().where().returning()
+     *      (returning 1 row = won, 0 rows = lost race)
+     */
+    function mockGetRoutine(
+      overrides: Record<string, unknown> = {},
+      opts: {
+        botTenantRow?: { tenantId: string } | null;
+        claimResult?: { id: string }[];
+      } = {},
+    ) {
       const routine = {
         id: ROUTINE_ID,
         tenantId: TENANT_ID,
@@ -2495,8 +2600,26 @@ describe('RoutinesService — TaskCast integration', () => {
         creationSessionId: null,
         ...overrides,
       };
-      // getRoutineOrThrow() does: db.select().from().where().limit(1) — first return wins
+      const {
+        botTenantRow = { tenantId: TENANT_ID },
+        claimResult = [{ id: ROUTINE_ID }],
+      } = opts;
+
+      // Step 1: getRoutineOrThrow
       db.limit.mockResolvedValueOnce([routine]);
+
+      // Step 3: bot-tenant validation leftJoin query.
+      // Only reached when routine.status === 'draft' and the idempotent
+      // short-circuit doesn't fire. Safe to enqueue unconditionally —
+      // tests that short-circuit won't consume it.
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce(
+        botTenantRow ? [botTenantRow] : ([] as any),
+      );
+
+      // Step 4: atomic claim UPDATE returning()
+      db.returning.mockResolvedValueOnce(claimResult as any);
+
       return routine;
     }
 
@@ -2550,10 +2673,19 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     it('is idempotent when creationChannelId already set', async () => {
-      mockGetRoutine({
-        creationChannelId: 'existing-channel',
-        creationSessionId: 'existing-session',
-      });
+      // Short-circuit: no bot-tenant query or atomic claim is reached
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          creationChannelId: 'existing-channel',
+          creationSessionId: 'existing-session',
+        },
+      ]);
 
       const result = await service.startCreationSession(
         ROUTINE_ID,
@@ -2572,7 +2704,19 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     it('rejects non-draft routines with BadRequestException', async () => {
-      mockGetRoutine({ status: 'upcoming' });
+      // Only getRoutineOrThrow is consumed before the guard throws
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'upcoming',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
 
       await expect(
         service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
@@ -2580,7 +2724,18 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     it('rejects non-creator with ForbiddenException', async () => {
-      mockGetRoutine({ creatorId: 'someone-else' });
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: 'someone-else',
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
 
       await expect(
         service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
@@ -2588,12 +2743,49 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     it('rejects drafts with null botId', async () => {
-      mockGetRoutine({ botId: null });
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: null,
+          status: 'draft',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
 
       await expect(
         service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
       ).rejects.toThrow(BadRequestException);
       expect(botsService.getBotById).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the bound bot belongs to a different tenant', async () => {
+      // Routine loads successfully
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
+      // Bot-tenant validation returns wrong tenant
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: 'other-tenant' }] as any);
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
     });
 
     it('rejects bots without managedMeta.agentId', async () => {
@@ -2609,7 +2801,7 @@ describe('RoutinesService — TaskCast integration', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('rolls back the channel when sendInput fails', async () => {
+    it('rolls back the channel AND clears routine fields when sendInput fails', async () => {
       mockGetRoutine();
       clawHiveService.sendInput.mockRejectedValue(new Error('hive down'));
 
@@ -2617,9 +2809,58 @@ describe('RoutinesService — TaskCast integration', () => {
         service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
       ).rejects.toThrow('hive down');
 
+      // Channel rolled back
       expect(
         channelsService.hardDeleteRoutineSessionChannel,
       ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+
+      // Explicit cleanup UPDATE cleared both columns (fix #6)
+      // The db.set call should include both fields set to null
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creationChannelId: null,
+          creationSessionId: null,
+        }),
+      );
+    });
+
+    it('loses the race and returns winner ids when atomic claim returns 0 rows', async () => {
+      // mockGetRoutine with claimResult=[] means the conditional UPDATE
+      // claimed nothing (a concurrent caller won)
+      mockGetRoutine({}, { claimResult: [] });
+
+      // After the race loss, the service re-reads the routine to get the
+      // winner's ids. Enqueue that read.
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          creationChannelId: 'winner-channel',
+          creationSessionId: 'winner-session',
+        },
+      ]);
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      // Speculative channel was cleaned up
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+      // Kickoff was NOT sent (we're not the winner)
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+      // Returned the winner's ids
+      expect(result).toEqual({
+        creationChannelId: 'winner-channel',
+        creationSessionId: 'winner-session',
+      });
     });
   });
 });

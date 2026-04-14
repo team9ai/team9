@@ -316,6 +316,13 @@ export class ChannelsService {
    * conversation (currently: creation; future: reflection / retrospective).
    *
    * Membership: creator + bot shadow user, both as 'member'.
+   *
+   * Atomicity: the channel row and both member rows are inserted inside a
+   * single db.transaction so that a partial failure cannot leave an orphan
+   * channel behind. We inline the member inserts (instead of calling
+   * addMember()) because addMember() uses `this.db` directly and can't
+   * accept a tx, and we need all three inserts on the same tx.
+   *
    * No auto-unhide in im-worker — routine-session channels aren't routed
    * through DM visibility logic because their type isn't 'direct' / 'echo'.
    */
@@ -331,20 +338,45 @@ export class ChannelsService {
     const propertySettings: unknown = {
       routineSession: { purpose, routineId },
     };
-    const [channel] = await this.db
-      .insert(schema.channels)
-      .values({
-        id: uuidv7(),
-        tenantId,
-        type: 'routine-session',
-        name: null,
-        createdBy: creatorId,
-        propertySettings,
-      })
-      .returning();
 
-    await this.addMember(channel.id, creatorId, 'member');
-    await this.addMember(channel.id, botUserId, 'member');
+    const channel = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(schema.channels)
+        .values({
+          id: uuidv7(),
+          tenantId,
+          type: 'routine-session',
+          name: null,
+          createdBy: creatorId,
+          propertySettings,
+        })
+        .returning();
+
+      await tx.insert(schema.channelMembers).values([
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: creatorId,
+          role: 'member' as const,
+        },
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: botUserId,
+          role: 'member' as const,
+        },
+      ]);
+
+      return row;
+    });
+
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, creatorId),
+    );
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, botUserId),
+    );
 
     return channel;
   }

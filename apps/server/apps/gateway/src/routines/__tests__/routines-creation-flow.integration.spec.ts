@@ -225,6 +225,10 @@ describe('Routine Creation Flow — integration', () => {
       { ...DRAFT_ROUTINE, creationChannelId: null, creationSessionId: null },
     ] as any);
 
+    // Mock: bot-tenant re-validation inside startCreationSession
+    db.where.mockReturnValueOnce(db as any);
+    db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+
     // Mock: getBotById inside startCreationSession (second call; first was outer validation)
     botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
 
@@ -233,8 +237,9 @@ describe('Routine Creation Flow — integration', () => {
       id: CHANNEL_ID,
     } as any);
 
-    // Mock: db.update().set().where() — persist creationChannelId + creationSessionId
-    // (no .returning() called; chain returns chain by default)
+    // Mock: atomic claim UPDATE — db.update().set().where().returning()
+    // returning 1-row array means we won the race
+    db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
     // Mock: clawHiveService.sendInput
     clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
@@ -392,11 +397,18 @@ describe('Routine Creation Flow — integration', () => {
     };
     db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
 
+    // Bot-tenant re-validation (new in Round 1 fix #3)
+    db.where.mockReturnValueOnce(db as any);
+    db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+
     botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
 
     channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
       id: CHANNEL_ID,
     } as any);
+
+    // Atomic claim UPDATE returning 1 row = won the race
+    db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
     clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
 

@@ -1908,8 +1908,8 @@ describe('ChannelsService', () => {
   });
 
   describe('createRoutineSessionChannel', () => {
-    it('inserts a routine-session channel with purpose metadata and adds both members', async () => {
-      // Arrange: insert() returns a new channel row from returning()
+    it('inserts channel + both members inside a single transaction with purpose metadata', async () => {
+      // Arrange: channel insert returning() yields the new row
       db.returning.mockResolvedValueOnce([
         {
           id: 'ch-1',
@@ -1922,11 +1922,6 @@ describe('ChannelsService', () => {
         },
       ]);
 
-      // Spy addMember so we don't actually go through the DB chain for memberships
-      const addMemberSpy = jest
-        .spyOn(service as any, 'addMember')
-        .mockResolvedValue(undefined as any);
-
       const result = await service.createRoutineSessionChannel({
         creatorId: 'user-1',
         botUserId: 'bot-user-1',
@@ -1935,8 +1930,14 @@ describe('ChannelsService', () => {
         purpose: 'creation',
       });
 
-      // The insert chain was called with the expected values
-      expect(db.insert).toHaveBeenCalled();
+      // Entered a transaction
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+
+      // Inside the tx: one insert for the channel row, one insert for
+      // both channel_member rows — 2 inserts total
+      expect(db.insert).toHaveBeenCalledTimes(2);
+
+      // Channel insert values include correct type + propertySettings shape
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'routine-session',
@@ -1949,13 +1950,59 @@ describe('ChannelsService', () => {
         }),
       );
 
-      // Both members added in order: creator first, bot second
-      expect(addMemberSpy).toHaveBeenCalledWith('ch-1', 'user-1', 'member');
-      expect(addMemberSpy).toHaveBeenCalledWith('ch-1', 'bot-user-1', 'member');
-      expect(addMemberSpy).toHaveBeenCalledTimes(2);
+      // Member batch insert receives both rows
+      expect(db.values).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            channelId: 'ch-1',
+            userId: 'user-1',
+            role: 'member',
+          }),
+          expect.objectContaining({
+            channelId: 'ch-1',
+            userId: 'bot-user-1',
+            role: 'member',
+          }),
+        ]),
+      );
 
       expect(result.id).toBe('ch-1');
       expect(result.type).toBe('routine-session');
+    });
+
+    it('rolls back channel insert when member insert fails (atomic)', async () => {
+      // First insert (channel) succeeds — returning yields a row
+      db.returning.mockResolvedValueOnce([
+        { id: 'ch-2', type: 'routine-session', tenantId: 'tenant-1' },
+      ]);
+
+      // Simulate the second insert (members batch) throwing.
+      // The default mockDb transaction helper delegates cb(chain); we
+      // override the tx delegate to make the second values() throw.
+      let insertCount = 0;
+      db.values.mockImplementation(() => {
+        insertCount += 1;
+        if (insertCount === 2) {
+          throw new Error('members insert failed');
+        }
+        return db as any;
+      });
+
+      await expect(
+        service.createRoutineSessionChannel({
+          creatorId: 'user-1',
+          botUserId: 'bot-user-1',
+          tenantId: 'tenant-1',
+          routineId: 'routine-1',
+          purpose: 'creation',
+        }),
+      ).rejects.toThrow('members insert failed');
+
+      // Post-commit cache invalidation must NOT have run because the
+      // transaction callback threw before returning
+      expect(
+        (service as any).channelMemberCacheService.invalidate,
+      ).not.toHaveBeenCalled();
     });
   });
 
