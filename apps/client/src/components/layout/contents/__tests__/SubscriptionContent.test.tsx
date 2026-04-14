@@ -228,6 +228,80 @@ describe("SubscriptionContent", () => {
     ).toBeTruthy();
   });
 
+  it("renders plus before pro on the plan page", async () => {
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          id: "acct_1",
+          ownerExternalId: "tenant:ws-1",
+          ownerType: "organization",
+          ownerName: "Alpha",
+          balance: 3000,
+          quota: 0,
+          quotaExpiresAt: null,
+          effectiveQuota: 0,
+          available: 3000,
+          creditLimit: 0,
+          status: "active",
+          metadata: null,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
+        },
+        subscription: null,
+        subscriptionProducts: [
+          {
+            stripePriceId: "price_pro",
+            name: "Pro Plan",
+            type: "subscription",
+            credits: 200000,
+            amountCents: 20000,
+            interval: "month",
+            intervalCount: 1,
+            active: true,
+            metadata: null,
+            display: {
+              badge: "Pro Plan",
+              description: "Best for sustained team usage.",
+              features: ["Advanced controls"],
+              sortOrder: 1,
+            },
+          },
+          {
+            stripePriceId: "price_plus",
+            name: "Plus Plan",
+            type: "subscription",
+            credits: 40000,
+            amountCents: 4000,
+            interval: "month",
+            intervalCount: 1,
+            active: true,
+            metadata: null,
+            display: {
+              badge: "Plus Plan",
+              description: "Best for flexible usage.",
+              features: ["Shared billing"],
+              sortOrder: 2,
+            },
+          },
+        ],
+        creditProducts: [],
+        recentTransactions: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SubscriptionContent />);
+
+    const plusLabel = await screen.findByText("Plus Plan");
+    const proLabel = screen.getByText("Pro Plan");
+
+    expect(
+      plusLabel.compareDocumentPosition(proLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("renders custom amount top-up and sends amountCents to checkout", async () => {
     mockUseWorkspaceBillingOverview.mockReturnValue({
       data: {

@@ -93,6 +93,10 @@ function getPlanTierRank(productOrTitle: BillingProduct | string) {
     return 10;
   }
 
+  if (normalized.includes("plus")) {
+    return 15;
+  }
+
   if (normalized.includes("pro")) {
     return 20;
   }
@@ -255,6 +259,10 @@ export function getPlanCardTheme(index: number, title: string): PlanCardTheme {
 
   if (normalizedTitle.includes("starter")) {
     return "accent";
+  }
+
+  if (normalizedTitle.includes("plus")) {
+    return "dark";
   }
 
   if (normalizedTitle.includes("pro")) {
