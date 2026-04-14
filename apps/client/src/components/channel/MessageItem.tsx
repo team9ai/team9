@@ -395,15 +395,6 @@ export function MessageItem({
               onSelectorOpenChange={setPropertySelectorOpen}
             />
           )}
-        {showReplyCount && (message.replyCount || 0) > 0 && (
-          <ThreadReplyIndicator
-            replyCount={message.replyCount || 0}
-            lastRepliers={message.lastRepliers}
-            lastReplyAt={message.lastReplyAt}
-            unreadCount={unreadSubReplyCount}
-            onClick={onReplyCountClick}
-          />
-        )}
         {hasReactions && onAddReaction && onRemoveReaction && (
           <MessageReactions
             reactions={message.reactions!}
@@ -411,6 +402,15 @@ export function MessageItem({
             channelId={message.channelId}
             onAddReaction={onAddReaction}
             onRemoveReaction={onRemoveReaction}
+          />
+        )}
+        {showReplyCount && (message.replyCount || 0) > 0 && (
+          <ThreadReplyIndicator
+            replyCount={message.replyCount || 0}
+            lastRepliers={message.lastRepliers}
+            lastReplyAt={message.lastReplyAt}
+            unreadCount={unreadSubReplyCount}
+            onClick={onReplyCountClick}
           />
         )}
       </div>
