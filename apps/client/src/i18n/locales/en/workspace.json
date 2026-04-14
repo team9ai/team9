@@ -5,6 +5,8 @@
   "creating": "Creating...",
   "members": "Members",
   "workspaceSettings": "Workspace Settings",
+  "workspaceId": "Workspace ID",
+  "copyWorkspaceId": "Copy workspace ID",
   "name": "Name",
   "slug": "Slug",
   "logo": "Logo",

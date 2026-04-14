@@ -5,6 +5,8 @@
   "creating": "创建中...",
   "members": "成员",
   "workspaceSettings": "工作空间设置",
+  "workspaceId": "工作空间 ID",
+  "copyWorkspaceId": "复制工作空间 ID",
   "name": "名称",
   "slug": "Slug",
   "logo": "Logo",

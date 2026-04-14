@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ArrowLeft, Camera } from "lucide-react";
+import { AlertCircle, ArrowLeft, Camera, Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +59,18 @@ export function WorkspaceSettingsContent() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [idCopied, setIdCopied] = useState(false);
+
+  const handleCopyId = async () => {
+    if (!workspace?.id) return;
+    try {
+      await navigator.clipboard.writeText(workspace.id);
+      setIdCopied(true);
+      window.setTimeout(() => setIdCopied(false), 2000);
+    } catch {
+      setIdCopied(false);
+    }
+  };
 
   useEffect(() => {
     if (!workspace) return;
@@ -255,10 +267,24 @@ export function WorkspaceSettingsContent() {
       <ScrollArea className="flex-1 min-h-0 bg-secondary/30">
         <div className="p-6">
           <Card className="max-w-3xl">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
               <CardTitle>
                 {t("workspaceSettings", "Workspace Settings")}
               </CardTitle>
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+                <span>{t("workspaceId", "Workspace ID")}:</span>
+                <span id="workspace-id" className="font-mono select-all">
+                  {workspace.id}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyId}
+                  aria-label={t("copyWorkspaceId", "Copy workspace ID")}
+                  className="rounded p-0.5 hover:text-foreground"
+                >
+                  {idCopied ? <Check size={12} /> : <Copy size={12} />}
+                </button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {submitError && (
