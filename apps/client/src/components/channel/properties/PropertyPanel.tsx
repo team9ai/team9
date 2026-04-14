@@ -13,6 +13,7 @@ import { AiAutoFillButton } from "./AiAutoFillButton";
 import { TextEditor } from "./editors/TextEditor";
 import { NumberEditor } from "./editors/NumberEditor";
 import { BooleanEditor } from "./editors/BooleanEditor";
+import { getOptionColorSwatch } from "./option-colors";
 import type { PropertyDefinition, SelectOption } from "@/types/properties";
 
 // ==================== Constants ====================
@@ -51,15 +52,16 @@ function InlineValue({ definition, value, onClick }: InlineValueProps) {
       const options =
         (definition.config?.options as SelectOption[] | undefined) || [];
       const opt = options.find((o) => o.value === value);
+      const dotColor = getOptionColorSwatch(opt?.color);
       return (
         <button
           onClick={onClick}
           className="inline-flex items-center gap-1.5 text-sm hover:opacity-80 transition-opacity"
         >
-          {opt?.color && (
+          {dotColor && (
             <span
               className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: opt.color }}
+              style={{ backgroundColor: dotColor }}
             />
           )}
           <span>{opt?.label ?? String(value)}</span>
@@ -78,15 +80,16 @@ function InlineValue({ definition, value, onClick }: InlineValueProps) {
         >
           {values.map((v) => {
             const opt = options.find((o) => o.value === v);
+            const dotColor = getOptionColorSwatch(opt?.color);
             return (
               <span
                 key={v}
                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-xs"
               >
-                {opt?.color && (
+                {dotColor && (
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: opt.color }}
+                    style={{ backgroundColor: dotColor }}
                   />
                 )}
                 {opt?.label ?? v}

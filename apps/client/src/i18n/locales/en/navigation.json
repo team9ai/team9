@@ -106,6 +106,8 @@
   "dashboardTitle": "What can I help you with today?",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "Deep research",
+  "dashboardDeepResearchPlaceholder": "Describe the topic you want to research…",
+  "dashboardDeepResearchCreateFailed": "Failed to create deep research task",
   "dashboardActionGenerateImage": "Generate image",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "Press Enter to send. Use Shift+Enter for a new line.",

@@ -767,6 +767,7 @@ export class OnboardingService {
       .select({
         tenantId: schema.tenantMembers.tenantId,
         role: schema.tenantMembers.role,
+        joinedAt: schema.tenantMembers.joinedAt,
       })
       .from(schema.tenantMembers)
       .where(
@@ -776,12 +777,20 @@ export class OnboardingService {
         ),
       );
 
-    if (memberships.length !== 1) {
+    const targetMembership = memberships.find(
+      (membership) => membership.tenantId === workspaceId,
+    );
+    if (targetMembership?.role !== 'owner') {
       return false;
     }
 
-    const [membership] = memberships;
-    return membership?.tenantId === workspaceId && membership.role === 'owner';
+    const earliestOwnedMembership = memberships
+      .filter((membership) => membership.role === 'owner')
+      .sort(
+        (left, right) => left.joinedAt.getTime() - right.joinedAt.getTime(),
+      )[0];
+
+    return earliestOwnedMembership?.tenantId === workspaceId;
   }
 
   private async requireRecord(workspaceId: string, userId: string) {

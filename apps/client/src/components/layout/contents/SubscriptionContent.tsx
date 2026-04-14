@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
-  FREE_PLAN_FEATURES,
   PlanCard,
   buildPlanFeatures,
   formatCredits,
@@ -22,6 +22,7 @@ import {
   formatMoney,
   formatPlanCredits,
   formatPlanOptionLabel,
+  getFreePlanFeatures,
   getPlanCardTheme,
   getPlanDescription,
   groupPlanProducts,
@@ -233,6 +234,7 @@ export function SubscriptionContent({
   workspaceIdFromSearch,
   view,
 }: SubscriptionContentProps) {
+  const { t } = useTranslation("workspace");
   const navigate = useNavigate();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const workspaceId = workspaceIdFromSearch || selectedWorkspaceId || undefined;
@@ -772,27 +774,30 @@ export function SubscriptionContent({
           <div className="relative mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-5 sm:px-5 lg:px-6">
             {subscription?.cancelAtPeriodEnd ? (
               <div className="rounded-full border border-amber-200 bg-amber-50/90 px-5 py-3 text-sm text-amber-800">
-                The current subscription will end on{" "}
-                {formatDate(subscription.currentPeriodEnd)}.
+                {t("billing.page.subscriptionEnds", {
+                  date: formatDate(subscription.currentPeriodEnd),
+                })}
               </div>
             ) : null}
 
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl">
                 <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
-                  {currentWorkspace.name} workspace billing
+                  {t("billing.page.workspaceBilling", {
+                    workspace: currentWorkspace.name,
+                  })}
                 </div>
                 <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
-                  Choose your plan
+                  {t("billing.page.heading")}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-[#6a7d9e] sm:text-base">
-                  Select the plan that fits your workload.
+                  {t("billing.page.subheading")}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 xl:justify-end">
                 <div className="rounded-full border border-white/80 bg-white/80 px-5 py-3 text-sm font-medium text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur">
-                  1 USD = 1,000 credits across all plans.
+                  {t("billing.page.exchangeRate")}
                 </div>
                 <Button
                   variant="outline"
@@ -800,20 +805,24 @@ export function SubscriptionContent({
                   onClick={() => void handleManageBilling("plans")}
                   disabled={portal.isPending}
                 >
-                  Manage billing
+                  {t("billing.page.actions.manageBilling")}
                 </Button>
               </div>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-3">
               <PlanCard
-                badge="Free"
-                title="Free"
+                badge={t("billing.plans.free.title")}
+                title={t("billing.plans.free.title")}
                 priceAmount="$0"
-                priceCycle="month"
+                priceCycle={formatInterval("month", 1)}
                 description={getPlanDescription("free")}
-                features={FREE_PLAN_FEATURES}
-                actionLabel={subscription ? "Choose Free" : "Current plan"}
+                features={getFreePlanFeatures()}
+                actionLabel={
+                  subscription
+                    ? t("billing.page.actions.chooseFree")
+                    : t("billing.page.actions.currentPlan")
+                }
                 actionDisabled={!subscription}
                 onAction={
                   subscription
@@ -855,7 +864,11 @@ export function SubscriptionContent({
                     description={getPlanDescription(group.title)}
                     features={buildPlanFeatures(selectedProduct)}
                     actionLabel={
-                      isCurrentPlan ? "Current plan" : `Choose ${group.title}`
+                      isCurrentPlan
+                        ? t("billing.page.actions.currentPlan")
+                        : t("billing.page.actions.choosePlan", {
+                            plan: group.title,
+                          })
                     }
                     actionDisabled={isCurrentPlan}
                     onAction={
@@ -888,8 +901,8 @@ export function SubscriptionContent({
 
             {planGroups.length === 0 ? (
               <SectionMessage
-                title="No paid plans configured"
-                description="Billing Hub does not currently expose any paid subscription products."
+                title={t("billing.page.emptyPaidPlans.title")}
+                description={t("billing.page.emptyPaidPlans.description")}
               />
             ) : null}
 
@@ -947,16 +960,19 @@ export function SubscriptionContent({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Subscription Required</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("billing.page.subscriptionRequired.title")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              You need an active subscription before purchasing credits. Please
-              subscribe to a plan first.
+              {t("billing.page.subscriptionRequired.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t("billing.page.subscriptionRequired.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction onClick={() => navigateToView("plans")}>
-              View Plans
+              {t("billing.page.subscriptionRequired.viewPlans")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

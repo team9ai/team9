@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { PropertyDefinition, SelectOption } from "@/types/properties";
 import { useUpdatePropertyDefinition } from "@/hooks/usePropertyDefinitions";
+import { getOptionChipProps, getOptionColorSwatch } from "../option-colors";
 
 interface SelectEditorProps {
   definition: PropertyDefinition;
@@ -23,25 +24,6 @@ interface SelectEditorProps {
   inline?: boolean;
 }
 
-const OPTION_COLORS: Record<string, string> = {
-  red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  green: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  yellow:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-  purple:
-    "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  pink: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
-  orange:
-    "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-  gray: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
-};
-
-function getOptionColorClass(color?: string): string {
-  if (!color) return "bg-secondary text-secondary-foreground";
-  return OPTION_COLORS[color] || "bg-secondary text-secondary-foreground";
-}
-
 function OptionChip({
   option,
   onRemove,
@@ -51,17 +33,20 @@ function OptionChip({
   onRemove?: () => void;
   disabled?: boolean;
 }) {
+  const dotColor = getOptionColorSwatch(option.color);
+  const chip = getOptionChipProps(option.color);
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
-        getOptionColorClass(option.color),
+        chip.className,
       )}
+      style={chip.style}
     >
-      {option.color && (
+      {dotColor && (
         <span
           className="h-2 w-2 rounded-full"
-          style={{ backgroundColor: option.color }}
+          style={{ backgroundColor: dotColor }}
         />
       )}
       {option.label}

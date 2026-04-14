@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -25,6 +25,22 @@ vi.mock("@/hooks/useMessageProperties", () => ({
 
 vi.mock("../AiAutoFillButton", () => ({
   AiAutoFillButton: () => <button data-testid="ai-auto-fill">AI</button>,
+}));
+
+const mockAiAutoFill = vi.fn();
+vi.mock("@/services/api/properties", () => ({
+  aiAutoFillApi: {
+    autoFill: (...args: unknown[]) => mockAiAutoFill(...args),
+  },
+}));
+
+const mockOpenChannelSettings = vi.fn();
+vi.mock("@/stores", () => ({
+  useChannelSettingsStore: (
+    selector: (state: {
+      openChannelSettings: typeof mockOpenChannelSettings;
+    }) => unknown,
+  ) => selector({ openChannelSettings: mockOpenChannelSettings }),
 }));
 
 // ==================== Helpers ====================
@@ -289,5 +305,145 @@ describe("PropertySelector", () => {
     fireEvent.change(searchInput, { target: { value: "zzzzzzz" } });
 
     expect(screen.getByText("No properties found")).toBeInTheDocument();
+  });
+
+  it("hides AI auto-fill row when no definition has aiAutoFill enabled", () => {
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-1",
+        key: "status",
+        valueType: "text",
+        aiAutoFill: false,
+      }),
+    );
+
+    render(
+      <PropertySelector
+        channelId="ch-1"
+        messageId="msg-1"
+        currentProperties={{}}
+        onSetProperty={vi.fn()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.queryByText("AI auto-fill")).not.toBeInTheDocument();
+  });
+
+  it("shows AI auto-fill row when at least one definition has aiAutoFill enabled", () => {
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-1",
+        key: "status",
+        valueType: "text",
+        aiAutoFill: true,
+      }),
+    );
+
+    render(
+      <PropertySelector
+        channelId="ch-1"
+        messageId="msg-1"
+        currentProperties={{}}
+        onSetProperty={vi.fn()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    expect(screen.getByText("AI auto-fill")).toBeInTheDocument();
+  });
+
+  it("clicking AI auto-fill row calls aiAutoFillApi.autoFill and closes popover", async () => {
+    mockAiAutoFill.mockResolvedValueOnce({ status: "accepted" });
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-1",
+        key: "status",
+        valueType: "text",
+        aiAutoFill: true,
+      }),
+    );
+    const onOpenChange = vi.fn();
+
+    render(
+      <PropertySelector
+        channelId="ch-1"
+        messageId="msg-42"
+        currentProperties={{}}
+        onSetProperty={vi.fn()}
+        open={true}
+        onOpenChange={onOpenChange}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    fireEvent.click(screen.getByText("AI auto-fill"));
+
+    await waitFor(() => {
+      expect(mockAiAutoFill).toHaveBeenCalledWith("msg-42", {
+        preserveExisting: true,
+      });
+    });
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it("clicking settings icon opens channel settings on properties tab and closes popover", () => {
+    mockDefinitions.push(
+      makeDefinition({ id: "def-1", key: "status", valueType: "text" }),
+    );
+    const onOpenChange = vi.fn();
+
+    render(
+      <PropertySelector
+        channelId="ch-9"
+        messageId="msg-1"
+        currentProperties={{}}
+        onSetProperty={vi.fn()}
+        open={true}
+        onOpenChange={onOpenChange}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    fireEvent.click(screen.getByTitle("Manage properties"));
+
+    expect(mockOpenChannelSettings).toHaveBeenCalledWith("ch-9", "properties");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("shows error text when AI auto-fill request fails", async () => {
+    mockAiAutoFill.mockRejectedValueOnce(new Error("boom"));
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-1",
+        key: "status",
+        valueType: "text",
+        aiAutoFill: true,
+      }),
+    );
+
+    render(
+      <PropertySelector
+        channelId="ch-1"
+        messageId="msg-1"
+        currentProperties={{}}
+        onSetProperty={vi.fn()}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    fireEvent.click(screen.getByText("AI auto-fill"));
+
+    await waitFor(() => {
+      expect(screen.getByText("AI failed")).toBeInTheDocument();
+    });
   });
 });

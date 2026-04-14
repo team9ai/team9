@@ -379,6 +379,41 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('does not push deep-research messages to bot webhooks', async () => {
+    const botMember = {
+      userId: 'bot-user-uuid',
+      webhookUrl: 'https://example.test/webhook',
+      webhookHeaders: {},
+      botId: 'bot-id-123',
+    };
+    const getMessageWithContext = jest
+      .spyOn(service as any, 'getMessageWithContext')
+      .mockResolvedValue({
+        message: makeMessage({
+          content: 'research this market',
+          metadata: {
+            deepResearch: {
+              taskId: 'task-1',
+              version: 1,
+            },
+          },
+        }),
+        sender: makeSender(),
+        channel: makeChannel('direct'),
+        mentions: [],
+        parentMessage: null,
+      });
+    db.where.mockResolvedValueOnce([botMember]);
+    const fetchMock = jest.spyOn(globalThis, 'fetch');
+
+    await (service as any).pushToBotWebhooks(MSG_ID, SENDER_ID, [
+      botMember.userId,
+    ]);
+
+    expect(getMessageWithContext).toHaveBeenCalledWith(MSG_ID);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('warns when a bot webhook responds with a non-ok status', async () => {
     const logger = {
       debug: jest.fn(),
@@ -500,6 +535,28 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     setupDbForHivePush({
       bots: [bot],
       sender: makeBotSender(),
+      channel: makeChannel('direct'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not trigger hive bots for deep-research messages', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      message: makeMessage({
+        content: 'research this market',
+        metadata: {
+          deepResearch: {
+            taskId: 'task-1',
+            version: 1,
+          },
+        },
+      }),
       channel: makeChannel('direct'),
     });
 

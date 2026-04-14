@@ -29,7 +29,10 @@ import {
 import * as schema from '@team9/database/schemas';
 
 const PERSONAL_STAFF_APP_ID = 'personal-staff';
-const DEFAULT_MODEL = { provider: 'anthropic', id: 'claude-sonnet-4-6' };
+const DEFAULT_MODEL = {
+  provider: 'openrouter',
+  id: 'anthropic/claude-sonnet-4.6',
+};
 
 async function backfillManagedApps() {
   const logger = new Logger('BackfillManagedApps');

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, AlertCircle, RotateCcw, X } from "lucide-react";
+import { Loader2, AlertCircle, Plus, RotateCcw, Tags, X } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
@@ -10,22 +10,29 @@ import { MessageReactions } from "./MessageReactions";
 import { MessageTitle } from "./MessageTitle";
 import { MessageProperties } from "./properties/MessageProperties";
 import { PropertySelector } from "./properties/PropertySelector";
-import { useSetProperty } from "@/hooks/useMessageProperties";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
+import { DeepResearchMessageCard } from "./DeepResearchMessageCard";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import {
   formatMessageTime,
   formatEditedTime,
   parseApiDate,
 } from "@/lib/date-utils";
+import { formatAbsoluteTooltip } from "@/lib/date-format";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { RichTextEditor } from "./editor";
 import { useFullContent } from "@/hooks/useMessages";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
 import { usePropertyDefinitions } from "@/hooks/usePropertyDefinitions";
+import { useSetProperty } from "@/hooks/useMessageProperties";
 import type { Message } from "@/types/im";
 
 export interface MessageItemProps {
@@ -114,7 +121,6 @@ export function MessageItem({
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
   const [isHovered, setIsHovered] = useState(false);
-  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
@@ -122,7 +128,36 @@ export function MessageItem({
   const { data: propertyDefinitions } = usePropertyDefinitions(
     message.channelId,
   );
-  const setPropertyMutation = useSetProperty(message.id, message.channelId);
+
+  // setProperty handler used by the hover toolbar "Tags" button and the
+  // inline "+" rendered next to reactions (empty-property messages).
+  // The MessageProperties row manages its own mutation instance for the
+  // "..." edit affordance rendered alongside property chips.
+  const setPropertyForSlot = useSetProperty(message.id, message.channelId);
+  const handleSetPropertyForSlot = useCallback(
+    (key: string, value: unknown) => {
+      const def = propertyDefinitions?.find((d) => d.key === key);
+      if (!def) return;
+      setPropertyForSlot.mutate({
+        definitionId: def.id,
+        propertyKey: def.key,
+        value,
+      });
+    },
+    [propertyDefinitions, setPropertyForSlot],
+  );
+
+  const hasAnyPropertyValue = useMemo(() => {
+    const props = message.properties;
+    if (!props || !propertyDefinitions) return false;
+    return propertyDefinitions.some((def) => {
+      const v = props[def.key];
+      if (v === null || v === undefined) return false;
+      if (typeof v === "string" && v.trim() === "") return false;
+      if (Array.isArray(v) && v.length === 0) return false;
+      return true;
+    });
+  }, [message.properties, propertyDefinitions]);
 
   // Fetch full content for long_text messages when entering edit mode
   const isLongText = message.type === "long_text" || message.isTruncated;
@@ -217,6 +252,13 @@ export function MessageItem({
 
   const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
   const hasReactions = message.reactions && message.reactions.length > 0;
+  const propertiesAvailable =
+    supportsProperties && (propertyDefinitions?.length ?? 0) > 0;
+  // "+" next to reactions appears only when the message has reactions but
+  // no property values yet — it's the empty-state add affordance that lives
+  // beside the reaction chips instead of cluttering an otherwise empty row.
+  const showReactionInlineAdd =
+    !!hasReactions && propertiesAvailable && !hasAnyPropertyValue;
 
   // Toggle reaction: remove if already reacted, add if not
   const handleReactionToggle = (emoji: string) => {
@@ -229,6 +271,42 @@ export function MessageItem({
       onAddReaction?.(emoji);
     }
   };
+
+  const propertiesHoverSlot = propertiesAvailable ? (
+    <PropertySelector
+      channelId={message.channelId}
+      messageId={message.id}
+      currentProperties={message.properties ?? {}}
+      onSetProperty={handleSetPropertyForSlot}
+      trigger={
+        <button
+          type="button"
+          title="Properties"
+          className="flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        >
+          <Tags size={16} />
+        </button>
+      }
+    />
+  ) : null;
+
+  const reactionInlineAddSlot = showReactionInlineAdd ? (
+    <PropertySelector
+      channelId={message.channelId}
+      messageId={message.id}
+      currentProperties={message.properties ?? {}}
+      onSetProperty={handleSetPropertyForSlot}
+      trigger={
+        <button
+          type="button"
+          title="Add properties"
+          className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          <Plus size={12} />
+        </button>
+      }
+    />
+  ) : null;
 
   const content = (
     <div
@@ -249,9 +327,7 @@ export function MessageItem({
         <MessageHoverToolbar
           onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
-          onProperties={
-            supportsProperties ? () => setPropertySelectorOpen(true) : undefined
-          }
+          propertiesSlot={propertiesHoverSlot}
         />
       )}
       <UserAvatar
@@ -270,15 +346,35 @@ export function MessageItem({
             <span className="font-semibold text-sm">{senderName}</span>
             <AgentTypeBadge agentType={message.sender?.agentType} />
           </div>
-          <span className="text-xs text-muted-foreground">
-            {formatMessageTime(new Date(message.createdAt))}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs text-muted-foreground cursor-default">
+                {formatMessageTime(parseApiDate(message.createdAt))}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="bg-foreground text-background border-foreground text-xs font-medium"
+            >
+              {formatAbsoluteTooltip(parseApiDate(message.createdAt))}
+            </TooltipContent>
+          </Tooltip>
           {message.isEdited && (
-            <span className="text-xs text-muted-foreground">
-              {t("message:editedAt", {
-                time: formatEditedTime(parseApiDate(message.updatedAt)),
-              })}
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-xs text-muted-foreground cursor-default">
+                  {t("message:editedAt", {
+                    time: formatEditedTime(parseApiDate(message.updatedAt)),
+                  })}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="bg-foreground text-background border-foreground text-xs font-medium"
+              >
+                {formatAbsoluteTooltip(parseApiDate(message.updatedAt))}
+              </TooltipContent>
+            </Tooltip>
           )}
           {isSending && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -360,6 +456,7 @@ export function MessageItem({
                 />
               </div>
             )}
+            {!isEditing && <DeepResearchMessageCard message={message} />}
           </>
         )}
         {hasAttachments && (
@@ -394,28 +491,16 @@ export function MessageItem({
               channelId={message.channelId}
               definitions={propertyDefinitions}
               canEdit={true}
-              onEditProperties={() => setPropertySelectorOpen(true)}
             />
           )}
-        {supportsProperties && propertySelectorOpen && (
-          <PropertySelector
+        {hasReactions && onAddReaction && onRemoveReaction && (
+          <MessageReactions
+            reactions={message.reactions!}
+            currentUserId={currentUserId}
             channelId={message.channelId}
-            messageId={message.id}
-            currentProperties={message.properties ?? {}}
-            onSetProperty={(propertyKey, value) => {
-              const def = propertyDefinitions?.find(
-                (d) => d.key === propertyKey,
-              );
-              if (def) {
-                setPropertyMutation.mutate({
-                  definitionId: def.id,
-                  propertyKey: def.key,
-                  value,
-                });
-              }
-            }}
-            open={propertySelectorOpen}
-            onOpenChange={setPropertySelectorOpen}
+            onAddReaction={onAddReaction}
+            onRemoveReaction={onRemoveReaction}
+            trailingSlot={reactionInlineAddSlot}
           />
         )}
         {showReplyCount && (message.replyCount || 0) > 0 && (
@@ -425,15 +510,6 @@ export function MessageItem({
             lastReplyAt={message.lastReplyAt}
             unreadCount={unreadSubReplyCount}
             onClick={onReplyCountClick}
-          />
-        )}
-        {hasReactions && onAddReaction && onRemoveReaction && (
-          <MessageReactions
-            reactions={message.reactions!}
-            currentUserId={currentUserId}
-            channelId={message.channelId}
-            onAddReaction={onAddReaction}
-            onRemoveReaction={onRemoveReaction}
           />
         )}
       </div>

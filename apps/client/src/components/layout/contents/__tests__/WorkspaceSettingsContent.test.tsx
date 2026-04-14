@@ -107,6 +107,25 @@ describe("WorkspaceSettingsContent", () => {
     ).toBeDisabled();
   });
 
+  it("renders the workspace ID as a read-only field and copies it", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<WorkspaceSettingsContent />);
+
+    await screen.findByDisplayValue("Weight Wave");
+    const idText = screen.getByText("ws-1");
+    expect(idText.tagName).toBe("SPAN");
+    expect(screen.queryByDisplayValue("ws-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy workspace id/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("ws-1"));
+  });
+
   it("shows validation and blocks invalid slug submission", async () => {
     render(<WorkspaceSettingsContent />);
 

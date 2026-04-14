@@ -77,6 +77,10 @@ interface RichTextEditorProps {
   isBotDm?: boolean;
   /** Bot model switching info */
   botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
+  /** Whether deep research mode is active */
+  isDeepResearch?: boolean;
+  /** Toggle deep research mode */
+  onToggleDeepResearch?: () => void;
 }
 
 function Placeholder({ text, compact }: { text: string; compact?: boolean }) {
@@ -373,6 +377,8 @@ export function RichTextEditor({
   onInitialDraftAutoSent,
   isBotDm = false,
   botModelSwitch,
+  isDeepResearch = false,
+  onToggleDeepResearch,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
   const hasAttachments = uploadingFiles.some((f) => f.status === "completed");
@@ -470,58 +476,68 @@ export function RichTextEditor({
           )}
         >
           {!compact ? (
-            <EditorToolbar onFileSelect={onFileSelect} isBotDm={isBotDm} />
+            <EditorToolbar
+              channelId={channelId}
+              onFileSelect={onFileSelect}
+              isBotDm={isBotDm}
+              isDeepResearch={isDeepResearch}
+              onToggleDeepResearch={onToggleDeepResearch}
+            />
           ) : (
             <div />
           )}
           <div className="flex items-center gap-1.5">
-            {isBotDm && botModelSwitch && botModelSwitch.canSwitchModel && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    disabled={botModelSwitch.isUpdating}
-                    className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+            {!isDeepResearch &&
+              isBotDm &&
+              botModelSwitch &&
+              botModelSwitch.canSwitchModel && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={botModelSwitch.isUpdating}
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {botModelSwitch.isUpdating ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} />
+                      )}
+                      <span>{botModelSwitch.currentModelLabel}</span>
+                      <ChevronDown size={11} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-60 rounded-xl p-1.5"
                   >
-                    {botModelSwitch.isUpdating ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={14} />
-                    )}
-                    <span>{botModelSwitch.currentModelLabel}</span>
-                    <ChevronDown size={11} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-60 rounded-xl p-1.5"
-                >
-                  <DropdownMenuRadioGroup
-                    value={
-                      botModelSwitch.currentModel
-                        ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
-                        : undefined
-                    }
-                    onValueChange={(value) => {
-                      const [provider, id] = value.split("::");
-                      if (!provider || !id) return;
-                      void botModelSwitch.updateModel({ provider, id });
-                    }}
-                  >
-                    {COMMON_STAFF_MODELS.map((model) => (
-                      <DropdownMenuRadioItem
-                        key={`${model.provider}::${model.id}`}
-                        value={`${model.provider}::${model.id}`}
-                        className="cursor-pointer rounded-lg py-2.5"
-                      >
-                        {model.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {isBotDm &&
+                    <DropdownMenuRadioGroup
+                      value={
+                        botModelSwitch.currentModel
+                          ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
+                          : undefined
+                      }
+                      onValueChange={(value) => {
+                        const [provider, id] = value.split("::");
+                        if (!provider || !id) return;
+                        void botModelSwitch.updateModel({ provider, id });
+                      }}
+                    >
+                      {COMMON_STAFF_MODELS.map((model) => (
+                        <DropdownMenuRadioItem
+                          key={`${model.provider}::${model.id}`}
+                          value={`${model.provider}::${model.id}`}
+                          className="cursor-pointer rounded-lg py-2.5"
+                        >
+                          {model.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            {!isDeepResearch &&
+              isBotDm &&
               botModelSwitch &&
               !botModelSwitch.canSwitchModel &&
               botModelSwitch.currentModelLabel && (
