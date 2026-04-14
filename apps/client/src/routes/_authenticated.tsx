@@ -9,6 +9,7 @@ import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { UpdateDialog } from "@/components/layout/UpdateDialog";
+import { ChannelSettingsMount } from "@/components/channel/ChannelSettingsMount";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
@@ -304,6 +305,7 @@ function AuthenticatedLayout() {
       <GlobalTopBar />
       <ConnectionStatus />
       <UpdateDialog />
+      <ChannelSettingsMount />
 
       {/* Main content area with sidebars */}
       <div className="flex flex-1 overflow-hidden">

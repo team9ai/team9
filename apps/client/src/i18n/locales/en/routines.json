@@ -294,6 +294,8 @@
     "pickerDescription": "The selected agent will walk you through building this routine.",
     "agentLabel": "Pick an agent to guide creation",
     "noAgentsAvailable": "No active agents available.",
+    "noAgentsHint": "Add an agent to guide creation, or create a routine manually.",
+    "goToAgents": "Add an agent",
     "confirm": "Start Creation",
     "cancel": "Cancel",
     "navigatingToast": "Creating routine..."

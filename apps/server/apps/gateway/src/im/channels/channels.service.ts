@@ -97,6 +97,21 @@ type ChannelUserSummaryRow = {
   managedMeta: schema.ManagedMeta | null;
 };
 
+/**
+ * True iff `err` is a Postgres unique-constraint violation. postgres-js
+ * exposes the SQLSTATE code on the thrown error object as `code`. 23505
+ * is the canonical "unique_violation" class — see
+ * https://www.postgresql.org/docs/current/errcodes-appendix.html.
+ */
+function isPgUniqueViolation(err: unknown): boolean {
+  return (
+    err !== null &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code: unknown }).code === '23505'
+  );
+}
+
 @Injectable()
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
@@ -322,15 +337,19 @@ export class ChannelsService {
    *      the transaction has committed, so readers never observe
    *      in-flight state via the cache.
    *
-   * Known caveat — TOCTOU race: two concurrent requests from the same
-   * user may both miss the existence check, both enter the transaction,
-   * and both INSERT a channel row. Nothing in this method serializes
-   * that race. The intended long-term mitigation is a partial unique
-   * index `(created_by, tenant_id) WHERE type='echo'` added via
-   * migration, which would cause the losing INSERT to fail with a
-   * unique-violation and roll back its transaction. Until that lands,
-   * the worst case is a rare duplicate echo row, which the self-healing
-   * branch above will quietly tolerate on subsequent calls.
+   *   4. TOCTOU race recovery — migration 0040 adds a partial unique
+   *      index `(created_by, tenant_id) WHERE type='echo' AND
+   *      is_archived = false`, so two concurrent requests can no
+   *      longer both INSERT a duplicate channel: the loser hits a
+   *      Postgres unique violation (SQLSTATE 23505) and its
+   *      transaction rolls back. We catch that specific error, re-read
+   *      the winning row, repair its membership if needed, and return
+   *      it — so the user still sees a single successful response. The
+   *      index excludes archived rows so a user can re-create their
+   *      echo channel after archiving the old one (should the
+   *      application policy ever change to permit echo archive); the
+   *      lookup helper below applies the same `is_archived = false`
+   *      filter to keep that property end-to-end.
    */
   private async getOrCreateEchoChannel(
     userId: string,
@@ -342,19 +361,7 @@ export class ChannelsService {
     //    edition without a JWT tenant claim) we match rows with a NULL
     //    tenant_id. Mixing tenanted and non-tenanted callers for the
     //    same user is not supported by this method.
-    const [existing] = await this.db
-      .select()
-      .from(schema.channels)
-      .where(
-        and(
-          eq(schema.channels.type, 'echo'),
-          eq(schema.channels.createdBy, userId),
-          tenantId
-            ? eq(schema.channels.tenantId, tenantId)
-            : isNull(schema.channels.tenantId),
-        ),
-      )
-      .limit(1);
+    const existing = await this.findEchoChannelByOwner(userId, tenantId);
 
     if (existing) {
       await this.ensureEchoOwnerMembership(existing.id, userId);
@@ -364,26 +371,47 @@ export class ChannelsService {
     // 2. No existing channel — create both rows atomically. If either
     //    INSERT fails, Drizzle rolls back the transaction and no orphan
     //    rows are left behind.
-    const channel = await this.db.transaction(async (tx) => {
-      const [inserted] = await tx
-        .insert(schema.channels)
-        .values({
+    let channel: ChannelResponse;
+    try {
+      channel = await this.db.transaction(async (tx) => {
+        const [inserted] = await tx
+          .insert(schema.channels)
+          .values({
+            id: uuidv7(),
+            tenantId,
+            type: 'echo',
+            createdBy: userId,
+          })
+          .returning();
+
+        await tx.insert(schema.channelMembers).values({
           id: uuidv7(),
-          tenantId,
-          type: 'echo',
-          createdBy: userId,
-        })
-        .returning();
+          channelId: inserted.id,
+          userId,
+          role: 'owner',
+        });
 
-      await tx.insert(schema.channelMembers).values({
-        id: uuidv7(),
-        channelId: inserted.id,
-        userId,
-        role: 'owner',
+        return inserted;
       });
-
-      return inserted;
-    });
+    } catch (err) {
+      // 3. TOCTOU race — a concurrent request won the unique index race
+      //    between our existence check and our INSERT. Re-read the
+      //    winner's row and reuse it instead of bubbling the raw 23505.
+      //    Logged at warn level (not error) so operators can confirm in
+      //    Sentry/CloudWatch that the index is actually catching real
+      //    races rather than them being purely theoretical.
+      if (isPgUniqueViolation(err)) {
+        this.logger.warn(
+          `Echo channel TOCTOU race recovered for userId=${userId} tenantId=${tenantId ?? 'null'}`,
+        );
+        const winner = await this.findEchoChannelByOwner(userId, tenantId);
+        if (winner) {
+          await this.ensureEchoOwnerMembership(winner.id, userId);
+          return winner;
+        }
+      }
+      throw err;
+    }
 
     // Post-commit cache invalidation — safe to run outside the transaction,
     // and must NOT run before commit (or readers could observe in-flight
@@ -394,6 +422,36 @@ export class ChannelsService {
     );
 
     return channel;
+  }
+
+  /**
+   * Look up the single active (non-archived) echo channel for
+   * (userId, tenantId) without joining against im_channel_members, so
+   * orphaned rows from before migration 0040's cleanup remain
+   * discoverable. The `is_archived = false` filter mirrors the partial
+   * unique index added in migration 0040 so this lookup can never
+   * resurrect an archived channel and silently override the user's
+   * intent to start fresh.
+   */
+  private async findEchoChannelByOwner(
+    userId: string,
+    tenantId: string | undefined,
+  ): Promise<ChannelResponse | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.type, 'echo'),
+          eq(schema.channels.createdBy, userId),
+          eq(schema.channels.isArchived, false),
+          tenantId
+            ? eq(schema.channels.tenantId, tenantId)
+            : isNull(schema.channels.tenantId),
+        ),
+      )
+      .limit(1);
+    return row;
   }
 
   /**
@@ -1324,7 +1382,7 @@ export class ChannelsService {
       totalMessageCount: countResult[0]?.count ?? 0,
       latestMessages: latestMessages.reverse().map((m) => ({
         ...m,
-        metadata: m.metadata as Record<string, unknown> | null,
+        metadata: m.metadata,
       })),
     };
 

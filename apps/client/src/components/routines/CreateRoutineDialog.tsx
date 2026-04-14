@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -102,15 +102,20 @@ export function CreateRoutineDialog({
   const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1);
   const [channelId, setChannelId] = useState("");
 
-  // Fetch bots for assignment (all app types: openclaw + base-model-staff)
-  const { data: allBots = [] } = useQuery({
+  const { data: installedApps = [] } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
-    queryFn: async () => {
-      const apps = await api.applications.getInstalledApplicationsWithBots();
-      return apps.filter((a) => a.status === "active").flatMap((a) => a.bots);
-    },
+    queryFn: () => api.applications.getInstalledApplicationsWithBots(),
     enabled: isOpen && !!workspaceId,
   });
+
+  const allBots = useMemo(
+    () =>
+      installedApps
+        .filter((a) => a.status === "active")
+        .flatMap((a) => a.bots)
+        .filter((b) => b.botId),
+    [installedApps],
+  );
 
   // Fetch channels for channel_message trigger type
   const { data: channels = [] } = useQuery({

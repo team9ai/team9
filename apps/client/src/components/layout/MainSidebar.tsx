@@ -576,42 +576,46 @@ export function MainSidebar() {
 
                 {/* Language Switcher */}
                 <div className="py-1">
-                  <button
-                    onClick={() => setLanguageMenuOpen((v) => !v)}
-                    className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
+                  <Popover
+                    open={languageMenuOpen}
+                    onOpenChange={setLanguageMenuOpen}
                   >
-                    <div className="flex items-center gap-3">
-                      {isLanguageLoading ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Globe size={16} />
-                      )}
-                      <span>{tSettings("language")}</span>
-                      <span className="text-muted-foreground">
-                        {
-                          supportedLanguages.find(
-                            (l) => l.code === i18n.language,
-                          )?.nativeName
-                        }
-                      </span>
-                    </div>
-                    <ChevronRight
-                      size={14}
-                      className={cn(
-                        "text-muted-foreground transition-transform",
-                        languageMenuOpen && "rotate-90",
-                      )}
-                    />
-                  </button>
-                  {languageMenuOpen && (
-                    <div className="py-1">
+                    <PopoverTrigger asChild>
+                      <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                        <div className="flex items-center gap-3">
+                          {isLanguageLoading ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Globe size={16} />
+                          )}
+                          <span>{tSettings("language")}</span>
+                          <span className="text-muted-foreground">
+                            {
+                              supportedLanguages.find(
+                                (l) => l.code === i18n.language,
+                              )?.nativeName
+                            }
+                          </span>
+                        </div>
+                        <ChevronRight
+                          size={14}
+                          className="text-muted-foreground"
+                        />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      sideOffset={8}
+                      className="w-56 p-1"
+                    >
                       {supportedLanguages.map((lang) => (
                         <button
                           key={lang.code}
                           onClick={() => changeLanguage(lang.code)}
                           disabled={isLanguageLoading}
                           className={cn(
-                            "w-full flex items-center justify-between px-4 py-2 pl-10 text-sm hover:bg-accent disabled:opacity-50 disabled:pointer-events-none",
+                            "w-full flex items-center justify-between px-3 py-2 text-sm rounded-sm hover:bg-accent disabled:opacity-50 disabled:pointer-events-none",
                             i18n.language === lang.code && "bg-accent",
                           )}
                         >
@@ -621,8 +625,8 @@ export function MainSidebar() {
                           )}
                         </button>
                       ))}
-                    </div>
-                  )}
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <Separator />

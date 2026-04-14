@@ -64,13 +64,23 @@ function CellEditor({
     [setProperty, definition.id, definition.key, onClose],
   );
 
+  // Render inline so editors that normally wrap themselves in a button +
+  // Popover (SelectEditor, PersonPicker) don't produce a nested popover
+  // inside this cell's outer popover.
+  const needsOwnPadding =
+    definition.valueType !== "single_select" &&
+    definition.valueType !== "multi_select" &&
+    definition.valueType !== "tags" &&
+    definition.valueType !== "person";
+
   return (
-    <div className="p-2 min-w-48">
+    <div className={cn("min-w-48", needsOwnPadding && "p-2")}>
       <PropertyEditor
         definition={definition}
         value={value}
         onChange={handleChange}
         disabled={setProperty.isPending}
+        inline
       />
     </div>
   );
@@ -144,7 +154,11 @@ function TableRow({
                   disabled={!canEdit}
                 >
                   {value !== undefined && value !== null ? (
-                    <PropertyValue definition={def} value={value} />
+                    <PropertyValue
+                      definition={def}
+                      value={value}
+                      channelId={channelId}
+                    />
                   ) : def.key === "title" ? (
                     <span className="inline-flex items-center gap-1 text-muted-foreground/50">
                       -

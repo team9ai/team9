@@ -73,12 +73,12 @@ export function MoreMainContent() {
     return {
       ...group,
       items: [
-        ...group.items,
         {
           id: "workspace-settings",
           labelKey: "workspaceSettings" as string,
           icon: Building2,
         },
+        ...group.items,
       ],
     };
   });

@@ -56,6 +56,14 @@ const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
   className: string;
 }> = [];
 
+function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
+  return (
+    agents.find((agent) => agent.applicationId === "personal-staff") ??
+    agents[0] ??
+    null
+  );
+}
+
 const FIXED_BASE_MODEL_LABELS = {
   claude: "Claude Sonnet 4.6",
   chatgpt: "GPT-5.4 Mini",
@@ -320,7 +328,8 @@ function DashboardActionChip({
   );
 }
 
-function DashboardTaskPill() {
+// Temporarily hidden from landing — keep for reintroduction
+export function DashboardTaskPill() {
   const { t } = useTranslation("navigation");
 
   return (
@@ -372,8 +381,7 @@ export function HomeMainContent() {
   const [isCreatingResearch, setIsCreatingResearch] = useState(false);
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
-    agents[0] ??
-    null;
+    pickDefaultAgent(agents);
   const canSubmit =
     prompt.trim().length > 0 &&
     !createDirectChannel.isPending &&
@@ -396,7 +404,7 @@ export function HomeMainContent() {
         return current;
       }
 
-      return agents[0]?.userId ?? null;
+      return pickDefaultAgent(agents)?.userId ?? null;
     });
   }, [agents]);
 
@@ -582,7 +590,7 @@ export function HomeMainContent() {
               </div>
             </div>
 
-            <DashboardTaskPill />
+            {/* <DashboardTaskPill /> */}
           </div>
         </div>
       </div>

@@ -93,7 +93,7 @@ export function PersonPicker({
             </span>
             <UserAvatar
               userId={member.userId}
-              name={user?.name}
+              name={user?.displayName}
               username={user?.username}
               avatarUrl={user?.avatarUrl}
               className="h-6 w-6"

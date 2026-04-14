@@ -146,7 +146,7 @@ export function ChannelDetailsModal({
           <Tabs
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-            className="flex-1"
+            className="flex-1 flex flex-col min-h-0"
           >
             <div className="px-6">
               <TabsList className="w-full justify-start">
@@ -154,12 +154,14 @@ export function ChannelDetailsModal({
                 <TabsTrigger value="members">
                   {t("members", { count: members.length })}
                 </TabsTrigger>
-                <TabsTrigger value="properties">Properties</TabsTrigger>
+                <TabsTrigger value="properties">
+                  {t("properties.tab")}
+                </TabsTrigger>
                 <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               {/* About Tab */}
               <TabsContent value="about" className="px-6 pb-6 mt-0">
                 <div className="space-y-6 pt-4">

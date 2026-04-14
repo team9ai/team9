@@ -93,6 +93,27 @@ describe("MoreMainContent", () => {
     });
   });
 
+  it("renders workspace settings as the first item in the workspace group", () => {
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: true,
+      isAdmin: false,
+      isOwnerOrAdmin: true,
+    });
+
+    render(<MoreMainContent />);
+
+    const workspaceItems = screen
+      .getAllByText(/^(workspaceSettings|invitations|members)$/)
+      .map((node) => node.textContent);
+
+    expect(workspaceItems[0]).toBe("workspaceSettings");
+    expect(workspaceItems).toEqual([
+      "workspaceSettings",
+      "invitations",
+      "members",
+    ]);
+  });
+
   it("hides unfinished settings entries and shows Team9 branding", () => {
     mockUseCurrentWorkspaceRole.mockReturnValue({
       isOwner: false,

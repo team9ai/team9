@@ -678,7 +678,7 @@ export class PostBroadcastService {
           .limit(10);
 
         for (const msg of trackingMsgs) {
-          const meta = msg.metadata as Record<string, unknown> | null;
+          const meta = msg.metadata;
           if (msg.senderId && meta?.trackingChannelId) {
             threadTrackingMap.set(
               msg.senderId,

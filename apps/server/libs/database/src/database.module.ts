@@ -35,6 +35,13 @@ import { env } from '@team9/shared';
           idle_timeout: 20,
           connect_timeout: 10,
           max_lifetime: 60 * 30,
+          // Force session TimeZone to UTC so `defaultNow()` on `timestamp`
+          // (without time zone) columns stores UTC wall-clock, matching
+          // Drizzle's read-side assumption (`value + '+0000'`). Without this,
+          // a DB whose server default is a non-UTC zone (e.g. local Postgres
+          // on a Mac in Asia/Shanghai) stores local wall-clock under
+          // `now()` and every read drifts by the local offset.
+          connection: { TimeZone: 'UTC' },
         });
 
         return drizzle(client, { schema });

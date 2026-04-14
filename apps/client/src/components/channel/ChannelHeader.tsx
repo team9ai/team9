@@ -49,7 +49,7 @@ export function ChannelHeader({
 
   return (
     <>
-      <div className="h-14 px-4 flex items-center justify-between border-b">
+      <div className="h-14 px-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {isDirect && otherUser ? (
             <div className="relative">
