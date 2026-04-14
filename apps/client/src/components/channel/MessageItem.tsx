@@ -9,8 +9,6 @@ import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
 import { MessageTitle } from "./MessageTitle";
 import { MessageProperties } from "./properties/MessageProperties";
-import { PropertySelector } from "./properties/PropertySelector";
-import { useSetProperty } from "@/hooks/useMessageProperties";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
@@ -122,7 +120,6 @@ export function MessageItem({
   const { data: propertyDefinitions } = usePropertyDefinitions(
     message.channelId,
   );
-  const setPropertyMutation = useSetProperty(message.id, message.channelId);
 
   // Fetch full content for long_text messages when entering edit mode
   const isLongText = message.type === "long_text" || message.isTruncated;
@@ -394,30 +391,10 @@ export function MessageItem({
               channelId={message.channelId}
               definitions={propertyDefinitions}
               canEdit={true}
-              onEditProperties={() => setPropertySelectorOpen(true)}
+              selectorOpen={propertySelectorOpen}
+              onSelectorOpenChange={setPropertySelectorOpen}
             />
           )}
-        {supportsProperties && propertySelectorOpen && (
-          <PropertySelector
-            channelId={message.channelId}
-            messageId={message.id}
-            currentProperties={message.properties ?? {}}
-            onSetProperty={(propertyKey, value) => {
-              const def = propertyDefinitions?.find(
-                (d) => d.key === propertyKey,
-              );
-              if (def) {
-                setPropertyMutation.mutate({
-                  definitionId: def.id,
-                  propertyKey: def.key,
-                  value,
-                });
-              }
-            }}
-            open={propertySelectorOpen}
-            onOpenChange={setPropertySelectorOpen}
-          />
-        )}
         {showReplyCount && (message.replyCount || 0) > 0 && (
           <ThreadReplyIndicator
             replyCount={message.replyCount || 0}

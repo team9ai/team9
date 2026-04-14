@@ -15,6 +15,26 @@ vi.mock("../AiAutoFillButton", () => ({
   AiAutoFillButton: () => <button data-testid="ai-auto-fill">AI</button>,
 }));
 
+const propertySelectorProps = vi.fn();
+vi.mock("../PropertySelector", () => ({
+  PropertySelector: (props: {
+    trigger?: React.ReactNode;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) => {
+    propertySelectorProps(props);
+    return (
+      <div data-testid="property-selector" data-open={String(props.open)}>
+        {props.trigger ?? null}
+      </div>
+    );
+  },
+}));
+
+vi.mock("@/hooks/useMessageProperties", () => ({
+  useSetProperty: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
 // ==================== Helpers ====================
 
 function makeDefinition(
@@ -377,6 +397,51 @@ describe("MessageProperties", () => {
     );
 
     expect(container.firstChild).toBeNull();
+  });
+
+  it("forwards selectorOpen/onSelectorOpenChange to the embedded PropertySelector", () => {
+    propertySelectorProps.mockClear();
+    const definitions = [
+      makeDefinition({ id: "def-1", key: "status", valueType: "text" }),
+    ];
+    const message = makeMessage({ properties: { status: "open" } });
+    const handleOpenChange = vi.fn();
+
+    render(
+      <MessageProperties
+        message={message}
+        channelId="ch-1"
+        definitions={definitions}
+        canEdit={true}
+        selectorOpen={true}
+        onSelectorOpenChange={handleOpenChange}
+      />,
+    );
+
+    expect(propertySelectorProps).toHaveBeenCalled();
+    const last = propertySelectorProps.mock.calls.at(-1)?.[0];
+    expect(last.open).toBe(true);
+    expect(last.onOpenChange).toBe(handleOpenChange);
+    // Trigger button lives inside the PropertySelector mock's output
+    expect(screen.getByTitle("Edit properties")).toBeInTheDocument();
+  });
+
+  it("does not embed PropertySelector when canEdit is false", () => {
+    const definitions = [
+      makeDefinition({ id: "def-1", key: "status", valueType: "text" }),
+    ];
+    const message = makeMessage({ properties: { status: "open" } });
+
+    render(
+      <MessageProperties
+        message={message}
+        channelId="ch-1"
+        definitions={definitions}
+        canEdit={false}
+      />,
+    );
+
+    expect(screen.queryByTestId("property-selector")).not.toBeInTheDocument();
   });
 
   it("shows loading shimmer when aiAutoFillLoading is true", () => {

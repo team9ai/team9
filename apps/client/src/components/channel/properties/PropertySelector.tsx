@@ -16,6 +16,9 @@ import {
   Clock,
   MessageSquare,
   Repeat,
+  Sparkles,
+  Loader2,
+  Settings,
 } from "lucide-react";
 import {
   Popover,
@@ -33,6 +36,8 @@ import type {
   PropertyValueType,
   CreatePropertyDefinitionDto,
 } from "@/types/properties";
+import { aiAutoFillApi } from "@/services/api/properties";
+import { useChannelSettingsStore } from "@/stores";
 import { PropertyEditor } from "./PropertyEditor";
 
 // ==================== Type Icon Map ====================
@@ -209,6 +214,11 @@ export interface PropertySelectorProps {
   /** Controlled open state */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * If provided, opening the popover initializes the right pane to edit this
+   * definition directly instead of showing the empty placeholder.
+   */
+  initialDefId?: string;
 }
 
 // ==================== Right Pane State ====================
@@ -221,22 +231,60 @@ type RightPane =
 
 export function PropertySelector({
   channelId,
+  messageId,
   currentProperties = {},
   onSetProperty,
   allowCreate = true,
   trigger,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
+  initialDefId,
 }: PropertySelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
 
   const [search, setSearch] = useState("");
-  const [rightPane, setRightPane] = useState<RightPane>({ type: "empty" });
+  const [rightPane, setRightPane] = useState<RightPane>(() =>
+    initialDefId ? { type: "def", defId: initialDefId } : { type: "empty" },
+  );
+  const [aiAutoFillLoading, setAiAutoFillLoading] = useState(false);
+  const [aiAutoFillError, setAiAutoFillError] = useState<string | null>(null);
 
   const { data: definitions } = usePropertyDefinitions(channelId);
   const createMutation = useCreatePropertyDefinition(channelId);
+
+  const hasAiAutoFillDefs = useMemo(
+    () => (definitions ?? []).some((d) => d.aiAutoFill),
+    [definitions],
+  );
+
+  const openChannelSettings = useChannelSettingsStore(
+    (s) => s.openChannelSettings,
+  );
+
+  const handleOpenSettings = useCallback(() => {
+    setSearch("");
+    setRightPane({ type: "empty" });
+    setOpen(false);
+    openChannelSettings(channelId, "properties");
+  }, [channelId, openChannelSettings, setOpen]);
+
+  const handleAiAutoFill = useCallback(async () => {
+    setAiAutoFillLoading(true);
+    setAiAutoFillError(null);
+    try {
+      await aiAutoFillApi.autoFill(messageId, { preserveExisting: true });
+      // API returns 202; results stream via WS `message_property_changed`.
+      setSearch("");
+      setRightPane({ type: "empty" });
+      setOpen(false);
+    } catch {
+      setAiAutoFillError("AI failed");
+    } finally {
+      setAiAutoFillLoading(false);
+    }
+  }, [messageId, setOpen]);
 
   // Filter definitions by search
   const filtered = useMemo(() => {
@@ -328,12 +376,20 @@ export function PropertySelector({
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
-      if (!nextOpen) {
+      if (nextOpen) {
+        if (initialDefId) {
+          setRightPane({ type: "def", defId: initialDefId });
+        }
+      } else {
         setSearch("");
-        setRightPane({ type: "empty" });
+        setRightPane(
+          initialDefId
+            ? { type: "def", defId: initialDefId }
+            : { type: "empty" },
+        );
       }
     },
-    [setOpen],
+    [setOpen, initialDefId],
   );
 
   // ---------- helpers for highlight state ----------
@@ -345,6 +401,10 @@ export function PropertySelector({
     preset.subOptions ? rightPane.type === "datetime-sub" : false; // single-shot presets have no persistent active state
 
   const isCreateActive = rightPane.type === "create";
+
+  // When initialDefId is set, the popover acts as an edit-only panel for that
+  // single property — hide the left column and shrink the popover width.
+  const compact = !!initialDefId;
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -359,130 +419,181 @@ export function PropertySelector({
         side="bottom"
         align="start"
         sideOffset={4}
-        className="w-[560px] p-0"
+        className={cn("p-0", compact ? "w-[320px]" : "w-[560px]")}
       >
         <div className="flex">
           {/* ============ Left column: main menu ============ */}
-          <div className="w-[240px] border-r border-border flex flex-col">
-            {/* Search */}
-            <div className="p-2 border-b border-border">
-              <div className="relative">
-                <Search
-                  size={14}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  type="text"
-                  placeholder="Search properties..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-8 pl-7 text-sm"
-                  autoFocus
-                />
+          {!compact && (
+            <div className="w-[240px] border-r border-border flex flex-col">
+              {/* Header */}
+              <div className="px-2 pt-2 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Properties
+                </span>
+                <button
+                  type="button"
+                  onClick={handleOpenSettings}
+                  title="Manage properties"
+                  className="inline-flex items-center justify-center h-6 w-6 rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <Settings size={14} />
+                </button>
               </div>
-            </div>
 
-            {/* Property List */}
-            <div className="max-h-[280px] overflow-y-auto py-1">
-              {filtered.length === 0 && filteredSuggested.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-3">
-                  No properties found
-                </p>
-              )}
-              {filtered.map((def) => {
-                const Icon = getTypeIcon(def.valueType);
-                const hasValue = currentProperties[def.key] !== undefined;
-                const active = isDefActive(def.id);
-                return (
-                  <button
-                    key={def.id}
-                    onClick={() => handleSelectDef(def.id)}
-                    className={cn(
-                      "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors",
-                      active
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-muted",
-                      hasValue && !active && "text-primary",
-                    )}
-                  >
-                    <Icon
-                      size={14}
-                      className="shrink-0 text-muted-foreground"
-                    />
-                    <span className="truncate flex-1">{def.key}</span>
-                    {hasValue && (
-                      <span className="text-xs text-muted-foreground">set</span>
-                    )}
-                    <ChevronRight
-                      size={14}
-                      className="shrink-0 text-muted-foreground"
-                    />
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Suggested quick-create presets */}
-            {allowCreate && filteredSuggested.length > 0 && (
-              <div className="border-t border-border py-1">
-                <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Suggested
+              {/* Search */}
+              <div className="p-2 border-b border-border">
+                <div className="relative">
+                  <Search
+                    size={14}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Search properties..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-8 pl-7 text-sm"
+                    autoFocus
+                  />
                 </div>
-                {filteredSuggested.map((preset) => {
-                  const Icon = preset.icon;
-                  const active = isPresetActive(preset);
+              </div>
+
+              {/* Property List */}
+              <div className="max-h-[280px] overflow-y-auto py-1">
+                {filtered.length === 0 && filteredSuggested.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-3">
+                    No properties found
+                  </p>
+                )}
+                {filtered.map((def) => {
+                  const Icon = getTypeIcon(def.valueType);
+                  const hasValue = currentProperties[def.key] !== undefined;
+                  const active = isDefActive(def.id);
                   return (
                     <button
-                      key={preset.key}
-                      onClick={() => handleClickPreset(preset)}
-                      disabled={createMutation.isPending && !preset.subOptions}
+                      key={def.id}
+                      onClick={() => handleSelectDef(def.id)}
                       className={cn(
-                        "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                        "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors",
                         active
                           ? "bg-accent text-accent-foreground"
                           : "hover:bg-muted",
+                        hasValue && !active && "text-primary",
                       )}
                     >
                       <Icon
                         size={14}
                         className="shrink-0 text-muted-foreground"
                       />
-                      <span className="truncate flex-1">{preset.label}</span>
-                      {preset.subOptions ? (
-                        <ChevronRight
-                          size={14}
-                          className="shrink-0 text-muted-foreground"
-                        />
-                      ) : (
-                        <Plus
-                          size={14}
-                          className="shrink-0 text-muted-foreground"
-                        />
+                      <span className="truncate flex-1">{def.key}</span>
+                      {hasValue && (
+                        <span className="text-xs text-muted-foreground">
+                          set
+                        </span>
                       )}
+                      <ChevronRight
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                      />
                     </button>
                   );
                 })}
               </div>
-            )}
 
-            {/* Create */}
-            {allowCreate && (
-              <div className="border-t border-border p-1">
-                <button
-                  onClick={() => setRightPane({ type: "create" })}
-                  className={cn(
-                    "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors rounded-sm",
-                    isCreateActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  <Plus size={14} />
-                  <span>Create property</span>
-                </button>
-              </div>
-            )}
-          </div>
+              {/* Suggested quick-create presets */}
+              {allowCreate && filteredSuggested.length > 0 && (
+                <div className="border-t border-border py-1">
+                  <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Suggested
+                  </div>
+                  {filteredSuggested.map((preset) => {
+                    const Icon = preset.icon;
+                    const active = isPresetActive(preset);
+                    return (
+                      <button
+                        key={preset.key}
+                        onClick={() => handleClickPreset(preset)}
+                        disabled={
+                          createMutation.isPending && !preset.subOptions
+                        }
+                        className={cn(
+                          "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                          active
+                            ? "bg-accent text-accent-foreground"
+                            : "hover:bg-muted",
+                        )}
+                      >
+                        <Icon
+                          size={14}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                        <span className="truncate flex-1">{preset.label}</span>
+                        {preset.subOptions ? (
+                          <ChevronRight
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                        ) : (
+                          <Plus
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* AI Auto-fill (only when any def has aiAutoFill enabled) */}
+              {hasAiAutoFillDefs && (
+                <div className="border-t border-border p-1">
+                  <button
+                    onClick={handleAiAutoFill}
+                    disabled={aiAutoFillLoading}
+                    className={cn(
+                      "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors rounded-sm",
+                      "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                    )}
+                    title="Auto-fill properties with AI"
+                  >
+                    {aiAutoFillLoading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={14} />
+                    )}
+                    <span className="flex-1">
+                      {aiAutoFillLoading ? "Generating..." : "AI auto-fill"}
+                    </span>
+                    {aiAutoFillError && (
+                      <span className="text-xs text-destructive">
+                        {aiAutoFillError}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Create */}
+              {allowCreate && (
+                <div className="border-t border-border p-1">
+                  <button
+                    onClick={() => setRightPane({ type: "create" })}
+                    className={cn(
+                      "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors rounded-sm",
+                      isCreateActive
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Plus size={14} />
+                    <span>Create property</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ============ Right column: detail pane ============ */}
           <div className="w-[320px] flex flex-col min-h-[200px]">

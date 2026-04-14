@@ -1,8 +1,12 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { MoreHorizontal, Plus, Loader2 } from "lucide-react";
 import { PropertyTag } from "./PropertyTag";
 import { PropertyValue } from "./PropertyValue";
-import { AiAutoFillButton } from "./AiAutoFillButton";
+import { PropertySelector } from "./PropertySelector";
+import {
+  useRemoveProperty,
+  useSetProperty,
+} from "@/hooks/useMessageProperties";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
 import type { PropertyDefinition } from "@/types/properties";
@@ -14,7 +18,9 @@ export interface MessagePropertiesProps {
   canEdit: boolean;
   aiAutoFillLoading?: boolean;
   propertyDisplayOrder?: "schema" | "chronological";
-  onEditProperties?: () => void;
+  /** Optional controlled open state for the property selector popover. */
+  selectorOpen?: boolean;
+  onSelectorOpenChange?: (open: boolean) => void;
 }
 
 /** Native property keys that should appear first, in this order */
@@ -38,9 +44,43 @@ export function MessageProperties({
   canEdit,
   aiAutoFillLoading = false,
   propertyDisplayOrder = "schema",
-  onEditProperties,
+  selectorOpen,
+  onSelectorOpenChange,
 }: MessagePropertiesProps) {
   const properties = message.properties;
+  const setProperty = useSetProperty(message.id, channelId);
+  const removeProperty = useRemoveProperty(message.id, channelId);
+
+  const handleSetProperty = useCallback(
+    (propertyKey: string, value: unknown) => {
+      const def = definitions.find((d) => d.key === propertyKey);
+      if (!def) return;
+      setProperty.mutate({
+        definitionId: def.id,
+        propertyKey: def.key,
+        value,
+      });
+    },
+    [definitions, setProperty],
+  );
+
+  const handleRemoveTagValue = useCallback(
+    (def: PropertyDefinition, target: unknown) => {
+      const current = properties?.[def.key];
+      const arr = Array.isArray(current) ? current : [];
+      const next = arr.filter((v) => v !== target);
+      if (next.length === 0) {
+        removeProperty.mutate({ definitionId: def.id, propertyKey: def.key });
+      } else {
+        setProperty.mutate({
+          definitionId: def.id,
+          propertyKey: def.key,
+          value: next,
+        });
+      }
+    },
+    [properties, removeProperty, setProperty],
+  );
 
   const visibleDefinitions = useMemo(() => {
     if (!definitions || definitions.length === 0) return [];
@@ -89,12 +129,6 @@ export function MessageProperties({
     return definitions.some((def) => hasValue(properties[def.key]));
   }, [definitions, properties]);
 
-  // Check if any definitions have aiAutoFill enabled
-  const hasAiAutoFillDefs = useMemo(
-    () => definitions.some((d) => d.aiAutoFill),
-    [definitions],
-  );
-
   // Don't render at all if nothing to show and not in edit mode
   if (visibleDefinitions.length === 0 && !canEdit && !aiAutoFillLoading) {
     return null;
@@ -119,7 +153,8 @@ export function MessageProperties({
         const value = properties?.[def.key];
         if (!hasValue(value) && def.showInChatPolicy !== "show") return null;
 
-        // Tags and multi_select render as individual tag chips
+        // Tags and multi_select render as individual tag chips, each editable
+        // by clicking and each value individually removable via hover X.
         if (def.valueType === "tags" || def.valueType === "multi_select") {
           const values = Array.isArray(value) ? value : [];
           const options = Array.isArray(def.config?.options)
@@ -133,44 +168,82 @@ export function MessageProperties({
           return values.map((v, i) => {
             const opt = options.find((o) => o.value === v);
             return (
-              <PropertyTag
+              <PropertySelector
                 key={`${def.id}-${String(v)}-${i}`}
-                label={opt?.label ?? String(v)}
-                color={opt?.color}
+                channelId={channelId}
+                messageId={message.id}
+                currentProperties={properties ?? {}}
+                initialDefId={def.id}
+                allowCreate={false}
+                onSetProperty={handleSetProperty}
+                trigger={
+                  <PropertyTag
+                    label={opt?.label ?? String(v)}
+                    color={opt?.color}
+                    canDelete={canEdit}
+                    onDelete={
+                      canEdit ? () => handleRemoveTagValue(def, v) : undefined
+                    }
+                    className={canEdit ? "cursor-pointer" : undefined}
+                  />
+                }
               />
             );
           });
         }
 
-        return <PropertyValue key={def.id} definition={def} value={value} />;
+        const valueChip = (
+          <PropertyValue key={def.id} definition={def} value={value} />
+        );
+
+        if (!canEdit) return valueChip;
+
+        return (
+          <PropertySelector
+            key={def.id}
+            channelId={channelId}
+            messageId={message.id}
+            currentProperties={properties ?? {}}
+            initialDefId={def.id}
+            allowCreate={false}
+            onSetProperty={handleSetProperty}
+            trigger={
+              <span className="inline-flex cursor-pointer hover:opacity-80 transition-opacity">
+                {valueChip}
+              </span>
+            }
+          />
+        );
       })}
 
-      {canEdit && hasAiAutoFillDefs && (
-        <AiAutoFillButton
-          messageId={message.id}
-          channelId={channelId}
-          size="sm"
-        />
-      )}
-
       {canEdit && (
-        <button
-          onClick={onEditProperties}
-          className={cn(
-            "inline-flex items-center justify-center",
-            "px-1.5 py-0.5 rounded text-xs",
-            "border border-dashed border-border",
-            "text-muted-foreground hover:bg-muted hover:text-foreground",
-            "transition-colors",
-          )}
-          title={hasAnyPropertyValue ? "Edit properties" : "Add properties"}
-        >
-          {hasAnyPropertyValue ? (
-            <MoreHorizontal size={12} />
-          ) : (
-            <Plus size={12} />
-          )}
-        </button>
+        <PropertySelector
+          channelId={channelId}
+          messageId={message.id}
+          currentProperties={properties ?? {}}
+          open={selectorOpen}
+          onOpenChange={onSelectorOpenChange}
+          onSetProperty={handleSetProperty}
+          trigger={
+            <button
+              type="button"
+              className={cn(
+                "inline-flex items-center justify-center",
+                "px-1.5 py-0.5 rounded text-xs",
+                "border border-dashed border-border",
+                "text-muted-foreground hover:bg-muted hover:text-foreground",
+                "transition-colors",
+              )}
+              title={hasAnyPropertyValue ? "Edit properties" : "Add properties"}
+            >
+              {hasAnyPropertyValue ? (
+                <MoreHorizontal size={12} />
+              ) : (
+                <Plus size={12} />
+              )}
+            </button>
+          }
+        />
       )}
     </div>
   );
