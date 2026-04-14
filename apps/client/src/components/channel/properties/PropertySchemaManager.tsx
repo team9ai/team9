@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, type DragEvent } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Plus,
   Pencil,
@@ -11,6 +12,7 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
+  Check,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  OPTION_COLOR_KEYS,
+  OPTION_COLOR_LABEL,
+  OPTION_COLOR_SWATCH,
+  getOptionChipProps,
+  getOptionColorSwatch,
+  type OptionColorKey,
+} from "./option-colors";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,30 +72,26 @@ import type { ChannelPropertySettings } from "@/types/im";
 
 // ==================== Constants ====================
 
-const VALUE_TYPE_OPTIONS: { value: PropertyValueType; label: string }[] = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "boolean", label: "Boolean" },
-  { value: "single_select", label: "Single Select" },
-  { value: "multi_select", label: "Multi Select" },
-  { value: "person", label: "People" },
-  { value: "date", label: "Date" },
-  { value: "timestamp", label: "Timestamp" },
-  { value: "date_range", label: "Date Range" },
-  { value: "timestamp_range", label: "Timestamp Range" },
-  { value: "recurring", label: "Recurring" },
-  { value: "url", label: "URL" },
-  { value: "message_ref", label: "Message Reference" },
-  { value: "file", label: "File" },
-  { value: "image", label: "Image" },
-  { value: "tags", label: "Tags" },
+const VALUE_TYPE_KEYS: PropertyValueType[] = [
+  "text",
+  "number",
+  "boolean",
+  "single_select",
+  "multi_select",
+  "person",
+  "date",
+  "timestamp",
+  "date_range",
+  "timestamp_range",
+  "recurring",
+  "url",
+  "message_ref",
+  "file",
+  "image",
+  "tags",
 ];
 
-const SHOW_IN_CHAT_OPTIONS = [
-  { value: "show", label: "Always" },
-  { value: "auto", label: "When Set" },
-  { value: "hide", label: "Never" },
-];
+const SHOW_IN_CHAT_KEYS = ["show", "auto", "hide"] as const;
 
 function getNativeIcon(key: string) {
   if (key === "_tags") return Tag;
@@ -89,13 +100,12 @@ function getNativeIcon(key: string) {
   return Link2;
 }
 
-function getNativeLabel(key: string): string {
-  if (key === "_tags") return "Tags";
-  if (key === "_people") return "People";
-  if (key === "_tasks") return "Tasks";
-  if (key === "_messages") return "Messages";
-  return key;
-}
+const NATIVE_LABEL_KEYS: Record<string, string> = {
+  _tags: "tags",
+  _people: "people",
+  _tasks: "tasks",
+  _messages: "messages",
+};
 
 // ==================== Props ====================
 
@@ -110,14 +120,95 @@ interface SelectOptionsEditorProps {
   onChange: (options: SelectOption[]) => void;
 }
 
-function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorProps) {
+// Cycle through non-default colors so each new option gets a distinct swatch.
+const AUTO_COLOR_CYCLE: OptionColorKey[] = OPTION_COLOR_KEYS.filter(
+  (k) => k !== "default",
+);
+
+function nextAutoColor(options: SelectOption[]): OptionColorKey {
+  return AUTO_COLOR_CYCLE[options.length % AUTO_COLOR_CYCLE.length];
+}
+
+function OptionColorPicker({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (next: OptionColorKey) => void;
+}) {
+  const { t } = useTranslation("channel");
+  const [open, setOpen] = useState(false);
+  const swatch = getOptionColorSwatch(value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={t("properties.changeOptionColor")}
+          className={cn(
+            "h-4 w-4 shrink-0 rounded-full border border-border/60 transition-transform hover:scale-110",
+            !swatch && "bg-transparent",
+          )}
+          style={swatch ? { backgroundColor: swatch } : undefined}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto p-2"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="grid grid-cols-5 gap-1.5">
+          {OPTION_COLOR_KEYS.map((key) => {
+            const isSelected = (value ?? "default") === key;
+            const hex = OPTION_COLOR_SWATCH[key];
+            const transparent = key === "default";
+            return (
+              <button
+                key={key}
+                type="button"
+                title={OPTION_COLOR_LABEL[key]}
+                onClick={() => {
+                  onChange(key);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "relative flex h-6 w-6 items-center justify-center rounded-full border border-border/60",
+                  isSelected && "ring-2 ring-primary ring-offset-1",
+                )}
+                style={transparent ? undefined : { backgroundColor: hex }}
+              >
+                {isSelected && (
+                  <Check
+                    size={12}
+                    className={transparent ? "text-foreground" : "text-white"}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function SelectOptionsEditor({
+  options,
+  onChange,
+}: SelectOptionsEditorProps) {
+  const { t } = useTranslation("channel");
   const [newValue, setNewValue] = useState("");
 
   const addOption = useCallback(() => {
     const trimmed = newValue.trim();
     if (!trimmed) return;
     if (options.some((o) => o.value === trimmed)) return;
-    onChange([...options, { value: trimmed, label: trimmed }]);
+    onChange([
+      ...options,
+      { value: trimmed, label: trimmed, color: nextAutoColor(options) },
+    ]);
     setNewValue("");
   }, [newValue, options, onChange]);
 
@@ -128,34 +219,55 @@ function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorProps) {
     [options, onChange],
   );
 
+  const setOptionColor = useCallback(
+    (value: string, color: OptionColorKey) => {
+      onChange(
+        options.map((o) =>
+          o.value === value
+            ? { ...o, color: color === "default" ? undefined : color }
+            : o,
+        ),
+      );
+    },
+    [options, onChange],
+  );
+
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-muted-foreground">Select Options</Label>
+      <Label className="text-xs text-muted-foreground">
+        {t("properties.selectOptions")}
+      </Label>
       <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => (
-          <Badge
-            key={opt.value}
-            variant="secondary"
-            className="gap-1 pr-1"
-            style={
-              opt.color
-                ? { backgroundColor: opt.color + "20", borderColor: opt.color }
-                : undefined
-            }
-          >
-            {opt.label}
-            <button
-              onClick={() => removeOption(opt.value)}
-              className="ml-0.5 rounded-full hover:bg-muted p-0.5"
+        {options.map((opt) => {
+          const chip = getOptionChipProps(opt.color);
+          return (
+            <span
+              key={opt.value}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                chip.className,
+              )}
+              style={chip.style}
             >
-              <X size={10} />
-            </button>
-          </Badge>
-        ))}
+              <OptionColorPicker
+                value={opt.color}
+                onChange={(c) => setOptionColor(opt.value, c)}
+              />
+              <span>{opt.label}</span>
+              <button
+                onClick={() => removeOption(opt.value)}
+                className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+                aria-label={t("properties.removeOption", { label: opt.label })}
+              >
+                <X size={10} />
+              </button>
+            </span>
+          );
+        })}
       </div>
       <div className="flex gap-1.5">
         <Input
-          placeholder="New option..."
+          placeholder={t("properties.newOption")}
           value={newValue}
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={(e) => {
@@ -173,7 +285,7 @@ function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorProps) {
           disabled={!newValue.trim()}
           className="h-7 px-2 text-xs"
         >
-          Add
+          {t("properties.add")}
         </Button>
       </div>
     </div>
@@ -188,6 +300,7 @@ interface AddDefinitionFormProps {
 }
 
 function AddDefinitionForm({ channelId, onDone }: AddDefinitionFormProps) {
+  const { t } = useTranslation("channel");
   const createDef = useCreatePropertyDefinition(channelId);
   const [key, setKey] = useState("");
   const [valueType, setValueType] = useState<PropertyValueType>("text");
@@ -233,12 +346,12 @@ function AddDefinitionForm({ channelId, onDone }: AddDefinitionFormProps) {
 
   return (
     <div className="space-y-3 p-3 border rounded-md bg-muted/30">
-      <p className="text-sm font-medium">New Property Definition</p>
+      <p className="text-sm font-medium">{t("properties.newDefinition")}</p>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <Label className="text-xs">Key</Label>
+          <Label className="text-xs">{t("properties.key")}</Label>
           <Input
-            placeholder="e.g. priority"
+            placeholder={t("properties.keyPlaceholder")}
             value={key}
             onChange={(e) => setKey(e.target.value)}
             className="h-8 text-sm"
@@ -246,7 +359,7 @@ function AddDefinitionForm({ channelId, onDone }: AddDefinitionFormProps) {
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Type</Label>
+          <Label className="text-xs">{t("properties.type")}</Label>
           <Select
             value={valueType}
             onValueChange={(v) => {
@@ -260,9 +373,9 @@ function AddDefinitionForm({ channelId, onDone }: AddDefinitionFormProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {VALUE_TYPE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
+              {VALUE_TYPE_KEYS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`properties.valueTypes.${value}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -270,9 +383,9 @@ function AddDefinitionForm({ channelId, onDone }: AddDefinitionFormProps) {
         </div>
       </div>
       <div className="space-y-1">
-        <Label className="text-xs">Description (optional)</Label>
+        <Label className="text-xs">{t("properties.descriptionOptional")}</Label>
         <Textarea
-          placeholder="Describe this property..."
+          placeholder={t("properties.descriptionPlaceholder")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[60px] text-sm resize-none"
@@ -286,14 +399,16 @@ function AddDefinitionForm({ channelId, onDone }: AddDefinitionFormProps) {
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onDone}>
-          Cancel
+          {t("properties.cancel")}
         </Button>
         <Button
           size="sm"
           onClick={handleSubmit}
           disabled={!key.trim() || createDef.isPending}
         >
-          {createDef.isPending ? "Creating..." : "Create"}
+          {createDef.isPending
+            ? t("properties.creating")
+            : t("properties.create")}
         </Button>
       </div>
     </div>
@@ -313,6 +428,7 @@ function EditDefinitionForm({
   definition,
   onDone,
 }: EditDefinitionFormProps) {
+  const { t } = useTranslation("channel");
   const updateDef = useUpdatePropertyDefinition(channelId);
 
   const [description, setDescription] = useState(definition.description || "");
@@ -326,7 +442,6 @@ function EditDefinitionForm({
   const [allowNewOptions, setAllowNewOptions] = useState(
     definition.allowNewOptions,
   );
-  const [isRequired, setIsRequired] = useState(definition.isRequired);
   const [selectOptions, setSelectOptions] = useState<SelectOption[]>(
     () => (definition.config?.options as SelectOption[] | undefined) ?? [],
   );
@@ -342,7 +457,6 @@ function EditDefinitionForm({
       aiAutoFillPrompt: aiAutoFillPrompt.trim() || undefined,
       showInChatPolicy,
       allowNewOptions,
-      isRequired,
     };
 
     if (isSelectType) {
@@ -364,7 +478,6 @@ function EditDefinitionForm({
     aiAutoFillPrompt,
     showInChatPolicy,
     allowNewOptions,
-    isRequired,
     isSelectType,
     selectOptions,
     updateDef,
@@ -376,17 +489,17 @@ function EditDefinitionForm({
     <div className="space-y-3 p-3 border rounded-md bg-muted/30">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">
-          Edit: {definition.key}{" "}
+          {t("properties.edit", { key: definition.key })}{" "}
           <span className="text-muted-foreground font-normal">
-            ({definition.valueType})
+            ({t(`properties.valueTypes.${definition.valueType}`)})
           </span>
         </p>
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs">Description</Label>
+        <Label className="text-xs">{t("properties.description")}</Label>
         <Textarea
-          placeholder="Describe this property..."
+          placeholder={t("properties.descriptionPlaceholder")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[60px] text-sm resize-none"
@@ -394,15 +507,19 @@ function EditDefinitionForm({
       </div>
 
       <div className="space-y-1">
-        <Label className="text-xs">Show in Chat</Label>
+        <Label className="text-xs">{t("properties.showInChat")}</Label>
         <Select value={showInChatPolicy} onValueChange={setShowInChatPolicy}>
           <SelectTrigger className="h-8 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SHOW_IN_CHAT_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+            {SHOW_IN_CHAT_KEYS.map((value) => (
+              <SelectItem key={value} value={value}>
+                {value === "show"
+                  ? t("properties.showAlways")
+                  : value === "auto"
+                    ? t("properties.showAuto")
+                    : t("properties.showNever")}
               </SelectItem>
             ))}
           </SelectContent>
@@ -410,20 +527,15 @@ function EditDefinitionForm({
       </div>
 
       <div className="flex items-center justify-between">
-        <Label className="text-xs">Required</Label>
-        <Switch checked={isRequired} onCheckedChange={setIsRequired} />
-      </div>
-
-      <div className="flex items-center justify-between">
-        <Label className="text-xs">AI Auto-Fill</Label>
+        <Label className="text-xs">{t("properties.aiAutoFill")}</Label>
         <Switch checked={aiAutoFill} onCheckedChange={setAiAutoFill} />
       </div>
 
       {aiAutoFill && (
         <div className="space-y-1">
-          <Label className="text-xs">AI Auto-Fill Prompt</Label>
+          <Label className="text-xs">{t("properties.aiAutoFillPrompt")}</Label>
           <Textarea
-            placeholder="Instructions for AI to fill this property..."
+            placeholder={t("properties.aiAutoFillPromptPlaceholder")}
             value={aiAutoFillPrompt}
             onChange={(e) => setAiAutoFillPrompt(e.target.value)}
             className="min-h-[60px] text-sm resize-none"
@@ -434,7 +546,7 @@ function EditDefinitionForm({
       {isSelectType && (
         <>
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Allow New Options</Label>
+            <Label className="text-xs">{t("properties.allowNewOptions")}</Label>
             <Switch
               checked={allowNewOptions}
               onCheckedChange={setAllowNewOptions}
@@ -449,10 +561,10 @@ function EditDefinitionForm({
 
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" onClick={onDone}>
-          Cancel
+          {t("properties.cancel")}
         </Button>
         <Button size="sm" onClick={handleSave} disabled={updateDef.isPending}>
-          {updateDef.isPending ? "Saving..." : "Save"}
+          {updateDef.isPending ? t("properties.saving") : t("properties.save")}
         </Button>
       </div>
     </div>
@@ -482,8 +594,10 @@ function DefinitionRow({
   onDrop,
   onDragEnd,
 }: DefinitionRowProps) {
+  const { t } = useTranslation("channel");
   const isNative = definition.isNative;
   const NativeIcon = isNative ? getNativeIcon(definition.key) : null;
+  const nativeLabelKey = isNative ? NATIVE_LABEL_KEYS[definition.key] : null;
   const options =
     (definition.config?.options as SelectOption[] | undefined) ?? [];
   const hasOptions =
@@ -542,25 +656,22 @@ function DefinitionRow({
             <NativeIcon size={14} className="text-muted-foreground shrink-0" />
           )}
           <span className="text-sm font-medium truncate">
-            {isNative ? getNativeLabel(definition.key) : definition.key}
+            {nativeLabelKey
+              ? t(`properties.nativeLabels.${nativeLabelKey}`)
+              : definition.key}
           </span>
           <span className="text-xs text-muted-foreground">
-            ({definition.valueType})
+            ({t(`properties.valueTypes.${definition.valueType}`)})
           </span>
           {isNative && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
               <Shield size={9} className="mr-0.5" />
-              Native
-            </Badge>
-          )}
-          {definition.isRequired && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-              Required
+              {t("properties.native")}
             </Badge>
           )}
           {definition.aiAutoFill && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-              AI
+              {t("properties.aiBadge")}
             </Badge>
           )}
         </div>
@@ -571,26 +682,24 @@ function DefinitionRow({
         )}
         {hasOptions && (
           <div className="flex flex-wrap gap-1 mt-1">
-            {options.slice(0, 6).map((opt) => (
-              <Badge
-                key={opt.value}
-                variant="secondary"
-                className="text-[10px] px-1.5 py-0 h-4"
-                style={
-                  opt.color
-                    ? {
-                        backgroundColor: opt.color + "20",
-                        borderColor: opt.color,
-                      }
-                    : undefined
-                }
-              >
-                {opt.label}
-              </Badge>
-            ))}
+            {options.slice(0, 6).map((opt) => {
+              const chip = getOptionChipProps(opt.color);
+              return (
+                <span
+                  key={opt.value}
+                  className={cn(
+                    "inline-flex items-center rounded-full px-1.5 h-4 text-[10px] font-medium",
+                    chip.className,
+                  )}
+                  style={chip.style}
+                >
+                  {opt.label}
+                </span>
+              );
+            })}
             {options.length > 6 && (
               <span className="text-[10px] text-muted-foreground">
-                +{options.length - 6} more
+                {t("properties.moreCount", { count: options.length - 6 })}
               </span>
             )}
           </div>
@@ -623,6 +732,7 @@ function DefinitionRow({
 // ==================== Channel Property Settings ====================
 
 function ChannelPropertySettingsSection({ channelId }: { channelId: string }) {
+  const { t } = useTranslation("channel");
   const { data: channel } = useChannel(channelId);
   const updateChannel = useUpdateChannel();
 
@@ -652,15 +762,17 @@ function ChannelPropertySettingsSection({ channelId }: { channelId: string }) {
     <>
       <Separator />
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold">Channel Property Settings</h3>
+        <h3 className="text-sm font-semibold">
+          {t("properties.channelSettings")}
+        </h3>
 
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label className="text-xs">
-              Allow all members to create new properties
+              {t("properties.allowNonAdminCreate")}
             </Label>
             <p className="text-[11px] text-muted-foreground">
-              When disabled, only admins can create new property keys
+              {t("properties.allowNonAdminCreateHint")}
             </p>
           </div>
           <Switch
@@ -673,7 +785,7 @@ function ChannelPropertySettingsSection({ channelId }: { channelId: string }) {
 
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <Label className="text-xs">Property display order</Label>
+            <Label className="text-xs">{t("properties.displayOrder")}</Label>
           </div>
           <Select
             value={propertyDisplayOrder}
@@ -687,8 +799,12 @@ function ChannelPropertySettingsSection({ channelId }: { channelId: string }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="schema">Schema order</SelectItem>
-              <SelectItem value="chronological">Added order</SelectItem>
+              <SelectItem value="schema">
+                {t("properties.orderSchema")}
+              </SelectItem>
+              <SelectItem value="chronological">
+                {t("properties.orderChronological")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -702,6 +818,7 @@ function ChannelPropertySettingsSection({ channelId }: { channelId: string }) {
 export function PropertySchemaManager({
   channelId,
 }: PropertySchemaManagerProps) {
+  const { t } = useTranslation("channel");
   const { data: definitions = [], isLoading } =
     usePropertyDefinitions(channelId);
   const deleteDef = useDeletePropertyDefinition(channelId);
@@ -776,7 +893,7 @@ export function PropertySchemaManager({
   if (isLoading) {
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        Loading property definitions...
+        {t("properties.loading")}
       </div>
     );
   }
@@ -785,7 +902,9 @@ export function PropertySchemaManager({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Property Definitions</h3>
+        <h3 className="text-sm font-semibold">
+          {t("properties.definitionsTitle")}
+        </h3>
         <Button
           variant="outline"
           size="sm"
@@ -794,7 +913,7 @@ export function PropertySchemaManager({
           className="h-7 text-xs"
         >
           <Plus size={13} className="mr-1" />
-          Add
+          {t("properties.add")}
         </Button>
       </div>
 
@@ -814,7 +933,7 @@ export function PropertySchemaManager({
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-1"
           >
             {showNative ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-            Native Properties ({nativeDefs.length})
+            {t("properties.nativeSection", { count: nativeDefs.length })}
           </button>
           {showNative && (
             <div className="space-y-0.5">
@@ -847,7 +966,7 @@ export function PropertySchemaManager({
       {customDefs.length > 0 && (
         <div className="space-y-0.5">
           <p className="text-xs text-muted-foreground mb-1">
-            Custom Properties ({customDefs.length})
+            {t("properties.customSection", { count: customDefs.length })}
           </p>
           {customDefs.map((def) =>
             editingId === def.id ? (
@@ -877,10 +996,8 @@ export function PropertySchemaManager({
       {/* Empty state */}
       {definitions.length === 0 && !showAddForm && (
         <div className="text-center py-6 text-sm text-muted-foreground">
-          <p>No property definitions yet.</p>
-          <p className="text-xs mt-1">
-            Add properties to organize messages with structured data.
-          </p>
+          <p>{t("properties.emptyTitle")}</p>
+          <p className="text-xs mt-1">{t("properties.emptyHint")}</p>
         </div>
       )}
 
@@ -894,20 +1011,22 @@ export function PropertySchemaManager({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Property Definition</AlertDialogTitle>
+            <AlertDialogTitle>{t("properties.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the property &quot;
-              {deleteTarget?.key}&quot;? This will remove all values set on
-              messages for this property. This action cannot be undone.
+              {t("properties.deleteDescription", {
+                key: deleteTarget?.key ?? "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("properties.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteDef.isPending ? "Deleting..." : "Delete"}
+              {deleteDef.isPending
+                ? t("properties.deleting")
+                : t("properties.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -154,7 +154,9 @@ export function ChannelDetailsModal({
                 <TabsTrigger value="members">
                   {t("members", { count: members.length })}
                 </TabsTrigger>
-                <TabsTrigger value="properties">Properties</TabsTrigger>
+                <TabsTrigger value="properties">
+                  {t("properties.tab")}
+                </TabsTrigger>
                 <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
               </TabsList>
             </div>
