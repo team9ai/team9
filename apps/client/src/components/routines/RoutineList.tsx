@@ -328,6 +328,7 @@ export function RoutineList({ botId }: RoutineListProps) {
                       <DraftRoutineCard
                         key={routine.id}
                         routine={routine}
+                        selectedRun={selectedRun}
                         onOpenCreationSession={handleOpenCreationSession}
                         onDeleted={handleDraftDeleted}
                       />

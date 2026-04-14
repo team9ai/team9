@@ -49,6 +49,7 @@ function renderCard(
     <QueryClientProvider client={qc}>
       <DraftRoutineCard
         routine={routine}
+        selectedRun={null}
         onOpenCreationSession={onOpen}
         onDeleted={onDeleted}
       />
@@ -66,7 +67,9 @@ describe("DraftRoutineCard", () => {
   it("with existing creationChannelId, clicking complete does NOT call API and opens session", async () => {
     const { onOpen } = renderCard({ creationChannelId: "ch-1" });
 
-    const btn = screen.getByRole("button", { name: /draft\.completeCreation/ });
+    const btn = screen.getByRole("button", {
+      name: /creation\.runLabel|Routine Creation/,
+    });
     fireEvent.click(btn);
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("r-1"));
@@ -80,7 +83,9 @@ describe("DraftRoutineCard", () => {
     });
     const { onOpen } = renderCard({ creationChannelId: null });
 
-    const btn = screen.getByRole("button", { name: /draft\.completeCreation/ });
+    const btn = screen.getByRole("button", {
+      name: /creation\.runLabel|Routine Creation/,
+    });
     fireEvent.click(btn);
 
     await waitFor(() =>
@@ -94,7 +99,7 @@ describe("DraftRoutineCard", () => {
     const { onOpen } = renderCard({ creationChannelId: null });
 
     const btn = screen.getByRole("button", {
-      name: /draft\.completeCreation/,
+      name: /creation\.runLabel|Routine Creation/,
     });
     fireEvent.click(btn);
 
@@ -107,7 +112,7 @@ describe("DraftRoutineCard", () => {
     // mutation settles — clicking it again should trigger another API call.
     await waitFor(() => {
       const btnAfter = screen.getByRole("button", {
-        name: /draft\.completeCreation/,
+        name: /creation\.runLabel|Routine Creation/,
       });
       expect((btnAfter as HTMLButtonElement).disabled).toBe(false);
     });
@@ -150,7 +155,7 @@ describe("DraftRoutineCard", () => {
     renderCard({ creationChannelId: null, botId: null }, onOpen);
 
     const btn = screen.getByRole("button", {
-      name: /draft\.completeCreation/,
+      name: /creation\.runLabel|Routine Creation/,
     });
     expect((btn as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(btn);

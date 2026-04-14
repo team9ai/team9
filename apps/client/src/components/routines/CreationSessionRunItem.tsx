@@ -1,22 +1,31 @@
 import { useTranslation } from "react-i18next";
-import { MessageSquare } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CreationSessionRunItemProps {
   isSelected: boolean;
   onClick: () => void;
+  disabled?: boolean;
+  isPending?: boolean;
+  title?: string;
 }
 
 export function CreationSessionRunItem({
   isSelected,
   onClick,
+  disabled = false,
+  isPending = false,
+  title,
 }: CreationSessionRunItemProps) {
   const { t } = useTranslation("routines");
+  const isDisabled = disabled || isPending;
 
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={isDisabled}
+      title={title}
       className={cn(
         "w-full text-left px-2 py-1.5 rounded-md transition-colors",
         "border border-yellow-200/60 dark:border-yellow-800/40",
@@ -24,13 +33,21 @@ export function CreationSessionRunItem({
         isSelected
           ? "ring-1 ring-primary/30 bg-primary/10"
           : "hover:bg-yellow-100/70 dark:hover:bg-yellow-900/25",
+        isDisabled && "opacity-60 cursor-not-allowed hover:bg-transparent",
       )}
     >
       <div className="flex items-center gap-1.5">
-        <MessageSquare
-          size={12}
-          className="shrink-0 text-yellow-700 dark:text-yellow-400"
-        />
+        {isPending ? (
+          <Loader2
+            size={12}
+            className="shrink-0 animate-spin text-yellow-700 dark:text-yellow-400"
+          />
+        ) : (
+          <MessageSquare
+            size={12}
+            className="shrink-0 text-yellow-700 dark:text-yellow-400"
+          />
+        )}
         <span
           className={cn(
             "text-xs font-medium",
