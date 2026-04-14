@@ -25,7 +25,15 @@ export function SearchFilterIn({
   const [isOpen, setIsOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
 
-  const { data: channels = [], isLoading } = useChannels();
+  const { data: rawChannels = [], isLoading } = useChannels();
+
+  // Exclude internal routine-session channels from search filters.
+  // They are ephemeral meta conversations (routine creation, reflection)
+  // and have no user-facing name.
+  const channels = useMemo(
+    () => rawChannels.filter((c) => c.type !== "routine-session"),
+    [rawChannels],
+  );
 
   // Filter channels by search input
   const filteredChannels = useMemo(() => {

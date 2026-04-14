@@ -518,7 +518,7 @@ export function HomeMainContent() {
             <DashboardPlanBadge planLabel={currentPlanLabel} />
 
             <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-5">
-              <h1 className="dashboard-landing-title max-w-[27.75rem] text-center text-[clamp(2.1rem,4vw,3.35rem)] leading-[0.99] text-[#2d2924]">
+              <h1 className="dashboard-landing-title text-center text-[clamp(2.1rem,4vw,3.35rem)] leading-[0.99] text-[#2d2924]">
                 {t("dashboardTitle")}
               </h1>
 

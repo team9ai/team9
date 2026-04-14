@@ -48,6 +48,15 @@ vi.mock("../WorkspaceFileBrowserContent", () => ({
   WorkspaceFileBrowserContent: () => <div>workspace-browser</div>,
 }));
 
+// @cubone/react-file-manager has a broken ESM entry that vitest can't
+// resolve (its own src/index.js imports `./FileManager/FileManager`
+// without an extension). Stub the whole module since this test doesn't
+// actually exercise it.
+vi.mock("@cubone/react-file-manager", () => ({
+  FileManager: () => null,
+}));
+vi.mock("@cubone/react-file-manager/dist/style.css", () => ({}));
+
 import { AIStaffDetailContent } from "../AIStaffDetailContent";
 
 describe("AIStaffDetailContent", () => {

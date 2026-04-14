@@ -17,6 +17,7 @@ const STATUS_BADGE_VARIANT: Record<
   RoutineStatus,
   "default" | "secondary" | "destructive" | "outline"
 > = {
+  draft: "outline",
   in_progress: "default",
   upcoming: "secondary",
   paused: "outline",
