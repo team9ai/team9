@@ -502,6 +502,104 @@ describe('ChannelsService', () => {
       ).rejects.toThrow('db write failed');
     });
 
+    it('recovers from a TOCTOU race by re-reading the winner row when the unique index rejects the second INSERT', async () => {
+      // Race scenario, after migration 0039 added a partial unique index
+      // on (created_by, tenant_id) WHERE type='echo' AND is_archived=false.
+      // Two concurrent requests both miss the existence check, both enter
+      // the transaction. The first INSERT wins; the second hits a Postgres
+      // unique-violation (SQLSTATE 23505), its transaction rolls back, and
+      // getOrCreateEchoChannel must re-read the existing channel (created
+      // by the winner) instead of bubbling the raw 23505 to the user.
+      const winner = {
+        id: 'echo-winner',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+        isArchived: false,
+      };
+
+      // Sequence of `.limit(1)` calls in the new code path:
+      //   1) initial existence lookup → empty (race not yet visible)
+      //   2) post-rollback re-lookup    → returns the winner row
+      //   3) ensureEchoOwnerMembership member lookup → active member
+      db.limit.mockResolvedValueOnce([] as any);
+      db.limit.mockResolvedValueOnce([winner] as any);
+      db.limit.mockResolvedValueOnce([{ id: 'member-1', leftAt: null }] as any);
+
+      // Transaction simulates Drizzle propagating a Postgres unique
+      // violation from the channel INSERT.
+      const pgUniqueErr = Object.assign(new Error('duplicate key value'), {
+        code: '23505',
+        constraint: 'idx_echo_unique_owner_tenant',
+      });
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(pgUniqueErr),
+            }),
+          }),
+        };
+        return await cb(pretendTx);
+      });
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+      // Spy on the warn log so a future regression that drops the
+      // observability hook will fail this test.
+      const loggerWarnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(winner);
+      // The unique violation must NOT propagate.
+      // (If it did, `.resolves.toEqual(winner)` above would already fail.)
+      // Recovery must observe (warn log) the race for ops visibility.
+      expect(loggerWarnSpy).toHaveBeenCalledTimes(1);
+      expect(loggerWarnSpy.mock.calls[0][0]).toContain('TOCTOU');
+      // The recovery path must NOT re-enter the transaction or churn caches:
+      // the winner already invalidated them in its successful path, and
+      // ensureEchoOwnerMembership early-returns on an active member.
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(memberCacheService.invalidate).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+
+      loggerWarnSpy.mockRestore();
+    });
+
+    it('still propagates non-unique-violation database errors raised inside the transaction', async () => {
+      // Regression guard: the unique-violation recovery added above
+      // must NOT swallow other database failures (constraint checks,
+      // connection drops, etc).
+      db.limit.mockResolvedValueOnce([] as any);
+      const otherErr = Object.assign(new Error('connection lost'), {
+        code: '08006',
+      });
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(otherErr),
+            }),
+          }),
+        };
+        return await cb(pretendTx);
+      });
+
+      await expect(
+        service.createDirectChannel('user-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('connection lost');
+      // Catch must fall straight through — no re-read on non-23505 errors.
+      // (Only 1 limit call was queued; if the catch tried to re-read it
+      // would consume a non-existent second mock and explode visibly.)
+      expect(db.limit).toHaveBeenCalledTimes(1);
+    });
+
     it('does not call assertDirectMessageAllowed for self-chat', async () => {
       const assertSpy = jest.spyOn(
         service as any,

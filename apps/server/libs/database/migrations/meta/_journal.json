@@ -274,6 +274,13 @@
       "when": 1776032168943,
       "tag": "0038_add_show_in_dm_sidebar",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1776135374943,
+      "tag": "0039_echo_channel_unique_index",
+      "breakpoints": true
     }
   ]
 }
