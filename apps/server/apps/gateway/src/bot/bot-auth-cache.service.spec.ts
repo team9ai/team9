@@ -1,7 +1,21 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { RedisService } from '@team9/redis';
-import { BotAuthCacheService } from './bot-auth-cache.service.js';
+import {
+  BotAuthCacheService,
+  type BotAuthContext,
+} from './bot-auth-cache.service.js';
+
+function mkContext(overrides: Partial<BotAuthContext> = {}): BotAuthContext {
+  return {
+    botId: 'bot-default',
+    userId: 'user-default',
+    tenantId: 'tenant-default',
+    email: 'bot-default@example.com',
+    username: 'bot-default',
+    ...overrides,
+  };
+}
 
 describe('BotAuthCacheService', () => {
   let service: BotAuthCacheService;
@@ -38,7 +52,13 @@ describe('BotAuthCacheService', () => {
   });
 
   it('stores positive validation results under a sha256 token digest and registers the reverse index', async () => {
-    const value = { botId: 'bot-1', userId: 'user-1', tenantId: 'tenant-1' };
+    const value = mkContext({
+      botId: 'bot-1',
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      email: 'bot-1@example.com',
+      username: 'bot-1',
+    });
 
     const result = await service.getOrSetValidation(
       't9bot_deadbeef',
@@ -86,27 +106,24 @@ describe('BotAuthCacheService', () => {
     const second = service.getOrSetValidation('t9bot_shared', loader);
 
     await new Promise((resolve) => setImmediate(resolve));
-    resolveLoader?.({ botId: 'bot-2', userId: 'user-2', tenantId: 'tenant-2' });
+    const expected = mkContext({
+      botId: 'bot-2',
+      userId: 'user-2',
+      tenantId: 'tenant-2',
+    });
+    resolveLoader?.(expected);
 
-    await expect(first).resolves.toEqual({
-      botId: 'bot-2',
-      userId: 'user-2',
-      tenantId: 'tenant-2',
-    });
-    await expect(second).resolves.toEqual({
-      botId: 'bot-2',
-      userId: 'user-2',
-      tenantId: 'tenant-2',
-    });
+    await expect(first).resolves.toEqual(expected);
+    await expect(second).resolves.toEqual(expected);
     expect(loader).toHaveBeenCalledTimes(1);
   });
 
   it('returns null for positive cache hits while a bot mutation lock is active', async () => {
-    const value = {
+    const value = mkContext({
       botId: 'bot-locked',
       userId: 'user-locked',
       tenantId: 'tenant-locked',
-    };
+    });
 
     redis.get.mockImplementation(async (key: string) => {
       if (key === 'auth:bot-token-version:bot-locked') {
@@ -137,7 +154,11 @@ describe('BotAuthCacheService', () => {
 
   it('returns the loader result when Redis read and parse operations fail', async () => {
     redis.get.mockResolvedValueOnce('not-json');
-    const value = { botId: 'bot-3', userId: 'user-3', tenantId: 'tenant-3' };
+    const value = mkContext({
+      botId: 'bot-3',
+      userId: 'user-3',
+      tenantId: 'tenant-3',
+    });
     const loader = jest.fn<any>().mockResolvedValue(value);
 
     await expect(
@@ -152,7 +173,11 @@ describe('BotAuthCacheService', () => {
     redis.sadd.mockRejectedValue(new Error('redis unavailable'));
     redis.expire.mockRejectedValue(new Error('redis unavailable'));
 
-    const value = { botId: 'bot-4', userId: 'user-4', tenantId: 'tenant-4' };
+    const value = mkContext({
+      botId: 'bot-4',
+      userId: 'user-4',
+      tenantId: 'tenant-4',
+    });
 
     await expect(
       service.getOrSetValidation('t9bot_write_fail', async () => value),
@@ -160,11 +185,11 @@ describe('BotAuthCacheService', () => {
   });
 
   it('skips positive cache writes when the bot version cannot be read from Redis', async () => {
-    const value = {
+    const value = mkContext({
       botId: 'bot-version-read-fail',
       userId: 'user-5',
       tenantId: 'tenant-5',
-    };
+    });
 
     redis.get.mockImplementation(async (key: string) => {
       if (key === 'auth:bot-token-version:bot-version-read-fail') {
@@ -210,7 +235,11 @@ describe('BotAuthCacheService', () => {
   });
 
   it('treats a positive cache entry with an old bot version as stale after invalidation', async () => {
-    const value = { botId: 'bot-7', userId: 'user-7', tenantId: 'tenant-7' };
+    const value = mkContext({
+      botId: 'bot-7',
+      userId: 'user-7',
+      tenantId: 'tenant-7',
+    });
     let version = 0;
     const entries = new Map<string, string>();
 
@@ -264,5 +293,100 @@ describe('BotAuthCacheService', () => {
     expect(redis.incr).toHaveBeenCalledWith(
       'auth:bot-token-version:bot-best-effort',
     );
+  });
+
+  // ── L1 in-memory cache ─────────────────────────────────────────────
+
+  it('serves repeat token lookups from L1 memory cache without hitting Redis', async () => {
+    const value = mkContext({ botId: 'bot-l1', userId: 'user-l1' });
+    const loader = jest.fn<() => Promise<BotAuthContext | null>>(
+      async () => value,
+    );
+
+    const first = await service.getOrSetValidation('t9bot_l1', loader);
+    expect(first).toEqual(value);
+    expect(loader).toHaveBeenCalledTimes(1);
+    const redisGetCallsAfterFirst = redis.get.mock.calls.length;
+
+    const second = await service.getOrSetValidation('t9bot_l1', loader);
+    expect(second).toEqual(value);
+    expect(loader).toHaveBeenCalledTimes(1);
+    // Second call must not touch Redis at all — L1 short-circuits.
+    expect(redis.get.mock.calls.length).toBe(redisGetCallsAfterFirst);
+  });
+
+  it('invalidateBot evicts L1 entries for that bot so the next call re-validates', async () => {
+    const value = mkContext({ botId: 'bot-l1-invalidate' });
+    const loader = jest.fn<() => Promise<BotAuthContext | null>>(
+      async () => value,
+    );
+
+    await service.getOrSetValidation('t9bot_l1_inv', loader);
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    redis.smembers.mockResolvedValueOnce([]);
+    await service.invalidateBot('bot-l1-invalidate');
+
+    await service.getOrSetValidation('t9bot_l1_inv', loader);
+    // Loader ran again — L1 was evicted, so we fell through to Redis+loader.
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('beginBotMutation evicts L1 entries for that bot locally', async () => {
+    const value = mkContext({ botId: 'bot-l1-mutation' });
+    const loader = jest.fn<() => Promise<BotAuthContext | null>>(
+      async () => value,
+    );
+
+    await service.getOrSetValidation('t9bot_l1_mut', loader);
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    await service.beginBotMutation('bot-l1-mutation');
+
+    await service.getOrSetValidation('t9bot_l1_mut', loader);
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('expires L1 entries after the memory TTL so stale contexts do not leak forever', async () => {
+    const value = mkContext({ botId: 'bot-l1-ttl' });
+    const loader = jest.fn<() => Promise<BotAuthContext | null>>(
+      async () => value,
+    );
+
+    const realNow = Date.now;
+    let current = 1_000_000;
+    Date.now = () => current;
+
+    try {
+      await service.getOrSetValidation('t9bot_l1_ttl', loader);
+      expect(loader).toHaveBeenCalledTimes(1);
+
+      // Within TTL — L1 hit.
+      current += 4_000;
+      await service.getOrSetValidation('t9bot_l1_ttl', loader);
+      expect(loader).toHaveBeenCalledTimes(1);
+
+      // Past TTL — L1 miss, Redis path re-invoked.
+      current += 10_000;
+      await service.getOrSetValidation('t9bot_l1_ttl', loader);
+      expect(loader).toHaveBeenCalledTimes(2);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('caches negative results in L1 with a short TTL to dampen invalid-token floods', async () => {
+    const loader = jest.fn<() => Promise<BotAuthContext | null>>(
+      async () => null,
+    );
+
+    await service.getOrSetValidation('t9bot_l1_neg', loader);
+    const redisCallsAfterFirst = redis.set.mock.calls.length;
+    await service.getOrSetValidation('t9bot_l1_neg', loader);
+
+    // Second lookup is L1 hit on the negative entry — loader only ran once,
+    // and no additional Redis set happened.
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(redis.set.mock.calls.length).toBe(redisCallsAfterFirst);
   });
 });

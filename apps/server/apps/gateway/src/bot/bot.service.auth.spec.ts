@@ -205,6 +205,11 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot@example.com', username: 'bot-user' },
+      ]),
+    );
 
     const context = await service.validateAccessTokenWithContext(rawToken);
 
@@ -212,6 +217,8 @@ describe('BotService auth validation', () => {
       botId: 'bot-1',
       userId: 'user-1',
       tenantId: 'tenant-1',
+      email: 'bot@example.com',
+      username: 'bot-user',
     });
 
     db.__queueSelect(
@@ -351,6 +358,11 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-cache@example.com', username: 'bot-cache' },
+      ]),
+    );
 
     const first = await service.validateAccessTokenWithContext(rawToken);
     const second = await service.validateAccessTokenWithContext(rawToken);
@@ -359,11 +371,14 @@ describe('BotService auth validation', () => {
       botId: 'bot-cache',
       userId: 'user-cache',
       tenantId: 'tenant-cache',
+      email: 'bot-cache@example.com',
+      username: 'bot-cache',
     });
     expect(second).toEqual(first);
-    expect(db.select).toHaveBeenCalledTimes(2);
+    // First call: 2 selects for token match + 1 select for user lookup.
+    // Second call hits the L1 memory cache and touches neither DB nor Redis.
+    expect(db.select).toHaveBeenCalledTimes(3);
     expect(redis.set).toHaveBeenCalled();
-    expect(redis.get).toHaveBeenCalledTimes(5);
   });
 
   it('does not return or cache a positive strict context when the bot token changes before final confirmation', async () => {
@@ -437,12 +452,19 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-revoke@example.com', username: 'bot-revoke' },
+      ]),
+    );
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toEqual({
       botId: 'bot-revoke',
       userId: 'user-revoke',
       tenantId: 'tenant-revoke',
+      email: 'bot-revoke@example.com',
+      username: 'bot-revoke',
     });
 
     db.__queueSelect(
@@ -459,7 +481,10 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(4);
+    // 3 (first validate: 2 match + 1 user) + 1 (revoke getStoredAccessToken)
+    // + 1 (second validate after revoke: token match lookup only; empty result
+    // short-circuits before the user lookup).
+    expect(db.select).toHaveBeenCalledTimes(5);
     const invalidationOrder =
       redis.incr.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER;
     const revokeMutationOrder =
@@ -501,6 +526,11 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-generate@example.com', username: 'bot-generate' },
+      ]),
+    );
     await service.validateAccessTokenWithContext(rawToken);
 
     db.__queueSelect(
@@ -528,7 +558,9 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(4);
+    // 3 (first validate: 2 match + 1 user) + 1 (generate: getStoredAccessToken)
+    // + 1 (second validate: empty match short-circuits before user lookup).
+    expect(db.select).toHaveBeenCalledTimes(5);
     expect(redis.smembers).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-generate',
     );
@@ -557,6 +589,11 @@ describe('BotService auth validation', () => {
           tenantId: 'tenant-delete',
           accessToken: `cccccccc:${hash}`,
         },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-delete@example.com', username: 'bot-delete' },
       ]),
     );
     await service.validateAccessTokenWithContext(rawToken);

@@ -6,6 +6,8 @@ export interface BotAuthContext {
   botId: string;
   userId: string;
   tenantId: string;
+  email: string;
+  username: string;
 }
 
 interface VersionedBotAuthContext {
@@ -20,12 +22,31 @@ type CachedBotAuthPayload =
   | VersionedBotAuthContext
   | BotAuthContext;
 
+interface MemoryCacheEntry {
+  context: BotAuthContext | null;
+  expiresAt: number;
+  botId: string | null;
+}
+
 @Injectable()
 export class BotAuthCacheService {
   private readonly positiveTtlSeconds = 30;
   private readonly negativeTtlSeconds = 5;
   private readonly mutationTtlSeconds = 30;
   private readonly inflight = new Map<string, Promise<BotAuthContext | null>>();
+
+  // ── L1 in-memory cache ──────────────────────────────────────────────
+  // Sits in front of Redis to eliminate network round-trips on hot paths
+  // (every bot-scoped API request currently makes a token lookup). TTL is
+  // intentionally short — across multiple gateway instances, a
+  // bot-mutation on one node can only evict this node's L1; other nodes
+  // serve stale context until their own entry expires. 5s keeps the
+  // stale window bounded without sacrificing hit rate on active bots.
+  private readonly memoryTtlMs = 5_000;
+  private readonly negativeMemoryTtlMs = 1_000;
+  private readonly memoryCacheMaxSize = 2_000;
+  private readonly memoryCache = new Map<string, MemoryCacheEntry>();
+  private readonly memoryByBotId = new Map<string, Set<string>>();
 
   constructor(private readonly redis: RedisService) {}
 
@@ -34,6 +55,17 @@ export class BotAuthCacheService {
     loader: () => Promise<BotAuthContext | VersionedBotAuthContext | null>,
   ): Promise<BotAuthContext | null> {
     const cacheKey = this.cacheKey(rawToken);
+
+    // L1 check: bypass Redis entirely if we have a fresh in-memory entry.
+    // Mutation-in-progress is not re-checked here — beginBotMutation
+    // evicts this node's L1 for the bot, so a stale entry can only exist
+    // if the mutation happened on another node. That window is bounded
+    // by memoryTtlMs (5s).
+    const memoryHit = this.readMemory(cacheKey);
+    if (memoryHit.hit) {
+      return memoryHit.context;
+    }
+
     const existing = this.inflight.get(cacheKey);
     if (existing) {
       return existing;
@@ -43,6 +75,7 @@ export class BotAuthCacheService {
       const cached = await this.safeGet(cacheKey);
       const cachedContext = await this.getValidCachedContext(cacheKey, cached);
       if (cachedContext !== undefined) {
+        this.writeMemory(cacheKey, cachedContext);
         return cachedContext;
       }
 
@@ -59,6 +92,7 @@ export class BotAuthCacheService {
           await this.safeSadd(reverseIndexKey, cacheKey);
           await this.safeExpire(reverseIndexKey, this.positiveTtlSeconds);
         }
+        this.writeMemory(cacheKey, versioned.context);
         return versioned.context;
       }
 
@@ -67,6 +101,7 @@ export class BotAuthCacheService {
         JSON.stringify({ invalid: true }),
         this.negativeTtlSeconds,
       );
+      this.writeMemory(cacheKey, null);
       return null;
     })();
 
@@ -79,6 +114,7 @@ export class BotAuthCacheService {
   }
 
   async invalidateBot(botId: string): Promise<void> {
+    this.evictMemoryByBotId(botId);
     await this.bumpBotVersion(botId);
 
     const reverseIndexKey = this.reverseIndexKey(botId);
@@ -90,6 +126,7 @@ export class BotAuthCacheService {
   }
 
   async beginBotMutation(botId: string): Promise<void> {
+    this.evictMemoryByBotId(botId);
     await this.redis.set(this.mutationKey(botId), '1', this.mutationTtlSeconds);
   }
 
@@ -244,5 +281,81 @@ export class BotAuthCacheService {
 
   private async bumpBotVersion(botId: string): Promise<number> {
     return this.redis.incr(this.versionKey(botId));
+  }
+
+  // ── L1 memory-cache helpers ─────────────────────────────────────────
+
+  private readMemory(
+    cacheKey: string,
+  ): { hit: true; context: BotAuthContext | null } | { hit: false } {
+    const entry = this.memoryCache.get(cacheKey);
+    if (!entry) {
+      return { hit: false };
+    }
+    if (entry.expiresAt <= Date.now()) {
+      this.deleteMemoryEntry(cacheKey, entry);
+      return { hit: false };
+    }
+    return { hit: true, context: entry.context };
+  }
+
+  private writeMemory(cacheKey: string, context: BotAuthContext | null): void {
+    // Evict an existing entry under the same key to keep the botId
+    // reverse index in sync before rewriting.
+    const existing = this.memoryCache.get(cacheKey);
+    if (existing) {
+      this.deleteMemoryEntry(cacheKey, existing);
+    }
+
+    // Bound memory usage. Insertion-order eviction approximates LRU
+    // well enough for short TTLs — entries churn within seconds.
+    while (this.memoryCache.size >= this.memoryCacheMaxSize) {
+      const oldestKey = this.memoryCache.keys().next().value as
+        | string
+        | undefined;
+      if (!oldestKey) break;
+      const oldestEntry = this.memoryCache.get(oldestKey);
+      if (oldestEntry) {
+        this.deleteMemoryEntry(oldestKey, oldestEntry);
+      } else {
+        this.memoryCache.delete(oldestKey);
+      }
+    }
+
+    const botId = context?.botId ?? null;
+    const ttl = context ? this.memoryTtlMs : this.negativeMemoryTtlMs;
+    this.memoryCache.set(cacheKey, {
+      context,
+      expiresAt: Date.now() + ttl,
+      botId,
+    });
+    if (botId) {
+      let set = this.memoryByBotId.get(botId);
+      if (!set) {
+        set = new Set();
+        this.memoryByBotId.set(botId, set);
+      }
+      set.add(cacheKey);
+    }
+  }
+
+  private evictMemoryByBotId(botId: string): void {
+    const keys = this.memoryByBotId.get(botId);
+    if (!keys) return;
+    for (const key of keys) {
+      this.memoryCache.delete(key);
+    }
+    this.memoryByBotId.delete(botId);
+  }
+
+  private deleteMemoryEntry(cacheKey: string, entry: MemoryCacheEntry): void {
+    this.memoryCache.delete(cacheKey);
+    if (!entry.botId) return;
+    const set = this.memoryByBotId.get(entry.botId);
+    if (!set) return;
+    set.delete(cacheKey);
+    if (set.size === 0) {
+      this.memoryByBotId.delete(entry.botId);
+    }
   }
 }

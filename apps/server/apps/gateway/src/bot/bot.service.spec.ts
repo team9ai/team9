@@ -647,6 +647,12 @@ describe('BotService', () => {
           tenantId: 'tenant-1',
           authVersion: 3,
         });
+      // The loader now does an extra user lookup to populate email/username
+      // in the cached context — mock it here so the loader returns a full
+      // versioned context instead of short-circuiting to null.
+      db.limit.mockResolvedValueOnce([
+        { email: 'bot-1@example.com', username: 'bot-1' },
+      ]);
       botAuthCache.getOrSetValidation.mockImplementation(
         async (_rawToken: string, resolve: () => Promise<any>) => resolve(),
       );
@@ -658,6 +664,8 @@ describe('BotService', () => {
           botId: 'bot-1',
           userId: 'user-1',
           tenantId: 'tenant-1',
+          email: 'bot-1@example.com',
+          username: 'bot-1',
         },
         version: 3,
       });
@@ -667,6 +675,26 @@ describe('BotService', () => {
         token,
         expect.any(Function),
       );
+    });
+
+    it('returns null when the bot user row is missing during context loading', async () => {
+      const token = `t9bot_${'d'.repeat(96)}`;
+      jest
+        .spyOn(service as any, 'findValidatedAccessTokenMatch')
+        .mockResolvedValue({
+          botId: 'bot-missing',
+          userId: 'user-missing',
+          tenantId: 'tenant-missing',
+          authVersion: 1,
+        });
+      db.limit.mockResolvedValueOnce([]);
+      botAuthCache.getOrSetValidation.mockImplementation(
+        async (_rawToken: string, resolve: () => Promise<any>) => resolve(),
+      );
+
+      await expect(
+        service.validateAccessTokenWithContext(token),
+      ).resolves.toBeNull();
     });
   });
 

@@ -15,6 +15,7 @@ import type { JwtPayload } from '../interfaces/jwt-payload.interface.js';
 
 type RequestWithUser = Request & {
   user?: JwtPayload;
+  tenantId?: string;
 };
 
 @Injectable()
@@ -62,6 +63,13 @@ export class AuthGuard extends PassportAuthGuard('jwt') {
       }
 
       request.user = payload;
+      // Propagate tenant scope from the bot token into the request so
+      // controllers using @CurrentTenantId() resolve the correct tenant.
+      // TenantMiddleware only sets req.tenantId for host/header paths —
+      // bot requests via internal DNS would otherwise leave it undefined.
+      if (payload.tenantId && !request.tenantId) {
+        request.tenantId = payload.tenantId;
+      }
       return true;
     }
 
