@@ -106,6 +106,17 @@ function createRedisMock() {
   const values = new Map<string, string>();
   const sets = new Map<string, Set<string>>();
 
+  // A trivial EventEmitter-like subscriber so BotAuthCacheService can wire
+  // its L1 pub/sub listeners. The tests in this spec never fire messages
+  // through it — we only need `subscribe()` to resolve successfully so the
+  // L1 positive cache is enabled end-to-end (l1CrossNodeReady = true).
+  const subscriber = {
+    on: jest.fn<any>(),
+    removeAllListeners: jest.fn<any>(),
+    subscribe: jest.fn<any>().mockResolvedValue(['bot-auth:invalidate', 1]),
+    quit: jest.fn<any>().mockResolvedValue('OK'),
+  };
+
   return {
     get: jest.fn(async (key: string) => values.get(key) ?? null),
     set: jest.fn(async (key: string, value: string) => {
@@ -134,6 +145,8 @@ function createRedisMock() {
       const deletedSet = sets.delete(key);
       return deletedValue || deletedSet ? 1 : 0;
     }),
+    publish: jest.fn<any>().mockResolvedValue(1),
+    createSubscriber: jest.fn<any>().mockReturnValue(subscriber),
   };
 }
 
@@ -178,6 +191,13 @@ describe('BotService auth validation', () => {
     }).compile();
 
     service = module.get(BotService);
+    // Test.createTestingModule().compile() does not run lifecycle hooks.
+    // Kick BotAuthCacheService.onModuleInit manually so its subscriber is
+    // wired up and L1 writes actually land — otherwise the tests below
+    // that exercise repeat-call caching would silently fall back to the
+    // Redis-only path and mask regressions in the L1 layer.
+    const botAuthCache = module.get(BotAuthCacheService);
+    await botAuthCache.onModuleInit();
   });
 
   it('returns botId, userId, and tenantId for a valid active token and preserves legacy validation output', async () => {
@@ -421,7 +441,7 @@ describe('BotService auth validation', () => {
 
     expect(db.select).toHaveBeenCalledTimes(2);
     expect(redis.set).toHaveBeenLastCalledWith(
-      expect.stringMatching(/^auth:bot-token:[a-f0-9]{64}$/),
+      expect.stringMatching(/^auth:bot-token:v2:[a-f0-9]{64}$/),
       JSON.stringify({ invalid: true }),
       5,
     );

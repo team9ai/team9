@@ -52,7 +52,13 @@ describe('AuthGuard bot token branch', () => {
     expect(request.tenantId).toBe('tenant-42');
   });
 
-  it('does not overwrite a tenantId already set by TenantMiddleware', async () => {
+  it('overrides any pre-set middleware tenantId with the bot token tenant (tenant-crossing defense)', async () => {
+    // Regression guard for a tenant-crossing vulnerability: an attacker
+    // could previously forge X-Tenant-ID to re-scope a bot request into
+    // another tenant because TenantMiddleware-set values won over the
+    // bot's own tenant. The bot's tenant comes from its installed
+    // application, which is the authoritative source and must always win
+    // on bot-authenticated requests.
     validateBotToken.mockResolvedValue({
       sub: 'user-bot',
       email: 'bot@example.com',
@@ -62,11 +68,13 @@ describe('AuthGuard bot token branch', () => {
 
     const { request, context } = makeContext({
       authorization: 'Bearer t9bot_valid',
+      'x-tenant-id': 'tenant-attacker',
     });
-    request.tenantId = 'tenant-from-middleware';
+    // Simulate TenantMiddleware having already written the attacker value.
+    request.tenantId = 'tenant-attacker';
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(request.tenantId).toBe('tenant-from-middleware');
+    expect(request.tenantId).toBe('tenant-from-bot');
   });
 
   it('throws UnauthorizedException for an invalid bot token', async () => {
