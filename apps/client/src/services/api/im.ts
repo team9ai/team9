@@ -340,6 +340,8 @@ export const imUsersApi = {
     username?: string;
     displayName?: string;
     avatarUrl?: string;
+    language?: string;
+    timeZone?: string;
   }): Promise<IMUser> => {
     const response = await http.patch<IMUser>("/v1/im/users/me", data);
     return response.data;

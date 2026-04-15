@@ -514,6 +514,84 @@ describe('CommonStaffService', () => {
         });
       });
 
+      it("includes the mentor's persisted language + timeZone in team9Context when set", async () => {
+        // Stub the private `getUserLocale` helper directly — the DB query
+        // mock queue is shared with earlier createStaff steps and threading
+        // a locale-shaped row through it is fragile. The contract we care
+        // about here is "whatever getUserLocale returns gets spread into
+        // team9Context", so stubbing the helper is both cleaner and
+        // tighter.
+        const getUserLocaleSpy = jest
+          .spyOn(
+            service as unknown as {
+              getUserLocale: (userId: string) => Promise<{
+                language: string | null;
+                timeZone: string | null;
+              }>;
+            },
+            'getUserLocale',
+          )
+          .mockResolvedValue({
+            language: 'pt-BR',
+            timeZone: 'America/Sao_Paulo',
+          });
+
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        // The helper must be called with the MENTOR id, not the owner —
+        // common-staff mentor can differ from the creator of the bot.
+        expect(getUserLocaleSpy).toHaveBeenCalledWith(MENTOR_ID);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toMatchObject({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: MENTOR_ID,
+          isMentorDm: true,
+          language: 'pt-BR',
+          timeZone: 'America/Sao_Paulo',
+        });
+
+        getUserLocaleSpy.mockRestore();
+      });
+
+      it('omits language and timeZone from team9Context when the mentor has no preferences', async () => {
+        const getUserLocaleSpy = jest
+          .spyOn(
+            service as unknown as {
+              getUserLocale: (userId: string) => Promise<{
+                language: string | null;
+                timeZone: string | null;
+              }>;
+            },
+            'getUserLocale',
+          )
+          .mockResolvedValue({ language: null, timeZone: null });
+
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).not.toHaveProperty('language');
+        expect(event.payload.team9Context).not.toHaveProperty('timeZone');
+
+        getUserLocaleSpy.mockRestore();
+      });
+
       it('does not trigger sendInput when agenticBootstrap=false', async () => {
         const dto = makeCreateDto({
           agenticBootstrap: false,

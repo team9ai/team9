@@ -14,6 +14,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
+import { useSyncUserLocale } from "@/hooks/useSyncUserLocale";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -268,6 +269,14 @@ function AuthenticatedLayout() {
 
   // Send periodic heartbeat to Service Worker for focus suppression
   useHeartbeat();
+
+  // Push the browser's detected locale + time zone up to the gateway once
+  // per authenticated session when they differ from what's already stored.
+  // Bootstrap events emitted by personal-staff / common-staff gateway
+  // services read these columns to populate `team9Context` so agents can
+  // greet mentors in the right language. Fire-and-forget — failures are
+  // non-fatal.
+  useSyncUserLocale();
 
   // Register Service Worker for push notifications on mount
   useEffect(() => {
