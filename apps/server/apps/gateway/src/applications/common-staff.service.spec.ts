@@ -205,10 +205,19 @@ function mockStreamTextReturn(chunks: string[]) {
 function mockStreamTextWithOutputReturn(
   partials: unknown[],
   finalObj: unknown,
+  finishReason:
+    | 'stop'
+    | 'length'
+    | 'content-filter'
+    | 'tool-calls'
+    | 'error'
+    | 'other'
+    | 'unknown' = 'stop',
 ) {
   return {
     partialOutputStream: makeAsyncIterable(partials),
     output: Promise.resolve(finalObj),
+    finishReason: Promise.resolve(finishReason),
   };
 }
 
@@ -1545,6 +1554,10 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           temperature: 0.95,
           output: 'mock-output-spec',
+          // Regression: 3 candidates × ~300-word persona + JSON overhead
+          // easily blows past the provider default (~1024 for Claude via
+          // OpenRouter), truncating the last persona. Must stay explicit.
+          maxOutputTokens: 4096,
         }),
       );
       // Verify Output.object was called with the Zod schema
@@ -1553,6 +1566,39 @@ describe('CommonStaffService', () => {
         schema: { shape: Record<string, unknown> };
       };
       expect(schemaArg.schema).toBeDefined();
+    });
+
+    it("throws when the LLM stops for 'length' (truncation) so the client surfaces an error instead of saving a truncated persona", async () => {
+      // Regression for the 三选一 persona truncation bug: when the LLM
+      // exhausts the token budget mid-generation, Vercel AI SDK still
+      // resolves `result.output` with the partial object (personas cut
+      // off mid-sentence). We must inspect finishReason and throw so the
+      // frontend falls into its error path instead of persisting garbage.
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn(
+          [],
+          {
+            candidates: [
+              {
+                candidateIndex: 1,
+                displayName: 'Alex',
+                roleTitle: 'Ops',
+                persona: 'Alex is a meticulous operator who — ',
+                summary: 'Truncated mid-sentence',
+              },
+            ],
+          },
+          'length',
+        ),
+      );
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(/max_tokens limit/);
     });
 
     it('includes jobTitle and jobDescription in the prompt', async () => {

@@ -413,6 +413,12 @@ export function CreateCommonStaffDialog({
       }
     } catch (error) {
       console.error("Candidate generation failed:", error);
+      // Drop any partial candidates that arrived before the error — keeping
+      // them would let the user submit a half-streamed persona (the original
+      // 三选一 truncation bug surfaced exactly this way when the backend
+      // hit max_tokens mid-stream).
+      setCandidates([]);
+      setSelectedCandidate(null);
       setCandidateGenerationError(
         error instanceof Error
           ? error.message

@@ -918,23 +918,38 @@ export const applicationsApi = {
           if (!line.startsWith("data: ")) continue;
           const payload = line.slice(6).trim();
           if (payload === "[DONE]") return;
+          let parsed: unknown;
           try {
-            const parsed = JSON.parse(payload) as {
-              type: "partial" | "complete";
-              data: {
-                candidates?: Array<{
-                  candidateIndex?: number;
-                  displayName?: string;
-                  roleTitle?: string;
-                  persona?: string;
-                  summary?: string;
-                }>;
-              };
-            };
-            yield parsed;
+            parsed = JSON.parse(payload);
           } catch {
-            // ignore malformed lines
+            continue; // ignore malformed lines
           }
+          // The server emits `{error: "..."}` as the last event when the
+          // async generator throws (e.g. token-limit truncation). Surface
+          // it so the dialog's catch block can clear state and warn the
+          // user — otherwise we silently keep whatever partial candidates
+          // were streamed before the error, which is what caused the
+          // 三选一 truncated-persona bug.
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            "error" in parsed &&
+            typeof (parsed as { error: unknown }).error === "string"
+          ) {
+            throw new Error((parsed as { error: string }).error);
+          }
+          yield parsed as {
+            type: "partial" | "complete";
+            data: {
+              candidates?: Array<{
+                candidateIndex?: number;
+                displayName?: string;
+                roleTitle?: string;
+                persona?: string;
+                summary?: string;
+              }>;
+            };
+          };
         }
       }
     } finally {

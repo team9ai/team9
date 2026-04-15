@@ -607,6 +607,11 @@ export class StaffService {
       output: Output.object({ schema: candidateSchema }),
       prompt: promptParts.join('\n'),
       temperature: 0.95,
+      // 3 candidates × ~300-word persona + JSON overhead easily exceeds the
+      // provider default (~1024 for Claude via OpenRouter). Without this cap
+      // the LLM runs out of budget mid-stream and the last candidate's
+      // persona is returned truncated. 4096 leaves comfortable headroom.
+      maxOutputTokens: 4096,
     });
 
     for await (const partial of result.partialOutputStream) {
@@ -614,6 +619,12 @@ export class StaffService {
     }
 
     const final = await result.output;
+    const finishReason = await result.finishReason;
+    if (finishReason === 'length') {
+      throw new Error(
+        'Candidate generation hit the max_tokens limit — one or more personas were truncated. Increase maxOutputTokens or shorten the prompt.',
+      );
+    }
     yield { type: 'complete' as const, data: final };
   }
 }
