@@ -32,7 +32,17 @@ export type { StaffBotResult as PersonalStaffResult };
 const PERSONAL_STAFF_APPLICATION_ID = 'personal-staff';
 const HIVE_BLUEPRINT_ID = 'team9-personal-staff';
 const PERSONAL_STAFF_ROLE_TITLE = 'Personal Assistant';
-const PERSONAL_STAFF_JOB_DESCRIPTION = 'Personal AI assistant';
+/**
+ * Fixed job description for every personal staff bot. Not persisted to the
+ * DB and not user-editable — the `UpdatePersonalStaffDto` deliberately does
+ * not expose `jobDescription`, and the agent-side `UpdateStaffProfile` tool
+ * rejects `role` modifications outright for `staffKind: "personal"`. The
+ * constant value is what `getStaff` returns and what the persona/avatar
+ * generators see as context, so wording matters: frame the assistant as
+ * dedicated to one specific owner, not as a generic AI helper.
+ */
+const PERSONAL_STAFF_JOB_DESCRIPTION =
+  'Dedicated personal assistant for your owner';
 
 @Injectable()
 export class PersonalStaffService {
@@ -88,6 +98,32 @@ export class PersonalStaffService {
       .limit(1);
 
     return rows[0] ?? null;
+  }
+
+  /**
+   * Read a user's persisted locale preferences for bootstrap event payloads.
+   *
+   * Both columns are nullable; this helper returns `{ language: null, timeZone: null }`
+   * when the user row does not exist or has not yet reported preferences.
+   * Callers pass the returned values into `team9Context` only when non-null
+   * so the agent-side default ("unknown → English") kicks in cleanly.
+   */
+  private async getUserLocale(
+    userId: string,
+  ): Promise<{ language: string | null; timeZone: string | null }> {
+    const rows = await this.db
+      .select({
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    const row = rows[0];
+    return {
+      language: row?.language ?? null,
+      timeZone: row?.timeZone ?? null,
+    };
   }
 
   /**
@@ -255,6 +291,12 @@ export class PersonalStaffService {
       const ownerDmChannel = dmChannelMap.get(ownerId);
       if (ownerDmChannel) {
         try {
+          // Read the owner's persisted locale/timezone preferences so the
+          // agent can greet them in the right language and format times in
+          // the right zone. Both columns are nullable; when unset the agent
+          // falls back to English + no zone hint.
+          const locale = await this.getUserLocale(ownerId);
+
           const sessionId = `team9/${tenantId}/${result.agentId}/dm/${ownerDmChannel.id}`;
           await this.clawHiveService.sendInput(
             sessionId,
@@ -275,6 +317,8 @@ export class PersonalStaffService {
                   scopeId: ownerDmChannel.id,
                   peerUserId: ownerId,
                   isMentorDm: true,
+                  ...(locale.language ? { language: locale.language } : {}),
+                  ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
                 },
               },
             },

@@ -76,6 +76,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 3000,
+          grantBalance: 0,
           quota: 0,
           quotaExpiresAt: null,
           effectiveQuota: 0,
@@ -163,6 +164,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 3000,
+          grantBalance: 0,
           quota: 8000,
           quotaExpiresAt: "2026-05-01T00:00:00.000Z",
           effectiveQuota: 8000,
@@ -243,6 +245,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 3000,
+          grantBalance: 0,
           quota: 0,
           quotaExpiresAt: null,
           effectiveQuota: 0,
@@ -319,6 +322,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 3000,
+          grantBalance: 0,
           quota: 0,
           quotaExpiresAt: null,
           effectiveQuota: 0,
@@ -373,6 +377,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 12000,
+          grantBalance: 1500,
           quota: 8000,
           quotaExpiresAt: "2026-05-01T00:00:00.000Z",
           effectiveQuota: 8000,
@@ -462,6 +467,10 @@ describe("SubscriptionContent", () => {
     render(<SubscriptionContent view="credits" />);
 
     expect(await screen.findByText(/buy credits/i)).toBeInTheDocument();
+    expect(screen.getByText("21,500 credits")).toBeInTheDocument();
+    expect(screen.getByText("Top-up: 12,000 credits")).toBeInTheDocument();
+    expect(screen.getByText("Subscription: 8,000 credits")).toBeInTheDocument();
+    expect(screen.getByText("Grant: 1,500 credits")).toBeInTheDocument();
     expect(screen.getByDisplayValue("25")).toBeInTheDocument();
 
     fireEvent.change(screen.getByDisplayValue("25"), {
@@ -494,6 +503,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 12000,
+          grantBalance: 0,
           quota: 8000,
           quotaExpiresAt: "2026-05-01T00:00:00.000Z",
           effectiveQuota: 8000,
@@ -573,6 +583,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 12000,
+          grantBalance: 0,
           quota: 0,
           quotaExpiresAt: null,
           effectiveQuota: 0,
@@ -629,6 +640,7 @@ describe("SubscriptionContent", () => {
           ownerType: "organization",
           ownerName: "Alpha",
           balance: 5000,
+          grantBalance: 0,
           quota: 8000,
           quotaExpiresAt: "2026-05-01T00:00:00.000Z",
           effectiveQuota: 8000,

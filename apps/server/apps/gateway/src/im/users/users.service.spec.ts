@@ -45,6 +45,8 @@ const schemaModule = {
     status: 'users.status',
     lastSeenAt: 'users.lastSeenAt',
     userType: 'users.userType',
+    language: 'users.language',
+    timeZone: 'users.timeZone',
     updatedAt: 'users.updatedAt',
   },
   bots: {
@@ -178,6 +180,8 @@ describe('UsersService', () => {
       lastSeenAt: null,
       userType: 'human',
       agentType: null,
+      language: null,
+      timeZone: null,
       ...overrides,
     };
   }
@@ -400,6 +404,58 @@ describe('UsersService', () => {
           avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('persists language and timeZone when the DTO carries them', async () => {
+      const updated = user({ language: 'zh-CN', timeZone: 'Asia/Shanghai' });
+      db.__state.updateResults.push([updated]);
+
+      await expect(
+        service.update('user-1', {
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        }),
+      ).resolves.toEqual(updated);
+
+      expect(db.__queries.update[0].set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+          updatedAt: now,
+        }),
+      );
+    });
+
+    it('allows updating language without touching timeZone', async () => {
+      const updated = user({ language: 'ja', timeZone: null });
+      db.__state.updateResults.push([updated]);
+
+      await expect(
+        service.update('user-1', { language: 'ja' }),
+      ).resolves.toEqual(updated);
+
+      const setCall = db.__queries.update[0].set.mock.calls[0]?.[0] as Record<
+        string,
+        unknown
+      >;
+      expect(setCall).toMatchObject({ language: 'ja' });
+      expect(setCall).not.toHaveProperty('timeZone');
+    });
+
+    it('allows updating timeZone without touching language', async () => {
+      const updated = user({ language: null, timeZone: 'America/New_York' });
+      db.__state.updateResults.push([updated]);
+
+      await expect(
+        service.update('user-1', { timeZone: 'America/New_York' }),
+      ).resolves.toEqual(updated);
+
+      const setCall = db.__queries.update[0].set.mock.calls[0]?.[0] as Record<
+        string,
+        unknown
+      >;
+      expect(setCall).toMatchObject({ timeZone: 'America/New_York' });
+      expect(setCall).not.toHaveProperty('language');
     });
   });
 
@@ -657,6 +713,53 @@ describe('UsersService', () => {
       const errors = await validate(dto);
 
       expect(errors.some((error) => error.property === 'username')).toBe(true);
+    });
+
+    it.each([
+      ['en'],
+      ['zh-CN'],
+      ['zh-Hans'],
+      ['pt-BR'],
+      ['ja'],
+      ['en-US'],
+      ['sr-Cyrl-RS'],
+    ])('accepts valid BCP 47 language tag %s', async (language) => {
+      const dto = Object.assign(new UpdateUserDto(), { language });
+      const errors = await validate(dto);
+      expect(errors.filter((e) => e.property === 'language')).toHaveLength(0);
+    });
+
+    it.each([['english'], ['zh_CN'], ['<script>'], ['12'], ['zh-!!']])(
+      'rejects invalid language tag %s',
+      async (language) => {
+        const dto = Object.assign(new UpdateUserDto(), { language });
+        const errors = await validate(dto);
+        expect(errors.some((e) => e.property === 'language')).toBe(true);
+      },
+    );
+
+    it.each([
+      ['UTC'],
+      ['Asia/Shanghai'],
+      ['America/New_York'],
+      ['America/Argentina/Buenos_Aires'],
+      ['Etc/GMT+8'],
+      ['Europe/London'],
+    ])('accepts valid IANA time zone %s', async (timeZone) => {
+      const dto = Object.assign(new UpdateUserDto(), { timeZone });
+      const errors = await validate(dto);
+      expect(errors.filter((e) => e.property === 'timeZone')).toHaveLength(0);
+    });
+
+    it.each([
+      ['Asia/Shang hai'], // space
+      ['not a zone'],
+      ['Asia//Shanghai'], // empty component
+      ['/Asia/Shanghai'], // leading slash
+    ])('rejects invalid time zone %s', async (timeZone) => {
+      const dto = Object.assign(new UpdateUserDto(), { timeZone });
+      const errors = await validate(dto);
+      expect(errors.some((e) => e.property === 'timeZone')).toBe(true);
     });
   });
 });

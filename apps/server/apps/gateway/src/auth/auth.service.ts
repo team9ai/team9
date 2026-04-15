@@ -56,6 +56,10 @@ export interface AuthenticatedUserResponse {
   displayName: string | null;
   avatarUrl: string | null;
   isActive: boolean;
+  /** IETF BCP 47 language tag. Null when the user has not yet reported a preference. */
+  language: string | null;
+  /** IANA time zone name. Null when the user has not yet reported a preference. */
+  timeZone: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,6 +167,8 @@ export class AuthService {
     displayName: string | null;
     avatarUrl: string | null;
     isActive: boolean;
+    language: string | null;
+    timeZone: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): AuthenticatedUserResponse {
@@ -173,6 +179,8 @@ export class AuthService {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
       isActive: user.isActive,
+      language: user.language,
+      timeZone: user.timeZone,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };

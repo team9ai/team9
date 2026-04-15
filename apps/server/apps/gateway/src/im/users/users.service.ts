@@ -36,6 +36,10 @@ export interface UserResponse {
   lastSeenAt: Date | null;
   userType: 'human' | 'bot' | 'system';
   agentType: AgentType | null;
+  /** IETF BCP 47 language tag. Null when the user has not yet reported a preference. */
+  language: string | null;
+  /** IANA time zone name. Null when the user has not yet reported a preference. */
+  timeZone: string | null;
 }
 
 type UserRowWithAgentContext = Omit<UserResponse, 'agentType'> & {
@@ -78,12 +82,16 @@ export class UsersService {
       status: row.status,
       lastSeenAt: row.lastSeenAt,
       userType: row.userType,
+      // Keep `agentType` last so the Redis-cached JSON has a stable key
+      // order; the cache read path does a string comparison in tests.
       agentType: resolveAgentType({
         userType: row.userType,
         applicationId: row.applicationId,
         managedProvider: row.managedProvider,
         managedMeta: row.managedMeta,
       }),
+      language: row.language,
+      timeZone: row.timeZone,
     };
   }
 
@@ -109,6 +117,8 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
@@ -388,6 +398,8 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
@@ -436,6 +448,8 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,

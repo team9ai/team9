@@ -154,6 +154,7 @@ export interface WorkspaceBillingAccount {
   ownerType: "personal" | "organization";
   ownerName: string | null;
   balance: number;
+  grantBalance: number;
   quota: number;
   quotaExpiresAt: string | null;
   effectiveQuota: number;

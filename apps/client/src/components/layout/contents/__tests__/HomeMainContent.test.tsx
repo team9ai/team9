@@ -116,6 +116,7 @@ describe("HomeMainContent", () => {
       data: {
         account: {
           balance: 4321,
+          grantBalance: 999,
           effectiveQuota: 555,
         },
       },
@@ -198,7 +199,7 @@ describe("HomeMainContent", () => {
     expect(screen.queryByText(/deep research/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/generate image/i)).not.toBeInTheDocument();
     expect(screen.getByText("Starter")).toBeInTheDocument();
-    expect(screen.getByText("4,876")).toBeInTheDocument();
+    expect(screen.getByText("5,875")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger.className).toContain("cursor-pointer");

@@ -48,6 +48,32 @@ export class CommonStaffService {
   ) {}
 
   /**
+   * Read a user's persisted locale preferences for bootstrap event payloads.
+   *
+   * Both columns are nullable; this helper returns `{ language: null, timeZone: null }`
+   * when the user row does not exist or has not yet reported preferences.
+   * Callers pass the returned values into `team9Context` only when non-null
+   * so the agent-side default ("unknown → English") kicks in cleanly.
+   */
+  private async getUserLocale(
+    userId: string,
+  ): Promise<{ language: string | null; timeZone: string | null }> {
+    const rows = await this.db
+      .select({
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    const row = rows[0];
+    return {
+      language: row?.language ?? null,
+      timeZone: row?.timeZone ?? null,
+    };
+  }
+
+  /**
    * Create a new common-staff bot for a workspace.
    *
    * Steps:
@@ -172,6 +198,12 @@ export class CommonStaffService {
     if (dto.agenticBootstrap && effectiveMentorId) {
       if (mentorDmChannel) {
         try {
+          // Read the mentor's persisted locale/timezone preferences so the
+          // agent can greet them in the right language and format times in
+          // the right zone. Both columns are nullable; when unset the agent
+          // falls back to English + no zone hint.
+          const locale = await this.getUserLocale(effectiveMentorId);
+
           const sessionId = `team9/${tenantId}/${result.agentId}/dm/${mentorDmChannel.id}`;
           await this.clawHiveService.sendInput(
             sessionId,
@@ -192,6 +224,8 @@ export class CommonStaffService {
                   scopeId: mentorDmChannel.id,
                   peerUserId: effectiveMentorId,
                   isMentorDm: true,
+                  ...(locale.language ? { language: locale.language } : {}),
+                  ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
                 },
               },
             },

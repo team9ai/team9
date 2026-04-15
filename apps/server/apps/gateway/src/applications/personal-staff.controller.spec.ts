@@ -72,7 +72,7 @@ const makeGetStaffResult = () => ({
   userId: BOT_USER_ID,
   displayName: 'Personal Assistant',
   roleTitle: 'Personal Assistant',
-  jobDescription: 'Personal AI assistant',
+  jobDescription: 'Dedicated personal assistant for your owner',
   persona: 'Friendly helper',
   model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
   visibility: { allowMention: false, allowDirectMessage: false },
