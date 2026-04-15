@@ -216,8 +216,10 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: db.insert().values().returning() — the draft routine row
     db.returning.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
 
-    // Mock: draft-conflict check — no existing draft
-    db.limit.mockResolvedValueOnce([] as any);
+    // NOTE: previously there was an additional `db.limit.mockResolvedValueOnce([])`
+    // here for the now-removed "pre-flight draft-conflict check". Drafts are
+    // now allowed to coexist per (user, bot), so there is no longer a
+    // SELECT between the insert and startCreationSession.
 
     // Mock: getRoutineOrThrow inside startCreationSession — returns the newly created draft
     // Note: no creationChannelId/creationSessionId yet (the channel hasn't been materialized)

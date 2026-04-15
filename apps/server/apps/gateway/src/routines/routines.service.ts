@@ -948,34 +948,28 @@ export class RoutinesService {
     const count = Number(countRow?.count ?? 0);
     const title = `Routine #${count + 1}`;
 
-    // Step 5: prevent two in-progress drafts with the same bot (tenant-scoped)
-    const [existingDraft] = await this.db
-      .select({ id: schema.routines.id })
-      .from(schema.routines)
-      .where(
-        and(
-          eq(schema.routines.tenantId, tenantId),
-          eq(schema.routines.botId, dto.agentId),
-          eq(schema.routines.creatorId, userId),
-          eq(schema.routines.status, 'draft'),
-          sql`${schema.routines.creationSessionId} IS NOT NULL`,
-        ),
-      )
-      .limit(1);
-    if (existingDraft) {
-      throw new BadRequestException(
-        'You already have a draft routine being created with this agent. Complete or delete it first.',
-      );
-    }
+    // NOTE: This path intentionally allows multiple concurrent draft
+    // routines per (user, bot). Drafts are a first-class entity — a user
+    // can plausibly be building several different routines with the same
+    // personal assistant at once (e.g. "weekly report" and "daily standup
+    // summary"). An earlier version of this flow rejected the second
+    // `with-creation-task` call with a 400 here, which was both semantically
+    // wrong and a one-way trap: a single stuck draft (claw-hive failure,
+    // user closing the browser mid-bootstrap, etc.) blocked ALL future
+    // creations against that bot with no in-UI recovery path. If
+    // accidental double-creation becomes a real problem the right place
+    // to fix it is the client (disable the button while the request is
+    // pending) and the drafts list UI (surface existing drafts so the
+    // user can pick one up instead of starting a fresh one).
 
-    // Step 6: create draft routine
+    // Step 5: create draft routine
     const draft = await this.create(
       { title, botId: dto.agentId, status: 'draft' },
       userId,
       tenantId,
     );
 
-    // Step 7: materialize creation session (channel + event + persist ids)
+    // Step 6: materialize creation session (channel + event + persist ids)
     try {
       const session = await this.startCreationSession(
         draft.id,

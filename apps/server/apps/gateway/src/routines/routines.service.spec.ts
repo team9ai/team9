@@ -2302,27 +2302,24 @@ describe('RoutinesService — TaskCast integration', () => {
       //   3. Count query: db.select().from().where() — terminal Promise
       db.where.mockResolvedValueOnce([{ count: 0 }] as any);
 
-      //   4. Draft-conflict check: db.select().from().where().limit() → empty
-      db.limit.mockResolvedValueOnce([] as any);
-
-      //   5. create() → documentsService.create() + db.insert().values().returning()
+      //   4. create() → documentsService.create() + db.insert().values().returning()
       documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
       db.returning.mockResolvedValueOnce([draftRoutine] as any);
 
       // Inner startCreationSession:
-      //   6. getRoutineOrThrow: db.select().from().where().limit() → draft
+      //   5. getRoutineOrThrow: db.select().from().where().limit() → draft
       db.limit.mockResolvedValueOnce([draftRoutine] as any);
 
-      //   7. Bot-tenant re-validation inside startCreationSession
+      //   6. Bot-tenant re-validation inside startCreationSession
       db.where.mockReturnValueOnce(db as any);
       db.limit.mockResolvedValueOnce(
         botTenantRow ? [botTenantRow] : ([] as any),
       );
 
-      //   8. getBotById (inner) for bot.userId
+      //   7. getBotById (inner) for bot.userId
       botsService.getBotById.mockResolvedValueOnce(botResult as any);
 
-      //   9. Atomic claim UPDATE with .returning() → 1-row array means won
+      //   8. Atomic claim UPDATE with .returning() → 1-row array means won
       db.returning.mockResolvedValueOnce([
         { id: draftRoutine.id } as any,
       ] as any);
@@ -2446,35 +2443,37 @@ describe('RoutinesService — TaskCast integration', () => {
       ).rejects.toThrow('Bot is not a managed hive agent');
     });
 
-    it('throws 400 when there is already a draft in progress for this bot — before creating new draft', async () => {
-      botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+    // Regression guard: we deliberately allow multiple concurrent draft
+    // creations per (user, bot). The previous implementation rejected the
+    // second call with a 400 and "Complete or delete it first", which was
+    // both semantically wrong (drafts are a first-class entity and a user
+    // can plausibly be building several routines with the same assistant
+    // at once) and a one-way trap: one stuck draft blocked ALL subsequent
+    // creations against that bot with no in-UI recovery path. If this
+    // test ever flips to expect a 400, someone reintroduced the bad
+    // check — preserve the comment and the user-reported pathology.
+    it('creates a new draft even when the user already has an in-progress draft for the same bot', async () => {
+      setupHappyPath();
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
+        id: 'channel-concurrent',
+      } as any);
+      clawHiveService.sendInput.mockResolvedValueOnce(undefined as any);
 
-      // Bot-tenant validation succeeds
-      db.where.mockReturnValueOnce(db as any);
-      db.limit.mockResolvedValueOnce([{ tenantId: 'tenant-1' }] as any);
-
-      // Count query
-      db.where.mockResolvedValueOnce([{ count: 1 }] as any);
-
-      // Draft-conflict check returns an existing draft (checked BEFORE create)
-      db.limit.mockResolvedValueOnce([{ id: 'existing-draft' }] as any);
-
-      await expect(
-        service.createWithCreationTask(
-          { agentId: 'bot-1' },
-          'user-1',
-          'tenant-1',
-        ),
-      ).rejects.toThrow(
-        'You already have a draft routine being created with this agent',
+      const result = await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
       );
 
-      // No draft was created because conflict check runs first
-      expect(db.insert).not.toHaveBeenCalled();
-      expect(documentsService.create).not.toHaveBeenCalled();
-      expect(
-        channelsService.createRoutineSessionChannel,
-      ).not.toHaveBeenCalled();
+      expect(result.routineId).toBe(DRAFT_NEW_ROUTINE.id);
+      expect(result.creationChannelId).toBe('channel-concurrent');
+      // A second draft was actually created — not short-circuited by a
+      // pre-flight "already exists" check.
+      expect(documentsService.create).toHaveBeenCalledTimes(1);
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
     });
 
     it('rolls back draft if startCreationSession fails during channel creation', async () => {
