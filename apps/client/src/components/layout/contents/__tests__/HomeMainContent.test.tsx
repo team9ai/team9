@@ -328,4 +328,29 @@ describe("HomeMainContent", () => {
     expect(screen.getByText("Free plan")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
+
+  it("shows the workspace credit balance to non-managing members", () => {
+    // Members cannot manage billing but must still see the balance they
+    // themselves consume when sending messages or running agents.
+    mockUseWorkspaceBillingSummary.mockReturnValue({
+      data: {
+        subscription: { product: { name: "Starter" } },
+        managementAllowed: false,
+      },
+    });
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          balance: 1000,
+          grantBalance: 200,
+          effectiveQuota: 50,
+        },
+      },
+    });
+
+    renderWithProviders(<HomeMainContent />);
+
+    expect(screen.getByText("1,250")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
 });

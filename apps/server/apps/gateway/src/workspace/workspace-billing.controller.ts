@@ -49,10 +49,22 @@ export class WorkspaceBillingController {
   }
 
   @Get(':workspaceId/billing/overview')
-  @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
-  @WorkspaceRoles('owner', 'admin')
-  async getOverview(@Param('workspaceId', ParseUUIDPipe) workspaceId: string) {
-    return this.billingHubService.getWorkspaceOverview(workspaceId);
+  @UseGuards(AuthGuard, WorkspaceGuard)
+  async getOverview(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Req() request: { workspaceRole?: string },
+  ) {
+    // Every workspace member can read the overview; the service filters
+    // audit-sensitive fields (transaction history) for non-managers.
+    return this.billingHubService.getWorkspaceOverview(
+      workspaceId,
+      request.workspaceRole as
+        | 'owner'
+        | 'admin'
+        | 'member'
+        | 'guest'
+        | undefined,
+    );
   }
 
   @Post(':workspaceId/billing/checkout')

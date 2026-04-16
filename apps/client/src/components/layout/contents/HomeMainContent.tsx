@@ -373,10 +373,7 @@ export function HomeMainContent() {
   const { agents, updateAgentModel, updatingAgentUserId } =
     useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
-  const billingOverview = useWorkspaceBillingOverview(
-    workspaceId ?? undefined,
-    billingSummary.data?.managementAllowed ?? false,
-  );
+  const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     null,
@@ -395,12 +392,9 @@ export function HomeMainContent() {
     !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
   const currentPlanLabel =
     billingSummary.data?.subscription?.product.name || t("dashboardPlan");
-  const creditsLabel =
-    billingSummary.data?.managementAllowed && billingOverview.data?.account
-      ? formatDashboardCredits(
-          getWorkspaceCredits(billingOverview.data.account),
-        )
-      : "—";
+  const creditsLabel = billingOverview.data?.account
+    ? formatDashboardCredits(getWorkspaceCredits(billingOverview.data.account))
+    : "—";
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
