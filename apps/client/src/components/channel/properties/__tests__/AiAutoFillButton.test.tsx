@@ -1,6 +1,13 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { AiAutoFillButton } from "../AiAutoFillButton";
+import { useAiAutoFillStore } from "@/stores/useAiAutoFillStore";
 
 const autoFillMock = vi.fn();
 
@@ -10,9 +17,16 @@ vi.mock("@/services/api/properties", () => ({
   },
 }));
 
+function resetStore() {
+  act(() => {
+    useAiAutoFillStore.setState({ entries: new Map() });
+  });
+}
+
 describe("AiAutoFillButton", () => {
   beforeEach(() => {
     autoFillMock.mockReset();
+    resetStore();
   });
 
   it("shows a 'Nothing to fill' badge when the AI returns an empty filled map, then auto-dismisses", async () => {
@@ -86,6 +100,64 @@ describe("AiAutoFillButton", () => {
         fields: ["a", "b"],
         preserveExisting: true,
       });
+    });
+  });
+
+  it("preserves in-flight loading state across unmount/remount (panel closed and reopened)", async () => {
+    let resolveFn: (v: unknown) => void = () => {};
+    autoFillMock.mockReturnValue(
+      new Promise((r) => {
+        resolveFn = r;
+      }),
+    );
+
+    const first = render(
+      <AiAutoFillButton messageId="msg-9" channelId="chan-1" size="default" />,
+    );
+    fireEvent.click(screen.getByTitle("AI Generate"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Generating...")).toBeInTheDocument();
+    });
+
+    first.unmount();
+
+    render(
+      <AiAutoFillButton messageId="msg-9" channelId="chan-1" size="default" />,
+    );
+    // After remount, button should still reflect the in-flight loading state
+    expect(screen.getByText("Generating...")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFn({ filled: { a: 1 }, skipped: [] });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Generating...")).not.toBeInTheDocument();
+    });
+  });
+
+  it("persists error badge across remount until explicitly dismissed", async () => {
+    autoFillMock.mockRejectedValue(new Error("boom"));
+
+    const first = render(
+      <AiAutoFillButton messageId="msg-e" channelId="chan-1" size="default" />,
+    );
+    fireEvent.click(screen.getByTitle("AI Generate"));
+
+    await waitFor(() => {
+      expect(screen.getByText("AI failed")).toBeInTheDocument();
+    });
+
+    first.unmount();
+    render(
+      <AiAutoFillButton messageId="msg-e" channelId="chan-1" size="default" />,
+    );
+
+    expect(screen.getByText("AI failed")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Dismiss"));
+    await waitFor(() => {
+      expect(screen.queryByText("AI failed")).not.toBeInTheDocument();
     });
   });
 });

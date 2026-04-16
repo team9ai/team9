@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Sparkles, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { aiAutoFillApi } from "@/services/api/properties";
+import { useAiAutoFillStore } from "@/stores/useAiAutoFillStore";
 
 export interface AiAutoFillButtonProps {
   messageId: string;
@@ -20,48 +20,38 @@ export function AiAutoFillButton({
   size = "sm",
   className,
 }: AiAutoFillButtonProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const entry = useAiAutoFillStore((s) => s.entries.get(messageId));
+  const run = useAiAutoFillStore((s) => s.run);
+  const dismiss = useAiAutoFillStore((s) => s.dismiss);
 
+  const status = entry?.status;
+  const message = entry?.message;
+  const settledAt = entry?.settledAt;
+
+  // Auto-dismiss the "info" state after a few seconds across remounts.
   useEffect(() => {
-    if (!info) return;
-    const t = setTimeout(() => setInfo(null), INFO_AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [info]);
-
-  const handleAutoFill = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const result = await aiAutoFillApi.autoFill(messageId, {
-        fields,
-        preserveExisting: true,
-      });
-      // The WS `message_property_changed` event refreshes the property cache on
-      // successful fills, so no query invalidation is needed here. When the AI
-      // fills nothing (all fields preserved or marked unchanged), no WS event
-      // fires — surface a short "nothing to fill" badge so the click is not
-      // a silent no-op.
-      if (Object.keys(result.filled).length === 0) {
-        setInfo("Nothing to fill");
-      }
-    } catch {
-      setError("AI failed");
-    } finally {
-      setLoading(false);
+    if (status !== "info" || !settledAt) return;
+    const remaining = INFO_AUTO_DISMISS_MS - (Date.now() - settledAt);
+    if (remaining <= 0) {
+      dismiss(messageId);
+      return;
     }
-  }, [messageId, fields]);
+    const t = setTimeout(() => dismiss(messageId), remaining);
+    return () => clearTimeout(t);
+  }, [status, settledAt, messageId, dismiss]);
 
-  const dismissError = useCallback(() => {
-    setError(null);
-  }, []);
+  const handleAutoFill = useCallback(() => {
+    void run(messageId, { fields, preserveExisting: true });
+  }, [messageId, fields, run]);
 
+  const handleDismiss = useCallback(() => {
+    dismiss(messageId);
+  }, [messageId, dismiss]);
+
+  const loading = status === "loading";
   const iconSize = size === "sm" ? 12 : 14;
 
-  // Show persistent failure badge
-  if (error) {
+  if (status === "error") {
     return (
       <span
         className={cn(
@@ -72,9 +62,9 @@ export function AiAutoFillButton({
         )}
       >
         <Sparkles size={10} />
-        <span>{error}</span>
+        <span>{message ?? "AI failed"}</span>
         <button
-          onClick={dismissError}
+          onClick={handleDismiss}
           className="ml-0.5 hover:bg-destructive/20 rounded-full p-0.5"
           title="Dismiss"
         >
@@ -91,7 +81,7 @@ export function AiAutoFillButton({
     );
   }
 
-  if (info) {
+  if (status === "info") {
     return (
       <span
         className={cn(
@@ -102,7 +92,7 @@ export function AiAutoFillButton({
         )}
       >
         <Sparkles size={10} />
-        <span>{info}</span>
+        <span>{message ?? "Done"}</span>
       </span>
     );
   }
