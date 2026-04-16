@@ -100,3 +100,62 @@ describe("WebSocketService transport fallback", () => {
     });
   });
 });
+
+describe("WebSocketService routine/user updated helpers", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    ioMock.mockClear();
+    sentryMock.addBreadcrumb.mockClear();
+    sentryMock.captureException.mockClear();
+    queryClientMock.invalidateQueries.mockClear();
+    sockets.length = 0;
+    localStorage.clear();
+  });
+
+  it("registers onRoutineUpdated/onUserUpdated on the socket once connected, and offRoutineUpdated/offUserUpdated removes them", async () => {
+    const { default: wsService } = await import("../index");
+
+    // Mark the underlying socket as connected so the service registers handlers
+    // directly via socket.on rather than queueing them.
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+    socket.connected = true;
+
+    const routineCb = vi.fn();
+    const userCb = vi.fn();
+
+    wsService.onRoutineUpdated(routineCb);
+    wsService.onUserUpdated(userCb);
+
+    expect(socket.on).toHaveBeenCalledWith("routine:updated", routineCb);
+    expect(socket.on).toHaveBeenCalledWith("user_updated", userCb);
+
+    wsService.offRoutineUpdated(routineCb);
+    wsService.offUserUpdated(userCb);
+
+    expect(socket.off).toHaveBeenCalledWith("routine:updated", routineCb);
+    expect(socket.off).toHaveBeenCalledWith("user_updated", userCb);
+  });
+
+  it("invokes the registered callback when the server broadcasts routine:updated and user_updated", async () => {
+    const { default: wsService } = await import("../index");
+
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+    socket.connected = true;
+
+    const routineCb = vi.fn();
+    const userCb = vi.fn();
+
+    wsService.onRoutineUpdated(routineCb);
+    wsService.onUserUpdated(userCb);
+
+    socket.trigger("routine:updated", { routineId: "r-1" });
+    socket.trigger("user_updated", { userId: "u-1" });
+
+    expect(routineCb).toHaveBeenCalledWith({ routineId: "r-1" });
+    expect(userCb).toHaveBeenCalledWith({ userId: "u-1" });
+  });
+});
