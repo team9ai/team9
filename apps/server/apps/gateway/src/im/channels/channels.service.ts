@@ -70,6 +70,9 @@ export interface ChannelWithUnread extends ChannelResponse {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    staffKind: 'common' | 'personal' | 'other' | null;
+    roleTitle: string | null;
+    ownerName: string | null;
   };
 }
 
@@ -88,6 +91,9 @@ export interface ChannelMemberResponse {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    staffKind: 'common' | 'personal' | 'other' | null;
+    roleTitle: string | null;
+    ownerName: string | null;
     createdAt: Date;
   };
 }
@@ -102,6 +108,9 @@ type ChannelUserSummaryRow = {
   applicationId: string | null;
   managedProvider: string | null;
   managedMeta: schema.ManagedMeta | null;
+  botExtra: BotExtra | null;
+  ownerDisplayName: string | null;
+  ownerUsername: string | null;
 };
 
 /**
@@ -213,6 +222,27 @@ export class ChannelsService {
   }
 
   private mapChannelUserSummary(row: ChannelUserSummaryRow) {
+    let staffKind: 'common' | 'personal' | 'other' | null = null;
+    let roleTitle: string | null = null;
+    let ownerName: string | null = null;
+
+    if (row.userType === 'bot') {
+      if (row.botExtra?.commonStaff) {
+        staffKind = 'common';
+        roleTitle = row.botExtra.commonStaff.roleTitle ?? null;
+        if (row.botExtra.personalStaff) {
+          this.logger.warn(
+            `Bot ${row.userId} has both commonStaff and personalStaff in extra; preferring common`,
+          );
+        }
+      } else if (row.botExtra?.personalStaff) {
+        staffKind = 'personal';
+        ownerName = row.ownerDisplayName ?? row.ownerUsername ?? null;
+      } else {
+        staffKind = 'other';
+      }
+    }
+
     return {
       id: row.userId,
       username: row.username,
@@ -226,6 +256,9 @@ export class ChannelsService {
         managedProvider: row.managedProvider,
         managedMeta: row.managedMeta,
       }),
+      staffKind,
+      roleTitle,
+      ownerName,
     };
   }
 
@@ -911,6 +944,9 @@ export class ChannelsService {
       status: 'online' | 'offline' | 'away' | 'busy';
       userType: 'human' | 'bot' | 'system';
       agentType: AgentType | null;
+      staffKind: 'common' | 'personal' | 'other' | null;
+      roleTitle: string | null;
+      ownerName: string | null;
     };
     const otherUserMap = new Map<string, UserSummary>();
 
@@ -927,6 +963,12 @@ export class ChannelsService {
           applicationId: schema.installedApplications.applicationId,
           managedProvider: schema.bots.managedProvider,
           managedMeta: schema.bots.managedMeta,
+          // TODO(task-2): join schema.bots.extra and the owner user row to
+          // populate these. Until then, mapChannelUserSummary will classify
+          // every bot as `staffKind: 'other'`.
+          botExtra: sql<BotExtra | null>`NULL`,
+          ownerDisplayName: sql<string | null>`NULL`,
+          ownerUsername: sql<string | null>`NULL`,
         })
         .from(schema.channelMembers)
         .innerJoin(
@@ -995,6 +1037,9 @@ export class ChannelsService {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    staffKind: 'common' | 'personal' | 'other' | null;
+    roleTitle: string | null;
+    ownerName: string | null;
   } | null> {
     const [user] = await this.db
       .select({
@@ -1007,6 +1052,9 @@ export class ChannelsService {
         applicationId: sql<string | null>`NULL`,
         managedProvider: sql<string | null>`NULL`,
         managedMeta: sql<Record<string, unknown> | null>`NULL`,
+        botExtra: sql<BotExtra | null>`NULL`,
+        ownerDisplayName: sql<string | null>`NULL`,
+        ownerUsername: sql<string | null>`NULL`,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -1030,6 +1078,9 @@ export class ChannelsService {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    staffKind: 'common' | 'personal' | 'other' | null;
+    roleTitle: string | null;
+    ownerName: string | null;
   } | null> {
     return this.redis.getOrSet(
       REDIS_KEYS.CHANNEL_DM_OTHER_USER(channelId, userId),
@@ -1045,6 +1096,12 @@ export class ChannelsService {
             applicationId: schema.installedApplications.applicationId,
             managedProvider: schema.bots.managedProvider,
             managedMeta: schema.bots.managedMeta,
+            // TODO(task-2): join schema.bots.extra and the owner user row to
+            // populate these. Until then, mapChannelUserSummary will classify
+            // every bot as `staffKind: 'other'`.
+            botExtra: sql<BotExtra | null>`NULL`,
+            ownerDisplayName: sql<string | null>`NULL`,
+            ownerUsername: sql<string | null>`NULL`,
           })
           .from(schema.channelMembers)
           .innerJoin(
@@ -1239,6 +1296,12 @@ export class ChannelsService {
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
+        // TODO(task-2): join schema.bots.extra and the owner user row to
+        // populate these. Until then, mapChannelUserSummary will classify
+        // every bot as `staffKind: 'other'`.
+        botExtra: sql<BotExtra | null>`NULL`,
+        ownerDisplayName: sql<string | null>`NULL`,
+        ownerUsername: sql<string | null>`NULL`,
       })
       .from(schema.channelMembers)
       .innerJoin(

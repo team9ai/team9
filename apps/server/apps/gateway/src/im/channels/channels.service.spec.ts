@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ChannelsService } from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
+import type { BotExtra } from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { TabsService } from '../views/tabs.service.js';
@@ -2167,6 +2168,164 @@ describe('ChannelsService', () => {
       expect(redisService.invalidate).toHaveBeenCalledWith(
         expect.stringContaining('ch-1'),
       );
+    });
+  });
+
+  // ── mapChannelUserSummary ───────────────────────────────────────────
+
+  describe('mapChannelUserSummary', () => {
+    type SummaryRow = {
+      userId: string;
+      username: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+      status: 'online' | 'offline' | 'away' | 'busy';
+      userType: 'human' | 'bot' | 'system';
+      applicationId: string | null;
+      managedProvider: string | null;
+      managedMeta: Record<string, unknown> | null;
+      botExtra: BotExtra | null;
+      ownerDisplayName: string | null;
+      ownerUsername: string | null;
+    };
+
+    const baseRow: SummaryRow = {
+      userId: 'u1',
+      username: 'alice',
+      displayName: 'Alice',
+      avatarUrl: null,
+      status: 'online',
+      userType: 'bot',
+      applicationId: null,
+      managedProvider: null,
+      managedMeta: null,
+      botExtra: null,
+      ownerDisplayName: null,
+      ownerUsername: null,
+    };
+
+    const map = (row: SummaryRow) =>
+      (
+        service as unknown as {
+          mapChannelUserSummary: (r: SummaryRow) => {
+            id: string;
+            username: string;
+            displayName: string | null;
+            avatarUrl: string | null;
+            status: 'online' | 'offline' | 'away' | 'busy';
+            userType: 'human' | 'bot' | 'system';
+            agentType: string | null;
+            staffKind: 'common' | 'personal' | 'other' | null;
+            roleTitle: string | null;
+            ownerName: string | null;
+          };
+        }
+      ).mapChannelUserSummary(row);
+
+    it('common staff with roleTitle → staffKind=common, roleTitle set', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { commonStaff: { roleTitle: 'Engineer' } },
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBe('Engineer');
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('common staff without roleTitle → staffKind=common, roleTitle=null', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { commonStaff: {} },
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('personal staff with owner displayName → ownerName uses displayName', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: 'Bob Owner',
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBe('Bob Owner');
+    });
+
+    it('personal staff with only username → ownerName falls back to username', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: null,
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.ownerName).toBe('bob');
+    });
+
+    it('personal staff with missing owner row → ownerName=null', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: null,
+        ownerUsername: null,
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('bot with empty extra → staffKind=other', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: {},
+      });
+
+      expect(result.staffKind).toBe('other');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('human row → staffKind=null and other agent fields null', () => {
+      const result = map({
+        ...baseRow,
+        userType: 'human',
+        botExtra: null,
+      });
+
+      expect(result.staffKind).toBeNull();
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('bot with both commonStaff and personalStaff → common wins (and warns)', () => {
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      const result = map({
+        ...baseRow,
+        botExtra: {
+          commonStaff: { roleTitle: 'Engineer' },
+          personalStaff: {},
+        },
+        ownerDisplayName: 'Bob Owner',
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBe('Engineer');
+      expect(result.ownerName).toBeNull();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('u1');
+
+      warnSpy.mockRestore();
     });
   });
 });
