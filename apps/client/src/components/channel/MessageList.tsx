@@ -415,13 +415,15 @@ export function MessageList({
       if (item.type === "stream") {
         // While streaming, lift thinking out of the bot bubble into a
         // tracking row that looks identical to the persisted "Thought
-        // for Xs" row the user will see after the round finishes — so
-        // the UI doesn't visibly reshape when streaming ends.
-        const showThinkingRow =
-          item.stream.isThinking || item.stream.thinking.length > 0;
+        // for Xs" row the user will see after the round finishes. The
+        // row is shown as soon as the stream is active — not gated on
+        // thinking content — so the "Thinking Ns" indicator appears
+        // immediately instead of waiting for the first thinking chunk
+        // (Claude only flushes thinking deltas when a reasoning block
+        // finalizes, which can be several seconds in).
         return (
           <div className="py-2">
-            {showThinkingRow && <StreamingThinkingRow stream={item.stream} />}
+            <StreamingThinkingRow stream={item.stream} />
             <StreamingMessageItem stream={item.stream} members={members} />
           </div>
         );

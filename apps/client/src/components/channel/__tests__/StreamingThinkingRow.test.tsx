@@ -27,11 +27,17 @@ function makeStream(
 }
 
 describe("StreamingThinkingRow", () => {
-  it("renders label + icon pulsing while streaming", () => {
-    // Thinking is a lifecycle event, so icon + label both stay neutral
-    // gray — only the pulse animation signals activity. (This matches
-    // the contract enforced by TrackingEventItem's own tests.)
-    const stream = makeStream({ startedAt: Date.now() - 2000 });
+  it("shows a pulsing 'Thinking Ns' row during the pre-content phase", () => {
+    // Before any reply text arrives the row reads as in-flight: label
+    // + icon both pulse. Rendering is NOT gated on thinking content
+    // arriving — Claude doesn't flush thinking deltas until a reasoning
+    // block finalizes, which can take several seconds, so we need to
+    // surface the row the moment the stream starts.
+    const stream = makeStream({
+      startedAt: Date.now() - 2000,
+      content: "",
+      thinking: "",
+    });
     render(<StreamingThinkingRow stream={stream} />);
 
     const label = screen.getByText(/^Thinking/);
@@ -52,6 +58,44 @@ describe("StreamingThinkingRow", () => {
     render(<StreamingThinkingRow stream={stream} />);
 
     expect(screen.getByText(/Thinking \d+s/)).toBeInTheDocument();
+  });
+
+  it("renders nothing when the bot replies without any thinking", () => {
+    // Some bots (short replies, models that don't engage extended
+    // thinking) stream text directly without ever producing a
+    // reasoning block. The row must disappear in that case — leaving
+    // a "Thought for 0s" remnant would lie about what the bot did.
+    const stream = makeStream({
+      startedAt: Date.now() - 200,
+      content: "Hi!",
+      thinking: "",
+      isThinking: false,
+    });
+    const { container } = render(<StreamingThinkingRow stream={stream} />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("freezes into 'Thought for Ns' once reply text starts streaming", () => {
+    // Reply text arriving is the signal that thinking is done. The row
+    // flips from the live "Thinking Ns" state to the completed "Thought
+    // for Ns" state with a frozen duration — no more pulse, so the
+    // reader's attention shifts to the text below. When the stream ends
+    // and the persisted thinking message arrives, it renders in the
+    // same spot (MessageList sorts by effective time) so there's no
+    // reshuffle.
+    const stream = makeStream({
+      startedAt: Date.now() - 4000,
+      content: "Hello there!",
+      thinking: "some reasoning",
+      isThinking: false,
+    });
+    render(<StreamingThinkingRow stream={stream} />);
+
+    const label = screen.getByText(/^Thought for/);
+    expect(label).not.toHaveClass("animate-pulse");
+
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).not.toHaveClass("animate-pulse");
   });
 
   it("wraps the row in the same gray/border strip as persisted agent events", () => {

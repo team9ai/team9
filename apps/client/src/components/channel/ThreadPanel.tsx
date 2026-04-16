@@ -319,11 +319,12 @@ export function ThreadPanel({
   const itemContent = useCallback(
     (_index: number, item: ThreadListItem) => {
       if (item.type === "stream") {
-        const showThinkingRow =
-          item.stream.isThinking || item.stream.thinking.length > 0;
+        // Always render the thinking row while streaming — see the
+        // parallel comment in MessageList.tsx for why this isn't gated
+        // on thinking content.
         return (
           <div className="py-0.5">
-            {showThinkingRow && <StreamingThinkingRow stream={item.stream} />}
+            <StreamingThinkingRow stream={item.stream} />
             <StreamingMessageItem stream={item.stream} members={members} />
           </div>
         );

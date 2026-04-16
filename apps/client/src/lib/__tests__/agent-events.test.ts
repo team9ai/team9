@@ -333,4 +333,57 @@ describe("sortByEffectiveTime", () => {
     const sorted = sortByEffectiveTime([reply, agentEnd]);
     expect(sorted.map((m) => m.id)).toEqual(["reply", "end"]);
   });
+
+  it("clamps thinking.startedAt to agent_start.createdAt so 'Started' stays first", () => {
+    // Real-world scenario: the LLM call begins a few ms *before* the
+    // tracking observer persists agent_start, so thinking.startedAt
+    // (derived from llm_call timestamps) lands microscopically earlier
+    // than agent_start.createdAt. Without the clamp, effective-time
+    // sort would put "Thought for Xs" above "Started", which reads
+    // wrong — lifecycle markers should bookend the round.
+    const agentStart = makeMsg(
+      "start",
+      { agentEventType: "agent_start", status: "completed" },
+      "2026-04-17T10:00:00.050Z", // agent_start persisted at +50ms
+    );
+    const thinking = makeMsg(
+      "thinking",
+      {
+        agentEventType: "thinking",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:00.000Z", // LLM started at +0ms (earlier!)
+      },
+      "2026-04-17T10:00:03.000Z",
+    );
+    const sorted = sortByEffectiveTime([agentStart, thinking]);
+    expect(sorted.map((m) => m.id)).toEqual(["start", "thinking"]);
+  });
+
+  it("still slides thinking back across a text reply within the round", () => {
+    // The clamp in the previous test must not over-correct — once
+    // agent_start has been seen, thinking is still free to move back
+    // through interleaved tool_calls and text replies to its true
+    // startedAt position, so long as it stays after agent_start.
+    const agentStart = makeMsg(
+      "start",
+      {
+        agentEventType: "agent_start",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:00.000Z",
+      },
+      "2026-04-17T10:00:00.000Z",
+    );
+    const reply = makeMsg("reply", undefined, "2026-04-17T10:00:02.000Z");
+    const thinking = makeMsg(
+      "thinking",
+      {
+        agentEventType: "thinking",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:01.000Z", // after start, before reply
+      },
+      "2026-04-17T10:00:05.000Z",
+    );
+    const sorted = sortByEffectiveTime([agentStart, reply, thinking]);
+    expect(sorted.map((m) => m.id)).toEqual(["start", "thinking", "reply"]);
+  });
 });

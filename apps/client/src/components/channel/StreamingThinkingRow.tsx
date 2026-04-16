@@ -6,12 +6,27 @@ import type { AgentEventMetadata } from "@/types/im";
 /**
  * Live thinking row rendered while a bot is streaming.
  *
- * Consumes `useStreamingStore`'s `StreamingMessage` and synthesizes the
- * `AgentEventMetadata` shape expected by `TrackingEventItem`, so the
- * in-flight row looks identical to the persisted "Thought for Xs" row
- * the user sees after thinking finishes. Brain icon pulses, duration
- * ticks up from 0s (via TrackingEventItem's own interval), and the
- * body expands to stream partial reasoning when the model surfaces it.
+ * The row surfaces two phases of the in-flight stream:
+ *
+ *  1. **Thinking phase** — stream is active but no text content has
+ *     arrived yet. We render "Thinking Ns" with a pulsing Brain icon,
+ *     where N ticks up from 0 via TrackingEventItem's own interval.
+ *     Crucially we drive `isStreaming` off `!stream.content` rather
+ *     than off `stream.isThinking`, because Claude's thinking deltas
+ *     only reach the WebSocket when a reasoning block is finalized —
+ *     so during the first several seconds there's no live chunk yet,
+ *     but the bot *is* thinking and the row should already be visible.
+ *
+ *  2. **Reply phase** — text content has started streaming. We freeze
+ *     the row into its completed state ("Thought for Ns") and stop
+ *     pulsing. When the stream ends and the persisted thinking row
+ *     takes over, it lands in the same slot (MessageList sorts by
+ *     effective time) so there's no visible reshuffle.
+ *
+ * `durationMs` is computed from `stream.startedAt` so the completed
+ * label shows an accurate elapsed even if the server sent no thinking
+ * chunks at all — a common case for short responses where the LLM
+ * doesn't emit a reasoning block.
  *
  * Wrapper mirrors `MessageItem`'s agent-event wrapper (gray strip +
  * left border + the 9px padding that vertically centers the icon over
@@ -26,12 +41,41 @@ interface StreamingThinkingRowProps {
 export const StreamingThinkingRow = memo(function StreamingThinkingRow({
   stream,
 }: StreamingThinkingRowProps) {
-  const metadata: AgentEventMetadata = {
-    agentEventType: "thinking",
-    status: "running",
-    startedAt: new Date(stream.startedAt).toISOString(),
-    thinking: stream.thinking,
-  };
+  const hasContent = stream.content.length > 0;
+  const hasThinking = stream.thinking.length > 0;
+
+  // Once the reply text has started arriving, only keep the row around
+  // if thinking actually happened. Bots that skip thinking entirely —
+  // short replies, small models, or any agent that doesn't engage the
+  // extended-thinking feature — should NOT get a phantom
+  // "Thought for 0s" row just because a StreamingMessage existed.
+  // In that case we drop out so the reply bubble reads cleanly.
+  if (hasContent && !hasThinking) {
+    return null;
+  }
+
+  const startedAtIso = new Date(stream.startedAt).toISOString();
+
+  // Freeze the row into its completed state once the reply text starts
+  // streaming — thinking is definitely done by then, so show
+  // "Thought for Ns" with a frozen duration rather than a still-pulsing
+  // live row. The `durationMs` is computed from `stream.startedAt` so
+  // we report an accurate elapsed even if the server never pushed any
+  // live thinking chunks (Claude only flushes reasoning deltas at
+  // block-finalization time).
+  const metadata: AgentEventMetadata = hasContent
+    ? {
+        agentEventType: "thinking",
+        status: "completed",
+        thinking: stream.thinking,
+        durationMs: Math.max(0, Date.now() - stream.startedAt),
+      }
+    : {
+        agentEventType: "thinking",
+        status: "running",
+        startedAt: startedAtIso,
+        thinking: stream.thinking,
+      };
 
   return (
     <div
@@ -41,7 +85,7 @@ export const StreamingThinkingRow = memo(function StreamingThinkingRow({
       <TrackingEventItem
         metadata={metadata}
         content={stream.thinking}
-        isStreaming
+        isStreaming={!hasContent}
       />
     </div>
   );
