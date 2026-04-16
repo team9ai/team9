@@ -119,6 +119,8 @@ export const WS_EVENTS = {
     OFFLINE: 'user_offline',
     /** User status changed - broadcast by server */
     STATUS_CHANGED: 'user_status_changed',
+    /** User profile (name, avatar, etc.) updated - broadcast by server */
+    UPDATED: 'user_updated',
   },
 
   // ==================== Message Reactions ====================
