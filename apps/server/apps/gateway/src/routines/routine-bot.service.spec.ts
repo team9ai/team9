@@ -1047,6 +1047,36 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
       expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
     });
+
+    // ── A-I4: triggers replace path emits exactly once ────────────────
+    it('emits routine:updated exactly once when dto.triggers is provided (replaceAllForRoutine path)', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
+
+      const triggers = [{ type: 'manual', config: {}, enabled: true }];
+      await service.updateRoutine(
+        'routine-1',
+        { triggers } as never,
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      // Triggers were replaced via the dedicated service
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'routine-1',
+        triggers,
+      );
+      // And only ONE broadcast happened — from the outer updateRoutine's
+      // tail emit, NOT from replaceAllForRoutine.
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
   });
 
   describe('completeCreation', () => {

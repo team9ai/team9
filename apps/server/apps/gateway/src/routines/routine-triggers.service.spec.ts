@@ -316,11 +316,15 @@ describe('RoutineTriggersService', () => {
     expect(db.delete).not.toHaveBeenCalled();
   });
 
-  it('creates trigger batches sequentially through create()', async () => {
-    const createSpy = jest.spyOn(service, 'create');
-    createSpy
-      .mockResolvedValueOnce({ id: 'trigger-1' } as never)
-      .mockResolvedValueOnce({ id: 'trigger-2' } as never);
+  it('creates trigger batches sequentially via createInternal (bypassing emit)', async () => {
+    // Routine lookup succeeds for each trigger in the batch
+    db.chains.taskLimit.mockResolvedValue([
+      { id: 'task-1', tenantId: 'tenant-1' },
+    ]);
+    // Each insert returns its own row
+    db.chains.insertReturning
+      .mockResolvedValueOnce([{ id: 'trigger-1', type: 'manual' }])
+      .mockResolvedValueOnce([{ id: 'trigger-2', type: 'channel_message' }]);
 
     await expect(
       service.createBatch(
@@ -331,19 +335,23 @@ describe('RoutineTriggersService', () => {
         ] as never,
         'tenant-1',
       ),
-    ).resolves.toEqual([{ id: 'trigger-1' }, { id: 'trigger-2' }]);
+    ).resolves.toEqual([
+      { id: 'trigger-1', type: 'manual' },
+      { id: 'trigger-2', type: 'channel_message' },
+    ]);
 
-    expect(createSpy).toHaveBeenNthCalledWith(
+    // Two inserts happened (one per trigger)
+    expect(db.insert).toHaveBeenCalledTimes(2);
+    expect(db.chains.insertValues).toHaveBeenNthCalledWith(
       1,
-      'task-1',
-      { type: 'manual' },
-      'tenant-1',
+      expect.objectContaining({ routineId: 'task-1', type: 'manual' }),
     );
-    expect(createSpy).toHaveBeenNthCalledWith(
+    expect(db.chains.insertValues).toHaveBeenNthCalledWith(
       2,
-      'task-1',
-      { type: 'channel_message', config: { channelId: 'channel-1' } },
-      'tenant-1',
+      expect.objectContaining({
+        routineId: 'task-1',
+        type: 'channel_message',
+      }),
     );
   });
 
@@ -576,6 +584,30 @@ describe('RoutineTriggersService', () => {
       ]);
 
       expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast routine:updated from createBatch even for N triggers (A-C1 regression)', async () => {
+      // Routine lookup succeeds for each trigger in the batch
+      db.chains.taskLimit.mockResolvedValue([
+        { id: 'task-1', tenantId: 'tenant-1' },
+      ]);
+      // Each insert returns its own row
+      db.chains.insertReturning
+        .mockResolvedValueOnce([{ id: 'trigger-1', type: 'manual' }])
+        .mockResolvedValueOnce([{ id: 'trigger-2', type: 'manual' }])
+        .mockResolvedValueOnce([{ id: 'trigger-3', type: 'manual' }]);
+
+      await service.createBatch(
+        'task-1',
+        [{ type: 'manual' }, { type: 'manual' }, { type: 'manual' }] as never,
+        'tenant-1',
+      );
+
+      // Zero broadcasts — outer RoutinesService.create is responsible and
+      // the create flow does NOT emit routine:updated at all.
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      // But the inserts did happen
+      expect(db.insert).toHaveBeenCalledTimes(3);
     });
   });
 });

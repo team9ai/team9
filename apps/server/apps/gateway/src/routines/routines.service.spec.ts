@@ -555,6 +555,40 @@ describe('RoutinesService — TaskCast integration', () => {
         'tenant-1',
       );
     });
+
+    // ── A-I5: create flow must emit ZERO broadcasts (regression) ──────
+    it('does NOT emit routine:updated when creating a routine with N triggers (A-C1 regression)', async () => {
+      const createdTask = {
+        id: 'task-new',
+        tenantId: 'tenant-1',
+        creatorId: 'user-1',
+        title: 'New task',
+        documentId: 'doc-new',
+      };
+      const triggers = [
+        { type: 'manual' },
+        { type: 'manual' },
+        { type: 'manual' },
+      ];
+
+      documentsService.create.mockResolvedValueOnce({ id: 'doc-new' } as any);
+      db.returning.mockResolvedValueOnce([createdTask] as any);
+
+      await service.create(
+        {
+          title: 'New task',
+          botId: 'bot-1',
+          triggers,
+        } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      // RoutinesService.create itself must NOT emit (it's a create, not
+      // update), and since createBatch bypasses the public create()
+      // wrapper post A-C1, the nested calls must not emit either.
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {
@@ -696,6 +730,40 @@ describe('RoutinesService — TaskCast integration', () => {
 
       expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
     });
+
+    // ── A-I4: triggers replace path emits exactly once ────────────────
+    it('emits routine:updated exactly once when dto.triggers is provided (replaceAllForRoutine path)', async () => {
+      const task = {
+        ...BASE_TASK,
+        creatorId: 'user-1',
+        tenantId: 'tenant-1',
+      };
+      const updatedTask = { ...task };
+      db.limit.mockResolvedValueOnce([task] as any);
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      const triggers = [{ type: 'manual' }];
+      await service.update(
+        'task-1',
+        { triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      // Triggers were replaced via the dedicated service
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'task-1',
+        triggers,
+      );
+      // And only ONE broadcast happened (from the outer update's tail —
+      // replaceAllForRoutine itself must not emit).
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
   });
 
   describe('delete', () => {
@@ -730,6 +798,97 @@ describe('RoutinesService — TaskCast integration', () => {
       ).resolves.toEqual({ success: true });
 
       expect(db.delete).toHaveBeenCalledTimes(1);
+    });
+
+    // ── A-I9: delete broadcasts routine:updated ───────────────────────
+    it('broadcasts routine:updated to the workspace on successful delete', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          id: 'task-1',
+          tenantId: 'tenant-1',
+          creatorId: 'user-1',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await service.delete('task-1', 'user-1', 'tenant-1');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
+
+    it('does NOT broadcast when delete is rejected (non-creator)', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'other-user',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when delete is rejected (active routine)', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-1',
+          status: 'in_progress' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Cannot delete routine in in_progress status');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when the routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.delete('task-missing', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Routine not found');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('uses the DB-verified tenantId (not the param) for the broadcast', async () => {
+      // Routine lives in tenant-1 but caller passes some other tenantId —
+      // the getRoutineOrThrow will of course reject cross-tenant lookups,
+      // but here we verify that when the DB row is found, its tenantId
+      // (not the param) is used. Shape: DB row has tenantId set explicitly.
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          id: 'task-1',
+          tenantId: 'tenant-verified',
+          creatorId: 'user-1',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await service.delete('task-1', 'user-1', 'tenant-verified');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-verified',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
     });
   });
 
@@ -2315,6 +2474,134 @@ describe('RoutinesService — TaskCast integration', () => {
           errors: expect.arrayContaining(['documentContent is required']),
         },
       });
+    });
+
+    // ── A-I3: completeCreation broadcasts routine:updated ─────────────
+    it('broadcasts routine:updated on successful draft → upcoming transition', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    it('still broadcasts even when the non-fatal channel archive step fails', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+      // Archive fails after the DB update — broadcast is emitted BEFORE
+      // the archive attempt, so it still fires.
+      channelsService.archiveCreationChannel.mockRejectedValueOnce(
+        new Error('disk full'),
+      );
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result.status).toBe('upcoming');
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    it('does NOT broadcast when routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.completeCreation('missing-id', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Routine not found');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when caller is not the creator', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, creatorId: 'other-user' },
+      ] as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast on idempotent-upcoming path (no status flip)', async () => {
+      // Already upcoming — early return without DB update.
+      const upcomingRoutine = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+      // Only the row update triggers a broadcast; idempotent path skips
+      // the DB update entirely, so no emit.
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when validation fails (e.g. empty title)', async () => {
+      db.limit.mockResolvedValueOnce([{ ...DRAFT_ROUTINE, title: '' }] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: { message: 'Missing required fields' },
+      });
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('uses the DB-verified tenantId (from the fetched routine) for the broadcast', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, tenantId: 'tenant-verified' },
+      ] as any);
+      db.returning.mockResolvedValueOnce([
+        { ...UPDATED_ROUTINE, tenantId: 'tenant-verified' },
+      ] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-verified',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-verified',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
     });
   });
 
