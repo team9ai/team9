@@ -1429,6 +1429,81 @@ describe('ChannelsService', () => {
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', false);
     });
+
+    it('classifies a bot DM peer with commonStaff extra into staffKind=common', async () => {
+      // Mocks the post-Task-2 join shape: the per-member query now returns
+      // botExtra (jsonb) alongside ownerDisplayName / ownerUsername from
+      // the aliased ownerUser join. For a common-staff bot, ownerId is null
+      // so the owner-side fields come back null.
+      const botExtra: BotExtra = {
+        commonStaff: { roleTitle: 'HR Lead' },
+      };
+
+      db.where
+        .mockResolvedValueOnce([
+          {
+            id: 'direct-bot-1',
+            tenantId: 'tenant-1',
+            name: 'dm-with-bot',
+            description: null,
+            type: 'direct',
+            avatarUrl: null,
+            createdBy: 'user-1',
+            sectionId: null,
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            snapshot: null,
+            createdAt: new Date('2026-04-01T00:00:00Z'),
+            updatedAt: new Date('2026-04-01T00:00:00Z'),
+            unreadCount: 0,
+            lastReadMessageId: null,
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            channelId: 'direct-bot-1',
+            userId: 'user-1',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            status: 'online',
+            userType: 'human',
+            applicationId: null,
+            managedProvider: null,
+            managedMeta: null,
+            botExtra: null,
+            ownerDisplayName: null,
+            ownerUsername: null,
+          },
+          {
+            channelId: 'direct-bot-1',
+            userId: 'bot-1',
+            username: 'hr-bot',
+            displayName: 'HR Bot',
+            avatarUrl: null,
+            status: 'online',
+            userType: 'bot',
+            applicationId: 'common-staff',
+            managedProvider: null,
+            managedMeta: null,
+            botExtra,
+            ownerDisplayName: null,
+            ownerUsername: null,
+          },
+        ] as any);
+
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+
+      const dmChannel = result.find((ch) => ch.type === 'direct');
+      expect(dmChannel?.otherUser).toMatchObject({
+        id: 'bot-1',
+        userType: 'bot',
+        staffKind: 'common',
+        roleTitle: 'HR Lead',
+        ownerName: null,
+      });
+    });
   });
 
   describe('findByIdOrThrow', () => {

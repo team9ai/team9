@@ -10,6 +10,7 @@ import {
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
+  alias,
   eq,
   and,
   sql,
@@ -20,6 +21,12 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { ChannelSnapshot, BotExtra } from '@team9/database/schemas';
+
+// Aliased `users` row used to JOIN the bot owner alongside the channel-member
+// user row (which is itself a join on `schema.users`). Declared at module
+// scope so all three DM/member queries share the same alias name and so the
+// generated SQL is deterministic.
+const ownerUser = alias(schema.users, 'owner_user');
 import {
   CreateChannelDto,
   UpdateChannelDto,
@@ -975,12 +982,9 @@ export class ChannelsService {
           applicationId: schema.installedApplications.applicationId,
           managedProvider: schema.bots.managedProvider,
           managedMeta: schema.bots.managedMeta,
-          // TODO(task-2): join schema.bots.extra and the owner user row to
-          // populate these. Until then, mapChannelUserSummary will classify
-          // every bot as `staffKind: 'other'`.
-          botExtra: sql<BotExtra | null>`NULL`,
-          ownerDisplayName: sql<string | null>`NULL`,
-          ownerUsername: sql<string | null>`NULL`,
+          botExtra: schema.bots.extra,
+          ownerDisplayName: ownerUser.displayName,
+          ownerUsername: ownerUser.username,
         })
         .from(schema.channelMembers)
         .innerJoin(
@@ -991,6 +995,7 @@ export class ChannelsService {
           schema.bots,
           eq(schema.bots.userId, schema.channelMembers.userId),
         )
+        .leftJoin(ownerUser, eq(ownerUser.id, schema.bots.ownerId))
         .leftJoin(
           schema.installedApplications,
           eq(
@@ -1108,12 +1113,9 @@ export class ChannelsService {
             applicationId: schema.installedApplications.applicationId,
             managedProvider: schema.bots.managedProvider,
             managedMeta: schema.bots.managedMeta,
-            // TODO(task-2): join schema.bots.extra and the owner user row to
-            // populate these. Until then, mapChannelUserSummary will classify
-            // every bot as `staffKind: 'other'`.
-            botExtra: sql<BotExtra | null>`NULL`,
-            ownerDisplayName: sql<string | null>`NULL`,
-            ownerUsername: sql<string | null>`NULL`,
+            botExtra: schema.bots.extra,
+            ownerDisplayName: ownerUser.displayName,
+            ownerUsername: ownerUser.username,
           })
           .from(schema.channelMembers)
           .innerJoin(
@@ -1124,6 +1126,7 @@ export class ChannelsService {
             schema.bots,
             eq(schema.bots.userId, schema.channelMembers.userId),
           )
+          .leftJoin(ownerUser, eq(ownerUser.id, schema.bots.ownerId))
           .leftJoin(
             schema.installedApplications,
             eq(
@@ -1308,12 +1311,9 @@ export class ChannelsService {
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
-        // TODO(task-2): join schema.bots.extra and the owner user row to
-        // populate these. Until then, mapChannelUserSummary will classify
-        // every bot as `staffKind: 'other'`.
-        botExtra: sql<BotExtra | null>`NULL`,
-        ownerDisplayName: sql<string | null>`NULL`,
-        ownerUsername: sql<string | null>`NULL`,
+        botExtra: schema.bots.extra,
+        ownerDisplayName: ownerUser.displayName,
+        ownerUsername: ownerUser.username,
       })
       .from(schema.channelMembers)
       .innerJoin(
@@ -1324,6 +1324,7 @@ export class ChannelsService {
         schema.bots,
         eq(schema.bots.userId, schema.channelMembers.userId),
       )
+      .leftJoin(ownerUser, eq(ownerUser.id, schema.bots.ownerId))
       .leftJoin(
         schema.installedApplications,
         eq(schema.bots.installedApplicationId, schema.installedApplications.id),

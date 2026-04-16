@@ -12,8 +12,11 @@ export const REDIS_KEYS = {
   CHANNEL_MEMBER_ROLE: (channelId: string, userId: string) =>
     `im:channel_role:${channelId}:${userId}`,
   CHANNEL_MEMBERS: (channelId: string) => `im:channel_members:${channelId}`,
+  // v2: bumped when bots.extra + owner-user fields were added to the cached
+  // payload. Keeps stale v1 entries from masking the new staffKind/roleTitle/
+  // ownerName fields after deploy.
   CHANNEL_DM_OTHER_USER: (channelId: string, userId: string) =>
-    `im:channel_dm_other:${channelId}:${userId}`,
+    `im:channel_dm_other:v2:${channelId}:${userId}`,
   CHANNEL_TYPING: (channelId: string) => `im:typing:${channelId}`,
 
   // Message related
