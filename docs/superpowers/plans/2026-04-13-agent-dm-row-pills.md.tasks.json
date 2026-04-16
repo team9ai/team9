@@ -1,0 +1,60 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-13-agent-dm-row-pills.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Backend — extend types and mapChannelUserSummary",
+      "status": "pending",
+      "description": "**Goal:** Type the new fields (staffKind/roleTitle/ownerName) on ChannelUserSummaryRow, ChannelWithUnread.otherUser, ChannelMemberResponse.user; add derivation logic in mapChannelUserSummary; cover all four mapping cases with unit tests. No query changes yet.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.ts (lines 54-67, 69-93, 95-105, 193-208)\n- Test: apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\n\n**Verify:** cd apps/server && pnpm test -- --testPathPattern=channels.service.spec\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/channels/channels.service.ts\",\"apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm test -- --testPathPattern=channels.service.spec\",\"acceptanceCriteria\":[\"ChannelUserSummaryRow includes botExtra, ownerDisplayName, ownerUsername\",\"mapChannelUserSummary returns staffKind/roleTitle/ownerName per spec rules\",\"ChannelWithUnread.otherUser and ChannelMemberResponse.user types include the three new fields\",\"All seven new mapping unit tests pass\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Backend — wire query joins and bump Redis cache key",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add aliased owner-user join + select bots.extra in both getUserChannels::allMembers and getDmOtherUser. Bump CHANNEL_DM_OTHER_USER cache key to v2.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.ts (lines 917-952, 1037-1075, plus alias() import + module-level const)\n- Modify: apps/server/apps/gateway/src/im/shared/constants/redis-keys.ts (line 15-16)\n- Possibly Modify: apps/server/libs/database/src/index.ts (re-export alias if missing)\n- Test: apps/server/apps/gateway/src/im/channels/channels.service.spec.ts (extend getUserChannels fixture)\n\n**Verify:** cd apps/server && pnpm test -- --testPathPattern=channels.service.spec\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/channels/channels.service.ts\",\"apps/server/apps/gateway/src/im/shared/constants/redis-keys.ts\",\"apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\",\"apps/server/libs/database/src/index.ts\"],\"verifyCommand\":\"cd apps/server && pnpm test -- --testPathPattern=channels.service.spec\",\"acceptanceCriteria\":[\"Both query sites select bots.extra and ownerUser displayName/username via aliased users join\",\"getUserChannels integration test asserts otherUser.staffKind/roleTitle/ownerName for a bot DM\",\"Redis key is im:channel_dm_other:v2:<channelId>:<userId>\",\"All existing channels.service.spec tests still pass\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Frontend — extend ChannelOtherUser type",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Add staffKind/roleTitle/ownerName as optional fields to all four user-summary-shaped interfaces in apps/client/src/types/im.ts (lines 87, 122, 194, 357).\n\n**Verify:** cd apps/client && pnpm typecheck\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/im.ts\"],\"verifyCommand\":\"cd apps/client && pnpm typecheck\",\"acceptanceCriteria\":[\"All four otherUser/member-user shapes include staffKind, roleTitle, ownerName as optional\",\"pnpm typecheck passes\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Frontend — add i18n strings to all 12 locales",
+      "status": "pending",
+      "description": "**Goal:** Add agentPillAi, agentPillPersonalAssistant, agentPillModel keys to navigation.json for de, en, es, fr, it, ja, ko, nl, pt, ru, zh-CN, zh-TW. Reuse existing personalAssistant value per locale; localize Model.\n\n**Verify:** cd apps/client && pnpm typecheck (and JSON syntax validation)\n\n```json:metadata\n{\"files\":[\"apps/client/src/i18n/locales/de/navigation.json\",\"apps/client/src/i18n/locales/en/navigation.json\",\"apps/client/src/i18n/locales/es/navigation.json\",\"apps/client/src/i18n/locales/fr/navigation.json\",\"apps/client/src/i18n/locales/it/navigation.json\",\"apps/client/src/i18n/locales/ja/navigation.json\",\"apps/client/src/i18n/locales/ko/navigation.json\",\"apps/client/src/i18n/locales/nl/navigation.json\",\"apps/client/src/i18n/locales/pt/navigation.json\",\"apps/client/src/i18n/locales/ru/navigation.json\",\"apps/client/src/i18n/locales/zh-CN/navigation.json\",\"apps/client/src/i18n/locales/zh-TW/navigation.json\"],\"verifyCommand\":\"cd apps/client && pnpm typecheck\",\"acceptanceCriteria\":[\"All 12 navigation.json files contain agentPillAi/PersonalAssistant/Model keys\",\"agentPillAi == AI in every locale\",\"agentPillPersonalAssistant matches existing personalAssistant value per locale\",\"agentPillModel localized per Step 2 list\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Frontend — create AgentPillRow component with tests",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Create AgentPillRow.tsx and __tests__/AgentPillRow.test.tsx. Cover all 4 staffKind branches plus truncation behavior.\n\n**Verify:** cd apps/client && pnpm test -- AgentPillRow\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/sidebar/AgentPillRow.tsx\",\"apps/client/src/components/sidebar/__tests__/AgentPillRow.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm test -- AgentPillRow\",\"acceptanceCriteria\":[\"AgentPillRow renders correct pill set for common (with/without roleTitle), personal (with/without ownerName), other\",\"Variable-content pills use truncate max-w-[12ch] and title attr\",\"AI pill uses accent (bg-primary/15 text-primary), others use neutral (bg-nav-hover)\",\"All 6 unit tests pass\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Frontend — extend UserListItem to render AgentPillRow",
+      "status": "pending",
+      "blockedBy": [2, 4],
+      "description": "**Goal:** Add staffKind/roleTitle/ownerName props to UserListItem; render AgentPillRow when isBot && staffKind; otherwise preserve subtitle behavior. Add agent-pills test file.\n\n**Verify:** cd apps/client && pnpm test -- UserListItem\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/sidebar/UserListItem.tsx\",\"apps/client/src/components/sidebar/__tests__/UserListItem.agentPills.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm test -- UserListItem\",\"acceptanceCriteria\":[\"UserListItem accepts staffKind/roleTitle/ownerName\",\"isBot && staffKind => AgentPillRow renders, subtitle suppressed\",\"isBot && !staffKind || !isBot => subtitle preserved\",\"All 8 new tests pass; existing UserListItem.size.test.tsx and UserListItem.avatar.test.tsx still pass\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Frontend — wire DM sub-sidebars to pass agent fields",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** Pull staffKind/roleTitle/ownerName off channel.otherUser in MessagesSubSidebar.tsx and HomeSubSidebar.tsx and pass through to <UserListItem>.\n\n**Verify:** cd apps/client && pnpm typecheck && pnpm test -- --testPathPattern=\"SubSidebar|UserListItem|AgentPillRow\"\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/layout/sidebars/MessagesSubSidebar.tsx\",\"apps/client/src/components/layout/sidebars/HomeSubSidebar.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm typecheck && pnpm test -- --testPathPattern=\\\"SubSidebar|UserListItem|AgentPillRow\\\"\",\"acceptanceCriteria\":[\"Both sub-sidebars derive staffKind/roleTitle/ownerName from channel.otherUser\",\"Both pass new props to UserListItem\",\"No new typecheck errors; existing sub-sidebar tests still pass\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: Manual verification in pnpm dev",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Visually confirm correct pill rendering for all four agent kinds (common w/ roleTitle, common w/o roleTitle, personal staff, OpenClaw/base-model bot) plus human DM unchanged. Test long-roleTitle truncation.\n\n**Verify:** Manual inspection in pnpm dev\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"pnpm dev\",\"acceptanceCriteria\":[\"Common bot w/ roleTitle shows AI + role pills\",\"Common bot w/o roleTitle shows only AI pill\",\"Personal staff shows AI + 个人助理 + ownerName\",\"OpenClaw/base-model bot shows AI + 模型\",\"Human DM rows unchanged\",\"No console errors\",\"Long role title truncates with title-attr tooltip\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-13T00:00:00Z"
+}
