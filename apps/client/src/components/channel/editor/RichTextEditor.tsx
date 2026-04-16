@@ -57,6 +57,12 @@ interface RichTextEditorProps {
   uploadingFiles?: UploadingFile[];
   onRemoveFile?: (id: string) => void;
   onRetryFile?: (id: string) => void;
+  /**
+   * True while attachments are still uploading. Blocks submission (send button,
+   * Enter shortcut, auto-send) but does NOT disable the editor itself, so users
+   * can keep typing while uploads finish.
+   */
+  isUploading?: boolean;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
   /** HTML content to pre-fill in the editor (for edit mode) */
@@ -369,6 +375,7 @@ export function RichTextEditor({
   uploadingFiles = [],
   onRemoveFile,
   onRetryFile,
+  isUploading = false,
   initialDraft,
   initialHtml,
   onCancel,
@@ -451,7 +458,7 @@ export function RichTextEditor({
             draft={initialDraft}
             enabled={autoSendInitialDraft}
             onSubmit={onSubmit}
-            disabled={disabled}
+            disabled={disabled || isUploading}
             hasAttachments={hasAttachments}
             onAutoSent={onInitialDraftAutoSent}
           />
@@ -551,7 +558,7 @@ export function RichTextEditor({
               )}
             <SendButton
               onSubmit={onSubmit}
-              disabled={disabled}
+              disabled={disabled || isUploading}
               hasAttachments={hasAttachments}
               clearOnSubmit={clearOnSubmit}
               submitLabel={submitLabel}
@@ -561,7 +568,7 @@ export function RichTextEditor({
 
         <KeyboardShortcutsPlugin
           onSubmit={onSubmit}
-          disabled={disabled}
+          disabled={disabled || isUploading}
           hasAttachments={hasAttachments}
           clearOnSubmit={clearOnSubmit}
         />

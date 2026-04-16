@@ -256,7 +256,8 @@ export function MessageInput({
         <RichTextEditor
           channelId={channelId}
           onSubmit={handleSubmit}
-          disabled={disabled || isUploading}
+          disabled={disabled}
+          isUploading={isUploading}
           placeholder={effectivePlaceholder}
           compact
           onFileSelect={handleFileSelect}
@@ -306,7 +307,8 @@ export function MessageInput({
         <RichTextEditor
           channelId={channelId}
           onSubmit={handleSubmit}
-          disabled={disabled || isUploading}
+          disabled={disabled}
+          isUploading={isUploading}
           placeholder={effectivePlaceholder}
           onFileSelect={handleFileSelect}
           uploadingFiles={uploadingFiles}
