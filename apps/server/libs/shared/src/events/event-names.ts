@@ -214,10 +214,12 @@ export const WS_EVENTS = {
    * Routine execution and status events
    */
   ROUTINE: {
-    /** Routine status changed - broadcast by server */
+    /** Routine execution status changed - broadcast by server */
     STATUS_CHANGED: 'routine:status_changed',
     /** Routine execution created - broadcast by server */
     EXECUTION_CREATED: 'routine:execution_created',
+    /** Routine row (title/description/schedule/triggers) was updated - broadcast by server */
+    UPDATED: 'routine:updated',
   },
 
   // ==================== Tracking Channel ====================

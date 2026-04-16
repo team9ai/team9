@@ -990,6 +990,63 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
       expect(documentsService.update).not.toHaveBeenCalled();
     });
+
+    it('broadcasts routine:updated to the workspace after a successful update', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      const updatedRoutine = { ...ROUTINE_ROW, title: 'Updated Title' };
+      db.returning.mockResolvedValueOnce([updatedRoutine] as any);
+
+      await service.updateRoutine(
+        'routine-1',
+        { title: 'Updated Title' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    it('does NOT broadcast routine:updated when bot ownership verification fails', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { title: 'New' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast routine:updated when status transition is rejected', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { status: 'upcoming' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
   });
 
   describe('completeCreation', () => {
