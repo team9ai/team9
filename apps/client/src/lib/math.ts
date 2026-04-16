@@ -82,7 +82,7 @@ function transformTextNode(textNode: Text): void {
  *       char immediately after closing $ is not a digit,
  *       no newline inside.
  */
-export function parseMath(str: string): Segment[] {
+function parseMath(str: string): Segment[] {
   const out: Segment[] = [];
   let buf = "";
   let i = 0;
