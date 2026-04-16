@@ -1089,6 +1089,23 @@ export class RoutinesService {
       );
     }
 
+    // Fetch document content as best-effort enrichment for the kickoff payload.
+    let draftDocumentContent: string | null = null;
+    if (routine.documentId) {
+      try {
+        const doc = await this.documentsService.getById(routine.documentId);
+        const content = (doc as { content?: string | null }).content;
+        if (typeof content === 'string' && content.length > 0) {
+          draftDocumentContent = content;
+        }
+      } catch (err) {
+        // Best-effort enrichment; if the document fetch fails, leave null.
+        this.logger.warn(
+          `startCreationSession: failed to fetch draft documentContent for routine ${routineId}: ${err}`,
+        );
+      }
+    }
+
     // Build channel speculatively. The conditional UPDATE below is the
     // race gate — if two concurrent callers both reach this point, both
     // create channels, and the loser hard-deletes its own.
@@ -1163,6 +1180,19 @@ export class RoutinesService {
 
       claimed = true;
 
+      const team9Context: Record<string, unknown> = {
+        routineId,
+        creatorUserId: userId,
+        creationChannelId: channel.id,
+        isCreationChannel: true,
+      };
+
+      await this.clawHiveService.createSession(
+        agentId,
+        { userId, sessionId, team9Context },
+        tenantId,
+      );
+
       await this.clawHiveService.sendInput(
         sessionId,
         {
@@ -1173,7 +1203,12 @@ export class RoutinesService {
             routineId,
             creatorUserId: userId,
             tenantId,
+            creationChannelId: channel.id,
             title: routine.title,
+            description: routine.description ?? null,
+            documentContent: draftDocumentContent,
+            botId: routine.botId,
+            triggers: [],
           },
         },
         tenantId,

@@ -2657,6 +2657,7 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(result.creationSessionId).toBe(
         `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
       );
+      expect(clawHiveService.createSession).toHaveBeenCalledTimes(1);
       expect(clawHiveService.sendInput).toHaveBeenCalledWith(
         result.creationSessionId,
         expect.objectContaining({
@@ -2669,6 +2670,12 @@ describe('RoutinesService — TaskCast integration', () => {
         }),
         TENANT_ID,
       );
+      // createSession must be called before sendInput
+      const createSessionOrder = (clawHiveService.createSession as jest.Mock)
+        .mock.invocationCallOrder[0];
+      const sendInputOrder = (clawHiveService.sendInput as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(createSessionOrder).toBeLessThan(sendInputOrder);
     });
 
     it('is idempotent when creationChannelId already set AND channel is routine-session', async () => {
@@ -2911,6 +2918,134 @@ describe('RoutinesService — TaskCast integration', () => {
         creationChannelId: 'winner-channel',
         creationSessionId: 'winner-session',
       });
+    });
+
+    it('calls createSession with team9Context before sendInput', async () => {
+      const SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`;
+      mockGetRoutine();
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      expect(clawHiveService.createSession).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.createSession).toHaveBeenCalledWith(
+        AGENT_ID,
+        expect.objectContaining({
+          sessionId: SESSION_ID,
+          userId: USER_ID,
+          team9Context: expect.objectContaining({
+            routineId: ROUTINE_ID,
+            creatorUserId: USER_ID,
+            creationChannelId: CHANNEL_ID,
+            isCreationChannel: true,
+          }),
+        }),
+        TENANT_ID,
+      );
+      // Must be called before sendInput
+      const createSessionOrder = (clawHiveService.createSession as jest.Mock)
+        .mock.invocationCallOrder[0];
+      const sendInputOrder = (clawHiveService.sendInput as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(createSessionOrder).toBeLessThan(sendInputOrder);
+    });
+
+    it('kickoff payload includes the enriched draft fields when doc is present', async () => {
+      const DOCUMENT_ID = 'doc-42';
+      mockGetRoutine({
+        description: 'My routine description',
+        documentId: DOCUMENT_ID,
+        botId: BOT_ID,
+      });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        content: 'draft doc content',
+      });
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const sendInputCall = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      const payload = sendInputCall[1].payload;
+      expect(payload.routineId).toBe(ROUTINE_ID);
+      expect(payload.creatorUserId).toBe(USER_ID);
+      expect(payload.tenantId).toBe(TENANT_ID);
+      expect(payload.creationChannelId).toBe(CHANNEL_ID);
+      expect(payload.title).toBe('Test Draft');
+      expect(payload.description).toBe('My routine description');
+      expect(payload.documentContent).toBe('draft doc content');
+      expect(payload.botId).toBe(BOT_ID);
+      expect(payload.triggers).toEqual([]);
+    });
+
+    it('payload uses null for missing optional fields when draft has none', async () => {
+      // Default mockGetRoutine has no description and no documentId
+      mockGetRoutine({ description: null, documentId: null });
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const sendInputCall = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      const payload = sendInputCall[1].payload;
+      expect(payload.description).toBeNull();
+      expect(payload.documentContent).toBeNull();
+      expect(payload.triggers).toEqual([]);
+    });
+
+    it('runs rollback when createSession rejects', async () => {
+      mockGetRoutine();
+      clawHiveService.createSession.mockRejectedValueOnce(
+        new Error('hive createSession boom'),
+      );
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('hive createSession boom');
+
+      // Channel hard-deleted (rollback)
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+
+      // Routine creation columns cleared (claimed = true before createSession throws)
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creationChannelId: null,
+          creationSessionId: null,
+        }),
+      );
+
+      // sendInput was never reached
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('logs warn and uses null documentContent when documentsService.getById throws', async () => {
+      const DOCUMENT_ID = 'doc-fail';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockRejectedValueOnce(
+        new Error('doc fetch boom'),
+      );
+      const loggerWarn = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      // Should resolve successfully despite getById failure
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('failed to fetch draft documentContent'),
+      );
+
+      // documentContent in the payload should be null
+      const payload = (
+        (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
+          string,
+          { payload: Record<string, unknown> },
+          string,
+        ]
+      )[1].payload;
+      expect(payload.documentContent).toBeNull();
+
+      loggerWarn.mockRestore();
     });
   });
 });
