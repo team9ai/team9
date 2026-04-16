@@ -443,7 +443,14 @@ describe('Routine Creation Flow — integration', () => {
       purpose: 'creation',
     });
 
-    // Assert createSession was called with team9Context.routineId + isCreationChannel: true
+    // Assert createSession was called with team9Context.routineId + isCreationChannel: true.
+    // Note: the spec's "team9Context.routineId reaches the agent" goal is verified
+    // here at the createSession call boundary (Hive client mock). Verifying the
+    // agent's downstream config propagation (i.e., the rendered kickoff conversation
+    // entry) requires a live agent-pi runtime, which is out of scope for this
+    // mock-based integration test. The agent-pi side has its own unit tests in
+    // `Team9RoutineCreationComponent.formatEventEntry` covering payload-to-entry
+    // rendering.
     expect(clawHiveService.createSession).toHaveBeenCalledWith(
       AGENT_ID,
       expect.objectContaining({
