@@ -146,7 +146,8 @@
     },
     "thinking": {
       "label": "Размышление",
-      "labelWithStats": "Размышление ({{stats}})",
+      "thinkingWithDuration": "Размышление {{stats}}",
+      "thoughtForDuration": "Думал {{stats}}",
       "tokens_one": "{{count}} токен",
       "tokens_other": "{{count}} токенов",
       "seconds": "{{count}} с",

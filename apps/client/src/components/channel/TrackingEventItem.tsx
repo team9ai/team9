@@ -86,15 +86,20 @@ export function formatDuration(ms: number, t: ChannelTFunction): string {
 }
 
 /**
- * Build the stats label for a thinking event. Examples (en):
- *   "Thinking (1200 tokens, 2m 3s)"
- *   "Thinking (1200 tokens)"
- *   "Thinking (2m 3s)"
- *   "Thinking"
+ * Build the label for a thinking event. Examples:
+ *   streaming  → "Thinking 1m 4s"  / "思考中 1 分 4 秒"
+ *   completed  → "Thought for 2m 12s" / "思考用时 2 分 12 秒"
+ *   no duration (edge case) → "Thinking" / "思考中"
  *
- * When `isStreaming` and `metadata.startedAt` is present, the duration is
- * computed live from the current clock. The caller is expected to re-render
- * on a timer to refresh this value.
+ * While streaming with a valid `startedAt`, the duration starts at 0s and
+ * ticks upward (the caller re-renders on a timer). We intentionally no
+ * longer gate on `elapsed > 0` so the label always reflects elapsed time
+ * from the moment thinking begins, rather than jumping in after the first
+ * second.
+ *
+ * Token counts are intentionally omitted — many providers surface only
+ * summarized thinking, so a raw token number next to a short summary was
+ * confusing. Duration is unambiguous.
  */
 export function buildThinkingStats(
   metadata: AgentEventMetadata,
@@ -102,36 +107,28 @@ export function buildThinkingStats(
   t: ChannelTFunction,
   nowMs: number = Date.now(),
 ): string {
-  const parts: string[] = [];
+  let durationText: string | null = null;
 
-  // Tokens: prefer totalTokens, fall back to outputTokens.
-  const tokens =
-    typeof metadata.totalTokens === "number"
-      ? metadata.totalTokens
-      : metadata.outputTokens;
-  if (typeof tokens === "number" && tokens > 0) {
-    parts.push(t("tracking.thinking.tokens", { count: tokens }));
-  }
-
-  // Duration: while streaming, compute from startedAt; otherwise use
-  // the final durationMs captured on completion.
   if (isStreaming && metadata.startedAt) {
     const startTs = new Date(metadata.startedAt).getTime();
     if (!Number.isNaN(startTs)) {
-      const elapsed = nowMs - startTs;
-      if (elapsed > 0) {
-        parts.push(formatDuration(elapsed, t));
-      }
+      const elapsed = Math.max(0, nowMs - startTs);
+      durationText = formatDuration(elapsed, t);
     }
   } else if (
+    !isStreaming &&
     typeof metadata.durationMs === "number" &&
-    metadata.durationMs > 0
+    metadata.durationMs >= 0
   ) {
-    parts.push(formatDuration(metadata.durationMs, t));
+    durationText = formatDuration(metadata.durationMs, t);
   }
 
-  if (parts.length === 0) return t("tracking.thinking.label");
-  return t("tracking.thinking.labelWithStats", { stats: parts.join(", ") });
+  if (durationText === null) {
+    return t("tracking.thinking.label");
+  }
+  return isStreaming
+    ? t("tracking.thinking.thinkingWithDuration", { stats: durationText })
+    : t("tracking.thinking.thoughtForDuration", { stats: durationText });
 }
 
 /**
@@ -208,9 +205,7 @@ export function TrackingEventItem({
     : (toolCallLabel ?? eventTypeLabel);
 
   const labelColorClass =
-    isThinking && status !== "failed"
-      ? "text-purple-400"
-      : LABEL_CLASSES[status];
+    isThinking && status !== "failed" ? "text-zinc-400" : LABEL_CLASSES[status];
 
   // Thinking events are special: no status dot, and default to
   // collapsible even when `collapsible` prop isn't explicitly set.
@@ -247,15 +242,18 @@ export function TrackingEventItem({
           effectiveCollapsible ? () => setIsExpanded(!isExpanded) : undefined
         }
       >
-        {/* Status dot — hidden for thinking events by design */}
-        {!isThinking && (
-          <div
-            className={cn(
-              "w-2 h-2 rounded-full shrink-0 mr-[26px]",
-              STATUS_DOT_CLASSES[status],
-            )}
-          />
-        )}
+        {/* Status dot. Thinking uses a neutral gray dot (pulsing while
+            streaming) so the label text aligns with the non-thinking rows
+            rather than floating to the left edge. */}
+        <div
+          className={cn(
+            "w-2 h-2 rounded-full shrink-0 mr-[26px]",
+            isThinking
+              ? cn("bg-zinc-400", isStreaming && "animate-pulse")
+              : STATUS_DOT_CLASSES[status],
+          )}
+        />
+
         {/* Label */}
         <span
           className={cn(

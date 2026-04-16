@@ -377,7 +377,7 @@ describe("TrackingEventItem - collapsible", () => {
     expect(screen.getByTestId("expanded-content")).toBeInTheDocument();
   });
 
-  it("should use purple label for thinking type", () => {
+  it("should use gray label for thinking type", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -386,8 +386,12 @@ describe("TrackingEventItem - collapsible", () => {
       <TrackingEventItem metadata={meta} content="thinking..." />,
     );
 
-    const label = container.querySelector(".text-purple-400");
+    const label = container.querySelector(".text-zinc-400");
     expect(label).toBeInTheDocument();
+    // Must not keep the old purple styling from when thinking rows were
+    // visually set apart — thinking now matches the muted gray dot for
+    // a more subdued look.
+    expect(container.querySelector(".text-purple-400")).not.toBeInTheDocument();
   });
 });
 
@@ -441,65 +445,38 @@ describe("buildThinkingStats helper", () => {
     expect(buildThinkingStats(meta, false, t)).toBe("Thinking");
   });
 
-  it("uses totalTokens when available", () => {
+  it("ignores tokens entirely (not shown in the label)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
       totalTokens: 1200,
       outputTokens: 800,
     };
-    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (1200 tokens)");
-  });
-
-  it("falls back to outputTokens when totalTokens missing", () => {
-    const meta: AgentEventMetadata = {
-      agentEventType: "thinking",
-      status: "completed",
-      outputTokens: 512,
-    };
-    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (512 tokens)");
-  });
-
-  it("renders singular 'token' for exactly one token", () => {
-    const meta: AgentEventMetadata = {
-      agentEventType: "thinking",
-      status: "completed",
-      totalTokens: 1,
-    };
-    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (1 token)");
-  });
-
-  it("ignores zero/negative token counts", () => {
-    const meta: AgentEventMetadata = {
-      agentEventType: "thinking",
-      status: "completed",
-      totalTokens: 0,
-    };
+    // Token counts are intentionally omitted from the label regardless
+    // of totalTokens/outputTokens values.
     expect(buildThinkingStats(meta, false, t)).toBe("Thinking");
   });
 
-  it("includes only duration when tokens missing", () => {
+  it("uses 'Thought for' wording when completed with duration", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
       durationMs: 123_000,
     };
-    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (2m 3s)");
+    expect(buildThinkingStats(meta, false, t)).toBe("Thought for 2m 3s");
   });
 
-  it("combines tokens and duration when both present", () => {
+  it("shows only duration when both tokens and duration are present", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
       totalTokens: 1200,
       durationMs: 123_000,
     };
-    expect(buildThinkingStats(meta, false, t)).toBe(
-      "Thinking (1200 tokens, 2m 3s)",
-    );
+    expect(buildThinkingStats(meta, false, t)).toBe("Thought for 2m 3s");
   });
 
-  it("computes live elapsed from startedAt when streaming", () => {
+  it("uses 'Thinking' (present tense) while streaming with elapsed", () => {
     const now = 1_700_000_000_000;
     const started = new Date(now - 45_000).toISOString();
     const meta: AgentEventMetadata = {
@@ -507,10 +484,10 @@ describe("buildThinkingStats helper", () => {
       status: "running",
       startedAt: started,
     };
-    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking (45s)");
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking 45s");
   });
 
-  it("combines live elapsed with tokens when streaming", () => {
+  it("shows live elapsed only (ignoring tokens) while streaming", () => {
     const now = 2_000_000_000_000;
     const started = new Date(now - 30_000).toISOString();
     const meta: AgentEventMetadata = {
@@ -519,9 +496,7 @@ describe("buildThinkingStats helper", () => {
       totalTokens: 300,
       startedAt: started,
     };
-    expect(buildThinkingStats(meta, true, t, now)).toBe(
-      "Thinking (300 tokens, 30s)",
-    );
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking 30s");
   });
 
   it("omits live elapsed when startedAt is invalid", () => {
@@ -533,25 +508,53 @@ describe("buildThinkingStats helper", () => {
     expect(buildThinkingStats(meta, true, t, Date.now())).toBe("Thinking");
   });
 
-  it("omits live elapsed when startedAt missing while streaming", () => {
+  it("falls back to bare Thinking when startedAt missing while streaming", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "running",
       totalTokens: 10,
     };
-    expect(buildThinkingStats(meta, true, t, Date.now())).toBe(
-      "Thinking (10 tokens)",
-    );
+    // Without startedAt there's no elapsed to show, and tokens are
+    // intentionally not surfaced — so the label stays bare.
+    expect(buildThinkingStats(meta, true, t, Date.now())).toBe("Thinking");
   });
 
-  it("skips live elapsed of 0 (same-instant start)", () => {
+  it("shows 0s label at same-instant start (no initial-second gap)", () => {
+    // Regression: we used to hide the duration for the first second,
+    // so the label flickered "Thinking" → "Thinking 1s". Now the
+    // duration renders from 0s so the row is stable from the start.
     const now = 1_700_000_000_000;
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "running",
       startedAt: new Date(now).toISOString(),
     };
-    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking");
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking 0s");
+  });
+
+  it("clamps negative elapsed (clock skew) to 0s while streaming", () => {
+    // If startedAt is in the future (e.g. slight server/client clock
+    // drift) we clamp to 0s rather than emitting a bare label or a
+    // negative duration.
+    const now = 1_700_000_000_000;
+    const started = new Date(now + 3_000).toISOString();
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "running",
+      startedAt: started,
+    };
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking 0s");
+  });
+
+  it("ignores startedAt when not streaming", () => {
+    // Once streaming ends the caller owns the final durationMs; any
+    // lingering startedAt is ignored so we don't race against the clock.
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "completed",
+      startedAt: new Date(0).toISOString(),
+    };
+    expect(buildThinkingStats(meta, false, t, Date.now())).toBe("Thinking");
   });
 
   it("prefers durationMs over startedAt when not streaming", () => {
@@ -562,11 +565,11 @@ describe("buildThinkingStats helper", () => {
       startedAt: new Date(0).toISOString(),
     };
     expect(buildThinkingStats(meta, false, t, Date.now())).toBe(
-      "Thinking (45s)",
+      "Thought for 45s",
     );
   });
 
-  it("honours the zh-CN locale when rendering stats", async () => {
+  it("honours the zh-CN locale for completed wording", async () => {
     await changeLanguage("zh-CN");
     const zhT = i18n.getFixedT("zh-CN", "channel");
     const meta: AgentEventMetadata = {
@@ -575,14 +578,24 @@ describe("buildThinkingStats helper", () => {
       totalTokens: 1200,
       durationMs: 123_000,
     };
-    expect(buildThinkingStats(meta, false, zhT)).toBe(
-      "正在思考（1200 tokens, 2 分 3 秒）",
-    );
+    expect(buildThinkingStats(meta, false, zhT)).toBe("思考用时 2 分 3 秒");
+  });
+
+  it("honours the zh-CN locale for streaming wording", async () => {
+    await changeLanguage("zh-CN");
+    const zhT = i18n.getFixedT("zh-CN", "channel");
+    const now = 1_700_000_000_000;
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "running",
+      startedAt: new Date(now - 45_000).toISOString(),
+    };
+    expect(buildThinkingStats(meta, true, zhT, now)).toBe("思考中 45 秒");
   });
 });
 
 describe("thinking event display", () => {
-  it("does not render a status dot for thinking events", () => {
+  it("renders a neutral gray dot for completed thinking (no pulse)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -591,9 +604,28 @@ describe("thinking event display", () => {
       <TrackingEventItem metadata={meta} content="Deep thought" />,
     );
 
-    // The status dot is a w-2 h-2 rounded-full element. Thinking should skip it.
+    // Thinking now carries a gray dot so its label aligns with the
+    // non-thinking rows. Completed thinking should NOT pulse.
     const dot = container.querySelector(".w-2.h-2.rounded-full");
-    expect(dot).not.toBeInTheDocument();
+    expect(dot).toBeInTheDocument();
+    expect(dot).toHaveClass("bg-zinc-400");
+    expect(dot).not.toHaveClass("animate-pulse");
+    // And must not reuse the emerald/running status dot styling.
+    expect(dot).not.toHaveClass("bg-emerald-500");
+  });
+
+  it("pulses the gray dot while streaming thinking", () => {
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "running",
+    };
+    const { container } = render(
+      <TrackingEventItem metadata={meta} content="" isStreaming />,
+    );
+    const dot = container.querySelector(".w-2.h-2.rounded-full");
+    expect(dot).toBeInTheDocument();
+    expect(dot).toHaveClass("bg-zinc-400");
+    expect(dot).toHaveClass("animate-pulse");
   });
 
   it("renders a status dot for non-thinking events (regression)", () => {
@@ -639,7 +671,7 @@ describe("thinking event display", () => {
     expect(screen.queryByText("Deep thought body")).not.toBeInTheDocument();
   });
 
-  it("shows full label with tokens and duration when both present", () => {
+  it("shows only duration when both tokens and duration are present", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -648,12 +680,12 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(
-      screen.getByText("Thinking (1200 tokens, 2m 3s)"),
-    ).toBeInTheDocument();
+    // Tokens are hidden by design — only the duration surfaces.
+    expect(screen.getByText("Thought for 2m 3s")).toBeInTheDocument();
+    expect(screen.queryByText(/1200 tokens/)).not.toBeInTheDocument();
   });
 
-  it("shows tokens-only label when duration missing", () => {
+  it("falls back to bare Thinking when only tokens are present (tokens hidden)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -661,7 +693,8 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (1200 tokens)")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(screen.queryByText(/1200 tokens/)).not.toBeInTheDocument();
   });
 
   it("shows duration-only label when tokens missing", () => {
@@ -672,7 +705,7 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (2m 3s)")).toBeInTheDocument();
+    expect(screen.getByText("Thought for 2m 3s")).toBeInTheDocument();
   });
 
   it("shows bare Thinking label when nothing is available", () => {
@@ -693,7 +726,7 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (45s)")).toBeInTheDocument();
+    expect(screen.getByText("Thought for 45s")).toBeInTheDocument();
   });
 
   it("formats durations >= 60s with minutes and seconds", () => {
@@ -704,7 +737,7 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (2m 5s)")).toBeInTheDocument();
+    expect(screen.getByText("Thought for 2m 5s")).toBeInTheDocument();
   });
 
   it("formats whole minutes as 2m 0s", () => {
@@ -715,19 +748,19 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (2m 0s)")).toBeInTheDocument();
+    expect(screen.getByText("Thought for 2m 0s")).toBeInTheDocument();
   });
 
   it("expands on click and shows metadata.thinking body", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
-      totalTokens: 100,
+      durationMs: 1_000,
       thinking: "Metadata thinking body takes precedence",
     };
     render(<TrackingEventItem metadata={meta} content="content fallback" />);
 
-    fireEvent.click(screen.getByText("Thinking (100 tokens)"));
+    fireEvent.click(screen.getByText("Thought for 1s"));
     const expanded = screen.getByTestId("expanded-content");
     expect(expanded).toBeInTheDocument();
     expect(expanded).toHaveTextContent(
@@ -802,13 +835,13 @@ describe("thinking event display", () => {
       render(<TrackingEventItem metadata={meta} content="" isStreaming />);
 
       // Initial render: 5 seconds elapsed.
-      expect(screen.getByText("Thinking (5s)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking 5s")).toBeInTheDocument();
 
       // Advance time by 10 seconds — total elapsed should become 15s.
       act(() => {
         vi.advanceTimersByTime(10_000);
       });
-      expect(screen.getByText("Thinking (15s)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking 15s")).toBeInTheDocument();
     });
 
     it("promotes seconds to m/s format as time crosses 60s", () => {
@@ -822,12 +855,12 @@ describe("thinking event display", () => {
       };
       render(<TrackingEventItem metadata={meta} content="" isStreaming />);
 
-      expect(screen.getByText("Thinking (55s)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking 55s")).toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(10_000);
       });
-      expect(screen.getByText("Thinking (1m 5s)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking 1m 5s")).toBeInTheDocument();
     });
 
     it("does not start an interval when not streaming", () => {
@@ -871,7 +904,11 @@ describe("thinking event display", () => {
       clearIntervalSpy.mockRestore();
     });
 
-    it("renders bare Thinking while streaming if no elapsed yet", () => {
+    it("renders 'Thinking 0s' immediately at streaming start", () => {
+      // Regression: previously the label flickered "Thinking" (no
+      // duration) at the same-instant start, then jumped to
+      // "Thinking 1s" one tick later. Now it stabilizes at 0s from
+      // the first render so the row doesn't reflow.
       const fixedNow = new Date("2026-04-09T10:00:00.000Z").getTime();
       vi.setSystemTime(fixedNow);
 
@@ -882,7 +919,7 @@ describe("thinking event display", () => {
       };
       render(<TrackingEventItem metadata={meta} content="" isStreaming />);
 
-      expect(screen.getByText("Thinking")).toBeInTheDocument();
+      expect(screen.getByText("Thinking 0s")).toBeInTheDocument();
     });
   });
 
@@ -894,11 +931,11 @@ describe("thinking event display", () => {
     const { container } = render(
       <TrackingEventItem metadata={meta} content="" isStreaming />,
     );
-    const label = container.querySelector(".animate-pulse.text-purple-400");
+    const label = container.querySelector(".animate-pulse.text-zinc-400");
     expect(label).toBeInTheDocument();
   });
 
-  it("keeps purple label color for completed thinking", () => {
+  it("keeps gray label color for completed thinking", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -907,7 +944,7 @@ describe("thinking event display", () => {
     const { container } = render(
       <TrackingEventItem metadata={meta} content="" />,
     );
-    const label = container.querySelector(".text-purple-400");
+    const label = container.querySelector(".text-zinc-400");
     expect(label).toBeInTheDocument();
   });
 
@@ -919,7 +956,7 @@ describe("thinking event display", () => {
     const { container } = render(
       <TrackingEventItem metadata={meta} content="" />,
     );
-    // Failed thinking should use red-500 label color, not purple.
+    // Failed thinking should use red-500 label color, not the default gray.
     const redLabel = container.querySelector(".text-red-500");
     expect(redLabel).toBeInTheDocument();
   });

@@ -146,7 +146,8 @@
     },
     "thinking": {
       "label": "생각 중",
-      "labelWithStats": "생각 중 ({{stats}})",
+      "thinkingWithDuration": "생각 중 {{stats}}",
+      "thoughtForDuration": "{{stats}} 동안 생각함",
       "tokens_one": "{{count}} 토큰",
       "tokens_other": "{{count}} 토큰",
       "seconds": "{{count}}초",

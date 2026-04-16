@@ -21,7 +21,7 @@
  *
  * The test deliberately uses REAL TrackingEventItem / ToolCallBlock /
  * RoundCollapseSummary / real i18n so we verify the actual localized copy a
- * user sees ("Thinking (1200 tokens, 2m 3s)", "... Show execution (3 steps)",
+ * user sees ("Thought for 2m 3s", "... Show execution (3 steps)",
  * "Tool call completed", etc.). Only the periphery (virtuoso, zustand stores,
  * query hooks, MessageContextMenu / MessageContent / UserAvatar) is stubbed —
  * those collaborators are not what Task 1–10 changed and they pull in heavy
@@ -389,9 +389,7 @@ describe("Tracking UX end-to-end integration", () => {
       renderList(round1Chrono, { channelType: "direct" });
 
       // Real TrackingEventItem renders the thinking stats label.
-      expect(
-        screen.getByText("Thinking (1200 tokens, 2m 3s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 2m 3s")).toBeInTheDocument();
 
       // Real ToolCallBlock renders the friendly tool label for send_message.
       // Because the tool finished successfully, the label is "Message sent".
@@ -438,9 +436,7 @@ describe("Tracking UX end-to-end integration", () => {
       ).toBeInTheDocument();
 
       // The tracking rows inside Round 1 are NOT visible while folded.
-      expect(
-        screen.queryByText("Thinking (800 tokens, 30s)"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Thought for 30s")).not.toBeInTheDocument();
       expect(screen.queryByText("Message sent")).not.toBeInTheDocument();
 
       // The text reply is always visible regardless of fold state.
@@ -457,9 +453,7 @@ describe("Tracking UX end-to-end integration", () => {
         }),
       );
 
-      expect(
-        screen.getByText("Thinking (800 tokens, 30s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 30s")).toBeInTheDocument();
       expect(screen.getByText("Message sent")).toBeInTheDocument();
       // Summary button is gone now.
       expect(
@@ -509,17 +503,13 @@ describe("Tracking UX end-to-end integration", () => {
 
       // Round 1's tracking UI should NOT be visible — Round 1 thinking label
       // must be gone.
-      expect(
-        screen.queryByText("Thinking (500 tokens, 10s)"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Thought for 10s")).not.toBeInTheDocument();
 
       // Round 1's reply text is still visible (replies are NEVER folded).
       expect(screen.getByText("First round reply text")).toBeInTheDocument();
 
       // Round 2 is expanded → its thinking label is visible.
-      expect(
-        screen.getByText("Thinking (700 tokens, 20s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 20s")).toBeInTheDocument();
 
       // Round 2's tool call is the search_docs tool → localized "Documents
       // found" label for the completed state.
@@ -545,9 +535,7 @@ describe("Tracking UX end-to-end integration", () => {
       renderList(chrono, { channelType: "direct" });
 
       // Sanity: Round 1 starts folded.
-      expect(
-        screen.queryByText("Thinking (500 tokens, 10s)"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Thought for 10s")).not.toBeInTheDocument();
       const summary = screen.getByRole("button", {
         name: /Expand execution process \(3 steps\)/i,
       });
@@ -561,12 +549,8 @@ describe("Tracking UX end-to-end integration", () => {
       ).not.toBeInTheDocument();
 
       // Round 1's tracking rows are now visible alongside round 2's.
-      expect(
-        screen.getByText("Thinking (500 tokens, 10s)"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("Thinking (700 tokens, 20s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
+      expect(screen.getByText("Thought for 20s")).toBeInTheDocument();
 
       // Round 1 reply is also still there.
       expect(screen.getByText("Round 1 reply")).toBeInTheDocument();
@@ -597,9 +581,7 @@ describe("Tracking UX end-to-end integration", () => {
           name: /Expand execution process \(3 steps\)/i,
         }),
       );
-      expect(
-        screen.getByText("Thinking (500 tokens, 10s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
 
       // Round 2 finishes: append its result + reply.
       const round2Result = makeToolResultEvent(
@@ -622,9 +604,7 @@ describe("Tracking UX end-to-end integration", () => {
 
       // Round 1 stays expanded — the user's explicit expansion choice
       // persists across re-renders.
-      expect(
-        screen.getByText("Thinking (500 tokens, 10s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
 
       // Round 2 is now non-latest (it's followed by its reply). Since the
       // user did NOT manually expand Round 2, it collapses. The summary
@@ -668,12 +648,8 @@ describe("Tracking UX end-to-end integration", () => {
       ).not.toBeInTheDocument();
 
       // All tracking rows are visible simultaneously.
-      expect(
-        screen.getByText("Thinking (500 tokens, 10s)"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("Thinking (700 tokens, 20s)"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
+      expect(screen.getByText("Thought for 20s")).toBeInTheDocument();
 
       // Both tool call blocks render inline (send_message + search_docs).
       expect(screen.getByText("Message sent")).toBeInTheDocument();

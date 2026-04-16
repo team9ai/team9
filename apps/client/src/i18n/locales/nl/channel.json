@@ -146,7 +146,8 @@
     },
     "thinking": {
       "label": "Denken",
-      "labelWithStats": "Denken ({{stats}})",
+      "thinkingWithDuration": "Denken {{stats}}",
+      "thoughtForDuration": "Nagedacht gedurende {{stats}}",
       "tokens_one": "{{count}} token",
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}}s",
