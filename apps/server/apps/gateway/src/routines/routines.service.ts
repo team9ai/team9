@@ -29,6 +29,9 @@ import {
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
+import { WS_EVENTS } from '@team9/shared';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
@@ -63,6 +66,8 @@ export class RoutinesService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly wsGateway: WebsocketGateway,
     private readonly documentsService: DocumentsService,
     private readonly amqpConnection: AmqpConnection,
     private readonly routineTriggersService: RoutineTriggersService,
@@ -273,6 +278,12 @@ export class RoutinesService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
+
     return updated;
   }
 
@@ -321,6 +332,16 @@ export class RoutinesService {
     await this.db
       .delete(schema.routines)
       .where(eq(schema.routines.id, routineId));
+
+    // Broadcast so clients refetch the routines list — the deleted row
+    // won't be in the new response, so the UI removes it naturally.
+    // Emitted AFTER the DB delete succeeds; if the delete throws the
+    // method propagates and no emit fires.
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     return { success: true };
   }
@@ -868,6 +889,17 @@ export class RoutinesService {
       .set({ status: 'upcoming', updatedAt: new Date() })
       .where(eq(schema.routines.id, routineId))
       .returning();
+
+    // Broadcast the draft → upcoming transition so clients refetch and
+    // surface the newly activated routine in the list. Placed AFTER the
+    // DB update succeeds, BEFORE the best-effort channel archive — if the
+    // status flip itself throws, no emit fires (correct). Using the DB-
+    // verified tenantId from the fetched routine, not the param.
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     // Step 7a: archive the creation channel (best-effort, non-fatal)
     if (routine.creationChannelId) {
