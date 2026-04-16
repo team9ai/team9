@@ -1,7 +1,6 @@
 import type { KeyboardEventHandler } from "react";
 import {
   type LucideIcon,
-  AlertTriangle,
   ArrowUp,
   ChevronDown,
   ChevronRight,
@@ -274,11 +273,10 @@ function DashboardHeader({
             : "text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]",
         )}
       >
-        {isCreditsLow ? (
-          <AlertTriangle size={14} className="text-red-500" />
-        ) : (
-          <Sparkles size={14} className="text-[#9c8f80]" />
-        )}
+        <Sparkles
+          size={14}
+          className={cn(isCreditsLow ? "text-red-600" : "text-[#9c8f80]")}
+        />
         <span>{creditsLabel}</span>
       </Button>
     </header>
