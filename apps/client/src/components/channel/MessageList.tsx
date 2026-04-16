@@ -445,24 +445,51 @@ export function MessageList({
       // a 1px placeholder (for the rest). Non-DM channels and latest rounds
       // fall through to normal rendering.
       const foldDecision = decideRoundRender(message.id, foldMapsRef.current);
-      if (foldDecision.kind === "summary") {
-        return (
-          <div className="py-0.5" data-round-summary-id={foldDecision.roundId}>
+      const isThinkingEvent = agentMeta?.agentEventType === "thinking";
+
+      // Thinking rows always render (they're the primary signal of what
+      // the agent did). Non-thinking steps inside a folded round either
+      // become the summary button (the round's anchor message) or a
+      // 1px placeholder. When the anchor *is* a thinking event, we
+      // still need the summary to show — we render it below the thinking
+      // row via `foldedRoundSummary` at the end of this function.
+      const foldedRoundSummary =
+        isThinkingEvent && foldDecision.kind === "summary" ? (
+          <div
+            key="round-summary"
+            className="py-0.5"
+            data-round-summary-id={foldDecision.roundId}
+          >
             <RoundCollapseSummary
               stepCount={foldDecision.stepCount}
               onClick={() => toggleRoundExpanded(foldDecision.roundId)}
             />
           </div>
-        );
-      }
-      if (foldDecision.kind === "hidden") {
-        return (
-          <div
-            className="min-h-px overflow-hidden"
-            aria-hidden="true"
-            data-round-hidden-id={foldDecision.roundId}
-          />
-        );
+        ) : null;
+
+      if (!isThinkingEvent) {
+        if (foldDecision.kind === "summary") {
+          return (
+            <div
+              className="py-0.5"
+              data-round-summary-id={foldDecision.roundId}
+            >
+              <RoundCollapseSummary
+                stepCount={foldDecision.stepCount}
+                onClick={() => toggleRoundExpanded(foldDecision.roundId)}
+              />
+            </div>
+          );
+        }
+        if (foldDecision.kind === "hidden") {
+          return (
+            <div
+              className="min-h-px overflow-hidden"
+              aria-hidden="true"
+              data-round-hidden-id={foldDecision.roundId}
+            />
+          );
+        }
       }
 
       // Combined tool_call + tool_result block: render both in one card,
@@ -565,42 +592,48 @@ export function MessageList({
 
       if (readOnly) {
         return (
-          <div className="py-0.5">
-            {showUnreadDivider && <UnreadDivider />}
-            <MessageItem
-              key={message.id}
-              message={message}
-              prevMessage={prevMessage}
-              isRootMessage={true}
-              isHighlighted={isHighlighted}
-              supportsProperties={supportsProperties}
-            />
-          </div>
+          <>
+            <div className="py-0.5">
+              {showUnreadDivider && <UnreadDivider />}
+              <MessageItem
+                key={message.id}
+                message={message}
+                prevMessage={prevMessage}
+                isRootMessage={true}
+                isHighlighted={isHighlighted}
+                supportsProperties={supportsProperties}
+              />
+            </div>
+            {foldedRoundSummary}
+          </>
         );
       }
 
       return (
-        <div className="py-0.5">
-          {showUnreadDivider && <UnreadDivider />}
-          <ChannelMessageItem
-            key={message.id}
-            message={message}
-            prevMessage={prevMessage}
-            currentUserId={currentUser?.id}
-            currentUserRole={currentUserRole}
-            showReplyCount={Boolean(hasReplies)}
-            onReplyCountClick={() => openThread(message.id)}
-            isHighlighted={isHighlighted}
-            channelId={channelId}
-            isDirect={channelType === "direct" || channelType === "echo"}
-            supportsProperties={supportsProperties}
-            editingMessageId={editingMessageId}
-            isEditSaving={updateMessage.isPending}
-            onEditStart={handleEditStart}
-            onEditSave={handleEditSave}
-            onEditCancel={handleEditCancel}
-          />
-        </div>
+        <>
+          <div className="py-0.5">
+            {showUnreadDivider && <UnreadDivider />}
+            <ChannelMessageItem
+              key={message.id}
+              message={message}
+              prevMessage={prevMessage}
+              currentUserId={currentUser?.id}
+              currentUserRole={currentUserRole}
+              showReplyCount={Boolean(hasReplies)}
+              onReplyCountClick={() => openThread(message.id)}
+              isHighlighted={isHighlighted}
+              channelId={channelId}
+              isDirect={channelType === "direct" || channelType === "echo"}
+              supportsProperties={supportsProperties}
+              editingMessageId={editingMessageId}
+              isEditSaving={updateMessage.isPending}
+              onEditStart={handleEditStart}
+              onEditSave={handleEditSave}
+              onEditCancel={handleEditCancel}
+            />
+          </div>
+          {foldedRoundSummary}
+        </>
       );
     },
     // foldMaps drives summary/hidden rendering. We read via foldMapsRef but
