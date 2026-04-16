@@ -189,7 +189,10 @@ export function ToolCallBlock({
               <pre
                 className={cn(
                   "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap break-all",
-                  "bg-black/20 border border-border font-mono text-muted-foreground",
+                  // Theme-aware code-block surface — the old bg-black/20
+                  // rendered as muddy gray in light mode and was hard to
+                  // read against text-muted-foreground.
+                  "bg-muted/60 border border-border font-mono text-foreground/85",
                 )}
               >
                 {JSON.stringify(toolArgs, null, 2)}
@@ -208,10 +211,10 @@ export function ToolCallBlock({
               </span>
               <pre
                 className={cn(
-                  "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
+                  "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all font-mono",
                   isError
-                    ? "bg-red-500/5 border border-red-500/20 text-red-300"
-                    : "bg-black/30 border border-border font-mono text-muted-foreground",
+                    ? "bg-red-500/5 border border-red-500/20 text-red-700 dark:text-red-300"
+                    : "bg-muted/60 border border-border text-foreground/85",
                 )}
               >
                 {formatJson(unwrapped)}

@@ -226,11 +226,21 @@ export function TrackingEventItem({
     ? buildThinkingStats(metadata, isStreaming, t)
     : (toolCallLabel ?? eventTypeLabel);
 
-  // Icon stays status-colored so a glance at the left gutter conveys the
-  // outcome. The label reads as gray secondary metadata — except on
-  // failure, where muting the copy would hide a real error. Running still
-  // pulses on both icon and label to keep the in-flight state obvious.
-  const iconColorClass = LABEL_CLASSES[status];
+  // Icon stays status-colored so a glance at the left gutter conveys
+  // the outcome — except for lifecycle markers (thinking / agent_start
+  // / agent_end) that don't meaningfully "fail". Coloring those green
+  // or red would mislead: the model either thinks or it doesn't, and a
+  // start/end marker is a timeline beacon, not a pass/fail signal. So
+  // those stay muted gray (and still pulse while running). Failure
+  // cases for event types that can fail (tool_call, writing, error)
+  // continue to surface red on the icon.
+  const isNeutralIconType =
+    isThinking ||
+    metadata.agentEventType === "agent_start" ||
+    metadata.agentEventType === "agent_end";
+  const iconColorClass = isNeutralIconType
+    ? "text-muted-foreground"
+    : LABEL_CLASSES[status];
   const labelColorClass =
     status === "failed" || status === "cancelled"
       ? "text-red-500"
@@ -331,15 +341,19 @@ export function TrackingEventItem({
           />
         )}
       </div>
-      {/* Expanded content */}
+      {/* Expanded content. Uses the theme's muted surface so the panel
+          reads cleanly in both light and dark mode — the old bg-black/30
+          rendered as muddy gray in light mode. Thinking keeps a faint
+          purple tint so the expandable reasoning stays visually distinct
+          from raw tool output. */}
       {effectiveCollapsible && isExpanded && (
         <div
           data-testid="expanded-content"
           className={cn(
             "mt-1 mb-1.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
             isThinking
-              ? "bg-purple-500/5 border border-purple-500/20 text-muted-foreground italic"
-              : "bg-black/30 border border-border font-mono text-muted-foreground",
+              ? "bg-purple-500/5 border border-purple-500/20 text-foreground/80 italic"
+              : "bg-muted/60 border border-border font-mono text-foreground/85",
           )}
         >
           {isThinking ? thinkingBody : displayContent}

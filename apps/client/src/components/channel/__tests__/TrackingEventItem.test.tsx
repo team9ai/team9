@@ -445,25 +445,53 @@ describe("TrackingEventItem - collapsible", () => {
     expect(screen.getByTestId("expanded-content")).toBeInTheDocument();
   });
 
-  it("colors the icon by status but keeps the label a muted gray", () => {
-    // The visual hierarchy splits signal across the row: icon carries
+  it("colors non-lifecycle icons by status but keeps the label gray", () => {
+    // The visual hierarchy splits signal across the row: for event
+    // types that can fail (writing, tool_call, error) the icon carries
     // the status color so completion/failure reads at a glance, while
     // the label stays a neutral gray so it doesn't compete with the
     // content on the right.
     const meta: AgentEventMetadata = {
-      agentEventType: "thinking",
+      agentEventType: "writing",
       status: "completed",
     };
-    render(<TrackingEventItem metadata={meta} content="thinking..." />);
+    render(<TrackingEventItem metadata={meta} content="output" />);
 
     const icon = screen.getByTestId("event-icon");
-    const label = screen.getByText("Thinking");
+    const label = screen.getByText("Writing");
     expect(icon).toHaveClass("text-emerald-500");
     expect(label).toHaveClass("text-foreground/70");
     // Old special-case label colors must not leak back in.
     expect(label).not.toHaveClass("text-zinc-400");
     expect(label).not.toHaveClass("text-purple-400");
     expect(label).not.toHaveClass("text-emerald-500");
+  });
+
+  it("uses a muted gray icon for lifecycle events regardless of status", () => {
+    // thinking / agent_start / agent_end don't meaningfully fail —
+    // they're timeline markers or model-internal activity, not
+    // operations with a success/failure verdict. Painting them green
+    // or red would misread as "completed OK" vs "errored out". They
+    // stay gray; only the pulse (while running) communicates activity.
+    const lifecycleTypes: AgentEventMetadata["agentEventType"][] = [
+      "thinking",
+      "agent_start",
+      "agent_end",
+    ];
+
+    for (const type of lifecycleTypes) {
+      const { unmount } = render(
+        <TrackingEventItem
+          metadata={{ agentEventType: type, status: "completed" }}
+          content="x"
+        />,
+      );
+      const icon = screen.getByTestId("event-icon");
+      expect(icon).toHaveClass("text-muted-foreground");
+      expect(icon).not.toHaveClass("text-emerald-500");
+      expect(icon).not.toHaveClass("text-red-500");
+      unmount();
+    }
   });
 });
 
@@ -667,7 +695,7 @@ describe("buildThinkingStats helper", () => {
 });
 
 describe("thinking event display", () => {
-  it("renders a solid emerald icon for completed thinking (no pulse)", () => {
+  it("renders a solid gray icon for completed thinking (no pulse)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -675,7 +703,7 @@ describe("thinking event display", () => {
     render(<TrackingEventItem metadata={meta} content="Deep thought" />);
 
     const icon = screen.getByTestId("event-icon");
-    expect(icon).toHaveClass("text-emerald-500");
+    expect(icon).toHaveClass("text-muted-foreground");
     expect(icon).not.toHaveClass("animate-pulse");
     // Regression: no leftover dot element (the old w-2 h-2 swatch is gone).
     expect(
@@ -683,15 +711,18 @@ describe("thinking event display", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("pulses a yellow icon while streaming thinking", () => {
+  it("pulses the gray thinking icon while streaming", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "running",
     };
     render(<TrackingEventItem metadata={meta} content="" isStreaming />);
     const icon = screen.getByTestId("event-icon");
-    expect(icon).toHaveClass("text-yellow-400");
+    // Thinking stays gray even while active — only the pulse signals
+    // motion, not a yellow "running" color.
+    expect(icon).toHaveClass("text-muted-foreground");
     expect(icon).toHaveClass("animate-pulse");
+    expect(icon).not.toHaveClass("text-yellow-400");
   });
 
   it("renders an icon for non-thinking events (regression)", () => {
@@ -987,17 +1018,16 @@ describe("thinking event display", () => {
     });
   });
 
-  it("pulses the gray label while streaming (alongside the icon)", () => {
+  it("pulses icon and label together while streaming", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "running",
     };
     render(<TrackingEventItem metadata={meta} content="" isStreaming />);
-    // Both the icon (yellow) and the label (gray) pulse while thinking
-    // is in flight so the row reads as clearly "active", not merely
-    // "done in yellow".
+    // Thinking is a lifecycle event — the icon stays gray; pulse on
+    // both icon and label is what signals "in flight", not the color.
     const icon = screen.getByTestId("event-icon");
-    expect(icon).toHaveClass("animate-pulse", "text-yellow-400");
+    expect(icon).toHaveClass("animate-pulse", "text-muted-foreground");
     // Label surfaces via buildThinkingStats; query by its starting text.
     const label = screen.getByText(/^Thinking/);
     expect(label).toHaveClass("animate-pulse", "text-foreground/70");
