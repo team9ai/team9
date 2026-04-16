@@ -4,27 +4,27 @@
     {
       "id": 0,
       "subject": "Task 1: Emit routine:updated from the AI bot tool",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** After the AI bot tool mutates a routine, broadcast routine:updated to the workspace.\n\n**Files:**\n- Modify: apps/server/libs/shared/src/events/event-names.ts (add ROUTINE.UPDATED)\n- Modify: apps/server/apps/gateway/src/routines/routine-bot.service.ts (updateRoutine tail)\n- Test: apps/server/apps/gateway/src/routines/routine-bot.service.spec.ts\n\n**Acceptance Criteria:**\n- WS_EVENTS.ROUTINE.UPDATED exists server-side with value 'routine:updated'.\n- RoutineBotService.updateRoutine broadcasts once on success with {routineId}.\n- Bot ownership failure and rejected status transition do not broadcast.\n\n**Verify:** pnpm --filter gateway test routine-bot.service.spec\n\n```json:metadata\n{\"files\": [\"apps/server/libs/shared/src/events/event-names.ts\", \"apps/server/apps/gateway/src/routines/routine-bot.service.ts\", \"apps/server/apps/gateway/src/routines/routine-bot.service.spec.ts\"], \"verifyCommand\": \"pnpm --filter gateway test routine-bot.service.spec\", \"acceptanceCriteria\": [\"WS_EVENTS.ROUTINE.UPDATED constant exists\", \"updateRoutine broadcasts routine:updated with routineId on success\", \"Ownership failure does not broadcast\", \"Rejected status transition does not broadcast\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Emit routine:updated from the user REST update path",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Mirror Task 1 for PATCH /routines/:id on the user-facing REST path.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/routines.service.ts (inject wsGateway, emit at end of update)\n- Test: apps/server/apps/gateway/src/routines/routines.service.spec.ts\n\n**Acceptance Criteria:**\n- RoutinesService constructor injects WEBSOCKET_GATEWAY.\n- update() broadcasts routine:updated with {routineId} on success.\n- Creator ownership failure and rejected status transition do not broadcast.\n\n**Verify:** pnpm --filter gateway test routines.service.spec\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/routines/routines.service.ts\", \"apps/server/apps/gateway/src/routines/routines.service.spec.ts\"], \"verifyCommand\": \"pnpm --filter gateway test routines.service.spec\", \"acceptanceCriteria\": [\"wsGateway injected into RoutinesService\", \"update broadcasts routine:updated\", \"Ownership failure path does not broadcast\", \"Status rejection path does not broadcast\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: Emit routine:updated from trigger CRUD",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Trigger create/update/delete each broadcast routine:updated on the parent routine.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/routine-triggers.service.ts (inject wsGateway, emit in create/update/delete; document no-emit in replaceAllForRoutine)\n- Test: apps/server/apps/gateway/src/routines/routine-triggers.service.spec.ts\n\n**Acceptance Criteria:**\n- create/update/delete each emit routine:updated with the parent routineId.\n- replaceAllForRoutine does NOT emit (outer caller owns that emit).\n- Validation / not-found throws do not emit.\n\n**Verify:** pnpm --filter gateway test routine-triggers.service.spec\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/routines/routine-triggers.service.ts\", \"apps/server/apps/gateway/src/routines/routine-triggers.service.spec.ts\"], \"verifyCommand\": \"pnpm --filter gateway test routine-triggers.service.spec\", \"acceptanceCriteria\": [\"wsGateway injected into RoutineTriggersService\", \"create emits routine:updated\", \"update emits routine:updated\", \"delete emits routine:updated\", \"replaceAllForRoutine does not emit\", \"Error paths do not emit\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 4: Emit user_updated on PATCH /users/me",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Broadcast user_updated to every workspace the user belongs to when their profile is edited.\n\n**Files:**\n- Modify: apps/server/libs/shared/src/events/event-names.ts (add USER.UPDATED)\n- Modify: apps/server/apps/gateway/src/im/users/users.controller.ts (updateMe)\n- Test: apps/server/apps/gateway/src/im/users/users.controller.spec.ts\n\n**Acceptance Criteria:**\n- WS_EVENTS.USER.UPDATED === 'user_updated'.\n- updateMe broadcasts to each workspace id returned by getWorkspaceIdsByUserId.\n- Empty workspace list => no broadcasts (but success returned).\n- Service throw => no broadcast, error propagates.\n\n**Verify:** pnpm --filter gateway test users.controller.spec\n\n```json:metadata\n{\"files\": [\"apps/server/libs/shared/src/events/event-names.ts\", \"apps/server/apps/gateway/src/im/users/users.controller.ts\", \"apps/server/apps/gateway/src/im/users/users.controller.spec.ts\"], \"verifyCommand\": \"pnpm --filter gateway test users.controller.spec\", \"acceptanceCriteria\": [\"WS_EVENTS.USER.UPDATED constant exists\", \"updateMe broadcasts to each workspace id\", \"Empty workspace list skips broadcast\", \"Service throw skips broadcast\"]}\n```"
     },
