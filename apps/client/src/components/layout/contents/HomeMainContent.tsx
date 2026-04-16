@@ -1,6 +1,7 @@
 import type { KeyboardEventHandler } from "react";
 import {
   type LucideIcon,
+  AlertTriangle,
   ArrowUp,
   ChevronDown,
   ChevronRight,
@@ -174,11 +175,13 @@ function DashboardHeader({
   agents,
   selectedAgentUserId,
   creditsLabel,
+  isCreditsLow,
   onSelectAgent,
 }: {
   agents: DashboardAgent[];
   selectedAgentUserId: string | null;
   creditsLabel: string;
+  isCreditsLow: boolean;
   onSelectAgent: (userId: string) => void;
 }) {
   const { t } = useTranslation("navigation");
@@ -263,9 +266,19 @@ function DashboardHeader({
         onClick={() =>
           navigate({ to: "/subscription", search: { view: "credits" } })
         }
-        className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578] h-auto cursor-pointer"
+        title={isCreditsLow ? t("dashboardCreditsLowTitle") : undefined}
+        className={cn(
+          "dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer",
+          isCreditsLow
+            ? "bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100 hover:text-red-700"
+            : "text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]",
+        )}
       >
-        <Sparkles size={14} className="text-[#9c8f80]" />
+        {isCreditsLow ? (
+          <AlertTriangle size={14} className="text-red-500" />
+        ) : (
+          <Sparkles size={14} className="text-[#9c8f80]" />
+        )}
         <span>{creditsLabel}</span>
       </Button>
     </header>
@@ -359,8 +372,10 @@ function getWorkspaceCredits(
   );
 }
 
+const LOW_CREDITS_THRESHOLD = 400;
+
 function formatDashboardCredits(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
+  return new Intl.NumberFormat("en-US").format(Math.floor(value));
 }
 
 export function HomeMainContent() {
@@ -392,9 +407,13 @@ export function HomeMainContent() {
     !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
   const currentPlanLabel =
     billingSummary.data?.subscription?.product.name || t("dashboardPlan");
-  const creditsLabel = billingOverview.data?.account
-    ? formatDashboardCredits(getWorkspaceCredits(billingOverview.data.account))
-    : "—";
+  const totalCredits = billingOverview.data?.account
+    ? getWorkspaceCredits(billingOverview.data.account)
+    : null;
+  const creditsLabel =
+    totalCredits !== null ? formatDashboardCredits(totalCredits) : "—";
+  const isCreditsLow =
+    totalCredits !== null && totalCredits < LOW_CREDITS_THRESHOLD;
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
@@ -505,6 +524,7 @@ export function HomeMainContent() {
             agents={agents}
             selectedAgentUserId={selectedAgent?.userId ?? null}
             creditsLabel={creditsLabel}
+            isCreditsLow={isCreditsLow}
             onSelectAgent={setSelectedAgentUserId}
           />
 

@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "残高不足です。クリックしてチャージ",
   "dashboardTitle": "今日は何をお手伝いしましょうか？",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "ディープリサーチ",

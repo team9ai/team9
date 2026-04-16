@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "Low credits. Click to top up.",
   "dashboardTitle": "What can I help you with today?",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "Deep research",

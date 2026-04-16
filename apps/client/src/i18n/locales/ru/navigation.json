@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1 280",
   "dashboardPlan": "Бесплатный план",
   "dashboardUpgrade": "Улучшить",
+  "dashboardCreditsLowTitle": "Мало кредитов. Нажмите, чтобы пополнить.",
   "dashboardTitle": "Чем я могу вам помочь сегодня?",
   "dashboardPromptPlaceholder": "Сообщение дашборду...",
   "dashboardActionDeepResearch": "Глубокое исследование",

@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "余额不足，点击充值",
   "dashboardTitle": "今天能帮你做什么？",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "深度研究",

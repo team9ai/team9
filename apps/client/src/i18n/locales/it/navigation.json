@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1.280",
   "dashboardPlan": "Piano gratuito",
   "dashboardUpgrade": "Passa a un piano superiore",
+  "dashboardCreditsLowTitle": "Crediti bassi. Fai clic per ricaricare.",
   "dashboardTitle": "Con cosa posso aiutarti oggi?",
   "dashboardPromptPlaceholder": "Scrivi alla dashboard...",
   "dashboardActionDeepResearch": "Ricerca approfondita",

@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1.280",
   "dashboardPlan": "Gratis abonnement",
   "dashboardUpgrade": "Upgraden",
+  "dashboardCreditsLowTitle": "Krediet laag. Klik om op te waarderen.",
   "dashboardTitle": "Waarmee kan ik je vandaag helpen?",
   "dashboardPromptPlaceholder": "Bericht naar dashboard...",
   "dashboardActionDeepResearch": "Diepgaand onderzoek",

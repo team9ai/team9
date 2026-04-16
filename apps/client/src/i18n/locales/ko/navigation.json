@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "잔액 부족. 클릭하여 충전하세요.",
   "dashboardTitle": "오늘 무엇을 도와드릴까요?",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "심층 연구",
