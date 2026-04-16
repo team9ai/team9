@@ -922,6 +922,51 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('getChannelMembers', () => {
+    it('classifies a common-staff bot member into staffKind=common with roleTitle', async () => {
+      // Mocks the post-Task-2 join shape: each row carries botExtra (jsonb)
+      // plus ownerDisplayName / ownerUsername from the aliased ownerUser
+      // join. For a common-staff bot, ownerId is null so the owner-side
+      // fields come back null. This exercises the full
+      // service.getChannelMembers wiring (select shape → mapChannelUserSummary
+      // → ChannelMemberResponse) rather than calling the private mapper
+      // directly.
+      const botExtra: BotExtra = {
+        commonStaff: { roleTitle: 'HR Lead' },
+      };
+
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'cm-bot-1',
+          userId: 'bot-1',
+          role: 'member',
+          isMuted: false,
+          notificationsEnabled: true,
+          joinedAt: new Date('2026-04-01T00:00:00Z'),
+          username: 'hr-bot',
+          displayName: 'HR Bot',
+          avatarUrl: null,
+          status: 'online',
+          userType: 'bot',
+          createdAt: new Date('2026-04-01T00:00:00Z'),
+          applicationId: 'common-staff',
+          managedProvider: null,
+          managedMeta: null,
+          botExtra,
+          ownerDisplayName: null,
+          ownerUsername: null,
+        },
+      ] as any);
+
+      const result = await service.getChannelMembers('channel-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].user.staffKind).toBe('common');
+      expect(result[0].user.roleTitle).toBe('HR Lead');
+      expect(result[0].user.ownerName).toBeNull();
+    });
+  });
+
   describe('getPublicChannels', () => {
     it('returns public channels with membership metadata', async () => {
       const rows = [
