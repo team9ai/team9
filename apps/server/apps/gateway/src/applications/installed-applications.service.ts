@@ -193,8 +193,16 @@ export class InstalledApplicationsService {
       );
     }
 
-    // Check singleton constraint
+    // Reject new installs of soft-retired (hidden) applications.
+    // Existing installs keep working via the rest of this module.
     const appDefinition = this.applicationsService.findById(dto.applicationId);
+    if (appDefinition?.hidden) {
+      throw new ForbiddenException(
+        `Application ${appDefinition.name} is no longer available for new installation`,
+      );
+    }
+
+    // Check singleton constraint
     if (appDefinition?.singleton) {
       const [existing] = await this.db
         .select({ id: schema.installedApplications.id })
