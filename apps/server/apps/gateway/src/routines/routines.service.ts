@@ -1208,7 +1208,7 @@ export class RoutinesService {
             description: routine.description ?? null,
             documentContent: draftDocumentContent,
             botId: routine.botId,
-            triggers: [],
+            triggers: [], // Placeholder; current flow doesn't pre-seed triggers, reserved for future use
           },
         },
         tenantId,
