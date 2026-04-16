@@ -5,6 +5,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { api } from "@/services/api";
 import type { Routine } from "@/types/routine";
 import { CreationSessionRunItem } from "./CreationSessionRunItem";
@@ -31,7 +41,7 @@ export function DraftRoutineCard({
 }: DraftRoutineCardProps) {
   const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => api.routines.delete(routine.id),
@@ -64,13 +74,9 @@ export function DraftRoutineCard({
     startMutation.mutate();
   }
 
-  function handleDeleteClick() {
-    if (confirmingDelete) {
-      deleteMutation.mutate();
-      setConfirmingDelete(false);
-    } else {
-      setConfirmingDelete(true);
-    }
+  function handleConfirmDelete() {
+    deleteMutation.mutate();
+    setShowDeleteDialog(false);
   }
 
   const isCreationSelected =
@@ -88,44 +94,20 @@ export function DraftRoutineCard({
           {t("draft.badge")}
         </span>
 
-        <span className="flex-1 truncate text-foreground font-medium">
+        <span className="flex-1 min-w-0 truncate text-foreground font-medium">
           {routine.title || t("draft.untitled", "Untitled")}
         </span>
 
-        {confirmingDelete ? (
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-destructive">
-              {t("draft.deleteConfirm")}
-            </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={handleDeleteClick}
-              disabled={deleteMutation.isPending}
-            >
-              {t("draft.delete")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              onClick={() => setConfirmingDelete(false)}
-            >
-              {t("agentic.cancel")}
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-destructive"
-            onClick={handleDeleteClick}
-            disabled={deleteMutation.isPending}
-          >
-            <Trash2 size={14} />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+          aria-label={t("draft.delete")}
+          onClick={() => setShowDeleteDialog(true)}
+          disabled={deleteMutation.isPending}
+        >
+          <Trash2 size={14} />
+        </Button>
       </div>
 
       <CreationSessionRunItem
@@ -142,6 +124,29 @@ export function DraftRoutineCard({
             : undefined
         }
       />
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("draft.delete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("draft.deleteConfirm")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {t("agentic.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-primary-foreground hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40"
+              onClick={handleConfirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {t("draft.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

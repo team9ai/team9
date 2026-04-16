@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Routine } from "@/types/routine";
@@ -127,23 +133,51 @@ describe("DraftRoutineCard", () => {
       onDeleted,
     );
 
-    // Click delete once (arms confirmation), then click again to fire
-    const deleteBtn = screen.getAllByRole("button").find((b) => {
-      const svg = b.querySelector("svg");
-      return svg?.classList.contains("lucide-trash-2");
+    const deleteBtn = screen.getByRole("button", {
+      name: /draft\.delete|Delete/,
     });
-    expect(deleteBtn).toBeDefined();
-    fireEvent.click(deleteBtn!);
+    fireEvent.click(deleteBtn);
 
-    // Now the confirm button exists
-    const confirmBtn = screen.getByRole("button", {
-      name: /draft\.delete/,
+    const dialog = screen.getByRole("alertdialog");
+    const confirmBtn = within(dialog).getByRole("button", {
+      name: /draft\.delete|Delete/,
     });
     fireEvent.click(confirmBtn);
 
     await waitFor(() => expect(deleteMutationFn).toHaveBeenCalled());
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("r-1"));
     expect(removeSpy).toHaveBeenCalledWith({ queryKey: ["routine", "r-1"] });
+  });
+
+  it("clicking delete opens a confirmation dialog and Cancel closes it without deleting", async () => {
+    renderCard({ creationChannelId: null });
+
+    const deleteBtn = screen.getByRole("button", {
+      name: /draft\.delete|Delete/,
+    });
+    fireEvent.click(deleteBtn);
+
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog).toBeDefined();
+    expect(
+      within(dialog).getByText(/draft\.deleteConfirm|Delete this draft/),
+    ).toBeDefined();
+
+    const cancelBtn = within(dialog).getByRole("button", {
+      name: /agentic\.cancel|Cancel/,
+    });
+    expect(
+      within(dialog).getByRole("button", {
+        name: /draft\.delete|Delete/,
+      }),
+    ).toBeDefined();
+
+    fireEvent.click(cancelBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+    expect(deleteMutationFn).not.toHaveBeenCalled();
   });
 
   it("disables Complete Creation button when draft has no botId", () => {
