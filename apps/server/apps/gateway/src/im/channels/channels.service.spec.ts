@@ -2304,6 +2304,17 @@ describe('ChannelsService', () => {
       expect(result.ownerName).toBeNull();
     });
 
+    it('system user row → staffKind=null and other agent fields null', () => {
+      const result = map({
+        ...baseRow,
+        userType: 'system',
+        botExtra: null,
+      });
+      expect(result.staffKind).toBeNull();
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
     it('bot with both commonStaff and personalStaff → common wins (and warns)', () => {
       const logger = (service as unknown as { logger: { warn: jest.Mock } })
         .logger;

@@ -221,6 +221,17 @@ export class ChannelsService {
     }
   }
 
+  /**
+   * Derives the user-summary view for DM/echo channel members.
+   *
+   * For bots, classifies into `staffKind`:
+   * - `'common'` if `extra.commonStaff` is set (takes precedence over personal)
+   * - `'personal'` if `extra.personalStaff` is set (resolves owner via aliased users join)
+   * - `'other'` otherwise (no staff role)
+   *
+   * commonStaff/personalStaff are mutually exclusive per the data model
+   * (see im_bots.ts BotExtra). If both are present we warn and pick common.
+   */
   private mapChannelUserSummary(row: ChannelUserSummaryRow) {
     let staffKind: 'common' | 'personal' | 'other' | null = null;
     let roleTitle: string | null = null;
@@ -230,6 +241,7 @@ export class ChannelsService {
       if (row.botExtra?.commonStaff) {
         staffKind = 'common';
         roleTitle = row.botExtra.commonStaff.roleTitle ?? null;
+        // Mutually exclusive per data model — log the corruption case.
         if (row.botExtra.personalStaff) {
           this.logger.warn(
             `Bot ${row.userId} has both commonStaff and personalStaff in extra; preferring common`,
