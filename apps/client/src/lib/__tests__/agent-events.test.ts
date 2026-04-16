@@ -1,9 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { getAgentMeta, pairToolEvents } from "../agent-events";
+import {
+  getAgentMeta,
+  getEffectiveTimeMs,
+  pairToolEvents,
+  sortByEffectiveTime,
+} from "../agent-events";
 import type { Message } from "@/types/im";
 
 /** Minimal message factory for tests */
-function makeMsg(id: string, metadata?: Record<string, unknown>): Message {
+function makeMsg(
+  id: string,
+  metadata?: Record<string, unknown>,
+  createdAt?: string,
+): Message {
   return {
     id,
     channelId: "ch-1",
@@ -13,8 +22,8 @@ function makeMsg(id: string, metadata?: Record<string, unknown>): Message {
     isPinned: false,
     isEdited: false,
     isDeleted: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: createdAt ?? new Date().toISOString(),
+    updatedAt: createdAt ?? new Date().toISOString(),
     metadata,
   };
 }
@@ -187,5 +196,141 @@ describe("pairToolEvents", () => {
     // result2 overwrites result1 in Map, so result2 is paired
     // result1 is NOT in pairedResultIds, so it stays in place
     expect(paired.map((m) => m.id)).toEqual(["tc-1", "tr-2", "tr-1"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getEffectiveTimeMs
+// ---------------------------------------------------------------------------
+
+describe("getEffectiveTimeMs", () => {
+  it("falls back to createdAt when no agent metadata", () => {
+    const msg = makeMsg("m-1", undefined, "2026-04-17T10:00:00.000Z");
+    expect(getEffectiveTimeMs(msg)).toBe(
+      new Date("2026-04-17T10:00:00.000Z").getTime(),
+    );
+  });
+
+  it("falls back to createdAt when agent metadata has no startedAt", () => {
+    const msg = makeMsg(
+      "m-1",
+      { agentEventType: "tool_call", status: "completed" },
+      "2026-04-17T10:00:05.000Z",
+    );
+    expect(getEffectiveTimeMs(msg)).toBe(
+      new Date("2026-04-17T10:00:05.000Z").getTime(),
+    );
+  });
+
+  it("uses metadata.startedAt when present", () => {
+    const msg = makeMsg(
+      "m-1",
+      {
+        agentEventType: "thinking",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:00.000Z",
+      },
+      "2026-04-17T10:00:05.000Z",
+    );
+    // 5s earlier than createdAt — matches when thinking actually began.
+    expect(getEffectiveTimeMs(msg)).toBe(
+      new Date("2026-04-17T10:00:00.000Z").getTime(),
+    );
+  });
+
+  it("falls back to createdAt when startedAt is unparseable", () => {
+    const msg = makeMsg(
+      "m-1",
+      {
+        agentEventType: "thinking",
+        status: "completed",
+        startedAt: "not-a-date",
+      },
+      "2026-04-17T10:00:05.000Z",
+    );
+    expect(getEffectiveTimeMs(msg)).toBe(
+      new Date("2026-04-17T10:00:05.000Z").getTime(),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sortByEffectiveTime
+// ---------------------------------------------------------------------------
+
+describe("sortByEffectiveTime", () => {
+  it("returns empty array for empty input", () => {
+    expect(sortByEffectiveTime([])).toEqual([]);
+  });
+
+  it("keeps chronological createdAt order for non-agent messages", () => {
+    const m1 = makeMsg("m-1", undefined, "2026-04-17T10:00:00.000Z");
+    const m2 = makeMsg("m-2", undefined, "2026-04-17T10:00:01.000Z");
+    const m3 = makeMsg("m-3", undefined, "2026-04-17T10:00:02.000Z");
+    const sorted = sortByEffectiveTime([m1, m2, m3]);
+    expect(sorted.map((m) => m.id)).toEqual(["m-1", "m-2", "m-3"]);
+  });
+
+  it("moves a thinking event before its reply when startedAt is earlier", () => {
+    // Real-world bug: thinking persists at end-of-thinking (createdAt =
+    // t+5s), but startedAt = t+0s — that's before the reply started
+    // streaming at t+2s. Sorting by effective time puts thinking first.
+    const agentStart = makeMsg(
+      "start",
+      {
+        agentEventType: "agent_start",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:00.000Z",
+      },
+      "2026-04-17T10:00:00.000Z",
+    );
+    const reply = makeMsg("reply", undefined, "2026-04-17T10:00:02.000Z");
+    const thinking = makeMsg(
+      "thinking",
+      {
+        agentEventType: "thinking",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:01.000Z",
+      },
+      "2026-04-17T10:00:05.000Z",
+    );
+
+    // Server order after DESC→ASC reverse: start, reply, thinking.
+    const sorted = sortByEffectiveTime([agentStart, reply, thinking]);
+    expect(sorted.map((m) => m.id)).toEqual(["start", "thinking", "reply"]);
+  });
+
+  it("is stable: preserves original order for equal effective times", () => {
+    const shared = "2026-04-17T10:00:00.000Z";
+    const a = makeMsg("a", undefined, shared);
+    const b = makeMsg("b", undefined, shared);
+    const c = makeMsg("c", undefined, shared);
+    expect(sortByEffectiveTime([a, b, c]).map((m) => m.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(sortByEffectiveTime([c, a, b]).map((m) => m.id)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+  });
+
+  it("does not move agent_end that actually happened after the reply", () => {
+    // agent_end carries startedAt = end-of-round, which is after the
+    // reply. Sorting must NOT accidentally pull it earlier.
+    const reply = makeMsg("reply", undefined, "2026-04-17T10:00:02.000Z");
+    const agentEnd = makeMsg(
+      "end",
+      {
+        agentEventType: "agent_end",
+        status: "completed",
+        startedAt: "2026-04-17T10:00:06.000Z",
+      },
+      "2026-04-17T10:00:06.000Z",
+    );
+    const sorted = sortByEffectiveTime([reply, agentEnd]);
+    expect(sorted.map((m) => m.id)).toEqual(["reply", "end"]);
   });
 });

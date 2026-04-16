@@ -8,7 +8,11 @@ import {
 } from "react-virtuoso";
 import { Loader2 } from "lucide-react";
 import type { Message, ChannelMember } from "@/types/im";
-import { getAgentMeta, pairToolEvents } from "@/lib/agent-events";
+import {
+  getAgentMeta,
+  pairToolEvents,
+  sortByEffectiveTime,
+} from "@/lib/agent-events";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
@@ -31,6 +35,7 @@ import { MessageItem } from "./MessageItem";
 import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
+import { StreamingThinkingRow } from "./StreamingThinkingRow";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
@@ -164,9 +169,18 @@ export function MessageList({
     };
   }, [channelId]);
 
-  // Messages come in DESC order (newest first), reverse to chronological for Virtuoso.
-  // Keep raw order for stable firstItemIndex tracking, then apply tool pairing for display.
-  const rawChrono = useMemo(() => [...messages].reverse(), [messages]);
+  // Messages come in DESC order (newest first). Two-step transform:
+  //   1. Reverse to chronological ascending.
+  //   2. Re-sort by effective time so thinking events (which persist at
+  //      end-of-thinking but carry `startedAt` for true beginning) slide
+  //      back into their real timeline position — otherwise "Thought for
+  //      4s" lands after the text reply it preceded.
+  // Tool pairing runs last so `tool_result` still hugs its `tool_call`
+  // regardless of any small startedAt skew between them.
+  const rawChrono = useMemo(
+    () => sortByEffectiveTime([...messages].reverse()),
+    [messages],
+  );
   const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
   const listData = useMemo<ChannelListItem[]>(() => {
     const items: ChannelListItem[] = chronoMessages.map((message) => ({
@@ -399,8 +413,15 @@ export function MessageList({
   const itemContent = useCallback(
     (index: number, item: ChannelListItem) => {
       if (item.type === "stream") {
+        // While streaming, lift thinking out of the bot bubble into a
+        // tracking row that looks identical to the persisted "Thought
+        // for Xs" row the user will see after the round finishes — so
+        // the UI doesn't visibly reshape when streaming ends.
+        const showThinkingRow =
+          item.stream.isThinking || item.stream.thinking.length > 0;
         return (
           <div className="py-2">
+            {showThinkingRow && <StreamingThinkingRow stream={item.stream} />}
             <StreamingMessageItem stream={item.stream} members={members} />
           </div>
         );
