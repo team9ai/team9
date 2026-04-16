@@ -1,14 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import workspaceApi from "@/services/api/workspace";
 
-export function useWorkspaceBillingOverview(
-  workspaceId: string | undefined,
-  enabled = true,
-) {
+export function useWorkspaceBillingOverview(workspaceId: string | undefined) {
   return useQuery({
     queryKey: ["workspace-billing-overview", workspaceId],
     queryFn: () => workspaceApi.getBillingOverview(workspaceId!),
-    enabled: !!workspaceId && enabled,
+    enabled: !!workspaceId,
   });
 }
 

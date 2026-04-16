@@ -252,7 +252,7 @@ export function SubscriptionContent({
   const canManageBilling =
     currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
 
-  const overview = useWorkspaceBillingOverview(workspaceId, canManageBilling);
+  const overview = useWorkspaceBillingOverview(workspaceId);
   const checkout = useCreateWorkspaceBillingCheckout(workspaceId);
   const portal = useCreateWorkspaceBillingPortal(workspaceId);
 

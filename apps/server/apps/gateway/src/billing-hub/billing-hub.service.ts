@@ -119,6 +119,8 @@ export interface WorkspaceBillingOverview {
 
 type BillingView = 'plans' | 'credits';
 
+type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
+
 @Injectable()
 export class BillingHubService {
   private readonly logger = new Logger(BillingHubService.name);
@@ -205,7 +207,13 @@ export class BillingHubService {
 
   async getWorkspaceOverview(
     workspaceId: string,
+    role?: WorkspaceRole,
   ): Promise<WorkspaceBillingOverview> {
+    // Transaction history carries audit data (invoice IDs, operator IDs)
+    // that should stay scoped to billing managers; balance and plan info
+    // stay visible to every workspace member.
+    const canViewTransactions = role === 'owner' || role === 'admin';
+
     const [
       account,
       subscription,
@@ -217,7 +225,9 @@ export class BillingHubService {
       this.getWorkspaceSubscription(workspaceId),
       this.listSubscriptionProducts(),
       this.listOneTimeProducts(),
-      this.listWorkspaceTransactions(workspaceId),
+      canViewTransactions
+        ? this.listWorkspaceTransactions(workspaceId)
+        : Promise.resolve<WorkspaceBillingTransaction[]>([]),
     ]);
 
     return {
