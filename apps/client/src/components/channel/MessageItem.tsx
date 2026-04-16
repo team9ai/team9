@@ -187,6 +187,15 @@ export function MessageItem({
   // Agent event message display (no avatar, compact, grouped)
   const agentMeta = getAgentMeta(message);
   if (agentMeta) {
+    // Some agent event types render nothing by design (turn_separator is
+    // an internal marker, not user-facing). Without this guard we'd
+    // still emit the gray/bordered wrapper + pt/pb padding, producing an
+    // empty ~4px stripe that looks like a layout bug. Keep it as a 1px
+    // hidden div (react-virtuoso rejects zero-size items).
+    if (agentMeta.agentEventType === "turn_separator") {
+      return <div className="min-h-px overflow-hidden" aria-hidden="true" />;
+    }
+
     const prevIsAgentEvent = prevMessage ? !!getAgentMeta(prevMessage) : false;
     const isFirstInGroup = !prevIsAgentEvent;
 
@@ -194,7 +203,7 @@ export function MessageItem({
       <div
         id={`message-${message.id}`}
         className={cn(
-          "ml-2 mr-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
+          "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
           isFirstInGroup ? "mt-1 pt-1.5" : "",
           "pb-0.5",
         )}
