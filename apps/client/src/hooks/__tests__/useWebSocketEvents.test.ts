@@ -126,9 +126,17 @@ vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => mockQueryClient,
 }));
 
+const mockAppStoreState = vi.hoisted(() => ({
+  user: { id: "user-1" } as { id: string } | null,
+}));
+const mockAppStoreGetState = vi.hoisted(() => vi.fn(() => mockAppStoreState));
+
 vi.mock("@/stores", () => ({
   useSelectedWorkspaceId: () => "workspace-1",
   useUser: () => ({ id: "user-1" }),
+  useAppStore: {
+    getState: mockAppStoreGetState,
+  },
 }));
 
 vi.mock("@/services/api", () => {
@@ -217,6 +225,9 @@ describe("useWebSocketEvents", () => {
     notificationActions.setNotifications([]);
     notificationActions.setCounts(baseCounts);
     queryCache.set(JSON.stringify(["notificationCounts"]), baseCounts);
+
+    // Reset the app-store mock so each test starts with user-1 logged in
+    mockAppStoreState.user = { id: "user-1" };
 
     // Default: not a Tauri app
     mockIsTauriApp.mockReturnValue(false);
@@ -614,7 +625,62 @@ describe("useWebSocketEvents", () => {
         expect(mockGetCurrentUser).toHaveBeenCalledTimes(1);
       });
 
-      // setUser never called because the refetch failed
+      // syncCurrentUser never called because the refetch failed
+      expect(mockSyncCurrentUser).not.toHaveBeenCalled();
+    });
+
+    it("does NOT call syncCurrentUser when refetched user id differs from event userId (auth-swap race)", async () => {
+      // Simulates: the auth token changed mid-flight, so getCurrentUser
+      // returned a different user than the event was about.
+      const fetchedDifferent = {
+        id: "user-2",
+        displayName: "Other",
+      };
+      mockGetCurrentUser.mockResolvedValueOnce(fetchedDifferent);
+
+      renderHook(() => useWebSocketEvents());
+      const handler = listeners.get("user_updated")?.[0];
+
+      handler?.({ userId: "user-1" });
+
+      await vi.waitFor(() => {
+        expect(mockGetCurrentUser).toHaveBeenCalledTimes(1);
+      });
+
+      expect(mockSyncCurrentUser).not.toHaveBeenCalled();
+    });
+
+    it("does NOT call syncCurrentUser when the current user changes before getCurrentUser resolves (logout/login race)", async () => {
+      // Simulates: user-1 triggers the event, but before the refetch
+      // resolves, user-1 logs out and user-2 logs in. The fetched user
+      // matches the event's userId, but no longer matches the authoritative
+      // Zustand store -- pushing it would overwrite user-2's state.
+      const fetched = {
+        id: "user-1",
+        displayName: "A",
+      };
+      let resolveFetch: ((value: unknown) => void) | undefined;
+      mockGetCurrentUser.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      );
+
+      renderHook(() => useWebSocketEvents());
+      const handler = listeners.get("user_updated")?.[0];
+
+      handler?.({ userId: "user-1" });
+
+      // The handler kicked off the request synchronously; now simulate the
+      // logout/login swap before the response lands.
+      mockAppStoreState.user = { id: "user-2" };
+      resolveFetch?.(fetched);
+
+      await vi.waitFor(() => {
+        expect(mockGetCurrentUser).toHaveBeenCalledTimes(1);
+      });
+
       expect(mockSyncCurrentUser).not.toHaveBeenCalled();
     });
   });
