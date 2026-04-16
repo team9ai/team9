@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorFallback } from "./components/error-fallback";
 import "./global.css";
+import "katex/dist/katex.min.css";
 import "./i18n";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
