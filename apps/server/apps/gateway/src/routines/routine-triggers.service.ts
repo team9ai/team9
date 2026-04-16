@@ -30,6 +30,31 @@ export class RoutineTriggersService {
   ) {}
 
   async create(routineId: string, dto: CreateTriggerDto, tenantId: string) {
+    const trigger = await this.createInternal(routineId, dto, tenantId);
+
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
+
+    return trigger;
+  }
+
+  /**
+   * Performs the actual trigger creation (validation + DB insert) WITHOUT
+   * emitting a `routine:updated` broadcast. Used directly by createBatch()
+   * so that creating a routine with N triggers via RoutinesService.create
+   * does not produce N broadcasts for a single logical create operation.
+   *
+   * The public create() wraps this and emits once — that path handles the
+   * single-trigger CRUD endpoint `POST /routines/:routineId/triggers`.
+   */
+  private async createInternal(
+    routineId: string,
+    dto: CreateTriggerDto,
+    tenantId: string,
+  ): Promise<schema.RoutineTrigger> {
     // Verify routine exists and belongs to tenant
     await this.getRoutineOrThrow(routineId, tenantId);
 
@@ -60,12 +85,6 @@ export class RoutineTriggersService {
         updatedAt: now,
       })
       .returning();
-
-    await this.wsGateway.broadcastToWorkspace(
-      tenantId,
-      WS_EVENTS.ROUTINE.UPDATED,
-      { routineId },
-    );
 
     return trigger;
   }
@@ -135,6 +154,13 @@ export class RoutineTriggersService {
     return { success: true };
   }
 
+  /**
+   * Batch trigger creation — used by RoutinesService.create when a routine
+   * is POSTed with N triggers. Deliberately bypasses the public create()
+   * wrapper to avoid emitting N `routine:updated` broadcasts for one
+   * logical creation operation. The outer CREATE flow does NOT emit
+   * `routine:updated` either (it's a create, not an update).
+   */
   async createBatch(
     routineId: string,
     dtos: CreateTriggerDto[],
@@ -142,7 +168,7 @@ export class RoutineTriggersService {
   ) {
     const results: schema.RoutineTrigger[] = [];
     for (const dto of dtos) {
-      const trigger = await this.create(routineId, dto, tenantId);
+      const trigger = await this.createInternal(routineId, dto, tenantId);
       results.push(trigger);
     }
     return results;
