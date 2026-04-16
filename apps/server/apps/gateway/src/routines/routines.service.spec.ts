@@ -13,6 +13,7 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import {
   AmqpConnection,
   RABBITMQ_EXCHANGES,
@@ -90,6 +91,7 @@ describe('RoutinesService — TaskCast integration', () => {
     createSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
+  let wsGateway: { broadcastToWorkspace: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -129,6 +131,9 @@ describe('RoutinesService — TaskCast integration', () => {
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
     };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -141,6 +146,7 @@ describe('RoutinesService — TaskCast integration', () => {
         { provide: ChannelsService, useValue: channelsService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
       ],
     }).compile();
 
@@ -605,6 +611,90 @@ describe('RoutinesService — TaskCast integration', () => {
           updatedAt: expect.any(Date),
         }),
       );
+    });
+
+    it('broadcasts routine:updated to the workspace on successful update', async () => {
+      const task = {
+        ...BASE_TASK,
+        creatorId: 'user-1',
+        tenantId: 'tenant-1',
+      };
+      const updatedTask = { ...task, title: 'Renamed' };
+
+      db.limit.mockResolvedValueOnce([task] as any);
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      await service.update(
+        'task-1',
+        { title: 'Renamed' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
+
+    it('does not broadcast when the caller is not the creator', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-2',
+        },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'Updated title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does not broadcast when a rejected status transition is requested', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-1',
+          status: 'draft' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'in_progress' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        "Cannot change routine status from 'draft' to 'in_progress'",
+      );
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does not broadcast when the routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'Updated title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('Routine not found');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
     });
   });
 

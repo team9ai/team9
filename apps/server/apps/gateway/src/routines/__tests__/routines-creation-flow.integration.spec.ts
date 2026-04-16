@@ -24,6 +24,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../../bot/bot.service.js';
 import { RoutineTriggersService } from '../routine-triggers.service.js';
 import { AmqpConnection } from '@team9/rabbitmq';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ describe('Routine Creation Flow — integration', () => {
     sendInput: MockFn;
   };
   let botsService: { getBotById: MockFn };
+  let wsGateway: { broadcastToWorkspace: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -176,6 +178,9 @@ describe('Routine Creation Flow — integration', () => {
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
     };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -188,6 +193,7 @@ describe('Routine Creation Flow — integration', () => {
         { provide: ChannelsService, useValue: channelsService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
       ],
     }).compile();
 

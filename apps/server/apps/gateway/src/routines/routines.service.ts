@@ -29,6 +29,9 @@ import {
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
+import { WS_EVENTS } from '@team9/shared';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
@@ -63,6 +66,8 @@ export class RoutinesService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly wsGateway: WebsocketGateway,
     private readonly documentsService: DocumentsService,
     private readonly amqpConnection: AmqpConnection,
     private readonly routineTriggersService: RoutineTriggersService,
@@ -272,6 +277,12 @@ export class RoutinesService {
       .set(updateData)
       .where(eq(schema.routines.id, routineId))
       .returning();
+
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     return updated;
   }
