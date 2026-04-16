@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderMathInHtml, parseMath } from "./math";
+import { renderMathInHtml } from "./math";
 
 describe("renderMathInHtml — fast path", () => {
   it("returns input unchanged when no $ is present", () => {
@@ -131,54 +131,58 @@ describe("renderMathInHtml — error path", () => {
   });
 });
 
-describe("renderMathInHtml — escape coverage", () => {
-  it("handles \\$ escape inside block math (findBlockClose branch)", () => {
-    // $$\$5$$ — block with an escaped dollar inside; must render as block math
+describe("renderMathInHtml — content with escaped $", () => {
+  it("renders $$…$$ that contains an escaped \\$ price", () => {
     const out = renderMathInHtml("<p>$$\\$5$$</p>");
     expect(out).toContain('class="math-block"');
   });
 
-  it("handles \\$ escape inside inline math (tryInline branch)", () => {
-    // $x \$5 y$ — inline with an escaped dollar inside; must render as inline math
+  it("renders inline $…$ that contains an escaped \\$ price", () => {
     const out = renderMathInHtml("<p>$x \\$5 y$</p>");
     expect(out).not.toContain("$x");
   });
 });
 
-describe("renderMathInHtml — branch coverage", () => {
-  it("visits text nodes without '$' without rendering (raw no-dollar early-return)", () => {
-    // 'hello' has no $, so transformTextNode returns early; '$x$' in strong is rendered
+describe("renderMathInHtml — more edge cases", () => {
+  it("renders $$…$$ block math that spans a newline", () => {
+    const out = renderMathInHtml("<p>$$a\nb$$</p>");
+    expect(out).toContain('class="math-block"');
+    expect(out).toContain("katex-display");
+  });
+
+  it("does not render a URL path with an unclosed $", () => {
+    const html = "<p>see https://example.com/$id for details</p>";
+    expect(renderMathInHtml(html)).toBe(html);
+  });
+
+  it("walks mixed children: text node without $ is untouched; inline math sibling renders", () => {
     const out = renderMathInHtml("<p><strong>$x$</strong> hello</p>");
-    // The strong content is rendered (formula replaced), hello text unchanged
     expect(out).not.toContain("$x$");
     expect(out).toContain("hello");
   });
 
-  it("does not render '$$$y$' (prev-dollar guard in tryInline)", () => {
-    // The third $ at index 2 is preceded by $, so tryInline returns null for it
+  it("does not render '$$$y$' — third $ is preceded by $", () => {
     const html = "<p>$$$y$</p>";
     expect(renderMathInHtml(html)).toBe(html);
   });
 
-  it("does not render '$x$5' (digit-after-close guard in tryInline)", () => {
-    // Closing $ followed by digit 5 → tryInline returns null
+  it("does not render '$x$5' — digit follows closing $", () => {
     const html = "<p>$x$5</p>";
     expect(renderMathInHtml(html)).toBe(html);
   });
 
-  it("does not render formula with vertical-tab-only content (tryInline latex.trim=empty)", () => {
-    // Vertical tab is not caught by the space/tab/newline guards but trims to empty
-    const segments = parseMath("$\v$");
-    // All segments must be text (no formula rendered)
-    expect(segments.every((s) => s.kind === "text")).toBe(true);
+  it("treats inline math with only a vertical-tab inside as plain text", () => {
+    // \v is not one of the explicit space/tab/newline guards, but trims to empty
+    // and so must still be rejected.
+    const html = "<p>$\v$</p>";
+    const out = renderMathInHtml(html);
+    expect(out).not.toContain('class="katex"');
   });
 
-  it("skips non-text, non-element nodes (e.g. HTML comments) without error", () => {
-    // Comment nodes have nodeType 8, which is neither ELEMENT_NODE nor TEXT_NODE.
-    // walk() should visit them but do nothing, covering the 'else' branch of
-    // the TEXT_NODE check.
-    // The comment node contains a $ but should be ignored (it's not a Text node).
-    // Only the text node "hello $y$" is processed.
+  it("ignores HTML comment nodes (neither element nor text)", () => {
+    // Comment nodes have nodeType 8, which matches no case in walk()'s switch,
+    // so walk() skips them. The $ inside the comment should stay literal and
+    // the sibling text node with $y$ should still render.
     const out = renderMathInHtml("<p><!-- $x$ -->hello $y$</p>");
     expect(out).not.toContain("$y$");
     expect(out).toContain("hello");
