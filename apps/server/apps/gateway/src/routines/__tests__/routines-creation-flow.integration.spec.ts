@@ -409,6 +409,12 @@ describe('Routine Creation Flow — integration', () => {
 
     botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
 
+    // Mock documentsService.getById to return null content (no draft document enrichment)
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-flow-1',
+      content: null,
+    } as any);
+
     channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
       id: CHANNEL_ID,
     } as any);
@@ -437,6 +443,22 @@ describe('Routine Creation Flow — integration', () => {
       purpose: 'creation',
     });
 
+    // Assert createSession was called with team9Context.routineId + isCreationChannel: true
+    expect(clawHiveService.createSession).toHaveBeenCalledWith(
+      AGENT_ID,
+      expect.objectContaining({
+        userId: USER_ID,
+        sessionId: SESSION_ID,
+        team9Context: expect.objectContaining({
+          routineId: ROUTINE_ID,
+          creatorUserId: USER_ID,
+          creationChannelId: CHANNEL_ID,
+          isCreationChannel: true,
+        }),
+      }),
+      TENANT_ID,
+    );
+
     expect(clawHiveService.sendInput).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({
@@ -445,6 +467,12 @@ describe('Routine Creation Flow — integration', () => {
           routineId: ROUTINE_ID,
           creatorUserId: USER_ID,
           tenantId: TENANT_ID,
+          creationChannelId: CHANNEL_ID,
+          title: DRAFT_ROUTINE.title,
+          description: null,
+          documentContent: null,
+          botId: DRAFT_ROUTINE.botId,
+          triggers: [],
         }),
       }),
       TENANT_ID,
