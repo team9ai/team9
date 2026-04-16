@@ -333,6 +333,16 @@ export class RoutinesService {
       .delete(schema.routines)
       .where(eq(schema.routines.id, routineId));
 
+    // Broadcast so clients refetch the routines list — the deleted row
+    // won't be in the new response, so the UI removes it naturally.
+    // Emitted AFTER the DB delete succeeds; if the delete throws the
+    // method propagates and no emit fires.
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
+
     return { success: true };
   }
 
@@ -879,6 +889,17 @@ export class RoutinesService {
       .set({ status: 'upcoming', updatedAt: new Date() })
       .where(eq(schema.routines.id, routineId))
       .returning();
+
+    // Broadcast the draft → upcoming transition so clients refetch and
+    // surface the newly activated routine in the list. Placed AFTER the
+    // DB update succeeds, BEFORE the best-effort channel archive — if the
+    // status flip itself throws, no emit fires (correct). Using the DB-
+    // verified tenantId from the fetched routine, not the param.
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     // Step 7a: archive the creation channel (best-effort, non-fatal)
     if (routine.creationChannelId) {
