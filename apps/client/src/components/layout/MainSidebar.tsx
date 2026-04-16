@@ -205,6 +205,9 @@ export function MainSidebar() {
         queryKey: ["workspace-members", prevWorkspaceIdRef.current],
       });
       queryClient.removeQueries({
+        queryKey: ["applications", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
         queryKey: ["installed-applications", prevWorkspaceIdRef.current],
       });
       queryClient.removeQueries({
