@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Sparkles, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { aiAutoFillApi } from "@/services/api/properties";
@@ -11,6 +11,8 @@ export interface AiAutoFillButtonProps {
   className?: string;
 }
 
+const INFO_AUTO_DISMISS_MS = 3000;
+
 export function AiAutoFillButton({
   messageId,
   channelId: _channelId,
@@ -20,20 +22,31 @@ export function AiAutoFillButton({
 }: AiAutoFillButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!info) return;
+    const t = setTimeout(() => setInfo(null), INFO_AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [info]);
 
   const handleAutoFill = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setInfo(null);
     try {
-      await aiAutoFillApi.autoFill(messageId, {
+      const result = await aiAutoFillApi.autoFill(messageId, {
         fields,
         preserveExisting: true,
       });
-      // The API returns 202 (accepted) — AI processing happens asynchronously.
-      // Cache invalidation is handled by the WS `message_property_changed` event
-      // when AI finishes, so we intentionally do NOT invalidate queries here.
-      // Loading state will be cleared by `finally` below; the actual property
-      // update will appear when the WebSocket event triggers a cache refresh.
+      // The WS `message_property_changed` event refreshes the property cache on
+      // successful fills, so no query invalidation is needed here. When the AI
+      // fills nothing (all fields preserved or marked unchanged), no WS event
+      // fires — surface a short "nothing to fill" badge so the click is not
+      // a silent no-op.
+      if (Object.keys(result.filled).length === 0) {
+        setInfo("Nothing to fill");
+      }
     } catch {
       setError("AI failed");
     } finally {
@@ -74,6 +87,22 @@ export function AiAutoFillButton({
         >
           <Sparkles size={10} />
         </button>
+      </span>
+    );
+  }
+
+  if (info) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1",
+          "rounded-full px-2 py-0.5 text-xs font-medium",
+          "bg-muted text-muted-foreground border border-border",
+          className,
+        )}
+      >
+        <Sparkles size={10} />
+        <span>{info}</span>
       </span>
     );
   }

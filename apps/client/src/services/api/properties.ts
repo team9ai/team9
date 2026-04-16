@@ -69,15 +69,16 @@ export const propertyDefinitionsApi = {
 
 // AI Auto-Fill API
 export const aiAutoFillApi = {
-  // Trigger AI auto-fill for message properties (returns HTTP 202 Accepted)
+  // Trigger AI auto-fill for message properties. Runs synchronously — the
+  // response contains the fields the AI actually filled and any skipped keys.
   autoFill: async (
     messageId: string,
     options?: { fields?: string[]; preserveExisting?: boolean },
-  ): Promise<{ status: string }> => {
-    const response = await http.post<{ status: string }>(
-      `/v1/im/messages/${messageId}/properties/auto-fill`,
-      options ?? {},
-    );
+  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> => {
+    const response = await http.post<{
+      filled: Record<string, unknown>;
+      skipped: string[];
+    }>(`/v1/im/messages/${messageId}/properties/auto-fill`, options ?? {});
     return response.data;
   },
 };

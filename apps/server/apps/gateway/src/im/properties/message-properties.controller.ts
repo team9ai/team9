@@ -9,8 +9,6 @@ import {
   Param,
   UseGuards,
   ParseUUIDPipe,
-  HttpCode,
-  Logger,
   ForbiddenException,
 } from '@nestjs/common';
 import { MessagePropertiesService } from './message-properties.service.js';
@@ -35,8 +33,6 @@ import { ChannelsService } from '../channels/channels.service.js';
 })
 @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
 export class MessagePropertiesController {
-  private readonly logger = new Logger(MessagePropertiesController.name);
-
   constructor(
     private readonly messagePropertiesService: MessagePropertiesService,
     private readonly aiAutoFillService: AiAutoFillService,
@@ -139,34 +135,27 @@ export class MessagePropertiesController {
 
   /**
    * POST /v1/im/messages/:messageId/properties/auto-fill
-   * Trigger AI auto-fill for message properties.
-   * This is a background-style operation: it returns immediately with an accepted
-   * status, and the actual fill happens asynchronously (results broadcast via WS).
+   * Trigger AI auto-fill for message properties. Runs synchronously so the
+   * caller sees the actual outcome (filled values, skipped fields, or errors)
+   * rather than a silent 202 that hides empty returns and AI failures.
    */
   @Post('auto-fill')
-  @HttpCode(202)
   @WorkspaceRoles('member')
   async autoFill(
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: AutoFillDto,
-  ): Promise<{ status: string }> {
+  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> {
     const channelId =
       await this.messagePropertiesService.getMessageChannelId(messageId);
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
       throw new ForbiddenException('Not a member of this channel');
     }
-    // Fire and forget — results are broadcast via WebSocket
-    this.aiAutoFillService
-      .autoFill(messageId, userId, tenantId, {
-        fields: dto.fields,
-        preserveExisting: dto.preserveExisting,
-      })
-      .catch((err: Error) => {
-        this.logger.warn(`AI auto-fill failed: ${err.message}`);
-      });
-    return { status: 'accepted' };
+    return this.aiAutoFillService.autoFill(messageId, userId, tenantId, {
+      fields: dto.fields,
+      preserveExisting: dto.preserveExisting,
+    });
   }
 }
