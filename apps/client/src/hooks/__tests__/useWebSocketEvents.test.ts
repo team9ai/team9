@@ -89,8 +89,12 @@ const mockWsService = vi.hoisted(() => ({
   offNotificationAllRead: vi.fn(),
   offRoutineStatusChanged: vi.fn(),
   offRoutineExecutionCreated: vi.fn(),
-  offRoutineUpdated: vi.fn(),
-  offUserUpdated: vi.fn(),
+  offRoutineUpdated: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.off("routine:updated", callback),
+  ),
+  offUserUpdated: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.off("user_updated", callback),
+  ),
   offTrackingDeactivated: vi.fn(),
   onMessagePropertyChanged: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("message_property_changed", callback),
@@ -630,18 +634,35 @@ describe("useWebSocketEvents", () => {
     });
 
     it("does NOT call syncCurrentUser when refetched user id differs from event userId (auth-swap race)", async () => {
-      // Simulates: the auth token changed mid-flight, so getCurrentUser
-      // returned a different user than the event was about.
-      const fetchedDifferent = {
+      // Isolates guard (a): `fresh.id !== event.userId`.
+      // Scenario: user-1 receives event, starts getCurrentUser, user-1 logs
+      // out + user-2 logs in mid-flight. Fetched user matches the NEW
+      // authoritative store (user-2) but NOT the original event (user-1).
+      // Only guard (a) rejects here — guard (b) would accept because
+      // fresh.id === latestUserId. If guard (a) were removed, the test
+      // fails: syncCurrentUser gets called with user-2 in response to an
+      // event that was about user-1.
+      const fetchedSwapped = {
         id: "user-2",
         displayName: "Other",
       };
-      mockGetCurrentUser.mockResolvedValueOnce(fetchedDifferent);
+      let resolveFetch: ((value: unknown) => void) | undefined;
+      mockGetCurrentUser.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      );
 
       renderHook(() => useWebSocketEvents());
       const handler = listeners.get("user_updated")?.[0];
 
       handler?.({ userId: "user-1" });
+
+      // Flip authoritative user to user-2 BEFORE the fetch resolves, so
+      // guard (b) would accept fresh={id:"user-2"} as valid for the new user.
+      mockAppStoreState.user = { id: "user-2" };
+      resolveFetch?.(fetchedSwapped);
 
       await vi.waitFor(() => {
         expect(mockGetCurrentUser).toHaveBeenCalledTimes(1);
@@ -708,6 +729,20 @@ describe("useWebSocketEvents", () => {
         registeredRoutine,
       );
       expect(mockWsService.offUserUpdated).toHaveBeenCalledWith(registeredUser);
+    });
+
+    it("registers each listener exactly once per mount and leaves zero subscriptions after unmount", () => {
+      const { unmount } = renderHook(() => useWebSocketEvents());
+
+      expect(mockWsService.onRoutineUpdated).toHaveBeenCalledTimes(1);
+      expect(mockWsService.onUserUpdated).toHaveBeenCalledTimes(1);
+      expect(listeners.get("routine:updated") ?? []).toHaveLength(1);
+      expect(listeners.get("user_updated") ?? []).toHaveLength(1);
+
+      unmount();
+
+      expect(listeners.get("routine:updated") ?? []).toHaveLength(0);
+      expect(listeners.get("user_updated") ?? []).toHaveLength(0);
     });
   });
 });
