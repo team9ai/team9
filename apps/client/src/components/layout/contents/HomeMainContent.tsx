@@ -528,11 +528,11 @@ export function HomeMainContent() {
             onSelectAgent={setSelectedAgentUserId}
           />
 
-          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-14 sm:gap-6 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-8 pb-8 pt-14 sm:gap-10 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
             <DashboardPlanBadge planLabel={currentPlanLabel} />
 
-            <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-5">
-              <h1 className="dashboard-landing-title text-center text-[clamp(2.1rem,4vw,3.35rem)] leading-[0.99] text-[#2d2924]">
+            <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-8 sm:gap-10">
+              <h1 className="dashboard-landing-title text-center text-[clamp(1.6rem,2.8vw,2.5rem)] leading-[1.05] text-[#2d2924]">
                 {t("dashboardTitle")}
               </h1>
 
