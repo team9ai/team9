@@ -15,6 +15,7 @@ const APPLICATIONS: Application[] = [
     enabled: true,
     type: 'custom',
     singleton: true,
+    hidden: true,
   },
   {
     id: 'base-model-staff',
@@ -55,23 +56,40 @@ const APPLICATIONS: Application[] = [
 @Injectable()
 export class ApplicationsService {
   /**
-   * Get all available applications.
+   * Get all enabled applications, unfiltered by visibility.
+   * Internal accessor used by install handlers, metadata lookup,
+   * and `findAllVisible` / `findAutoInstall`.
    */
   findAll(): Application[] {
     return APPLICATIONS.filter((app) => app.enabled);
   }
 
   /**
-   * Get an application by ID.
+   * Get all applications visible to a tenant: excludes `hidden` apps the
+   * tenant has not installed. Hidden apps the tenant already installed are
+   * kept (so clients that render the full catalog can still resolve them).
+   */
+  findAllVisible(installedIds: Set<string>): Application[] {
+    return this.findAll().filter(
+      (app) => !app.hidden || installedIds.has(app.id),
+    );
+  }
+
+  /**
+   * Get an application by ID. Returns hidden apps too — install/uninstall
+   * handlers and metadata enrichment need them.
    */
   findById(id: string): Application | undefined {
     return APPLICATIONS.find((app) => app.id === id && app.enabled);
   }
 
   /**
-   * Get all applications that should be auto-installed when a workspace is created.
+   * Get all applications that should be auto-installed when a workspace
+   * is created. Hidden apps are always excluded.
    */
   findAutoInstall(): Application[] {
-    return APPLICATIONS.filter((app) => app.autoInstall && app.enabled);
+    return APPLICATIONS.filter(
+      (app) => app.autoInstall && app.enabled && !app.hidden,
+    );
   }
 }
