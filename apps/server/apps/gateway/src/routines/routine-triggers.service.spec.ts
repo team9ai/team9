@@ -62,12 +62,18 @@ function createDbMock() {
 describe('RoutineTriggersService', () => {
   let service: RoutineTriggersService;
   let db: ReturnType<typeof createDbMock>;
+  let wsGateway: {
+    broadcastToWorkspace: jest.Mock<any>;
+  };
 
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-04-02T10:30:00.000Z'));
     db = createDbMock();
-    service = new RoutineTriggersService(db as never);
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    service = new RoutineTriggersService(db as never, wsGateway as never);
   });
 
   afterEach(() => {
@@ -430,6 +436,146 @@ describe('RoutineTriggersService', () => {
       // The outer db.delete and db.insert must NOT have been called directly
       expect(db.delete).not.toHaveBeenCalled();
       expect(db.insert).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── routine:updated broadcasts ─────────────────────────────────────
+
+  describe('routine:updated broadcast', () => {
+    it('broadcasts once on successful create with the parent routineId', async () => {
+      db.chains.taskLimit.mockResolvedValueOnce([
+        { id: 'task-1', tenantId: 'tenant-1' },
+      ]);
+      db.chains.insertReturning.mockResolvedValueOnce([
+        { id: 'trigger-1', routineId: 'task-1', type: 'manual' },
+      ]);
+
+      await service.create('task-1', { type: 'manual' } as never, 'tenant-1');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
+
+    it('does not broadcast when create validation fails (bad cron/interval config)', async () => {
+      db.chains.taskLimit.mockResolvedValueOnce([
+        { id: 'task-1', tenantId: 'tenant-1' },
+      ]);
+
+      await expect(
+        service.create('task-1', { type: 'interval' } as never, 'tenant-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does not broadcast when create targets a routine outside the tenant', async () => {
+      db.chains.taskLimit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.create('task-1', { type: 'manual' } as never, 'tenant-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts once on successful update with the parent routineId from the trigger row', async () => {
+      db.chains.joinedLimit.mockResolvedValueOnce([
+        {
+          trigger: {
+            id: 'trigger-1',
+            routineId: 'task-42',
+            type: 'manual',
+          },
+          tenantId: 'tenant-1',
+        },
+      ]);
+      db.chains.updateReturning.mockResolvedValueOnce([
+        { id: 'trigger-1', routineId: 'task-42', enabled: false },
+      ]);
+
+      await service.update(
+        'trigger-1',
+        { enabled: false } as never,
+        'tenant-1',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-42' },
+      );
+    });
+
+    it('does not broadcast when update cannot find the trigger for the tenant', async () => {
+      db.chains.joinedLimit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.update('trigger-1', { enabled: true } as never, 'tenant-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts once on successful delete with the parent routineId captured from getTriggerOrThrow', async () => {
+      db.chains.joinedLimit.mockResolvedValueOnce([
+        {
+          trigger: {
+            id: 'trigger-1',
+            routineId: 'task-99',
+            type: 'manual',
+          },
+          tenantId: 'tenant-1',
+        },
+      ]);
+
+      await expect(service.delete('trigger-1', 'tenant-1')).resolves.toEqual({
+        success: true,
+      });
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-99' },
+      );
+    });
+
+    it('does not broadcast when delete cannot find the trigger for the tenant', async () => {
+      db.chains.joinedLimit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.delete('trigger-1', 'tenant-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast from replaceAllForRoutine (outer caller emits once at end)', async () => {
+      const tx = {
+        delete: jest.fn<any>().mockReturnValue({
+          where: jest.fn<any>().mockResolvedValue(undefined),
+        }),
+        insert: jest.fn<any>().mockReturnValue({
+          values: jest.fn<any>().mockResolvedValue(undefined),
+        }),
+      };
+
+      db.transaction = jest
+        .fn<any>()
+        .mockImplementation((cb: (tx: typeof tx) => Promise<void>) => cb(tx));
+
+      await service.replaceAllForRoutine('routine-1', [
+        { type: 'manual' } as never,
+      ]);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
     });
   });
 });

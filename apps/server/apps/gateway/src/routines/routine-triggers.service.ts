@@ -13,6 +13,9 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { WS_EVENTS } from '@team9/shared';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { CreateTriggerDto, UpdateTriggerDto } from './dto/trigger.dto.js';
 
 @Injectable()
@@ -22,6 +25,8 @@ export class RoutineTriggersService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly wsGateway: WebsocketGateway,
   ) {}
 
   async create(routineId: string, dto: CreateTriggerDto, tenantId: string) {
@@ -55,6 +60,12 @@ export class RoutineTriggersService {
         updatedAt: now,
       })
       .returning();
+
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     return trigger;
   }
@@ -99,15 +110,27 @@ export class RoutineTriggersService {
       .where(eq(schema.routineTriggers.id, triggerId))
       .returning();
 
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId: trigger.routineId },
+    );
+
     return updated;
   }
 
   async delete(triggerId: string, tenantId: string) {
-    await this.getTriggerOrThrow(triggerId, tenantId);
+    const trigger = await this.getTriggerOrThrow(triggerId, tenantId);
 
     await this.db
       .delete(schema.routineTriggers)
       .where(eq(schema.routineTriggers.id, triggerId));
+
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId: trigger.routineId },
+    );
 
     return { success: true };
   }
@@ -129,6 +152,10 @@ export class RoutineTriggersService {
     routineId: string,
     triggers: CreateTriggerDto[],
   ): Promise<void> {
+    // No routine:updated emit here — outer callers (RoutinesService.update,
+    // RoutineBotService.updateRoutine) emit once at the tail of their flow,
+    // which already covers the triggers-replaced case. Emitting here would
+    // produce duplicate broadcasts for the same user-visible change.
     await this.db.transaction(async (tx) => {
       await tx
         .delete(schema.routineTriggers)
