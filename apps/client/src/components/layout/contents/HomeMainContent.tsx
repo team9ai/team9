@@ -12,6 +12,7 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,7 +52,7 @@ import { cn } from "@/lib/utils";
 
 // Deep research / generate image entries temporarily hidden
 const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
-  key: string;
+  key: ParseKeys<["navigation", "message"]>;
   icon: typeof Search;
   className: string;
 }> = [];
