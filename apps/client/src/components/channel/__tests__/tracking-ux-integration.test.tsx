@@ -428,10 +428,12 @@ describe("Tracking UX end-to-end integration", () => {
 
       renderList(round1WithReply, { channelType: "direct" });
 
-      // Round 1 is auto-folded → summary button visible with 3 steps.
+      // Round 1 is auto-folded → summary button visible with 2 steps
+      // (thinking + the paired tool_call/tool_result collapse to a single
+      // ToolCallBlock card, so the visible row count is 2 not 3).
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(3 steps\)/i,
+          name: /Expand execution process \(2 steps\)/i,
         }),
       ).toBeInTheDocument();
 
@@ -449,7 +451,7 @@ describe("Tracking UX end-to-end integration", () => {
       // ToolCallBlock renders the friendly tool label.
       fireEvent.click(
         screen.getByRole("button", {
-          name: /Expand execution process \(3 steps\)/i,
+          name: /Expand execution process \(2 steps\)/i,
         }),
       );
 
@@ -493,11 +495,12 @@ describe("Tracking UX end-to-end integration", () => {
       renderList(chrono, { channelType: "direct" });
 
       // Round 1 is folded → RoundCollapseSummary button with step count.
-      // Round 1 has 3 steps (thinking + tool_call + tool_result), but
-      // pairToolEvents may reorder — stepCount in the round group comes
-      // from the raw chrono events count, so it's 3.
+      // Round 1 has 3 agent-event messages (thinking + tool_call +
+      // tool_result) but only 2 visible rows once rendered: the paired
+      // tool_call/tool_result collapse into a single ToolCallBlock card,
+      // so stepCount on the summary is 2, not 3.
       const foldButton = screen.getByRole("button", {
-        name: /Expand execution process \(3 steps\)/i,
+        name: /Expand execution process \(2 steps\)/i,
       });
       expect(foldButton).toBeInTheDocument();
 
@@ -537,7 +540,7 @@ describe("Tracking UX end-to-end integration", () => {
       // Sanity: Round 1 starts folded.
       expect(screen.queryByText("Thought for 10s")).not.toBeInTheDocument();
       const summary = screen.getByRole("button", {
-        name: /Expand execution process \(3 steps\)/i,
+        name: /Expand execution process \(2 steps\)/i,
       });
 
       // Click to expand.
@@ -578,7 +581,7 @@ describe("Tracking UX end-to-end integration", () => {
       // Expand round 1 manually.
       fireEvent.click(
         screen.getByRole("button", {
-          name: /Expand execution process \(3 steps\)/i,
+          name: /Expand execution process \(2 steps\)/i,
         }),
       );
       expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
@@ -608,10 +611,11 @@ describe("Tracking UX end-to-end integration", () => {
 
       // Round 2 is now non-latest (it's followed by its reply). Since the
       // user did NOT manually expand Round 2, it collapses. The summary
-      // button for Round 2 is rendered with 3 steps.
+      // button for Round 2 is rendered with 2 visible steps (the paired
+      // tool_call/tool_result render as a single combined card).
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(3 steps\)/i,
+          name: /Expand execution process \(2 steps\)/i,
         }),
       ).toBeInTheDocument();
 

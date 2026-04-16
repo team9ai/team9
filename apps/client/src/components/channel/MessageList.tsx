@@ -465,11 +465,11 @@ export function MessageList({
             <div
               id={`message-${message.id}`}
               className={cn(
-                "ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
+                "ml-2 mr-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
                 isFirstInGroup ? "mt-1 pt-1.5" : "",
                 "pb-0.5",
               )}
-              style={{ paddingLeft: "13px" }}
+              style={{ paddingLeft: "9px" }}
             >
               <ToolCallBlock
                 callMetadata={agentMeta}
@@ -518,8 +518,8 @@ export function MessageList({
         return (
           <div
             id={`message-${message.id}`}
-            className="ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4 py-0.5"
-            style={{ paddingLeft: "13px" }}
+            className="ml-2 mr-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4 py-0.5"
+            style={{ paddingLeft: "9px" }}
           >
             <A2UIResponseItem message={message} metadata={agentMeta} />
           </div>

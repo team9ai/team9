@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getLabelKey, type StatusType } from "@/config/toolLabels";
@@ -105,19 +105,20 @@ export function ToolCallBlock({
 
   const unwrapped = hasResultContent ? unwrapResultContent(resultContent) : "";
 
-  // Status dot style - animated while running, red on failure, green on success.
-  const statusDotClass = isError
-    ? "bg-red-500"
-    : isRunning
-      ? "bg-emerald-500 animate-pulse"
-      : "bg-emerald-500";
-
-  // Label colour - red on failure, yellow while running, green on success.
-  const labelColorClass = isError
+  // Icon color follows status: yellow while running (pulsing), red on
+  // failure, emerald on success. Matches TrackingEventItem so tool call
+  // rows sit seamlessly alongside the other event rows.
+  const iconColorClass = isError
     ? "text-red-500"
     : isRunning
       ? "text-yellow-400"
       : "text-emerald-500";
+
+  // Label uses a muted gray so the icon (color) carries status signal
+  // and the label reads as secondary metadata. Failure is the one case
+  // we keep red on the label itself — silencing an error would be a
+  // bigger regression than visual inconsistency.
+  const labelColorClass = isError ? "text-red-500" : "text-foreground/70";
 
   // Success/failure indicator tail icon. Hidden while running.
   const indicatorChar = isError ? "\u2718" : isSuccess ? "\u2714" : "";
@@ -130,11 +131,15 @@ export function ToolCallBlock({
         className="flex items-center min-h-6 cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        {/* Status dot */}
-        <div
+        {/* Wrench icon — pulses yellow while the call is in flight. */}
+        <Wrench
+          data-testid="event-icon"
+          size={14}
+          strokeWidth={2.25}
           className={cn(
-            "w-2 h-2 rounded-full shrink-0 mr-[26px]",
-            statusDotClass,
+            "shrink-0 mr-[23px]",
+            iconColorClass,
+            isRunning && "animate-pulse",
           )}
         />
         {/* Friendly label */}
@@ -142,6 +147,7 @@ export function ToolCallBlock({
           className={cn(
             "text-xs font-semibold shrink-0 whitespace-nowrap",
             labelColorClass,
+            isRunning && "animate-pulse",
           )}
         >
           {label}

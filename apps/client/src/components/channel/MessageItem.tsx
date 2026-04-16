@@ -194,11 +194,15 @@ export function MessageItem({
       <div
         id={`message-${message.id}`}
         className={cn(
-          "ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
+          "ml-2 mr-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
           isFirstInGroup ? "mt-1 pt-1.5" : "",
           "pb-0.5",
         )}
-        style={{ paddingLeft: "13px" }}
+        // The 9px inset lines the 14px event icon up vertically with
+        // the 36px avatar in non-tracking message rows: ml-2 (8) +
+        // border (2) + 9 + icon/2 (7) = 26, which is also px-2 (8) +
+        // avatar/2 (18). Keep these offsets in sync with MessageList.
+        style={{ paddingLeft: "9px" }}
       >
         <TrackingEventItem
           metadata={agentMeta}
@@ -312,7 +316,7 @@ export function MessageItem({
     <div
       id={`message-${message.id}`}
       className={cn(
-        "relative flex hover:bg-muted/50 rounded transition-colors duration-300",
+        "relative flex hover:bg-muted/50 rounded transition-colors duration-300 mr-4",
         compact ? "gap-2 py-2 px-1" : "gap-3 px-2 py-1",
         indent && "ml-6",
         isHighlighted &&

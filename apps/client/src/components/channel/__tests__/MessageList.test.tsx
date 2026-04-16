@@ -526,10 +526,13 @@ describe("MessageList — round auto-fold", () => {
 
       renderList(chrono, { channelType: "direct" });
 
-      // The round is collapsed — 4 steps are reported, including the
-      // tool_call and tool_result as two separate round members.
+      // The round is collapsed — 3 visible steps are reported. The round
+      // has 4 agent-event messages, but when expanded the paired
+      // tool_call + tool_result collapse into a single ToolCallBlock, so
+      // the summary label shows the visible row count (thinking +
+      // combined tool card + agent_end = 3).
       const summary = screen.getByRole("button", {
-        name: /Expand execution process \(4 steps\)/i,
+        name: /Expand execution process \(3 steps\)/i,
       });
       expect(summary).toBeInTheDocument();
 
@@ -563,9 +566,10 @@ describe("MessageList — round auto-fold", () => {
 
       renderList(chrono, { channelType: "direct" });
 
-      // Initially folded — click to expand
+      // Initially folded — click to expand. Visible-row count is 3
+      // (thinking + combined tool_call/tool_result card + agent_end).
       const summary = screen.getByRole("button", {
-        name: /Expand execution process \(4 steps\)/i,
+        name: /Expand execution process \(3 steps\)/i,
       });
       fireEvent.click(summary);
 

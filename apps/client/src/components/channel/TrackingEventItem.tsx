@@ -1,5 +1,17 @@
 import { useState, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
+import {
+  AlertCircle,
+  Brain,
+  ChevronRight,
+  ClipboardList,
+  Flag,
+  List,
+  MousePointerClick,
+  PenLine,
+  Play,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
@@ -23,15 +35,9 @@ interface TrackingEventItemProps {
   collapsible?: boolean;
 }
 
-const STATUS_DOT_CLASSES: Record<AgentEventMetadata["status"], string> = {
-  running: "bg-emerald-500 animate-pulse",
-  completed: "bg-emerald-500",
-  failed: "bg-red-500",
-  resolved: "bg-emerald-500",
-  timeout: "bg-amber-500",
-  cancelled: "bg-red-500",
-};
-
+// Status drives color (yellow while running → green on success, red on
+// failure, amber on timeout). The same classes are applied to both the
+// event icon and its label so each row reads as one color-coded unit.
 const LABEL_CLASSES: Record<AgentEventMetadata["status"], string> = {
   running: "text-yellow-400",
   completed: "text-emerald-500",
@@ -39,6 +45,22 @@ const LABEL_CLASSES: Record<AgentEventMetadata["status"], string> = {
   resolved: "text-emerald-500",
   timeout: "text-amber-500",
   cancelled: "text-red-500",
+};
+
+// Event type drives the icon. Types that never actually render (like
+// turn_separator) still need a placeholder so TypeScript can keep the
+// record exhaustive.
+const EVENT_ICONS: Record<AgentEventMetadata["agentEventType"], LucideIcon> = {
+  thinking: Brain,
+  writing: PenLine,
+  tool_call: Wrench,
+  tool_result: ClipboardList,
+  agent_start: Play,
+  agent_end: Flag,
+  error: AlertCircle,
+  turn_separator: Brain,
+  a2ui_surface_update: List,
+  a2ui_response: MousePointerClick,
 };
 
 // i18n key mapping for each agent event type. The actual copy is resolved
@@ -204,11 +226,20 @@ export function TrackingEventItem({
     ? buildThinkingStats(metadata, isStreaming, t)
     : (toolCallLabel ?? eventTypeLabel);
 
+  // Icon stays status-colored so a glance at the left gutter conveys the
+  // outcome. The label reads as gray secondary metadata — except on
+  // failure, where muting the copy would hide a real error. Running still
+  // pulses on both icon and label to keep the in-flight state obvious.
+  const iconColorClass = LABEL_CLASSES[status];
   const labelColorClass =
-    isThinking && status !== "failed" ? "text-zinc-400" : LABEL_CLASSES[status];
+    status === "failed" || status === "cancelled"
+      ? "text-red-500"
+      : "text-foreground/70";
+  const EventIcon = EVENT_ICONS[metadata.agentEventType];
 
-  // Thinking events are special: no status dot, and default to
-  // collapsible even when `collapsible` prop isn't explicitly set.
+  // Thinking defaults to collapsible even when the `collapsible` prop
+  // isn't explicitly set (the thinking body lives inside the expandable
+  // panel below).
   const effectiveCollapsible = collapsible || isThinking;
 
   // For thinking, prefer metadata.thinking over the plain content prop.
@@ -242,15 +273,18 @@ export function TrackingEventItem({
           effectiveCollapsible ? () => setIsExpanded(!isExpanded) : undefined
         }
       >
-        {/* Status dot. Thinking uses a neutral gray dot (pulsing while
-            streaming) so the label text aligns with the non-thinking rows
-            rather than floating to the left edge. */}
-        <div
+        {/* Event icon. Shape = event type; color = status. mr-[23px]
+            lines the label text start up with the message text in the
+            surrounding message rows (see note on paddingLeft in
+            MessageItem.tsx). */}
+        <EventIcon
+          data-testid="event-icon"
+          size={14}
+          strokeWidth={2.25}
           className={cn(
-            "w-2 h-2 rounded-full shrink-0 mr-[26px]",
-            isThinking
-              ? cn("bg-zinc-400", isStreaming && "animate-pulse")
-              : STATUS_DOT_CLASSES[status],
+            "shrink-0 mr-[23px]",
+            iconColorClass,
+            status === "running" && "animate-pulse",
           )}
         />
 
@@ -260,7 +294,7 @@ export function TrackingEventItem({
             "text-xs font-semibold shrink-0",
             isThinking ? "whitespace-nowrap" : "w-[72px]",
             labelColorClass,
-            isThinking && isStreaming && "animate-pulse",
+            status === "running" && "animate-pulse",
           )}
         >
           {label}

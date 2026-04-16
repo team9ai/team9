@@ -70,45 +70,45 @@ describe("TrackingEventItem", () => {
     expect(screen.getByText("fallback content")).toBeInTheDocument();
   });
 
-  it("should apply running status styles (animate-pulse)", () => {
+  it("pulses the icon yellow while running", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "writing",
       status: "running",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="writing..." />,
-    );
+    render(<TrackingEventItem metadata={meta} content="writing..." />);
 
-    const dot = container.querySelector(".animate-pulse.bg-emerald-500");
-    expect(dot).toBeInTheDocument();
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).toHaveClass("animate-pulse");
+    expect(icon).toHaveClass("text-yellow-400");
   });
 
-  it("should apply failed status styles (red dot)", () => {
+  it("colors the icon red on failure", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "error",
       status: "failed",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="Error occurred" />,
-    );
+    render(<TrackingEventItem metadata={meta} content="Error occurred" />);
 
-    const dot = container.querySelector(".bg-red-500");
-    expect(dot).toBeInTheDocument();
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).toHaveClass("text-red-500");
+    expect(icon).not.toHaveClass("animate-pulse");
     expect(screen.getByText("Error")).toBeInTheDocument();
   });
 
-  it("should show streaming cursor when isStreaming is true", () => {
+  it("pulses the icon yellow when isStreaming is true", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "writing",
       status: "completed", // status overridden by isStreaming
     };
-    const { container } = render(
+    render(
       <TrackingEventItem metadata={meta} content="streaming..." isStreaming />,
     );
 
-    // Streaming forces running status, so dot should pulse
-    const dot = container.querySelector(".animate-pulse.bg-emerald-500");
-    expect(dot).toBeInTheDocument();
+    // Streaming forces running status, so the icon pulses yellow
+    // regardless of the underlying metadata.status value.
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).toHaveClass("animate-pulse");
+    expect(icon).toHaveClass("text-yellow-400");
   });
 
   it("should render all non-hidden event type labels correctly", () => {
@@ -134,6 +134,74 @@ describe("TrackingEventItem", () => {
         />,
       );
       expect(screen.getByText(label)).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("renders a distinct lucide icon per event type", () => {
+    // The icon glyph is what tells the user which kind of event the row
+    // is about — if the mapping silently regresses (all rows fall back
+    // to the same icon) the visual language collapses. Asserting the
+    // lucide class guards that contract.
+    const cases: Array<{
+      type: AgentEventMetadata["agentEventType"];
+      iconClass: string;
+    }> = [
+      { type: "thinking", iconClass: "lucide-brain" },
+      { type: "writing", iconClass: "lucide-pen-line" },
+      { type: "tool_call", iconClass: "lucide-wrench" },
+      { type: "tool_result", iconClass: "lucide-clipboard-list" },
+      { type: "agent_start", iconClass: "lucide-play" },
+      { type: "agent_end", iconClass: "lucide-flag" },
+      { type: "error", iconClass: "lucide-circle-alert" },
+      { type: "a2ui_surface_update", iconClass: "lucide-list" },
+      { type: "a2ui_response", iconClass: "lucide-mouse-pointer-click" },
+    ];
+
+    for (const { type, iconClass } of cases) {
+      const { unmount } = render(
+        <TrackingEventItem
+          metadata={{ agentEventType: type, status: "completed" }}
+          content="test"
+        />,
+      );
+      const icon = screen.getByTestId("event-icon");
+      expect(icon).toHaveClass(iconClass);
+      unmount();
+    }
+  });
+
+  it("maps every status to its status color on the icon", () => {
+    // Parallels LABEL_CLASSES — running→yellow (pulsing), completed/
+    // resolved→emerald, failed/cancelled→red, timeout→amber. Guards
+    // against accidental palette drift.
+    const cases: Array<{
+      status: AgentEventMetadata["status"];
+      colorClass: string;
+      pulses: boolean;
+    }> = [
+      { status: "running", colorClass: "text-yellow-400", pulses: true },
+      { status: "completed", colorClass: "text-emerald-500", pulses: false },
+      { status: "resolved", colorClass: "text-emerald-500", pulses: false },
+      { status: "failed", colorClass: "text-red-500", pulses: false },
+      { status: "cancelled", colorClass: "text-red-500", pulses: false },
+      { status: "timeout", colorClass: "text-amber-500", pulses: false },
+    ];
+
+    for (const { status, colorClass, pulses } of cases) {
+      const { unmount } = render(
+        <TrackingEventItem
+          metadata={{ agentEventType: "writing", status }}
+          content="test"
+        />,
+      );
+      const icon = screen.getByTestId("event-icon");
+      expect(icon).toHaveClass(colorClass);
+      if (pulses) {
+        expect(icon).toHaveClass("animate-pulse");
+      } else {
+        expect(icon).not.toHaveClass("animate-pulse");
+      }
       unmount();
     }
   });
@@ -377,21 +445,25 @@ describe("TrackingEventItem - collapsible", () => {
     expect(screen.getByTestId("expanded-content")).toBeInTheDocument();
   });
 
-  it("should use gray label for thinking type", () => {
+  it("colors the icon by status but keeps the label a muted gray", () => {
+    // The visual hierarchy splits signal across the row: icon carries
+    // the status color so completion/failure reads at a glance, while
+    // the label stays a neutral gray so it doesn't compete with the
+    // content on the right.
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="thinking..." />,
-    );
+    render(<TrackingEventItem metadata={meta} content="thinking..." />);
 
-    const label = container.querySelector(".text-zinc-400");
-    expect(label).toBeInTheDocument();
-    // Must not keep the old purple styling from when thinking rows were
-    // visually set apart — thinking now matches the muted gray dot for
-    // a more subdued look.
-    expect(container.querySelector(".text-purple-400")).not.toBeInTheDocument();
+    const icon = screen.getByTestId("event-icon");
+    const label = screen.getByText("Thinking");
+    expect(icon).toHaveClass("text-emerald-500");
+    expect(label).toHaveClass("text-foreground/70");
+    // Old special-case label colors must not leak back in.
+    expect(label).not.toHaveClass("text-zinc-400");
+    expect(label).not.toHaveClass("text-purple-400");
+    expect(label).not.toHaveClass("text-emerald-500");
   });
 });
 
@@ -595,50 +667,41 @@ describe("buildThinkingStats helper", () => {
 });
 
 describe("thinking event display", () => {
-  it("renders a neutral gray dot for completed thinking (no pulse)", () => {
+  it("renders a solid emerald icon for completed thinking (no pulse)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="Deep thought" />,
-    );
+    render(<TrackingEventItem metadata={meta} content="Deep thought" />);
 
-    // Thinking now carries a gray dot so its label aligns with the
-    // non-thinking rows. Completed thinking should NOT pulse.
-    const dot = container.querySelector(".w-2.h-2.rounded-full");
-    expect(dot).toBeInTheDocument();
-    expect(dot).toHaveClass("bg-zinc-400");
-    expect(dot).not.toHaveClass("animate-pulse");
-    // And must not reuse the emerald/running status dot styling.
-    expect(dot).not.toHaveClass("bg-emerald-500");
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).toHaveClass("text-emerald-500");
+    expect(icon).not.toHaveClass("animate-pulse");
+    // Regression: no leftover dot element (the old w-2 h-2 swatch is gone).
+    expect(
+      icon.ownerDocument.querySelector(".w-2.h-2.rounded-full"),
+    ).not.toBeInTheDocument();
   });
 
-  it("pulses the gray dot while streaming thinking", () => {
+  it("pulses a yellow icon while streaming thinking", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "running",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="" isStreaming />,
-    );
-    const dot = container.querySelector(".w-2.h-2.rounded-full");
-    expect(dot).toBeInTheDocument();
-    expect(dot).toHaveClass("bg-zinc-400");
-    expect(dot).toHaveClass("animate-pulse");
+    render(<TrackingEventItem metadata={meta} content="" isStreaming />);
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).toHaveClass("text-yellow-400");
+    expect(icon).toHaveClass("animate-pulse");
   });
 
-  it("renders a status dot for non-thinking events (regression)", () => {
+  it("renders an icon for non-thinking events (regression)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "writing",
       status: "completed",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="writing..." />,
-    );
+    render(<TrackingEventItem metadata={meta} content="writing..." />);
 
-    const dot = container.querySelector(".w-2.h-2.rounded-full");
-    expect(dot).toBeInTheDocument();
+    expect(screen.getByTestId("event-icon")).toBeInTheDocument();
   });
 
   it("is collapsible by default without collapsible prop", () => {
@@ -651,12 +714,13 @@ describe("thinking event display", () => {
       <TrackingEventItem metadata={meta} content="fallback" />,
     );
 
-    // Chevron is rendered (lucide ChevronRight is an <svg>).
-    const chevron = container.querySelector("svg");
-    expect(chevron).toBeInTheDocument();
+    // Chevron is rendered. Both the event icon and the chevron are SVGs,
+    // so we target the chevron by its lucide class name.
+    expect(
+      container.querySelector(".lucide-chevron-right"),
+    ).toBeInTheDocument();
     // And the main row should carry the cursor-pointer class.
-    const row = container.querySelector(".cursor-pointer");
-    expect(row).toBeInTheDocument();
+    expect(container.querySelector(".cursor-pointer")).toBeInTheDocument();
   });
 
   it("is collapsed by default for thinking events", () => {
@@ -923,57 +987,56 @@ describe("thinking event display", () => {
     });
   });
 
-  it("applies animate-pulse to the label while streaming", () => {
+  it("pulses the gray label while streaming (alongside the icon)", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "running",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="" isStreaming />,
-    );
-    const label = container.querySelector(".animate-pulse.text-zinc-400");
-    expect(label).toBeInTheDocument();
+    render(<TrackingEventItem metadata={meta} content="" isStreaming />);
+    // Both the icon (yellow) and the label (gray) pulse while thinking
+    // is in flight so the row reads as clearly "active", not merely
+    // "done in yellow".
+    const icon = screen.getByTestId("event-icon");
+    expect(icon).toHaveClass("animate-pulse", "text-yellow-400");
+    // Label surfaces via buildThinkingStats; query by its starting text.
+    const label = screen.getByText(/^Thinking/);
+    expect(label).toHaveClass("animate-pulse", "text-foreground/70");
   });
 
-  it("keeps gray label color for completed thinking", () => {
+  it("keeps the label gray for completed thinking", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
       totalTokens: 100,
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="" />,
-    );
-    const label = container.querySelector(".text-zinc-400");
-    expect(label).toBeInTheDocument();
+    render(<TrackingEventItem metadata={meta} content="" />);
+    const label = screen.getByText("Thinking");
+    expect(label).toHaveClass("text-foreground/70");
+    expect(label).not.toHaveClass("animate-pulse");
   });
 
-  it("uses failed label color when thinking fails", () => {
+  it("turns the label red on failure", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "failed",
     };
-    const { container } = render(
-      <TrackingEventItem metadata={meta} content="" />,
-    );
-    // Failed thinking should use red-500 label color, not the default gray.
-    const redLabel = container.querySelector(".text-red-500");
-    expect(redLabel).toBeInTheDocument();
+    render(<TrackingEventItem metadata={meta} content="" />);
+    const label = screen.getByText("Thinking");
+    expect(label).toHaveClass("text-red-500");
   });
 });
 
 describe("thinking regression — non-thinking events unaffected", () => {
-  it("still shows dot and content for tool_result events", () => {
+  it("still shows icon and content for tool_result events", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "tool_result",
       status: "completed",
     };
-    const { container } = render(
+    render(
       <TrackingEventItem metadata={meta} content='{"ok": true}' collapsible />,
     );
 
-    const dot = container.querySelector(".w-2.h-2.rounded-full");
-    expect(dot).toBeInTheDocument();
+    expect(screen.getByTestId("event-icon")).toBeInTheDocument();
     expect(screen.getByText("Result")).toBeInTheDocument();
   });
 
@@ -998,8 +1061,10 @@ describe("thinking regression — non-thinking events unaffected", () => {
     const { container } = render(
       <TrackingEventItem metadata={meta} content="written text" />,
     );
-    // No chevron svg since collapsible is not set for writing events.
-    const chevron = container.querySelector("svg");
-    expect(chevron).not.toBeInTheDocument();
+    // No chevron since collapsible is not set for writing events.
+    // (The event icon is still rendered — assert chevron-specifically.)
+    expect(
+      container.querySelector(".lucide-chevron-right"),
+    ).not.toBeInTheDocument();
   });
 });
