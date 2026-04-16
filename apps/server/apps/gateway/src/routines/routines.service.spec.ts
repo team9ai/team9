@@ -2226,6 +2226,113 @@ describe('RoutinesService — TaskCast integration', () => {
         },
       });
     });
+
+    // ── autoRunFirst ─────────────────────────────────────────────────
+
+    const setupDraftFixture = () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+    };
+
+    it('dispatches one manual execution when autoRunFirst is true', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: true },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(startSpy).toHaveBeenCalledWith(
+        'routine-1',
+        'user-1',
+        'tenant-1',
+        expect.objectContaining({ message: expect.any(String) }),
+      );
+      startSpy.mockRestore();
+    });
+
+    it('does NOT dispatch when autoRunFirst is omitted', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+      expect(startSpy).not.toHaveBeenCalled();
+      startSpy.mockRestore();
+    });
+
+    it('does NOT dispatch when autoRunFirst is false', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: false },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(startSpy).not.toHaveBeenCalled();
+      startSpy.mockRestore();
+    });
+
+    it('logs warn but does NOT throw when autoRunFirst dispatch fails', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockRejectedValue(new Error('dispatch boom'));
+      const loggerWarn = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: true },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toBeDefined(); // Did NOT throw
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('autoRunFirst dispatch failed'),
+      );
+      startSpy.mockRestore();
+      loggerWarn.mockRestore();
+    });
+
+    it('does NOT dispatch in idempotent path when status already upcoming', async () => {
+      const upcomingRoutine = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: true }, // Even with true, must not dispatch
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(startSpy).not.toHaveBeenCalled();
+      startSpy.mockRestore();
+    });
   });
 
   // ── createWithCreationTask ────────────────────────────────────────

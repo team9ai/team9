@@ -888,6 +888,21 @@ export class RoutinesService {
       `completeCreation: routine ${routineId} transitioned to upcoming${dto.notes ? ` — notes: ${dto.notes}` : ''}`,
     );
 
+    // Step 8: optionally dispatch one manual execution if the agent
+    // requested it. Best-effort — failure is logged but does not roll back
+    // the finalize (the user can still trigger from the dashboard).
+    if (dto.autoRunFirst === true) {
+      try {
+        await this.start(routineId, userId, tenantId, {
+          message: 'Auto-run after routine creation',
+        } as StartRoutineDto);
+      } catch (e) {
+        this.logger.warn(
+          `completeCreation: autoRunFirst dispatch failed for routine ${routineId}: ${e}`,
+        );
+      }
+    }
+
     return updated;
   }
 
