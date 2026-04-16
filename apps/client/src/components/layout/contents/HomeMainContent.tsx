@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  Crown,
   Loader2,
   Plus,
   Search,
@@ -176,12 +177,14 @@ function DashboardHeader({
   selectedAgentUserId,
   creditsLabel,
   isCreditsLow,
+  subscriptionPlanLabel,
   onSelectAgent,
 }: {
   agents: DashboardAgent[];
   selectedAgentUserId: string | null;
   creditsLabel: string;
   isCreditsLow: boolean;
+  subscriptionPlanLabel: string | null;
   onSelectAgent: (userId: string) => void;
 }) {
   const { t } = useTranslation("navigation");
@@ -261,25 +264,40 @@ function DashboardHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        variant="ghost"
-        onClick={() =>
-          navigate({ to: "/subscription", search: { view: "credits" } })
-        }
-        title={isCreditsLow ? t("dashboardCreditsLowTitle") : undefined}
-        className={cn(
-          "dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer",
-          isCreditsLow
-            ? "bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100 hover:text-red-700"
-            : "text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]",
-        )}
-      >
-        <Sparkles
-          size={14}
-          className={cn(isCreditsLow ? "text-red-600" : "text-[#9c8f80]")}
-        />
-        <span>{creditsLabel}</span>
-      </Button>
+      <div className="flex items-center gap-2">
+        {subscriptionPlanLabel ? (
+          <Button
+            variant="ghost"
+            onClick={() =>
+              navigate({ to: "/subscription", search: { view: "plans" } })
+            }
+            className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]"
+          >
+            <Crown size={14} className="text-[#9c8f80]" />
+            <span>{subscriptionPlanLabel}</span>
+          </Button>
+        ) : null}
+
+        <Button
+          variant="ghost"
+          onClick={() =>
+            navigate({ to: "/subscription", search: { view: "credits" } })
+          }
+          title={isCreditsLow ? t("dashboardCreditsLowTitle") : undefined}
+          className={cn(
+            "dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer",
+            isCreditsLow
+              ? "bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100 hover:text-red-700"
+              : "text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]",
+          )}
+        >
+          <Sparkles
+            size={14}
+            className={cn(isCreditsLow ? "text-red-600" : "text-[#9c8f80]")}
+          />
+          <span>{creditsLabel}</span>
+        </Button>
+      </div>
     </header>
   );
 }
@@ -404,8 +422,11 @@ export function HomeMainContent() {
     (isDeepResearch || !!selectedAgent);
   const isUpdatingSelectedAgentModel =
     !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
+  const activeSubscription = billingSummary.data?.subscription ?? null;
+  const isSubscribed = !!activeSubscription;
   const currentPlanLabel =
-    billingSummary.data?.subscription?.product.name || t("dashboardPlan");
+    activeSubscription?.product.name || t("dashboardPlan");
+  const subscriptionPlanLabel = activeSubscription?.product.name ?? null;
   const totalCredits = billingOverview.data?.account
     ? getWorkspaceCredits(billingOverview.data.account)
     : null;
@@ -524,11 +545,14 @@ export function HomeMainContent() {
             selectedAgentUserId={selectedAgent?.userId ?? null}
             creditsLabel={creditsLabel}
             isCreditsLow={isCreditsLow}
+            subscriptionPlanLabel={subscriptionPlanLabel}
             onSelectAgent={setSelectedAgentUserId}
           />
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-8 pb-8 pt-14 sm:gap-10 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
-            <DashboardPlanBadge planLabel={currentPlanLabel} />
+            {!isSubscribed ? (
+              <DashboardPlanBadge planLabel={currentPlanLabel} />
+            ) : null}
 
             <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-8 sm:gap-10">
               <h1 className="dashboard-landing-title text-center text-[clamp(1.6rem,2.8vw,2.5rem)] leading-[1.05] text-[#2d2924]">
