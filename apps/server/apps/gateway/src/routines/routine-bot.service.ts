@@ -22,6 +22,7 @@ import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
 import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
+import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
@@ -585,6 +586,32 @@ export class RoutineBotService {
       .returning();
 
     return updated;
+  }
+
+  /**
+   * Complete routine creation on behalf of the assigned bot.
+   * The bot must own the routine's botId, then completion is delegated
+   * using the stored creatorId so the underlying ownership checks remain intact.
+   */
+  async completeCreation(
+    routineId: string,
+    dto: CompleteCreationDto,
+    botUserId: string,
+    tenantId: string,
+  ) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    await this.verifyBotOwnership(routine.botId, botUserId);
+
+    return this.routinesService.completeCreation(
+      routineId,
+      dto,
+      routine.creatorId,
+      tenantId,
+    );
   }
 
   // ── Private helpers ──────────────────────────────────────────────

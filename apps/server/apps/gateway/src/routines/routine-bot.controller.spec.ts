@@ -15,6 +15,7 @@ describe('RoutineBotController', () => {
     createRoutine: MockFn;
     getRoutineById: MockFn;
     updateRoutine: MockFn;
+    completeCreation: MockFn;
     reportSteps: MockFn;
     updateStatus: MockFn;
     createIntervention: MockFn;
@@ -35,6 +36,9 @@ describe('RoutineBotController', () => {
       updateRoutine: jest
         .fn<any>()
         .mockResolvedValue({ id: 'routine-1', title: 'Updated' }),
+      completeCreation: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'routine-1', status: 'upcoming' }),
       reportSteps: jest.fn<any>().mockResolvedValue({ success: true }),
       updateStatus: jest.fn<any>().mockResolvedValue({ success: true }),
       createIntervention: jest.fn<any>().mockResolvedValue({
@@ -83,6 +87,26 @@ describe('RoutineBotController', () => {
     ).resolves.toEqual({ id: 'routine-1', title: 'Updated' });
 
     expect(routineBotService.updateRoutine).toHaveBeenCalledWith(
+      'routine-1',
+      dto,
+      'bot-user-1',
+      'tenant-1',
+    );
+  });
+
+  it('delegates completeCreation with routineId, dto, bot user, and tenant', async () => {
+    const dto = { notes: 'ready to activate' };
+
+    await expect(
+      (controller as any).completeCreation(
+        'routine-1',
+        dto as never,
+        'bot-user-1',
+        'tenant-1',
+      ),
+    ).resolves.toEqual({ id: 'routine-1', status: 'upcoming' });
+
+    expect(routineBotService.completeCreation).toHaveBeenCalledWith(
       'routine-1',
       dto,
       'bot-user-1',
