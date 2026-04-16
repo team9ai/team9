@@ -7,16 +7,20 @@ import type {
   UserOnlineEvent,
   UserOfflineEvent,
   UserStatusChangedEvent,
+  UserUpdatedEvent,
   NotificationNewEvent,
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
   NotificationAllReadEvent,
   RoutineStatusChangedEvent,
   RoutineExecutionCreatedEvent,
+  RoutineUpdatedEvent,
   TrackingDeactivatedEvent,
   MessagePropertyChangedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
+import { api } from "@/services/api";
+import { syncCurrentUser } from "@/hooks/useAuth";
 import {
   useNotificationStore,
   notificationActions,
@@ -291,6 +295,45 @@ export function useWebSocketEvents() {
       queryClient.invalidateQueries({ queryKey: ["routine", event.routineId] });
     };
 
+    const handleRoutineUpdated = (event: RoutineUpdatedEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
+      queryClient.invalidateQueries({ queryKey: ["routine", event.routineId] });
+      queryClient.invalidateQueries({
+        queryKey: ["routine-triggers", event.routineId],
+      });
+    };
+
+    // ==================== User Profile Events ====================
+
+    const handleUserUpdated = (event: UserUpdatedEvent) => {
+      // Invalidate paginated/list user queries (prefix-matches ["users", id])
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      // Invalidate IM user cache for this specific user (avatar/displayName)
+      queryClient.invalidateQueries({
+        queryKey: ["im-users", event.userId],
+      });
+
+      // Multi-device self-sync: if another device edited THIS user's profile,
+      // refetch /auth/me and push the fresh user into the Zustand app store
+      // (plus Sentry + ["currentUser"] cache) via the shared syncCurrentUser
+      // helper so Zustand-backed UI (top-bar avatar, display name) updates too.
+      if (event.userId === currentUser?.id) {
+        void api.auth
+          .getCurrentUser()
+          .then((fresh) => syncCurrentUser(fresh, queryClient))
+          .catch((err) => {
+            // Swallow: the cache invalidation above still drives any mounted
+            // React Query subscribers to refetch, so the UI will reconcile.
+            if (import.meta.env.DEV) {
+              console.debug(
+                "[WS] user_updated self-sync getCurrentUser failed",
+                err,
+              );
+            }
+          });
+      }
+    };
+
     // ==================== Tracking Events ====================
 
     // Handle tracking channel deactivation
@@ -351,6 +394,10 @@ export function useWebSocketEvents() {
     // Routine events
     wsService.onRoutineStatusChanged(handleRoutineStatusChanged);
     wsService.onRoutineExecutionCreated(handleRoutineExecutionCreated);
+    wsService.onRoutineUpdated(handleRoutineUpdated);
+
+    // User profile events
+    wsService.onUserUpdated(handleUserUpdated);
 
     // Tracking events
     wsService.onTrackingDeactivated(handleTrackingDeactivated);
@@ -392,6 +439,10 @@ export function useWebSocketEvents() {
       // Routine events
       wsService.offRoutineStatusChanged(handleRoutineStatusChanged);
       wsService.offRoutineExecutionCreated(handleRoutineExecutionCreated);
+      wsService.offRoutineUpdated(handleRoutineUpdated);
+
+      // User profile events
+      wsService.offUserUpdated(handleUserUpdated);
 
       // Tracking events
       wsService.offTrackingDeactivated(handleTrackingDeactivated);

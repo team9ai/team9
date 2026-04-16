@@ -74,6 +74,12 @@ const mockWsService = vi.hoisted(() => ({
   onRoutineExecutionCreated: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("routine:execution_created", callback),
   ),
+  onRoutineUpdated: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.on("routine:updated", callback),
+  ),
+  onUserUpdated: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.on("user_updated", callback),
+  ),
   onTrackingDeactivated: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("tracking:deactivated", callback),
   ),
@@ -83,12 +89,17 @@ const mockWsService = vi.hoisted(() => ({
   offNotificationAllRead: vi.fn(),
   offRoutineStatusChanged: vi.fn(),
   offRoutineExecutionCreated: vi.fn(),
+  offRoutineUpdated: vi.fn(),
+  offUserUpdated: vi.fn(),
   offTrackingDeactivated: vi.fn(),
   onMessagePropertyChanged: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("message_property_changed", callback),
   ),
   offMessagePropertyChanged: vi.fn(),
 }));
+
+const mockSyncCurrentUser = vi.hoisted(() => vi.fn());
+const mockGetCurrentUser = vi.hoisted(() => vi.fn());
 
 const queryCache = vi.hoisted(() => new Map<string, unknown>());
 
@@ -118,6 +129,22 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/stores", () => ({
   useSelectedWorkspaceId: () => "workspace-1",
   useUser: () => ({ id: "user-1" }),
+}));
+
+vi.mock("@/services/api", () => {
+  const apiMock = {
+    auth: {
+      getCurrentUser: mockGetCurrentUser,
+    },
+  };
+  return {
+    api: apiMock,
+    default: apiMock,
+  };
+});
+
+vi.mock("@/hooks/useAuth", () => ({
+  syncCurrentUser: mockSyncCurrentUser,
 }));
 
 const baseCounts: NotificationCounts = {
@@ -482,5 +509,139 @@ describe("useWebSocketEvents", () => {
     // Second call with same ID: should be skipped by idempotency check
     callback?.(sampleNotificationEvent);
     expect(mockShowTauriNotification).toHaveBeenCalledTimes(1);
+  });
+
+  // ==================== Routine Updated ====================
+
+  describe("routine:updated handler", () => {
+    it("invalidates routines list, routine detail, and routine triggers", () => {
+      renderHook(() => useWebSocketEvents());
+
+      const handler = listeners.get("routine:updated")?.[0];
+      expect(handler).toBeDefined();
+
+      handler?.({ routineId: "r-123" });
+
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["routines"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["routine", "r-123"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["routine-triggers", "r-123"],
+      });
+    });
+  });
+
+  // ==================== User Updated ====================
+
+  describe("user_updated handler", () => {
+    it("invalidates users and per-user im-users caches for any user", () => {
+      renderHook(() => useWebSocketEvents());
+      const handler = listeners.get("user_updated")?.[0];
+      expect(handler).toBeDefined();
+
+      handler?.({ userId: "user-other" });
+
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["users"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["im-users", "user-other"],
+      });
+    });
+
+    it("does NOT refresh the app-store user for a different user", () => {
+      renderHook(() => useWebSocketEvents());
+      const handler = listeners.get("user_updated")?.[0];
+
+      handler?.({ userId: "user-other" });
+
+      expect(mockGetCurrentUser).not.toHaveBeenCalled();
+      expect(mockSyncCurrentUser).not.toHaveBeenCalled();
+    });
+
+    it("refreshes app-store via getCurrentUser when event targets current user", async () => {
+      const fetched = {
+        id: "user-1",
+        displayName: "Fresh Name",
+      };
+      mockGetCurrentUser.mockResolvedValueOnce(fetched);
+
+      renderHook(() => useWebSocketEvents());
+      const handler = listeners.get("user_updated")?.[0];
+
+      handler?.({ userId: "user-1" });
+
+      // Invalidation still happens synchronously
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["users"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["im-users", "user-1"],
+      });
+
+      await vi.waitFor(() => {
+        expect(mockGetCurrentUser).toHaveBeenCalledTimes(1);
+        expect(mockSyncCurrentUser).toHaveBeenCalledTimes(1);
+      });
+      // syncCurrentUser receives the fresh user and the query client so it
+      // can update ["currentUser"] and Sentry in one shot.
+      expect(mockSyncCurrentUser).toHaveBeenCalledWith(
+        fetched,
+        mockQueryClient,
+      );
+    });
+
+    it("swallows getCurrentUser errors without breaking cache invalidation", async () => {
+      mockGetCurrentUser.mockRejectedValueOnce(new Error("network down"));
+
+      renderHook(() => useWebSocketEvents());
+      const handler = listeners.get("user_updated")?.[0];
+
+      handler?.({ userId: "user-1" });
+
+      // Invalidation happened synchronously despite the upcoming rejection
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["users"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["im-users", "user-1"],
+      });
+
+      await vi.waitFor(() => {
+        expect(mockGetCurrentUser).toHaveBeenCalledTimes(1);
+      });
+
+      // setUser never called because the refetch failed
+      expect(mockSyncCurrentUser).not.toHaveBeenCalled();
+    });
+  });
+
+  // ==================== Cleanup ====================
+
+  describe("useWebSocketEvents cleanup", () => {
+    it("unsubscribes routine:updated and user_updated on unmount", () => {
+      const { unmount } = renderHook(() => useWebSocketEvents());
+      unmount();
+      expect(mockWsService.offRoutineUpdated).toHaveBeenCalledTimes(1);
+      expect(mockWsService.offUserUpdated).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes the same handler reference to off as was registered via on", () => {
+      const { unmount } = renderHook(() => useWebSocketEvents());
+
+      const registeredRoutine =
+        mockWsService.onRoutineUpdated.mock.calls[0]?.[0];
+      const registeredUser = mockWsService.onUserUpdated.mock.calls[0]?.[0];
+
+      unmount();
+
+      expect(mockWsService.offRoutineUpdated).toHaveBeenCalledWith(
+        registeredRoutine,
+      );
+      expect(mockWsService.offUserUpdated).toHaveBeenCalledWith(registeredUser);
+    });
   });
 });
