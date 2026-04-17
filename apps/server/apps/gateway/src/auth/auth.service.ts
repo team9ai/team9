@@ -47,6 +47,7 @@ export interface AuthResponse extends TokenPair {
     displayName: string | null;
     avatarUrl: string | null;
   };
+  isNewUser: boolean;
 }
 
 export interface AuthenticatedUserResponse {
@@ -438,6 +439,7 @@ export class AuthService {
 
     return {
       ...tokens,
+      isNewUser: false,
       user: {
         id: user.id,
         email: user.email,
@@ -638,6 +640,7 @@ export class AuthService {
       const tokens = this.generateTokenPair(existingUser);
       return {
         ...tokens,
+        isNewUser: false,
         user: {
           id: existingUser.id,
           email: existingUser.email,
@@ -684,6 +687,7 @@ export class AuthService {
     const tokens = this.generateTokenPair(user);
     return {
       ...tokens,
+      isNewUser: true,
       user: {
         id: user.id,
         email: user.email,
@@ -1151,6 +1155,7 @@ export class AuthService {
     const tokens = this.generateTokenPair(user);
     return {
       ...tokens,
+      isNewUser: false,
       user: {
         id: user.id,
         email: user.email,
@@ -1179,6 +1184,7 @@ export class AuthService {
       const tokens = this.generateTokenPair(existing);
       return {
         ...tokens,
+        isNewUser: false,
         user: {
           id: existing.id,
           email: existing.email,
@@ -1220,6 +1226,7 @@ export class AuthService {
     const tokens = this.generateTokenPair(user);
     return {
       ...tokens,
+      isNewUser: true,
       user: {
         id: user.id,
         email: user.email,
