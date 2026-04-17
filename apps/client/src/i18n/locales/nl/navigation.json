@@ -143,5 +143,8 @@
   "uninstallConfirmTitle": "{{name}} verwijderen?",
   "uninstallConfirmDescription": "Hierdoor wordt de app uit je werkruimte verwijderd. Alle gegevens die bij deze app horen, kunnen verloren gaan.",
   "dangerZone": "Gevarenzone",
-  "hideConversation": "Gesprek verbergen"
+  "hideConversation": "Gesprek verbergen",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Persoonlijke assistent",
+  "agentPillModel": "Model"
 }

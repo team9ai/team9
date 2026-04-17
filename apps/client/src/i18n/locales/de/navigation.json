@@ -143,5 +143,8 @@
   "uninstallConfirmTitle": "{{name}} deinstallieren?",
   "uninstallConfirmDescription": "Dadurch wird die App aus Ihrem Workspace entfernt. Mit dieser App verbundene Daten können verloren gehen.",
   "dangerZone": "Gefahrenzone",
-  "hideConversation": "Konversation ausblenden"
+  "hideConversation": "Konversation ausblenden",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Persönlicher Assistent",
+  "agentPillModel": "Modell"
 }
