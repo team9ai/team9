@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MessageAttachments } from "../MessageAttachments";
 import { fileApi } from "@/services/api/file";
 import type { MessageAttachment } from "@/types/im";
@@ -9,6 +10,25 @@ vi.mock("@/services/api/file", () => ({
     getDownloadUrl: vi.fn(),
   },
 }));
+
+function renderWithQuery(ui: React.ReactElement) {
+  // Fresh client per render so cached download URLs from one test don't
+  // leak into the next. retry:false short-circuits TanStack's exponential
+  // back-off so failed-query assertions stay deterministic.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const result = render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+  return {
+    ...result,
+    rerender: (next: React.ReactElement) =>
+      result.rerender(
+        <QueryClientProvider client={queryClient}>{next}</QueryClientProvider>,
+      ),
+  };
+}
 
 function makeImageAttachment(
   overrides: Partial<MessageAttachment> = {},
@@ -45,7 +65,7 @@ describe("MessageAttachments", () => {
         expiresAt: "2026-04-03T00:00:00Z",
       });
 
-    const { rerender } = render(
+    const { rerender } = renderWithQuery(
       <MessageAttachments attachments={[makeImageAttachment()]} />,
     );
 
