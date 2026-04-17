@@ -56,7 +56,7 @@ describe("AgentPillRow", () => {
       "Very Long Role Title That Overflows",
     );
     expect(pill.className).toMatch(/truncate/);
-    expect(pill.className).toMatch(/max-w-\[12ch\]/);
+    expect(pill.className).toMatch(/min-w-0/);
   });
 
   it("ownerName pill also gets title and truncate classes", () => {
@@ -69,6 +69,6 @@ describe("AgentPillRow", () => {
     const pill = screen.getByText("Some Very Long Owner Name");
     expect(pill).toHaveAttribute("title", "Some Very Long Owner Name");
     expect(pill.className).toMatch(/truncate/);
-    expect(pill.className).toMatch(/max-w-\[12ch\]/);
+    expect(pill.className).toMatch(/min-w-0/);
   });
 });

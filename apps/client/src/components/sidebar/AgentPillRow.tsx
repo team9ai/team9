@@ -11,9 +11,22 @@ export interface AgentPillRowProps {
 
 const basePill =
   "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] leading-none";
-const neutralPill = cn(basePill, "bg-nav-hover text-nav-foreground-muted");
-const accentPill = cn(basePill, "bg-primary/15 text-primary");
-const truncatedPill = cn(neutralPill, "truncate max-w-[12ch]");
+// Fixed-content pills (AI / 个人助理 / 模型) never shrink — they're short and
+// must remain readable.
+const neutralPill = cn(
+  basePill,
+  "bg-nav-hover text-nav-foreground-muted shrink-0",
+);
+const accentPill = cn(basePill, "bg-primary/15 text-primary shrink-0");
+// Variable-content pills (roleTitle / ownerName) can shrink to fit and
+// truncate with an ellipsis. min-w-0 is required for `truncate` to take
+// effect inside a flex row.
+const truncatedPill = cn(
+  basePill,
+  "bg-nav-hover text-nav-foreground-muted min-w-0 truncate",
+);
+
+const rowClass = "mt-0.5 flex w-full items-center gap-1 min-w-0";
 
 export function AgentPillRow({
   staffKind,
@@ -25,7 +38,7 @@ export function AgentPillRow({
 
   if (staffKind === "common") {
     return (
-      <div className="mt-0.5 flex items-center gap-1 overflow-hidden">
+      <div className={rowClass}>
         <span className={accentPill}>{aiLabel}</span>
         {roleTitle ? (
           <span className={truncatedPill} title={roleTitle}>
@@ -38,7 +51,7 @@ export function AgentPillRow({
 
   if (staffKind === "personal") {
     return (
-      <div className="mt-0.5 flex items-center gap-1 overflow-hidden">
+      <div className={rowClass}>
         <span className={accentPill}>{aiLabel}</span>
         <span className={neutralPill}>{t("agentPillPersonalAssistant")}</span>
         {ownerName ? (
@@ -52,7 +65,7 @@ export function AgentPillRow({
 
   // staffKind === "other"
   return (
-    <div className="mt-0.5 flex items-center gap-1 overflow-hidden">
+    <div className={rowClass}>
       <span className={accentPill}>{aiLabel}</span>
       <span className={neutralPill}>{t("agentPillModel")}</span>
     </div>
