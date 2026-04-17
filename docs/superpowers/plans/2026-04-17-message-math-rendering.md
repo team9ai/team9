@@ -37,7 +37,7 @@
 **Acceptance Criteria:**
 
 - [ ] `katex`, `remark-math`, `rehype-katex` listed in `dependencies`; `@types/katex` in `devDependencies`.
-- [ ] `apps/client/src/main.tsx` imports `katex/dist/katex.min.css` after `./global.css`.
+- [ ] `apps/client/src/main.tsx` imports `katex/dist/katex.min.css` **before** `./global.css`, so our `.katex` / `.katex-display` overrides in `global.css` win via later source order.
 - [ ] `apps/client/src/global.css` contains overrides: `.katex { font-size: 1em; }`, `.math-block { display: block; margin: 0.25em 0; }`, `.katex-display { margin: 0.25em 0; }`.
 - [ ] `pnpm -C apps/client typecheck` passes.
 - [ ] `pnpm -C apps/client build` succeeds.
@@ -59,11 +59,14 @@ Expected: `apps/client/package.json` updated, `pnpm-lock.yaml` updated. No insta
 
 - [ ] **Step 2: Import KaTeX CSS globally**
 
-Edit `apps/client/src/main.tsx` — add the import right after the existing `./global.css` line:
+Edit `apps/client/src/main.tsx` — add the import **before** the existing `./global.css` line, so our same-specificity overrides in `global.css` (`.katex`, `.katex-display`) win the cascade via later source position:
 
 ```tsx
-import "./global.css";
+// KaTeX CSS must load BEFORE global.css so our overrides in global.css
+// (.katex font-size, .katex-display margin) win via later source position —
+// both sides define same-specificity rules.
 import "katex/dist/katex.min.css";
+import "./global.css";
 import "./i18n";
 ```
 
