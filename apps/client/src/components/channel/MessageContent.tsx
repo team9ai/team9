@@ -12,6 +12,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useFullContent } from "@/hooks/useMessages";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import linkifyHtml from "linkify-html";
 import Prism from "@/lib/prism";
 import { UserProfileCard } from "./UserProfileCard";
@@ -283,7 +285,18 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
   return (
     <div className={`${className ?? ""} markdown-message-content`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[
+          [
+            rehypeKatex,
+            {
+              throwOnError: false,
+              strict: "ignore",
+              output: "htmlAndMathml",
+              trust: false,
+            },
+          ],
+        ]}
         components={{
           code: MarkdownCodeRenderer,
           a: ({ href, children }) => (
