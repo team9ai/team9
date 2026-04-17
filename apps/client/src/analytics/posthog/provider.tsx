@@ -5,6 +5,7 @@ import type { PostHog } from "posthog-js";
 import { getPostHogBrowserClient } from "./client";
 import { isPostHogBrowserEnabled } from "./config";
 import { Team9PostHogIdentitySync } from "./sync";
+import { captureAcquisitionOnce } from "./acquisition";
 
 interface Team9PostHogContextValue {
   client: PostHog | null;
@@ -31,6 +32,9 @@ export function Team9PostHogProvider({ children }: { children: ReactNode }) {
     void getPostHogBrowserClient().then((resolvedClient) => {
       if (isMounted) {
         setClient(resolvedClient);
+        if (resolvedClient) {
+          captureAcquisitionOnce(resolvedClient);
+        }
       }
     });
 
