@@ -88,6 +88,7 @@ describe('RoutinesService — TaskCast integration', () => {
     registerAgent: MockFn;
     sendInput: MockFn;
     createSession: MockFn;
+    deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
 
@@ -125,6 +126,7 @@ describe('RoutinesService — TaskCast integration', () => {
       createSession: jest
         .fn<any>()
         .mockResolvedValue({ sessionId: 'pre-created-session' }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
@@ -2986,6 +2988,12 @@ describe('RoutinesService — TaskCast integration', () => {
           creationSessionId: null,
         }),
       );
+
+      // createSession had succeeded → Hive session must also be cleaned up
+      expect(clawHiveService.deleteSession).toHaveBeenCalledWith(
+        expect.stringContaining(CHANNEL_ID),
+        TENANT_ID,
+      );
     });
 
     it('loses the race and returns winner ids when atomic claim returns 0 rows', async () => {
@@ -3123,6 +3131,59 @@ describe('RoutinesService — TaskCast integration', () => {
 
       // sendInput was never reached
       expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+
+      // createSession itself rejected → sessionCreated is still false → NO deleteSession call
+      expect(clawHiveService.deleteSession).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the Hive session when sendInput fails after createSession succeeded', async () => {
+      mockGetRoutine();
+      clawHiveService.sendInput.mockRejectedValueOnce(
+        new Error('sendInput exploded'),
+      );
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('sendInput exploded');
+
+      // createSession succeeded, so deleteSession must be called for cleanup
+      expect(clawHiveService.deleteSession).toHaveBeenCalledWith(
+        expect.stringContaining(CHANNEL_ID),
+        TENANT_ID,
+      );
+
+      // Channel hard-deleted and DB columns cleared (claimed = true)
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creationChannelId: null,
+          creationSessionId: null,
+        }),
+      );
+    });
+
+    it('logs error but does not throw when deleteSession rollback fails (non-404)', async () => {
+      mockGetRoutine();
+      clawHiveService.sendInput.mockRejectedValueOnce(
+        new Error('sendInput failed'),
+      );
+      clawHiveService.deleteSession.mockRejectedValueOnce(
+        new Error('500 internal server error'),
+      );
+      const loggerError = jest
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      // Original error must propagate; deleteSession failure must not re-throw
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('sendInput failed');
+
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('failed to roll back Hive session'),
+      );
     });
 
     it('logs warn and uses null documentContent when documentsService.getById throws', async () => {

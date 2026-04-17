@@ -139,6 +139,7 @@ describe('Routine Creation Flow — integration', () => {
     registerAgent: MockFn;
     sendInput: MockFn;
     createSession: MockFn;
+    deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
 
@@ -176,6 +177,7 @@ describe('Routine Creation Flow — integration', () => {
       createSession: jest
         .fn<any>()
         .mockResolvedValue({ sessionId: SESSION_ID }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),

@@ -1134,6 +1134,7 @@ export class RoutinesService {
 
     const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
     let claimed = false;
+    let sessionCreated = false;
 
     try {
       // ATOMIC CLAIM: only succeed if creation_channel_id is still null.
@@ -1207,6 +1208,7 @@ export class RoutinesService {
         { userId, sessionId, team9Context },
         tenantId,
       );
+      sessionCreated = true;
 
       await this.clawHiveService.sendInput(
         sessionId,
@@ -1268,6 +1270,19 @@ export class RoutinesService {
         } catch (clearError) {
           this.logger.error(
             `startCreationSession: failed to clear creation_channel_id/creation_session_id on routine ${routineId}: ${clearError}`,
+          );
+        }
+      }
+
+      if (sessionCreated) {
+        // Best-effort cleanup: deleteSession already swallows 404 internally
+        // (session already gone). Log any other failure but do not re-throw —
+        // the original error must propagate to the caller unchanged.
+        try {
+          await this.clawHiveService.deleteSession(sessionId, tenantId);
+        } catch (sessionCleanupError) {
+          this.logger.error(
+            `startCreationSession: failed to roll back Hive session ${sessionId}: ${sessionCleanupError}`,
           );
         }
       }
