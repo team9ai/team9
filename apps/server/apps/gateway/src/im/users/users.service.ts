@@ -445,6 +445,15 @@ export class UsersService {
    *
    * Returns `{ language: null, timeZone: null }` when the user row does
    * not exist — callers should not assume the user is present.
+   *
+   * **Values are format-guaranteed at the write boundary.** `UpdateUserDto`
+   * enforces strict regex on both fields (BCP 47 for `language`, IANA for
+   * `timeZone`) plus length caps — see `im/users/dto/update-user.dto.ts`.
+   * No other write path mutates these columns today (auth / bot / onboarding
+   * create paths leave both null). Downstream consumers that interpolate
+   * these values into system prompts can therefore rely on the absence of
+   * newlines, backticks, or other control characters without re-sanitizing
+   * here. If a new write path is added, it MUST apply the same validation.
    */
   async getLocalePreferences(
     userId: string,

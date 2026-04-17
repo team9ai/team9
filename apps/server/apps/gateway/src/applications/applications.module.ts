@@ -28,7 +28,7 @@ import {
     RedisModule,
     ClawHiveModule,
     AiClientModule,
-    UsersModule,
+    forwardRef(() => UsersModule),
   ],
   controllers: [
     ApplicationsController,

@@ -20,7 +20,7 @@ import { RoutinesStreamController } from './routines-stream.controller.js';
     forwardRef(() => WebsocketModule),
     forwardRef(() => ChannelsModule),
     ClawHiveModule,
-    UsersModule,
+    forwardRef(() => UsersModule),
   ],
   controllers: [
     RoutinesController,
