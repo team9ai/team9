@@ -19,6 +19,7 @@ import {
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
+import { UsersService } from '../im/users/users.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ describe('RoutinesService — TaskCast integration', () => {
   };
   let botsService: { getBotById: MockFn };
   let wsGateway: { broadcastToWorkspace: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -140,6 +142,11 @@ describe('RoutinesService — TaskCast integration', () => {
     wsGateway = {
       broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
     };
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -153,6 +160,7 @@ describe('RoutinesService — TaskCast integration', () => {
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
         { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -3804,6 +3812,93 @@ describe('RoutinesService — TaskCast integration', () => {
         .calls[0] as [string, { payload: Record<string, unknown> }, string];
       expect(payload[1].payload.documentContent).toBeNull();
     });
+
+    describe('creator language propagation', () => {
+      beforeEach(() => {
+        usersService.getLocalePreferences.mockReset();
+      });
+
+      it("includes creator's language + timeZone in team9Context when both are set", async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const createSessionCall = (clawHiveService.createSession as jest.Mock)
+          .mock.calls[0];
+        const sessionArgs = createSessionCall[1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).toMatchObject({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(USER_ID);
+      });
+
+      it('omits language when only timeZone is set', async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: null,
+          timeZone: 'Asia/Shanghai',
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const sessionArgs = (clawHiveService.createSession as jest.Mock).mock
+          .calls[0][1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).not.toHaveProperty('language');
+        expect(sessionArgs.team9Context).toMatchObject({
+          timeZone: 'Asia/Shanghai',
+        });
+      });
+
+      it('omits timeZone when only language is set', async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: null,
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const sessionArgs = (clawHiveService.createSession as jest.Mock).mock
+          .calls[0][1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).toMatchObject({ language: 'zh-CN' });
+        expect(sessionArgs.team9Context).not.toHaveProperty('timeZone');
+      });
+
+      it('omits both language and timeZone when creator has neither set', async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: null,
+          timeZone: null,
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const sessionArgs = (clawHiveService.createSession as jest.Mock).mock
+          .calls[0][1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).not.toHaveProperty('language');
+        expect(sessionArgs.team9Context).not.toHaveProperty('timeZone');
+        // Existing fields remain intact.
+        expect(sessionArgs.team9Context).toMatchObject({
+          routineId: expect.any(String),
+          creatorUserId: expect.any(String),
+          creationChannelId: expect.any(String),
+          isCreationChannel: true,
+        });
+      });
+    });
   });
 });
 
@@ -3882,6 +3977,7 @@ describe('RoutinesService — completeCreation race guard', () => {
   let amqpConnection: { publish: MockFn };
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let wsGateway: { broadcastToWorkspace: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -3930,6 +4026,11 @@ describe('RoutinesService — completeCreation race guard', () => {
         .fn<any>()
         .mockResolvedValue({ botId: 'bot-1', userId: 'user-1' }),
     };
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -3943,6 +4044,7 @@ describe('RoutinesService — completeCreation race guard', () => {
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
         { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
