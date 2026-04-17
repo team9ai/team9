@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -43,16 +43,28 @@ import {
   formatDateTime as formatDateTimeLocale,
 } from "@/lib/date-format";
 import type {
+  BillingProduct,
   BillingProductCustomAmount,
   WorkspaceBillingAccount,
   WorkspaceBillingTransaction,
 } from "@/types/workspace";
+import { useTeam9PostHog } from "@/analytics/posthog/provider";
+import { captureWithBridge } from "@/analytics/posthog/capture";
+import {
+  EVENTS,
+  type SubscriptionEntrySource,
+} from "@/analytics/posthog/events";
+import {
+  inferPlanName,
+  inferBillingInterval,
+} from "@/analytics/posthog/billing";
 
 type BillingView = "plans" | "credits";
 
 interface SubscriptionContentProps {
   workspaceIdFromSearch?: string;
   view?: BillingView;
+  entrySource?: SubscriptionEntrySource;
 }
 
 function formatCreditsFromCents(amountCents: number) {
@@ -237,12 +249,29 @@ function MobileTableLabel({ children }: { children: string }) {
 export function SubscriptionContent({
   workspaceIdFromSearch,
   view,
+  entrySource,
 }: SubscriptionContentProps) {
   const { t } = useTranslation("workspace");
   const navigate = useNavigate();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const workspaceId = workspaceIdFromSearch || selectedWorkspaceId || undefined;
   const currentView: BillingView = view === "credits" ? "credits" : "plans";
+
+  const { client: phClient } = useTeam9PostHog();
+  const effectiveEntrySource: SubscriptionEntrySource =
+    entrySource ?? "manage_credits";
+
+  const pageViewedFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = effectiveEntrySource;
+    if (pageViewedFiredRef.current === key) return;
+    pageViewedFiredRef.current = key;
+
+    captureWithBridge(phClient, EVENTS.SUBSCRIPTION_PLAN_PAGE_VIEWED, {
+      entry_source: effectiveEntrySource,
+      workspace_id: workspaceId,
+    });
+  }, [phClient, effectiveEntrySource, workspaceId]);
 
   const { data: workspaces, isLoading: isLoadingWorkspaces } =
     useUserWorkspaces();
@@ -335,22 +364,39 @@ export function SubscriptionContent({
     });
   };
 
-  const handleCheckout = async (
-    priceId: string,
-    type: "subscription" | "one_time",
-    nextView: BillingView,
-    amountCents?: number,
-  ) => {
-    if (type === "one_time" && !subscription) {
+  const handleCheckout = async (params: {
+    product: BillingProduct;
+    customAmountCents?: number;
+  }) => {
+    const { product, customAmountCents } = params;
+
+    if (product.type === "one_time" && !subscription) {
       setShowSubscriptionRequired(true);
       return;
     }
 
+    const amountCents = customAmountCents ?? product.amountCents;
+    const creditsAmount =
+      product.type === "one_time" && customAmountCents !== undefined
+        ? customAmountCents * 10
+        : (product.credits ?? null);
+
+    captureWithBridge(phClient, EVENTS.SUBSCRIPTION_BUTTON_CLICKED, {
+      entry_source: effectiveEntrySource,
+      plan_name: inferPlanName(product),
+      amount_cents: amountCents,
+      billing_interval: inferBillingInterval(product),
+      credits_amount: creditsAmount,
+      stripe_price_id: product.stripePriceId,
+      button_name: product.name,
+      workspace_id: workspaceId,
+    });
+
     const response = await checkout.mutateAsync({
-      priceId,
-      type,
-      view: nextView,
-      amountCents,
+      priceId: product.stripePriceId,
+      type: product.type ?? "subscription",
+      view: product.type === "one_time" ? "credits" : "plans",
+      amountCents: customAmountCents,
     });
     await openExternalUrl(response.checkoutUrl);
   };
@@ -562,12 +608,10 @@ export function SubscriptionContent({
                                 customAmountProduct &&
                                 customAmountCents !== null
                               ) {
-                                void handleCheckout(
-                                  customAmountProduct.stripePriceId,
-                                  "one_time",
-                                  "credits",
+                                void handleCheckout({
+                                  product: customAmountProduct,
                                   customAmountCents,
-                                );
+                                });
                               }
                             }}
                             disabled={
@@ -612,13 +656,7 @@ export function SubscriptionContent({
                             key={product.stripePriceId}
                             variant="outline"
                             className="h-auto rounded-full border-[#d5dfef] bg-white px-4 py-2.5 shadow-sm transition-all hover:border-[#9db8e2] hover:bg-[#f0f4fb] hover:shadow-md"
-                            onClick={() =>
-                              void handleCheckout(
-                                product.stripePriceId,
-                                "one_time",
-                                "credits",
-                              )
-                            }
+                            onClick={() => void handleCheckout({ product })}
                             disabled={checkout.isPending}
                             aria-label={`Add ${formatMoney(product.amountCents)}`}
                           >
@@ -883,11 +921,7 @@ export function SubscriptionContent({
                       isCurrentPlan
                         ? undefined
                         : () => {
-                            void handleCheckout(
-                              selectedProduct.stripePriceId,
-                              "subscription",
-                              "plans",
-                            );
+                            void handleCheckout({ product: selectedProduct });
                           }
                     }
                     theme={getPlanCardTheme(groupIndex, group.title)}

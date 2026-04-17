@@ -269,7 +269,10 @@ function DashboardHeader({
           <Button
             variant="ghost"
             onClick={() =>
-              navigate({ to: "/subscription", search: { view: "plans" } })
+              navigate({
+                to: "/subscription",
+                search: { view: "plans", source: "home" },
+              })
             }
             className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]"
           >
@@ -281,7 +284,10 @@ function DashboardHeader({
         <Button
           variant="ghost"
           onClick={() =>
-            navigate({ to: "/subscription", search: { view: "credits" } })
+            navigate({
+              to: "/subscription",
+              search: { view: "credits", source: "manage_credits" },
+            })
           }
           title={isCreditsLow ? t("dashboardCreditsLowTitle") : undefined}
           className={cn(
@@ -313,7 +319,10 @@ function DashboardPlanBadge({ planLabel }: { planLabel: string }) {
       <Button
         variant="ghost"
         onClick={() =>
-          navigate({ to: "/subscription", search: { view: "plans" } })
+          navigate({
+            to: "/subscription",
+            search: { view: "plans", source: "home" },
+          })
         }
         className="rounded-full px-4 py-1.5 font-medium text-[#2f67ff] hover:bg-white/50 hover:text-[#2f67ff] h-auto cursor-pointer"
       >
