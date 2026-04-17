@@ -32,7 +32,10 @@ import {
 import { WS_EVENTS } from '@team9/shared';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
-import { DocumentsService } from '../documents/documents.service.js';
+import {
+  DocumentsService,
+  type DocumentResponse,
+} from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../bot/bot.service.js';
@@ -862,10 +865,19 @@ export class RoutinesService {
     let documentContentEmpty = true;
     if (routine.documentId) {
       try {
-        const doc = await this.documentsService.getById(routine.documentId);
-        const content = (doc as { content?: string | null }).content;
-        if (content && content.trim() !== '') {
-          documentContentEmpty = false;
+        const doc: DocumentResponse = await this.documentsService.getById(
+          routine.documentId,
+        );
+        if (doc.tenantId !== tenantId) {
+          this.logger.warn(
+            `completeCreation: routine ${routineId} document ${routine.documentId} tenant mismatch (got ${doc.tenantId}, expected ${tenantId}); treating content as empty`,
+          );
+          // documentContentEmpty remains true → will push error below
+        } else {
+          const content = doc.currentVersion?.content;
+          if (content && content.trim() !== '') {
+            documentContentEmpty = false;
+          }
         }
       } catch {
         // Doc not found — treat as empty content
@@ -883,18 +895,51 @@ export class RoutinesService {
       });
     }
 
-    // Step 6: Update status to upcoming
+    // Step 6: Conditionally update status to upcoming only if still draft.
+    // Using WHERE id=? AND status='draft' with RETURNING lets us detect a
+    // concurrent caller that already flipped the status — empty result means
+    // we lost the race and must NOT dispatch autoRunFirst a second time.
     const [updated] = await this.db
       .update(schema.routines)
       .set({ status: 'upcoming', updatedAt: new Date() })
-      .where(eq(schema.routines.id, routineId))
+      .where(
+        and(
+          eq(schema.routines.id, routineId),
+          eq(schema.routines.status, 'draft'),
+        ),
+      )
       .returning();
+
+    if (!updated) {
+      // Lost the race — another concurrent caller already flipped this draft
+      // to upcoming. Fall back to the idempotent behaviour: archive channel
+      // best-effort, do NOT dispatch autoRunFirst (the winner already did or
+      // chose not to), and return the current routine state. Skip the WS
+      // broadcast too — the winner has already emitted routine:updated.
+      const winner = await this.getRoutineOrThrow(routineId, tenantId);
+      if (winner.creationChannelId) {
+        try {
+          await this.channelsService.archiveCreationChannel(
+            winner.creationChannelId,
+            tenantId,
+          );
+        } catch (e) {
+          this.logger.warn(
+            `completeCreation (race-loss): failed to archive creation channel ${winner.creationChannelId} for routine ${routineId}: ${e}`,
+          );
+        }
+      }
+      this.logger.log(
+        `completeCreation: routine ${routineId} race-loss; another caller already finalized`,
+      );
+      return winner;
+    }
 
     // Broadcast the draft → upcoming transition so clients refetch and
     // surface the newly activated routine in the list. Placed AFTER the
-    // DB update succeeds, BEFORE the best-effort channel archive — if the
-    // status flip itself throws, no emit fires (correct). Using the DB-
-    // verified tenantId from the fetched routine, not the param.
+    // race-loss guard so only the winner emits, and BEFORE the best-effort
+    // channel archive — if the status flip itself throws, no emit fires.
+    // Using the DB-verified tenantId from the fetched routine, not the param.
     await this.wsGateway.broadcastToWorkspace(
       routine.tenantId,
       WS_EVENTS.ROUTINE.UPDATED,
@@ -919,6 +964,21 @@ export class RoutinesService {
     this.logger.log(
       `completeCreation: routine ${routineId} transitioned to upcoming${dto.notes ? ` — notes: ${dto.notes}` : ''}`,
     );
+
+    // Step 8: optionally dispatch one manual execution if the agent
+    // requested it. Best-effort — failure is logged but does not roll back
+    // the finalize (the user can still trigger from the dashboard).
+    if (dto.autoRunFirst === true) {
+      try {
+        await this.start(routineId, userId, tenantId, {
+          message: 'Auto-run after routine creation',
+        } as StartRoutineDto);
+      } catch (e) {
+        this.logger.warn(
+          `completeCreation: autoRunFirst dispatch failed for routine ${routineId}: ${e}`,
+        );
+      }
+    }
 
     return updated;
   }
@@ -1121,6 +1181,54 @@ export class RoutinesService {
       );
     }
 
+    // Fetch document content as best-effort enrichment for the kickoff payload.
+    let draftDocumentContent: string | null = null;
+    if (routine.documentId) {
+      try {
+        const doc: DocumentResponse = await this.documentsService.getById(
+          routine.documentId,
+        );
+        if (doc.tenantId !== tenantId) {
+          this.logger.warn(
+            `startCreationSession: routine ${routineId} document ${routine.documentId} tenant mismatch (got ${doc.tenantId}, expected ${tenantId}); skipping enrichment`,
+          );
+          // leave draftDocumentContent as null
+        } else {
+          const content = doc.currentVersion?.content;
+          if (typeof content === 'string') {
+            const trimmed = content.trim();
+            if (trimmed.length > 0) {
+              draftDocumentContent = trimmed;
+            }
+          }
+        }
+      } catch (err) {
+        // Best-effort enrichment; if the document fetch fails, leave null.
+        this.logger.warn(
+          `startCreationSession: failed to fetch draft documentContent for routine ${routineId}: ${err}`,
+        );
+      }
+    }
+
+    // Fetch existing triggers as best-effort enrichment so the agent can
+    // render an accurate state (e.g. "1 trigger configured") instead of
+    // showing "0 configured" for drafts that already have triggers.
+    // Use a direct tenant-scoped DB select rather than routineTriggersService
+    // to avoid a redundant getRoutineOrThrow inside listByRoutine (we already
+    // validated the routine above). routineTriggers has no tenantId column, so
+    // we scope via the validated routineId FK only.
+    let draftTriggers: unknown[] = [];
+    try {
+      draftTriggers = await this.db
+        .select()
+        .from(schema.routineTriggers)
+        .where(eq(schema.routineTriggers.routineId, routineId));
+    } catch (err) {
+      this.logger.warn(
+        `startCreationSession: failed to fetch draft triggers for routine ${routineId}: ${err}`,
+      );
+    }
+
     // Build channel speculatively. The conditional UPDATE below is the
     // race gate — if two concurrent callers both reach this point, both
     // create channels, and the loser hard-deletes its own.
@@ -1134,6 +1242,7 @@ export class RoutinesService {
 
     const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
     let claimed = false;
+    let sessionCreated = false;
 
     try {
       // ATOMIC CLAIM: only succeed if creation_channel_id is still null.
@@ -1195,6 +1304,20 @@ export class RoutinesService {
 
       claimed = true;
 
+      const team9Context: Record<string, unknown> = {
+        routineId,
+        creatorUserId: userId,
+        creationChannelId: channel.id,
+        isCreationChannel: true,
+      };
+
+      await this.clawHiveService.createSession(
+        agentId,
+        { userId, sessionId, team9Context },
+        tenantId,
+      );
+      sessionCreated = true;
+
       await this.clawHiveService.sendInput(
         sessionId,
         {
@@ -1205,7 +1328,12 @@ export class RoutinesService {
             routineId,
             creatorUserId: userId,
             tenantId,
+            creationChannelId: channel.id,
             title: routine.title,
+            description: routine.description ?? null,
+            documentContent: draftDocumentContent,
+            botId: routine.botId,
+            triggers: draftTriggers,
           },
         },
         tenantId,
@@ -1250,6 +1378,19 @@ export class RoutinesService {
         } catch (clearError) {
           this.logger.error(
             `startCreationSession: failed to clear creation_channel_id/creation_session_id on routine ${routineId}: ${clearError}`,
+          );
+        }
+      }
+
+      if (sessionCreated) {
+        // Best-effort cleanup: deleteSession already swallows 404 internally
+        // (session already gone). Log any other failure but do not re-throw —
+        // the original error must propagate to the caller unchanged.
+        try {
+          await this.clawHiveService.deleteSession(sessionId, tenantId);
+        } catch (sessionCleanupError) {
+          this.logger.error(
+            `startCreationSession: failed to roll back Hive session ${sessionId}: ${sessionCleanupError}`,
           );
         }
       }

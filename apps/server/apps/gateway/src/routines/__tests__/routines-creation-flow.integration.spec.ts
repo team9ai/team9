@@ -129,6 +129,7 @@ describe('Routine Creation Flow — integration', () => {
   let routineTriggersService: {
     createBatch: MockFn;
     replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
@@ -139,6 +140,8 @@ describe('Routine Creation Flow — integration', () => {
     deleteAgent: MockFn;
     registerAgent: MockFn;
     sendInput: MockFn;
+    createSession: MockFn;
+    deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
   let wsGateway: { broadcastToWorkspace: MockFn };
@@ -149,13 +152,16 @@ describe('Routine Creation Flow — integration', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-flow-1' }),
       update: jest.fn<any>().mockResolvedValue(undefined),
-      getById: jest
-        .fn<any>()
-        .mockResolvedValue({ id: 'doc-flow-1', content: 'some content' }),
+      getById: jest.fn<any>().mockResolvedValue({
+        id: 'doc-flow-1',
+        tenantId: TENANT_ID,
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
@@ -174,6 +180,10 @@ describe('Routine Creation Flow — integration', () => {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
       registerAgent: jest.fn<any>().mockResolvedValue(undefined),
       sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      createSession: jest
+        .fn<any>()
+        .mockResolvedValue({ sessionId: SESSION_ID }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
@@ -229,16 +239,23 @@ describe('Routine Creation Flow — integration', () => {
 
     // Mock: getRoutineOrThrow inside startCreationSession — returns the newly created draft
     // Note: no creationChannelId/creationSessionId yet (the channel hasn't been materialized)
+    // db.where() for getRoutineOrThrow must return db so that db.limit() can follow.
+    db.where.mockReturnValueOnce(db as any);
     db.limit.mockResolvedValueOnce([
       { ...DRAFT_ROUTINE, creationChannelId: null, creationSessionId: null },
     ] as any);
 
     // Mock: bot-tenant re-validation inside startCreationSession
+    // db.where() must return db so that db.limit() can follow.
     db.where.mockReturnValueOnce(db as any);
     db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
 
     // Mock: getBotById inside startCreationSession (second call; first was outer validation)
     botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+    // Mock: inline trigger fetch — db.select().from(routineTriggers).where() resolves directly
+    // (routineTriggers has no tenantId column; scoped by routineId only)
+    db.where.mockResolvedValueOnce([] as any);
 
     // Mock: channelsService.createRoutineSessionChannel
     channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
@@ -376,7 +393,11 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: documentsService.getById → doc with non-empty content
     documentsService.getById.mockResolvedValueOnce({
       id: DRAFT_ROUTINE.documentId,
-      content: 'Full task description written by agent.',
+      tenantId: TENANT_ID,
+      currentVersion: {
+        versionIndex: 1,
+        content: 'Full task description written by agent.',
+      },
     } as any);
 
     // Mock: db.update().set().where().returning() → upcoming routine
@@ -426,13 +447,27 @@ describe('Routine Creation Flow — integration', () => {
       creationChannelId: null,
       creationSessionId: null,
     };
+    // Three db.where() calls before the atomic claim in startCreationSession:
+    //   #1 getRoutineOrThrow, #2 bot-tenant re-validation, #3 trigger fetch
+    // #1: getRoutineOrThrow needs where() to return db so .limit() can follow
+    db.where.mockReturnValueOnce(db as any);
     db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
 
-    // Bot-tenant re-validation (new in Round 1 fix #3)
+    // #2: Bot-tenant re-validation (new in Round 1 fix #3)
     db.where.mockReturnValueOnce(db as any);
     db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
 
     botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+    // Mock documentsService.getById to return null content (no draft document enrichment)
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-flow-1',
+      tenantId: TENANT_ID,
+      currentVersion: null,
+    } as any);
+
+    // #3: Inline trigger fetch — db.select().from(routineTriggers).where() resolves directly
+    db.where.mockResolvedValueOnce([] as any);
 
     channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
       id: CHANNEL_ID,
@@ -462,6 +497,29 @@ describe('Routine Creation Flow — integration', () => {
       purpose: 'creation',
     });
 
+    // Assert createSession was called with team9Context.routineId + isCreationChannel: true.
+    // Note: the spec's "team9Context.routineId reaches the agent" goal is verified
+    // here at the createSession call boundary (Hive client mock). Verifying the
+    // agent's downstream config propagation (i.e., the rendered kickoff conversation
+    // entry) requires a live agent-pi runtime, which is out of scope for this
+    // mock-based integration test. The agent-pi side has its own unit tests in
+    // `Team9RoutineCreationComponent.formatEventEntry` covering payload-to-entry
+    // rendering.
+    expect(clawHiveService.createSession).toHaveBeenCalledWith(
+      AGENT_ID,
+      expect.objectContaining({
+        userId: USER_ID,
+        sessionId: SESSION_ID,
+        team9Context: expect.objectContaining({
+          routineId: ROUTINE_ID,
+          creatorUserId: USER_ID,
+          creationChannelId: CHANNEL_ID,
+          isCreationChannel: true,
+        }),
+      }),
+      TENANT_ID,
+    );
+
     expect(clawHiveService.sendInput).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({
@@ -470,6 +528,12 @@ describe('Routine Creation Flow — integration', () => {
           routineId: ROUTINE_ID,
           creatorUserId: USER_ID,
           tenantId: TENANT_ID,
+          creationChannelId: CHANNEL_ID,
+          title: DRAFT_ROUTINE.title,
+          description: null,
+          documentContent: null,
+          botId: DRAFT_ROUTINE.botId,
+          triggers: [],
         }),
       }),
       TENANT_ID,
