@@ -29,6 +29,9 @@ import {
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
+import { WS_EVENTS } from '@team9/shared';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import {
   DocumentsService,
   type DocumentResponse,
@@ -66,6 +69,8 @@ export class RoutinesService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly wsGateway: WebsocketGateway,
     private readonly documentsService: DocumentsService,
     private readonly amqpConnection: AmqpConnection,
     private readonly routineTriggersService: RoutineTriggersService,
@@ -276,6 +281,12 @@ export class RoutinesService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
+
     return updated;
   }
 
@@ -324,6 +335,16 @@ export class RoutinesService {
     await this.db
       .delete(schema.routines)
       .where(eq(schema.routines.id, routineId));
+
+    // Broadcast so clients refetch the routines list — the deleted row
+    // won't be in the new response, so the UI removes it naturally.
+    // Emitted AFTER the DB delete succeeds; if the delete throws the
+    // method propagates and no emit fires.
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     return { success: true };
   }
@@ -893,7 +914,8 @@ export class RoutinesService {
       // Lost the race — another concurrent caller already flipped this draft
       // to upcoming. Fall back to the idempotent behaviour: archive channel
       // best-effort, do NOT dispatch autoRunFirst (the winner already did or
-      // chose not to), and return the current routine state.
+      // chose not to), and return the current routine state. Skip the WS
+      // broadcast too — the winner has already emitted routine:updated.
       const winner = await this.getRoutineOrThrow(routineId, tenantId);
       if (winner.creationChannelId) {
         try {
@@ -912,6 +934,17 @@ export class RoutinesService {
       );
       return winner;
     }
+
+    // Broadcast the draft → upcoming transition so clients refetch and
+    // surface the newly activated routine in the list. Placed AFTER the
+    // race-loss guard so only the winner emits, and BEFORE the best-effort
+    // channel archive — if the status flip itself throws, no emit fires.
+    // Using the DB-verified tenantId from the fetched routine, not the param.
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
 
     // Step 7a: archive the creation channel (best-effort, non-fatal)
     if (routine.creationChannelId) {

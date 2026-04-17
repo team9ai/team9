@@ -437,8 +437,11 @@ describe("Tracking UX end-to-end integration", () => {
         }),
       ).toBeInTheDocument();
 
-      // The tracking rows inside Round 1 are NOT visible while folded.
-      expect(screen.queryByText("Thought for 30s")).not.toBeInTheDocument();
+      // Thinking rows stay visible even inside a folded round — the
+      // round still collapses, but "Thought for Xs" reads as the round's
+      // preview line (the primary signal of what the agent did) while
+      // tool calls and other steps hide behind the summary.
+      expect(screen.getByText("Thought for 30s")).toBeInTheDocument();
       expect(screen.queryByText("Message sent")).not.toBeInTheDocument();
 
       // The text reply is always visible regardless of fold state.
@@ -504,9 +507,12 @@ describe("Tracking UX end-to-end integration", () => {
       });
       expect(foldButton).toBeInTheDocument();
 
-      // Round 1's tracking UI should NOT be visible — Round 1 thinking label
-      // must be gone.
-      expect(screen.queryByText("Thought for 10s")).not.toBeInTheDocument();
+      // Round 1's thinking row stays visible even inside the fold — it
+      // reads as the round's preview line so the user still sees what
+      // the agent was doing. Round 1's tool call (send_message) stays
+      // hidden; only Round 2's search_docs is visible below.
+      expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
+      expect(screen.queryByText(/send_message\(\{/)).not.toBeInTheDocument();
 
       // Round 1's reply text is still visible (replies are NEVER folded).
       expect(screen.getByText("First round reply text")).toBeInTheDocument();
@@ -537,8 +543,9 @@ describe("Tracking UX end-to-end integration", () => {
       const chrono = [...round1, round1Reply, ...round2];
       renderList(chrono, { channelType: "direct" });
 
-      // Sanity: Round 1 starts folded.
-      expect(screen.queryByText("Thought for 10s")).not.toBeInTheDocument();
+      // Sanity: Round 1 starts folded. Thinking row stays visible as
+      // the preview; the summary button surfaces the hidden steps.
+      expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
       const summary = screen.getByRole("button", {
         name: /Expand execution process \(2 steps\)/i,
       });

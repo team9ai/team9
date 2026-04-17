@@ -143,5 +143,8 @@
   "uninstallConfirmTitle": "Удалить {{name}}?",
   "uninstallConfirmDescription": "Это удалит приложение из вашего рабочего пространства. Все данные, связанные с этим приложением, могут быть потеряны.",
   "dangerZone": "Опасная зона",
-  "hideConversation": "Скрыть беседу"
+  "hideConversation": "Скрыть беседу",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Личный ассистент",
+  "agentPillModel": "Модель"
 }

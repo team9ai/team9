@@ -2,7 +2,6 @@ import { memo } from "react";
 import { motion } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
-import { ThinkingBlock } from "./ThinkingBlock";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
 import type { ChannelMember } from "@/types/im";
 
@@ -44,13 +43,9 @@ export const StreamingMessageItem = memo(function StreamingMessageItem({
           <span className="text-xs text-muted-foreground">streaming...</span>
         </div>
 
-        {/* Thinking block (collapsible) */}
-        {stream.thinking && (
-          <ThinkingBlock
-            content={stream.thinking}
-            isStreaming={stream.isThinking}
-          />
-        )}
+        {/* Thinking is now surfaced by a sibling StreamingThinkingRow
+            rendered by MessageList above this bubble — keeps the
+            in-flight UI identical to the persisted tracking row. */}
 
         {/* Streaming text content */}
         {stream.content ? (

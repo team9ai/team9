@@ -143,5 +143,8 @@
   "uninstallConfirmTitle": "Désinstaller {{name}} ?",
   "uninstallConfirmDescription": "Cela supprimera l'application de votre espace de travail. Les données associées à cette application pourraient être perdues.",
   "dangerZone": "Zone de danger",
-  "hideConversation": "Masquer la conversation"
+  "hideConversation": "Masquer la conversation",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Assistant personnel",
+  "agentPillModel": "Modèle"
 }

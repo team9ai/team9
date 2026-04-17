@@ -143,5 +143,8 @@
   "uninstallConfirmTitle": "Disinstallare {{name}}?",
   "uninstallConfirmDescription": "Questa operazione rimuoverà l'app dal tuo workspace. Qualsiasi dato associato a questa app potrebbe andare perso.",
   "dangerZone": "Zona pericolosa",
-  "hideConversation": "Nascondi conversazione"
+  "hideConversation": "Nascondi conversazione",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Assistente personale",
+  "agentPillModel": "Modello"
 }

@@ -24,6 +24,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../../bot/bot.service.js';
 import { RoutineTriggersService } from '../routine-triggers.service.js';
 import { AmqpConnection } from '@team9/rabbitmq';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ describe('Routine Creation Flow — integration', () => {
     deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
+  let wsGateway: { broadcastToWorkspace: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -186,6 +188,9 @@ describe('Routine Creation Flow — integration', () => {
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
     };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -198,6 +203,7 @@ describe('Routine Creation Flow — integration', () => {
         { provide: ChannelsService, useValue: channelsService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
       ],
     }).compile();
 
@@ -361,6 +367,17 @@ describe('Routine Creation Flow — integration', () => {
 
     expect(updateResult).toEqual(UPDATED_ROUTINE);
 
+    // Verify routine:updated broadcast fired exactly once for the update
+    // step, with the DB-verified tenantId and the fixture routine id.
+    // replaceAllForRoutine is stubbed and must NOT emit — the outer
+    // update's tail emit is the sole source of truth.
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+      TENANT_ID,
+      'routine:updated',
+      { routineId: ROUTINE_ID },
+    );
+
     // ─────────────────────────────────────────────────────────────────
     // STEP 3: completeCreation
     // The routineId from Step 1 is used to look up and transition the routine.
@@ -409,6 +426,18 @@ describe('Routine Creation Flow — integration', () => {
 
     // Verify no clone agent was deleted (there is no clone in the new architecture)
     expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+
+    // Verify completeCreation also broadcast routine:updated — 2 total
+    // broadcasts now (one from update, one from completeCreation).
+    // createWithCreationTask is a CREATE and must NOT broadcast, so the
+    // count stays at 2.
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(2);
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenNthCalledWith(
+      2,
+      TENANT_ID,
+      'routine:updated',
+      { routineId: ROUTINE_ID },
+    );
   });
 
   it('materializes a routine-session channel for an existing draft via startCreationSession', async () => {
@@ -526,5 +555,11 @@ describe('Routine Creation Flow — integration', () => {
       channelsService.hardDeleteRoutineSessionChannel,
     ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
     expect(db.delete).toHaveBeenCalled();
+    // A-I9: delete also broadcasts routine:updated so clients refetch.
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+      TENANT_ID,
+      'routine:updated',
+      { routineId: ROUTINE_ID },
+    );
   });
 });

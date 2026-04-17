@@ -426,6 +426,9 @@ export function HomeSubSidebar() {
       name: displayName,
       avatarUrl: otherUser?.avatarUrl,
       agentType: otherUser?.agentType,
+      staffKind: otherUser?.staffKind ?? null,
+      roleTitle: otherUser?.roleTitle ?? null,
+      ownerName: otherUser?.ownerName ?? null,
       status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
       isBot: otherUser?.userType === "bot",
@@ -728,6 +731,9 @@ export function HomeSubSidebar() {
                           channelId={dm.channelId}
                           isBot={dm.isBot}
                           agentType={dm.agentType}
+                          staffKind={dm.staffKind}
+                          roleTitle={dm.roleTitle}
+                          ownerName={dm.ownerName}
                         />
                       </ContextMenuTrigger>
                       <ContextMenuContent className="w-48">

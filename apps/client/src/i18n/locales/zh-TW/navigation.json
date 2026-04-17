@@ -143,5 +143,8 @@
   "uninstallConfirmTitle": "解除安裝 {{name}}？",
   "uninstallConfirmDescription": "這將從您的工作空間移除此應用程式。與此應用程式相關的資料可能會遺失。",
   "dangerZone": "危險操作",
-  "hideConversation": "隱藏對話"
+  "hideConversation": "隱藏對話",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "個人助理",
+  "agentPillModel": "模型"
 }

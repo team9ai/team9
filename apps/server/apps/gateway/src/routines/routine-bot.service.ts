@@ -585,6 +585,12 @@ export class RoutineBotService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
+    await this.wsGateway.broadcastToWorkspace(
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
+
     return updated;
   }
 

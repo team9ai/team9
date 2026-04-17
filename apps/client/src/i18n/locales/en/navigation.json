@@ -145,5 +145,8 @@
   "uninstallConfirmTitle": "Uninstall {{name}}?",
   "uninstallConfirmDescription": "This will remove the app from your workspace. Any data associated with this app may be lost.",
   "dangerZone": "Danger Zone",
-  "hideConversation": "Hide Conversation"
+  "hideConversation": "Hide Conversation",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Personal Assistant",
+  "agentPillModel": "Model"
 }

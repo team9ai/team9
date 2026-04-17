@@ -61,6 +61,7 @@ export const WS_EVENTS = {
     ONLINE: "user_online",
     OFFLINE: "user_offline",
     STATUS_CHANGED: "user_status_changed",
+    UPDATED: "user_updated",
   },
 
   // Message reactions
@@ -115,6 +116,7 @@ export const WS_EVENTS = {
   ROUTINE: {
     STATUS_CHANGED: "routine:status_changed",
     EXECUTION_CREATED: "routine:execution_created",
+    UPDATED: "routine:updated",
   },
 
   // AI Streaming (Bot)
@@ -309,6 +311,11 @@ export interface UserStatusChangedEvent {
   status: UserStatus;
   statusMessage?: string;
   changedAt?: string;
+}
+
+/** User profile updated event - broadcast by server */
+export interface UserUpdatedEvent {
+  userId: string;
 }
 
 // ==================== Reaction Event Types ====================
@@ -535,6 +542,11 @@ export interface RoutineExecutionCreatedEvent {
   };
 }
 
+/** Routine updated event (title / description / schedule / triggers) - broadcast by server */
+export interface RoutineUpdatedEvent {
+  routineId: string;
+}
+
 // ==================== Tracking Channel Event Types ====================
 
 /** Tracking channel deactivated - snapshot of messages captured */
@@ -710,6 +722,7 @@ export interface ServerToClientEvents {
   user_online: UserOnlineEvent;
   user_offline: UserOfflineEvent;
   user_status_changed: UserStatusChangedEvent;
+  user_updated: UserUpdatedEvent;
   reaction_added: ReactionAddedEvent;
   reaction_removed: ReactionRemovedEvent;
   workspace_members_list: WorkspaceMembersListEvent;
@@ -729,6 +742,7 @@ export interface ServerToClientEvents {
   // Routine
   "routine:status_changed": RoutineStatusChangedEvent;
   "routine:execution_created": RoutineExecutionCreatedEvent;
+  "routine:updated": RoutineUpdatedEvent;
   // Streaming (AI bot)
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;

@@ -92,6 +92,31 @@ export interface UserStatusChangedEvent {
   changedAt?: string;
 }
 
+/**
+ * User updated event
+ *
+ * Emitted when a user's profile (display name, avatar, etc.) is updated
+ * via PATCH /users/me.
+ *
+ * Broadcast to every workspace the user belongs to. Payload is ID-only —
+ * clients refetch the authoritative user record.
+ *
+ * @event user_updated
+ * @direction Server -> Workspace Members
+ *
+ * @example
+ * ```typescript
+ * socket.on('user_updated', (event: UserUpdatedEvent) => {
+ *   // Invalidate user queries to refetch authoritative profile
+ *   queryClient.invalidateQueries({ queryKey: ['user', event.userId] });
+ * });
+ * ```
+ */
+export interface UserUpdatedEvent {
+  /** Updated user ID */
+  userId: string;
+}
+
 // ==================== Client -> Server ====================
 
 /**

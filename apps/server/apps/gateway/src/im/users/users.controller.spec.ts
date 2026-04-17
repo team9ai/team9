@@ -107,14 +107,57 @@ describe('UsersController', () => {
     expect(usersService.findByIdOrThrow).toHaveBeenCalledWith('user-1');
   });
 
-  it('updates the current user profile', async () => {
+  it('updates the current user profile and broadcasts user_updated to every workspace membership', async () => {
     const dto = { displayName: 'Alice' };
+    const updated = { id: 'user-1', displayName: 'Alice' };
+    usersService.update.mockResolvedValue(updated);
 
-    await expect(controller.updateMe('user-1', dto as never)).resolves.toEqual({
-      id: 'user-1',
-    });
+    await expect(controller.updateMe('user-1', dto as never)).resolves.toEqual(
+      updated,
+    );
 
     expect(usersService.update).toHaveBeenCalledWith('user-1', dto);
+    expect(workspaceService.getWorkspaceIdsByUserId).toHaveBeenCalledWith(
+      'user-1',
+    );
+    expect(websocketGateway.broadcastToWorkspace).toHaveBeenNthCalledWith(
+      1,
+      'workspace-1',
+      WS_EVENTS.USER.UPDATED,
+      { userId: 'user-1' },
+    );
+    expect(websocketGateway.broadcastToWorkspace).toHaveBeenNthCalledWith(
+      2,
+      'workspace-2',
+      WS_EVENTS.USER.UPDATED,
+      { userId: 'user-1' },
+    );
+    expect(websocketGateway.broadcastToWorkspace).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not broadcast user_updated when the user belongs to no workspaces', async () => {
+    const dto = { displayName: 'Alice' };
+    const updated = { id: 'user-1', displayName: 'Alice' };
+    usersService.update.mockResolvedValue(updated);
+    workspaceService.getWorkspaceIdsByUserId.mockResolvedValue([]);
+
+    await expect(controller.updateMe('user-1', dto as never)).resolves.toEqual(
+      updated,
+    );
+
+    expect(websocketGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('does not broadcast user_updated when the service throws and propagates the error', async () => {
+    const dto = { displayName: 'Alice' };
+    usersService.update.mockRejectedValue(new Error('db down'));
+
+    await expect(controller.updateMe('user-1', dto as never)).rejects.toThrow(
+      'db down',
+    );
+
+    expect(workspaceService.getWorkspaceIdsByUserId).not.toHaveBeenCalled();
+    expect(websocketGateway.broadcastToWorkspace).not.toHaveBeenCalled();
   });
 
   it('updates user status and broadcasts to every workspace membership', async () => {

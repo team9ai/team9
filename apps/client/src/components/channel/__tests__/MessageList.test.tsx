@@ -343,10 +343,12 @@ describe("MessageList — round auto-fold", () => {
       // The reply from the bot is still visible
       expect(screen.getByText("reply from bot")).toBeInTheDocument();
 
-      // The three agent events are NOT rendered as MessageItems
+      // Thinking (a1) stays visible as the round's preview line; the
+      // other agent events (tool_call a2, agent_end a3) are absorbed
+      // into the summary.
       const renderedIds = getRenderedMessageIds();
       expect(renderedIds).toContain("u1");
-      expect(renderedIds).not.toContain("a1");
+      expect(renderedIds).toContain("a1");
       expect(renderedIds).not.toContain("a2");
       expect(renderedIds).not.toContain("a3");
     });
@@ -377,8 +379,10 @@ describe("MessageList — round auto-fold", () => {
 
       renderList(chrono, { channelType: "direct" });
 
-      // Initially folded
-      expect(getRenderedMessageIds()).not.toContain("a1");
+      // Initially folded — thinking (a1) stays visible as the preview,
+      // but agent_end (a2) is hidden behind the summary.
+      expect(getRenderedMessageIds()).toContain("a1");
+      expect(getRenderedMessageIds()).not.toContain("a2");
 
       fireEvent.click(
         screen.getByRole("button", {
@@ -418,12 +422,15 @@ describe("MessageList — round auto-fold", () => {
       // simplest collapse trigger is a fresh click if we re-introduce the
       // summary via a re-render of the same data (expanded state is internal
       // to the component, so we rerender with different ids to reset).
+      // We pick `writing` + `agent_end` for the new round so neither is a
+      // "thinking" event — thinking rows stay visible even when folded, so
+      // using them here would muddy the fold-behaviour assertion.
       rerender(
         <ProvidersWrapper>
           <MessageList
             {...asProps([
-              makeAgentEvent("b1"),
-              makeAgentEvent("b2"),
+              makeAgentEvent("b1", "writing"),
+              makeAgentEvent("b2", "agent_end"),
               makeMessage("u2"),
             ])}
             channelType="direct"
@@ -472,9 +479,10 @@ describe("MessageList — round auto-fold", () => {
         </ProvidersWrapper>,
       );
 
-      // The old round collapses, new round stays expanded
+      // The old round collapses but its thinking row (a1) stays as
+      // the preview; agent_end (a2) is absorbed into the summary.
       const renderedIds = getRenderedMessageIds();
-      expect(renderedIds).not.toContain("a1");
+      expect(renderedIds).toContain("a1");
       expect(renderedIds).not.toContain("a2");
       expect(renderedIds).toContain("u1");
       expect(renderedIds).toContain("b1");
@@ -543,9 +551,11 @@ describe("MessageList — round auto-fold", () => {
       // Regular bot reply is still visible
       expect(screen.getByText("bot reply")).toBeInTheDocument();
 
-      // None of the agent-event messages are rendered as MessageItems
+      // Thinking (a1) stays visible as the preview; everything else in
+      // the round (tool_call a2, tool_result a3, agent_end a4) is
+      // absorbed into the summary.
       const renderedIds = getRenderedMessageIds();
-      expect(renderedIds).not.toContain("a1");
+      expect(renderedIds).toContain("a1");
       expect(renderedIds).not.toContain("a2");
       expect(renderedIds).not.toContain("a3");
       expect(renderedIds).not.toContain("a4");

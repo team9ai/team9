@@ -21,12 +21,6 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { ChannelSnapshot, BotExtra } from '@team9/database/schemas';
-
-// Aliased `users` row used to JOIN the bot owner alongside the channel-member
-// user row (which is itself a join on `schema.users`). Declared at module
-// scope so all three DM/member queries share the same alias name and so the
-// generated SQL is deterministic.
-const ownerUser = alias(schema.users, 'owner_user');
 import {
   CreateChannelDto,
   UpdateChannelDto,
@@ -40,6 +34,14 @@ import {
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
 import { TabsService } from '../views/tabs.service.js';
+
+// Aliased `users` row used to JOIN the bot owner alongside the channel-member
+// user row (which is itself a join on `schema.users`). Declared at module
+// scope so all three DM/member queries share the same alias name and so the
+// generated SQL is deterministic. Uses `alias` (not `aliasedTable`) because
+// drizzle's `aliasedTable<T>(): T` collapses select-row inference to `never`
+// when the original table and its alias both appear in the same query.
+const ownerUser = alias(schema.users, 'ownerUser');
 
 export interface ChannelResponse {
   id: string;

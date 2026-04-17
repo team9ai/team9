@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorFallback } from "./components/error-fallback";
+// KaTeX CSS must load BEFORE global.css so our overrides in global.css
+// (.katex font-size, .katex-display margin) win via later source position —
+// both sides define same-specificity rules.
+import "katex/dist/katex.min.css";
 import "./global.css";
 import "./i18n";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
