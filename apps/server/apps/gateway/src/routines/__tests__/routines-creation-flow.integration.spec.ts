@@ -2,10 +2,10 @@
  * End-to-end integration test for the Routine creation flow.
  *
  * Exercises the full Routine UI path in sequence:
- *   1. createWithCreationTask — creates draft routine + DM channel, sends kickoff
- *      to the ORIGINAL bot's session (no clone agent)
+ *   1. createWithCreationTask — creates draft routine + routine-session channel,
+ *      sends kickoff to the ORIGINAL bot's session (no clone agent)
  *   2. update — simulates agent refinement (title, documentContent, triggers)
- *   3. completeCreation — transitions to upcoming (no channel archival, no clone)
+ *   3. completeCreation — transitions to upcoming, archives the creation channel
  *
  * This is a mock-based test (no real DB). The key thing it verifies that
  * individual unit tests don't: the routineId returned from createWithCreationTask
@@ -24,6 +24,8 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../../bot/bot.service.js';
 import { RoutineTriggersService } from '../routine-triggers.service.js';
 import { AmqpConnection } from '@team9/rabbitmq';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import { UsersService } from '../../im/users/users.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -128,17 +130,26 @@ describe('Routine Creation Flow — integration', () => {
   let routineTriggersService: {
     createBatch: MockFn;
     replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
-    createDirectChannel: MockFn;
+    createRoutineSessionChannel: MockFn;
+    hardDeleteRoutineSessionChannel: MockFn;
   };
   let clawHiveService: {
     deleteAgent: MockFn;
     registerAgent: MockFn;
     sendInput: MockFn;
+    createSession: MockFn;
+    deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
+  let wsGateway: { broadcastToWorkspace: MockFn };
+  // Mocked at boundary because DB fixture seeding for `users.language` is not
+  // the feature under test here. The creator returns zh-CN to verify the
+  // language flows through to team9Context.language on createSession.
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -146,13 +157,16 @@ describe('Routine Creation Flow — integration', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-flow-1' }),
       update: jest.fn<any>().mockResolvedValue(undefined),
-      getById: jest
-        .fn<any>()
-        .mockResolvedValue({ id: 'doc-flow-1', content: 'some content' }),
+      getById: jest.fn<any>().mockResolvedValue({
+        id: 'doc-flow-1',
+        tenantId: TENANT_ID,
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
@@ -160,15 +174,32 @@ describe('Routine Creation Flow — integration', () => {
     };
     channelsService = {
       archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
-      createDirectChannel: jest.fn<any>().mockResolvedValue({ id: CHANNEL_ID }),
+      createRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: CHANNEL_ID }),
+      hardDeleteRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
     clawHiveService = {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
       registerAgent: jest.fn<any>().mockResolvedValue(undefined),
       sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      createSession: jest
+        .fn<any>()
+        .mockResolvedValue({ sessionId: SESSION_ID }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
+    };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: 'zh-CN', timeZone: null }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -182,6 +213,8 @@ describe('Routine Creation Flow — integration', () => {
         { provide: ChannelsService, useValue: channelsService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -210,16 +243,39 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: db.insert().values().returning() — the draft routine row
     db.returning.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
 
-    // Mock: draft-conflict check — no existing draft
-    db.limit.mockResolvedValueOnce([] as any);
+    // NOTE: previously there was an additional `db.limit.mockResolvedValueOnce([])`
+    // here for the now-removed "pre-flight draft-conflict check". Drafts are
+    // now allowed to coexist per (user, bot), so there is no longer a
+    // SELECT between the insert and startCreationSession.
 
-    // Mock: channelsService.createDirectChannel
-    channelsService.createDirectChannel.mockResolvedValueOnce({
+    // Mock: getRoutineOrThrow inside startCreationSession — returns the newly created draft
+    // Note: no creationChannelId/creationSessionId yet (the channel hasn't been materialized)
+    // db.where() for getRoutineOrThrow must return db so that db.limit() can follow.
+    db.where.mockReturnValueOnce(db as any);
+    db.limit.mockResolvedValueOnce([
+      { ...DRAFT_ROUTINE, creationChannelId: null, creationSessionId: null },
+    ] as any);
+
+    // Mock: bot-tenant re-validation inside startCreationSession
+    // db.where() must return db so that db.limit() can follow.
+    db.where.mockReturnValueOnce(db as any);
+    db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+
+    // Mock: getBotById inside startCreationSession (second call; first was outer validation)
+    botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+    // Mock: inline trigger fetch — db.select().from(routineTriggers).where() resolves directly
+    // (routineTriggers has no tenantId column; scoped by routineId only)
+    db.where.mockResolvedValueOnce([] as any);
+
+    // Mock: channelsService.createRoutineSessionChannel
+    channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
       id: CHANNEL_ID,
     } as any);
 
-    // Mock: db.update().set().where() — persist creationChannelId + creationSessionId
-    // (no .returning() called; chain returns chain by default)
+    // Mock: atomic claim UPDATE — db.update().set().where().returning()
+    // returning 1-row array means we won the race
+    db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
     // Mock: clawHiveService.sendInput
     clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
@@ -237,12 +293,14 @@ describe('Routine Creation Flow — integration', () => {
       creationSessionId: SESSION_ID,
     });
 
-    // Verify DM channel was created for the right user + bot shadow user
-    expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
-      USER_ID,
-      SOURCE_BOT.userId,
-      TENANT_ID,
-    );
+    // Verify routine-session channel was created with the correct params
+    expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+      creatorId: USER_ID,
+      botUserId: SOURCE_BOT.userId,
+      tenantId: TENANT_ID,
+      routineId: ROUTINE_ID,
+      purpose: 'creation',
+    });
 
     // Verify NO clone agent was registered
     expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
@@ -320,6 +378,17 @@ describe('Routine Creation Flow — integration', () => {
 
     expect(updateResult).toEqual(UPDATED_ROUTINE);
 
+    // Verify routine:updated broadcast fired exactly once for the update
+    // step, with the DB-verified tenantId and the fixture routine id.
+    // replaceAllForRoutine is stubbed and must NOT emit — the outer
+    // update's tail emit is the sole source of truth.
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+      TENANT_ID,
+      'routine:updated',
+      { routineId: ROUTINE_ID },
+    );
+
     // ─────────────────────────────────────────────────────────────────
     // STEP 3: completeCreation
     // The routineId from Step 1 is used to look up and transition the routine.
@@ -335,7 +404,11 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: documentsService.getById → doc with non-empty content
     documentsService.getById.mockResolvedValueOnce({
       id: DRAFT_ROUTINE.documentId,
-      content: 'Full task description written by agent.',
+      tenantId: TENANT_ID,
+      currentVersion: {
+        versionIndex: 1,
+        content: 'Full task description written by agent.',
+      },
     } as any);
 
     // Mock: db.update().set().where().returning() → upcoming routine
@@ -356,10 +429,149 @@ describe('Routine Creation Flow — integration', () => {
     expect(completeResult).toEqual(UPCOMING_ROUTINE);
     expect(completeResult.status).toBe('upcoming');
 
-    // Verify DM channel was NOT archived (DMs are persistent, never archived)
-    expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+    // Verify creation channel was archived on completion
+    expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+      CHANNEL_ID,
+      TENANT_ID,
+    );
 
     // Verify no clone agent was deleted (there is no clone in the new architecture)
     expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+
+    // Verify completeCreation also broadcast routine:updated — 2 total
+    // broadcasts now (one from update, one from completeCreation).
+    // createWithCreationTask is a CREATE and must NOT broadcast, so the
+    // count stays at 2.
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(2);
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenNthCalledWith(
+      2,
+      TENANT_ID,
+      'routine:updated',
+      { routineId: ROUTINE_ID },
+    );
+  });
+
+  it('materializes a routine-session channel for an existing draft via startCreationSession', async () => {
+    // Mock getRoutineOrThrow → a draft with creationChannelId=null (onboarding-provisioned style)
+    const draftWithoutChannel = {
+      ...DRAFT_ROUTINE,
+      creationChannelId: null,
+      creationSessionId: null,
+    };
+    // Three db.where() calls before the atomic claim in startCreationSession:
+    //   #1 getRoutineOrThrow, #2 bot-tenant re-validation, #3 trigger fetch
+    // #1: getRoutineOrThrow needs where() to return db so .limit() can follow
+    db.where.mockReturnValueOnce(db as any);
+    db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
+
+    // #2: Bot-tenant re-validation (new in Round 1 fix #3)
+    db.where.mockReturnValueOnce(db as any);
+    db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+
+    botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+    // Mock documentsService.getById to return null content (no draft document enrichment)
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-flow-1',
+      tenantId: TENANT_ID,
+      currentVersion: null,
+    } as any);
+
+    // #3: Inline trigger fetch — db.select().from(routineTriggers).where() resolves directly
+    db.where.mockResolvedValueOnce([] as any);
+
+    channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
+      id: CHANNEL_ID,
+    } as any);
+
+    // Atomic claim UPDATE returning 1 row = won the race
+    db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+
+    clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
+
+    const result = await service.startCreationSession(
+      ROUTINE_ID,
+      USER_ID,
+      TENANT_ID,
+    );
+
+    expect(result).toEqual({
+      creationChannelId: CHANNEL_ID,
+      creationSessionId: SESSION_ID,
+    });
+
+    expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+      creatorId: USER_ID,
+      botUserId: SOURCE_BOT.userId,
+      tenantId: TENANT_ID,
+      routineId: ROUTINE_ID,
+      purpose: 'creation',
+    });
+
+    // Assert createSession was called with team9Context.routineId + isCreationChannel: true.
+    // Note: the spec's "team9Context.routineId reaches the agent" goal is verified
+    // here at the createSession call boundary (Hive client mock). Verifying the
+    // agent's downstream config propagation (i.e., the rendered kickoff conversation
+    // entry) requires a live agent-pi runtime, which is out of scope for this
+    // mock-based integration test. The agent-pi side has its own unit tests in
+    // `Team9RoutineCreationComponent.formatEventEntry` covering payload-to-entry
+    // rendering.
+    expect(clawHiveService.createSession).toHaveBeenCalledWith(
+      AGENT_ID,
+      expect.objectContaining({
+        userId: USER_ID,
+        sessionId: SESSION_ID,
+        team9Context: expect.objectContaining({
+          routineId: ROUTINE_ID,
+          creatorUserId: USER_ID,
+          creationChannelId: CHANNEL_ID,
+          isCreationChannel: true,
+          language: 'zh-CN',
+        }),
+      }),
+      TENANT_ID,
+    );
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({
+        type: 'team9:routine-creation.start',
+        payload: expect.objectContaining({
+          routineId: ROUTINE_ID,
+          creatorUserId: USER_ID,
+          tenantId: TENANT_ID,
+          creationChannelId: CHANNEL_ID,
+          title: DRAFT_ROUTINE.title,
+          description: null,
+          documentContent: null,
+          botId: DRAFT_ROUTINE.botId,
+          triggers: [],
+        }),
+      }),
+      TENANT_ID,
+    );
+  });
+
+  it('hard-deletes the creation channel when deleting a draft', async () => {
+    // Mock getRoutineOrThrow → a draft with creationChannelId set
+    db.limit.mockResolvedValueOnce([
+      {
+        ...DRAFT_ROUTINE,
+        creationChannelId: CHANNEL_ID,
+      },
+    ] as any);
+
+    await service.delete(ROUTINE_ID, USER_ID, TENANT_ID);
+
+    expect(
+      channelsService.hardDeleteRoutineSessionChannel,
+    ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+    expect(db.delete).toHaveBeenCalled();
+    // A-I9: delete also broadcasts routine:updated so clients refetch.
+    expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+      TENANT_ID,
+      'routine:updated',
+      { routineId: ROUTINE_ID },
+    );
   });
 });

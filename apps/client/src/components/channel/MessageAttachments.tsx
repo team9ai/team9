@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   File,
   FileText,
@@ -10,6 +11,21 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fileApi } from "@/services/api/file";
 import type { MessageAttachment } from "@/types/im";
+import { ImagePreviewDialog } from "./ImagePreviewDialog";
+
+// Signed download URLs expire after 8h (see file.service.ts).
+// Cache for 7h so remounted image rows reuse the same URL and hit the
+// browser HTTP cache instead of re-fetching on every virtualized row mount.
+const DOWNLOAD_URL_STALE_TIME = 7 * 60 * 60 * 1000;
+
+function useFileDownloadUrl(fileKey: string) {
+  return useQuery({
+    queryKey: ["file-download-url", fileKey],
+    queryFn: () => fileApi.getDownloadUrl(fileKey),
+    staleTime: DOWNLOAD_URL_STALE_TIME,
+    gcTime: DOWNLOAD_URL_STALE_TIME,
+  });
+}
 
 interface MessageAttachmentsProps {
   attachments: MessageAttachment[];
@@ -45,37 +61,13 @@ function ImageAttachment({
   attachment: MessageAttachment;
   isOwnMessage?: boolean;
 }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const { data, isLoading, error, refetch } = useFileDownloadUrl(
+    attachment.fileKey,
+  );
+  const imageUrl = data?.url ?? null;
 
-  useEffect(() => {
-    setImageUrl(null);
-    setError(null);
-    setIsLoading(false);
-  }, [attachment.fileKey]);
-
-  const loadImage = useCallback(async () => {
-    if (imageUrl) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await fileApi.getDownloadUrl(attachment.fileKey);
-      setImageUrl(result.url);
-    } catch (err) {
-      setError("Failed to load image");
-      console.error("Failed to load image:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [attachment.fileKey, imageUrl]);
-
-  // Auto-load image when component mounts
-  useEffect(() => {
-    void loadImage();
-  }, [loadImage]);
-
-  if (isLoading) {
+  if (isLoading && !imageUrl) {
     return (
       <div
         className={cn(
@@ -102,12 +94,12 @@ function ImageAttachment({
       >
         <ImageIcon className="w-8 h-8 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">
-          {error || "Image not available"}
+          {error ? "Failed to load image" : "Image not available"}
         </span>
         <Button
           size="sm"
           variant="ghost"
-          onClick={loadImage}
+          onClick={() => void refetch()}
           className="text-xs"
         >
           Retry
@@ -117,22 +109,33 @@ function ImageAttachment({
   }
 
   return (
-    <a
-      href={imageUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block rounded-lg overflow-hidden hover:opacity-90 transition-opacity"
-    >
-      <img
-        src={imageUrl}
-        alt={attachment.fileName}
-        className="max-w-[300px] max-h-[200px] object-contain"
-        style={{
-          width: attachment.width ? Math.min(attachment.width, 300) : "auto",
-          height: attachment.height ? Math.min(attachment.height, 200) : "auto",
-        }}
-      />
-    </a>
+    <>
+      <button
+        type="button"
+        onClick={() => setIsPreviewOpen(true)}
+        className="block rounded-lg overflow-hidden hover:opacity-90 transition-opacity cursor-zoom-in"
+      >
+        <img
+          src={imageUrl}
+          alt={attachment.fileName}
+          className="max-w-[300px] max-h-[200px] object-contain"
+          style={{
+            width: attachment.width ? Math.min(attachment.width, 300) : "auto",
+            height: attachment.height
+              ? Math.min(attachment.height, 200)
+              : "auto",
+          }}
+        />
+      </button>
+      {isPreviewOpen && (
+        <ImagePreviewDialog
+          src={imageUrl}
+          alt={attachment.fileName}
+          open={isPreviewOpen}
+          onOpenChange={setIsPreviewOpen}
+        />
+      )}
+    </>
   );
 }
 

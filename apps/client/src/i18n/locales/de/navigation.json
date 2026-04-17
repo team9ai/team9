@@ -1,10 +1,10 @@
 {
   "home": "Start",
   "dms": "DMs",
-  "activity": "Aktivität",
+  "activity": "Updates",
   "files": "Dateien",
   "aiStaff": "KI",
-  "staff": "Personal",
+  "staff": "Team",
   "myPersonalStaff": "Mein persönliches Personal",
   "aiStaffSection": "KI-Personal",
   "membersSection": "Mitglieder",
@@ -12,9 +12,9 @@
   "chatButton": "Chat",
   "dmPermissionDenied": "Dies ist ein privater Assistent und nimmt keine Direktnachrichten an.",
   "routines": "Routinen",
-  "resources": "Ressourcen",
-  "skills": "Fähigkeiten",
-  "library": "Bibliothek",
+  "resources": "Ressour.",
+  "skills": "Skills",
+  "library": "Biblio.",
   "application": "Apps",
   "more": "Mehr",
   "noWorkspace": "Kein Workspace",
@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "Guthaben niedrig. Klicken zum Aufladen.",
   "dashboardTitle": "Wie kann ich Ihnen heute helfen?",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "Tiefenrecherche",
@@ -142,5 +143,8 @@
   "uninstallConfirmTitle": "{{name}} deinstallieren?",
   "uninstallConfirmDescription": "Dadurch wird die App aus Ihrem Workspace entfernt. Mit dieser App verbundene Daten können verloren gehen.",
   "dangerZone": "Gefahrenzone",
-  "hideConversation": "Konversation ausblenden"
+  "hideConversation": "Konversation ausblenden",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Persönlicher Assistent",
+  "agentPillModel": "Modell"
 }

@@ -8,9 +8,9 @@ import {
 } from '@nestjs/common';
 import { ChannelsService } from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
+import type { BotExtra } from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
-import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { TabsService } from '../views/tabs.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
@@ -81,12 +81,6 @@ describe('ChannelsService', () => {
         {
           provide: ChannelMemberCacheService,
           useValue: { invalidate: jest.fn<any>().mockResolvedValue(undefined) },
-        },
-        {
-          provide: PropertyDefinitionsService,
-          useValue: {
-            seedDefaultProperties: jest.fn<any>().mockResolvedValue([]),
-          },
         },
         {
           provide: TabsService,
@@ -502,6 +496,104 @@ describe('ChannelsService', () => {
       ).rejects.toThrow('db write failed');
     });
 
+    it('recovers from a TOCTOU race by re-reading the winner row when the unique index rejects the second INSERT', async () => {
+      // Race scenario, after migration 0040 added a partial unique index
+      // on (created_by, tenant_id) WHERE type='echo' AND is_archived=false.
+      // Two concurrent requests both miss the existence check, both enter
+      // the transaction. The first INSERT wins; the second hits a Postgres
+      // unique-violation (SQLSTATE 23505), its transaction rolls back, and
+      // getOrCreateEchoChannel must re-read the existing channel (created
+      // by the winner) instead of bubbling the raw 23505 to the user.
+      const winner = {
+        id: 'echo-winner',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+        isArchived: false,
+      };
+
+      // Sequence of `.limit(1)` calls in the new code path:
+      //   1) initial existence lookup → empty (race not yet visible)
+      //   2) post-rollback re-lookup    → returns the winner row
+      //   3) ensureEchoOwnerMembership member lookup → active member
+      db.limit.mockResolvedValueOnce([] as any);
+      db.limit.mockResolvedValueOnce([winner] as any);
+      db.limit.mockResolvedValueOnce([{ id: 'member-1', leftAt: null }] as any);
+
+      // Transaction simulates Drizzle propagating a Postgres unique
+      // violation from the channel INSERT.
+      const pgUniqueErr = Object.assign(new Error('duplicate key value'), {
+        code: '23505',
+        constraint: 'idx_echo_unique_owner_tenant',
+      });
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(pgUniqueErr),
+            }),
+          }),
+        };
+        return await cb(pretendTx);
+      });
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+      // Spy on the warn log so a future regression that drops the
+      // observability hook will fail this test.
+      const loggerWarnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(winner);
+      // The unique violation must NOT propagate.
+      // (If it did, `.resolves.toEqual(winner)` above would already fail.)
+      // Recovery must observe (warn log) the race for ops visibility.
+      expect(loggerWarnSpy).toHaveBeenCalledTimes(1);
+      expect(loggerWarnSpy.mock.calls[0][0]).toContain('TOCTOU');
+      // The recovery path must NOT re-enter the transaction or churn caches:
+      // the winner already invalidated them in its successful path, and
+      // ensureEchoOwnerMembership early-returns on an active member.
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(memberCacheService.invalidate).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+
+      loggerWarnSpy.mockRestore();
+    });
+
+    it('still propagates non-unique-violation database errors raised inside the transaction', async () => {
+      // Regression guard: the unique-violation recovery added above
+      // must NOT swallow other database failures (constraint checks,
+      // connection drops, etc).
+      db.limit.mockResolvedValueOnce([] as any);
+      const otherErr = Object.assign(new Error('connection lost'), {
+        code: '08006',
+      });
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(otherErr),
+            }),
+          }),
+        };
+        return await cb(pretendTx);
+      });
+
+      await expect(
+        service.createDirectChannel('user-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('connection lost');
+      // Catch must fall straight through — no re-read on non-23505 errors.
+      // (Only 1 limit call was queued; if the catch tried to re-read it
+      // would consume a non-existent second mock and explode visibly.)
+      expect(db.limit).toHaveBeenCalledTimes(1);
+    });
+
     it('does not call assertDirectMessageAllowed for self-chat', async () => {
       const assertSpy = jest.spyOn(
         service as any,
@@ -827,6 +919,51 @@ describe('ChannelsService', () => {
         'user-1',
         'user-2',
       ]);
+    });
+  });
+
+  describe('getChannelMembers', () => {
+    it('classifies a common-staff bot member into staffKind=common with roleTitle', async () => {
+      // Mocks the post-Task-2 join shape: each row carries botExtra (jsonb)
+      // plus ownerDisplayName / ownerUsername from the aliased ownerUser
+      // join. For a common-staff bot, ownerId is null so the owner-side
+      // fields come back null. This exercises the full
+      // service.getChannelMembers wiring (select shape → mapChannelUserSummary
+      // → ChannelMemberResponse) rather than calling the private mapper
+      // directly.
+      const botExtra: BotExtra = {
+        commonStaff: { roleTitle: 'HR Lead' },
+      };
+
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'cm-bot-1',
+          userId: 'bot-1',
+          role: 'member',
+          isMuted: false,
+          notificationsEnabled: true,
+          joinedAt: new Date('2026-04-01T00:00:00Z'),
+          username: 'hr-bot',
+          displayName: 'HR Bot',
+          avatarUrl: null,
+          status: 'online',
+          userType: 'bot',
+          createdAt: new Date('2026-04-01T00:00:00Z'),
+          applicationId: 'common-staff',
+          managedProvider: null,
+          managedMeta: null,
+          botExtra,
+          ownerDisplayName: null,
+          ownerUsername: null,
+        },
+      ] as any);
+
+      const result = await service.getChannelMembers('channel-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].user.staffKind).toBe('common');
+      expect(result[0].user.roleTitle).toBe('HR Lead');
+      expect(result[0].user.ownerName).toBeNull();
     });
   });
 
@@ -1337,6 +1474,81 @@ describe('ChannelsService', () => {
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', false);
     });
+
+    it('classifies a bot DM peer with commonStaff extra into staffKind=common', async () => {
+      // Mocks the post-Task-2 join shape: the per-member query now returns
+      // botExtra (jsonb) alongside ownerDisplayName / ownerUsername from
+      // the aliased ownerUser join. For a common-staff bot, ownerId is null
+      // so the owner-side fields come back null.
+      const botExtra: BotExtra = {
+        commonStaff: { roleTitle: 'HR Lead' },
+      };
+
+      db.where
+        .mockResolvedValueOnce([
+          {
+            id: 'direct-bot-1',
+            tenantId: 'tenant-1',
+            name: 'dm-with-bot',
+            description: null,
+            type: 'direct',
+            avatarUrl: null,
+            createdBy: 'user-1',
+            sectionId: null,
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            snapshot: null,
+            createdAt: new Date('2026-04-01T00:00:00Z'),
+            updatedAt: new Date('2026-04-01T00:00:00Z'),
+            unreadCount: 0,
+            lastReadMessageId: null,
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            channelId: 'direct-bot-1',
+            userId: 'user-1',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            status: 'online',
+            userType: 'human',
+            applicationId: null,
+            managedProvider: null,
+            managedMeta: null,
+            botExtra: null,
+            ownerDisplayName: null,
+            ownerUsername: null,
+          },
+          {
+            channelId: 'direct-bot-1',
+            userId: 'bot-1',
+            username: 'hr-bot',
+            displayName: 'HR Bot',
+            avatarUrl: null,
+            status: 'online',
+            userType: 'bot',
+            applicationId: 'common-staff',
+            managedProvider: null,
+            managedMeta: null,
+            botExtra,
+            ownerDisplayName: null,
+            ownerUsername: null,
+          },
+        ] as any);
+
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+
+      const dmChannel = result.find((ch) => ch.type === 'direct');
+      expect(dmChannel?.otherUser).toMatchObject({
+        id: 'bot-1',
+        userType: 'bot',
+        staffKind: 'common',
+        roleTitle: 'HR Lead',
+        ownerName: null,
+      });
+    });
   });
 
   describe('findByIdOrThrow', () => {
@@ -1779,13 +1991,12 @@ describe('ChannelsService', () => {
       redisService = (service as any).redis;
     });
 
-    it('archives a direct channel without role/type checks', async () => {
+    it('archives a routine-session channel without role check', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-direct', type: 'direct', isArchived: false },
+        { id: 'ch-rs', type: 'routine-session', isArchived: false },
       ] as any);
-      // UPDATE's .where() doesn't need a specific return — chain default is fine
 
-      await service.archiveCreationChannel('ch-direct');
+      await service.archiveCreationChannel('ch-rs');
 
       expect(db.update).toHaveBeenCalled();
       expect(db.set).toHaveBeenCalledWith(
@@ -1794,12 +2005,23 @@ describe('ChannelsService', () => {
       expect(redisService.invalidate).toHaveBeenCalled();
     });
 
-    it('is idempotent when channel is already archived', async () => {
+    it('rejects non-routine-session channels with ForbiddenException', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-direct', type: 'direct', isArchived: true },
+        { id: 'ch-direct', type: 'direct', isArchived: false },
       ] as any);
 
-      await service.archiveCreationChannel('ch-direct');
+      await expect(service.archiveCreationChannel('ch-direct')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent when channel is already archived', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-rs', type: 'routine-session', isArchived: true },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-rs');
 
       expect(db.update).not.toHaveBeenCalled();
       expect(redisService.invalidate).not.toHaveBeenCalled();
@@ -1821,13 +2043,11 @@ describe('ChannelsService', () => {
 
     it('applies tenant filter when tenantId is provided', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-1', type: 'direct', isArchived: false },
+        { id: 'ch-1', type: 'routine-session', isArchived: false },
       ] as any);
 
       await service.archiveCreationChannel('ch-1', 'tenant-42');
 
-      // The where clause should have been called with two conditions (id + tenantId)
-      // We verify that db.update was called (meaning the tenant filter didn't block)
       expect(db.update).toHaveBeenCalled();
       expect(redisService.invalidate).toHaveBeenCalled();
     });
@@ -1899,6 +2119,105 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('createRoutineSessionChannel', () => {
+    it('inserts channel + both members inside a single transaction with purpose metadata', async () => {
+      // Arrange: channel insert returning() yields the new row
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'ch-1',
+          type: 'routine-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          propertySettings: {
+            routineSession: { purpose: 'creation', routineId: 'routine-1' },
+          },
+        },
+      ]);
+
+      const result = await service.createRoutineSessionChannel({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        routineId: 'routine-1',
+        purpose: 'creation',
+      });
+
+      // Entered a transaction
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+
+      // Inside the tx: one insert for the channel row, one insert for
+      // both channel_member rows — 2 inserts total
+      expect(db.insert).toHaveBeenCalledTimes(2);
+
+      // Channel insert values include correct type + propertySettings shape
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'routine-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          name: null,
+          propertySettings: {
+            routineSession: { purpose: 'creation', routineId: 'routine-1' },
+          },
+        }),
+      );
+
+      // Member batch insert receives both rows
+      expect(db.values).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            channelId: 'ch-1',
+            userId: 'user-1',
+            role: 'member',
+          }),
+          expect.objectContaining({
+            channelId: 'ch-1',
+            userId: 'bot-user-1',
+            role: 'member',
+          }),
+        ]),
+      );
+
+      expect(result.id).toBe('ch-1');
+      expect(result.type).toBe('routine-session');
+    });
+
+    it('rolls back channel insert when member insert fails (atomic)', async () => {
+      // First insert (channel) succeeds — returning yields a row
+      db.returning.mockResolvedValueOnce([
+        { id: 'ch-2', type: 'routine-session', tenantId: 'tenant-1' },
+      ]);
+
+      // Simulate the second insert (members batch) throwing.
+      // The default mockDb transaction helper delegates cb(chain); we
+      // override the tx delegate to make the second values() throw.
+      let insertCount = 0;
+      db.values.mockImplementation(() => {
+        insertCount += 1;
+        if (insertCount === 2) {
+          throw new Error('members insert failed');
+        }
+        return db as any;
+      });
+
+      await expect(
+        service.createRoutineSessionChannel({
+          creatorId: 'user-1',
+          botUserId: 'bot-user-1',
+          tenantId: 'tenant-1',
+          routineId: 'routine-1',
+          purpose: 'creation',
+        }),
+      ).rejects.toThrow('members insert failed');
+
+      // Post-commit cache invalidation must NOT have run because the
+      // transaction callback threw before returning
+      expect(
+        (service as any).channelMemberCacheService.invalidate,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
   describe('channel name helpers', () => {
     it('normalizes names and validates unicode-friendly channel names', () => {
       expect(ChannelsService.normalizeChannelName('  Team   Updates  ')).toBe(
@@ -1915,6 +2234,229 @@ describe('ChannelsService', () => {
         valid: false,
         error: 'Channel name must start with a letter or number',
       });
+    });
+  });
+
+  describe('hardDeleteRoutineSessionChannel', () => {
+    it('throws NotFoundException when channel missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('missing-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when channel is not routine-session', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'direct', tenantId: 't-1' },
+      ]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('ch-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when tenantId provided does not match', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'routine-session', tenantId: 'other-tenant' },
+      ]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('ch-1', 't-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deletes audit logs and channel inside a transaction, then invalidates cache', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'routine-session', tenantId: 't-1' },
+      ]);
+
+      await service.hardDeleteRoutineSessionChannel('ch-1', 't-1');
+
+      // transaction was used
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+
+      // Both deletes ran inside the transaction body — the mockDb helper
+      // passes the chain itself as the tx argument, so we assert on chain.delete.
+      // Expect at least 2 delete() invocations (auditLogs + channels).
+      expect(db.delete).toHaveBeenCalledTimes(2);
+
+      // Redis invalidation ran after the transaction
+      const redisService = (service as any).redis as {
+        invalidate: jest.Mock;
+      };
+      expect(redisService.invalidate).toHaveBeenCalledWith(
+        expect.stringContaining('ch-1'),
+      );
+    });
+  });
+
+  // ── mapChannelUserSummary ───────────────────────────────────────────
+
+  describe('mapChannelUserSummary', () => {
+    type SummaryRow = {
+      userId: string;
+      username: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+      status: 'online' | 'offline' | 'away' | 'busy';
+      userType: 'human' | 'bot' | 'system';
+      applicationId: string | null;
+      managedProvider: string | null;
+      managedMeta: Record<string, unknown> | null;
+      botExtra: BotExtra | null;
+      ownerDisplayName: string | null;
+      ownerUsername: string | null;
+    };
+
+    const baseRow: SummaryRow = {
+      userId: 'u1',
+      username: 'alice',
+      displayName: 'Alice',
+      avatarUrl: null,
+      status: 'online',
+      userType: 'bot',
+      applicationId: null,
+      managedProvider: null,
+      managedMeta: null,
+      botExtra: null,
+      ownerDisplayName: null,
+      ownerUsername: null,
+    };
+
+    const map = (row: SummaryRow) =>
+      (
+        service as unknown as {
+          mapChannelUserSummary: (r: SummaryRow) => {
+            id: string;
+            username: string;
+            displayName: string | null;
+            avatarUrl: string | null;
+            status: 'online' | 'offline' | 'away' | 'busy';
+            userType: 'human' | 'bot' | 'system';
+            agentType: string | null;
+            staffKind: 'common' | 'personal' | 'other' | null;
+            roleTitle: string | null;
+            ownerName: string | null;
+          };
+        }
+      ).mapChannelUserSummary(row);
+
+    it('common staff with roleTitle → staffKind=common, roleTitle set', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { commonStaff: { roleTitle: 'Engineer' } },
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBe('Engineer');
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('common staff without roleTitle → staffKind=common, roleTitle=null', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { commonStaff: {} },
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('personal staff with owner displayName → ownerName uses displayName', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: 'Bob Owner',
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBe('Bob Owner');
+    });
+
+    it('personal staff with only username → ownerName falls back to username', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: null,
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.ownerName).toBe('bob');
+    });
+
+    it('personal staff with missing owner row → ownerName=null', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: null,
+        ownerUsername: null,
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('bot with empty extra → staffKind=other', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: {},
+      });
+
+      expect(result.staffKind).toBe('other');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('human row → staffKind=null and other agent fields null', () => {
+      const result = map({
+        ...baseRow,
+        userType: 'human',
+        botExtra: null,
+      });
+
+      expect(result.staffKind).toBeNull();
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('system user row → staffKind=null and other agent fields null', () => {
+      const result = map({
+        ...baseRow,
+        userType: 'system',
+        botExtra: null,
+      });
+      expect(result.staffKind).toBeNull();
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('bot with both commonStaff and personalStaff → common wins (and warns)', () => {
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      const result = map({
+        ...baseRow,
+        botExtra: {
+          commonStaff: { roleTitle: 'Engineer' },
+          personalStaff: {},
+        },
+        ownerDisplayName: 'Bob Owner',
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBe('Engineer');
+      expect(result.ownerName).toBeNull();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('u1');
+
+      warnSpy.mockRestore();
     });
   });
 });

@@ -997,15 +997,13 @@ describe("useAuthStore", () => {
   });
 
   it("clears state on logout", async () => {
-    useAuthStore
-      .getState()
-      .setUser({
-        id: "1",
-        email: "a@b.com",
-        username: "test",
-        displayName: null,
-        avatarUrl: null,
-      });
+    useAuthStore.getState().setUser({
+      id: "1",
+      email: "a@b.com",
+      username: "test",
+      displayName: null,
+      avatarUrl: null,
+    });
     await useAuthStore.getState().logout();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAuthStore.getState().user).toBeNull();

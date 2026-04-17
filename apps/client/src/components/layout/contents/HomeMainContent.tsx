@@ -4,7 +4,7 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
-  ImagePlus,
+  Crown,
   Loader2,
   Plus,
   Search,
@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +35,10 @@ import {
   useWorkspaceBillingOverview,
   useWorkspaceBillingSummary,
 } from "@/hooks/useWorkspaceBilling";
+import { deepResearchApi } from "@/services/api/deep-research";
+import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
@@ -46,18 +51,20 @@ import type { WorkspaceBillingAccount } from "@/types/workspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
-const DASHBOARD_ACTION_CHIPS = [
-  {
-    key: "dashboardActionDeepResearch",
-    icon: Search,
-    className: "text-[#675f56]",
-  },
-  {
-    key: "dashboardActionGenerateImage",
-    icon: ImagePlus,
-    className: "text-[#675f56]",
-  },
-] as const;
+// Deep research / generate image entries temporarily hidden
+const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
+  key: ParseKeys<["navigation", "message"]>;
+  icon: typeof Search;
+  className: string;
+}> = [];
+
+function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
+  return (
+    agents.find((agent) => agent.applicationId === "personal-staff") ??
+    agents[0] ??
+    null
+  );
+}
 
 const FIXED_BASE_MODEL_LABELS = {
   claude: "Claude Sonnet 4.6",
@@ -169,11 +176,15 @@ function DashboardHeader({
   agents,
   selectedAgentUserId,
   creditsLabel,
+  isCreditsLow,
+  subscriptionPlanLabel,
   onSelectAgent,
 }: {
   agents: DashboardAgent[];
   selectedAgentUserId: string | null;
   creditsLabel: string;
+  isCreditsLow: boolean;
+  subscriptionPlanLabel: string | null;
   onSelectAgent: (userId: string) => void;
 }) {
   const { t } = useTranslation("navigation");
@@ -253,16 +264,46 @@ function DashboardHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        variant="ghost"
-        onClick={() =>
-          navigate({ to: "/subscription", search: { view: "credits" } })
-        }
-        className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578] h-auto cursor-pointer"
-      >
-        <Sparkles size={14} className="text-[#9c8f80]" />
-        <span>{creditsLabel}</span>
-      </Button>
+      <div className="flex items-center gap-2">
+        {subscriptionPlanLabel ? (
+          <Button
+            variant="ghost"
+            onClick={() =>
+              navigate({
+                to: "/subscription",
+                search: { view: "plans", source: "home" },
+              })
+            }
+            className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]"
+          >
+            <Crown size={14} className="text-[#9c8f80]" />
+            <span>{subscriptionPlanLabel}</span>
+          </Button>
+        ) : null}
+
+        <Button
+          variant="ghost"
+          onClick={() =>
+            navigate({
+              to: "/subscription",
+              search: { view: "credits", source: "manage_credits" },
+            })
+          }
+          title={isCreditsLow ? t("dashboardCreditsLowTitle") : undefined}
+          className={cn(
+            "dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer",
+            isCreditsLow
+              ? "bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100 hover:text-red-700"
+              : "text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]",
+          )}
+        >
+          <Sparkles
+            size={14}
+            className={cn(isCreditsLow ? "text-red-600" : "text-[#9c8f80]")}
+          />
+          <span>{creditsLabel}</span>
+        </Button>
+      </div>
     </header>
   );
 }
@@ -278,7 +319,10 @@ function DashboardPlanBadge({ planLabel }: { planLabel: string }) {
       <Button
         variant="ghost"
         onClick={() =>
-          navigate({ to: "/subscription", search: { view: "plans" } })
+          navigate({
+            to: "/subscription",
+            search: { view: "plans", source: "home" },
+          })
         }
         className="rounded-full px-4 py-1.5 font-medium text-[#2f67ff] hover:bg-white/50 hover:text-[#2f67ff] h-auto cursor-pointer"
       >
@@ -292,25 +336,39 @@ function DashboardActionChip({
   label,
   icon: Icon,
   className,
+  onClick,
+  isActive,
 }: {
   label: string;
   icon: LucideIcon;
   className?: string;
+  onClick?: () => void;
+  isActive?: boolean;
 }) {
+  // Use a button when clickable so keyboard and accessibility work correctly;
+  // fall back to a plain div for purely decorative chips.
+  const Component = onClick ? "button" : "div";
   return (
-    <div
+    <Component
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? isActive : undefined}
       className={cn(
-        "dashboard-composer-chip inline-flex h-[2.375rem] items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium",
-        className,
+        "dashboard-composer-chip inline-flex h-[2.375rem] items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium transition-colors",
+        onClick && "cursor-pointer hover:opacity-80",
+        isActive &&
+          "bg-[#2f67ff] text-white shadow-[0_6px_16px_rgba(47,103,255,0.28)] hover:opacity-90",
+        !isActive && className,
       )}
     >
       <Icon size={14} strokeWidth={1.8} />
       <span>{label}</span>
-    </div>
+    </Component>
   );
 }
 
-function DashboardTaskPill() {
+// Temporarily hidden from landing — keep for reintroduction
+export function DashboardTaskPill() {
   const { t } = useTranslation("navigation");
 
   return (
@@ -333,48 +391,58 @@ function DashboardTaskPill() {
 function getWorkspaceCredits(
   account: WorkspaceBillingAccount | null | undefined,
 ) {
-  return (account?.balance ?? 0) + (account?.effectiveQuota ?? 0);
+  return (
+    (account?.balance ?? 0) +
+    (account?.effectiveQuota ?? 0) +
+    (account?.grantBalance ?? 0)
+  );
 }
 
+const LOW_CREDITS_THRESHOLD = 400;
+
 function formatDashboardCredits(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
+  return new Intl.NumberFormat("en-US").format(Math.floor(value));
 }
 
 export function HomeMainContent() {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
   const createDirectChannel = useCreateDirectChannel();
   const { agents, updateAgentModel, updatingAgentUserId } =
     useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
-  const billingOverview = useWorkspaceBillingOverview(
-    workspaceId ?? undefined,
-    billingSummary.data?.managementAllowed ?? false,
-  );
+  const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     null,
   );
+  const [isDeepResearch, setIsDeepResearch] = useState(false);
+  const [isCreatingResearch, setIsCreatingResearch] = useState(false);
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
-    agents[0] ??
-    null;
+    pickDefaultAgent(agents);
   const canSubmit =
-    !!selectedAgent &&
     prompt.trim().length > 0 &&
-    !createDirectChannel.isPending;
+    !createDirectChannel.isPending &&
+    !isCreatingResearch &&
+    (isDeepResearch || !!selectedAgent);
   const isUpdatingSelectedAgentModel =
     !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
+  const activeSubscription = billingSummary.data?.subscription ?? null;
+  const isSubscribed = !!activeSubscription;
   const currentPlanLabel =
-    billingSummary.data?.subscription?.product.name || t("dashboardPlan");
+    activeSubscription?.product.name || t("dashboardPlan");
+  const subscriptionPlanLabel = activeSubscription?.product.name ?? null;
+  const totalCredits = billingOverview.data?.account
+    ? getWorkspaceCredits(billingOverview.data.account)
+    : null;
   const creditsLabel =
-    billingSummary.data?.managementAllowed && billingOverview.data?.account
-      ? formatDashboardCredits(
-          getWorkspaceCredits(billingOverview.data.account),
-        )
-      : "—";
+    totalCredits !== null ? formatDashboardCredits(totalCredits) : "—";
+  const isCreditsLow =
+    totalCredits !== null && totalCredits < LOW_CREDITS_THRESHOLD;
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
@@ -382,14 +450,51 @@ export function HomeMainContent() {
         return current;
       }
 
-      return agents[0]?.userId ?? null;
+      return pickDefaultAgent(agents)?.userId ?? null;
     });
   }, [agents]);
 
   const handleSubmit = async () => {
-    if (!selectedAgent) return;
     const draft = prompt.trim();
     if (!draft) return;
+
+    if (isDeepResearch) {
+      if (!selectedAgent) return;
+      if (isCreatingResearch) return;
+      setIsCreatingResearch(true);
+      try {
+        const channelId =
+          selectedAgent.channelId ??
+          (await createDirectChannel.mutateAsync(selectedAgent.userId)).id;
+        const result = await deepResearchApi.startInChannel(channelId, {
+          input: draft,
+          origin: "dashboard",
+        });
+        upsertChannelMessageInCache(queryClient, channelId, result.message);
+
+        setPrompt("");
+        setIsDeepResearch(false);
+        navigate({
+          to: "/channels/$channelId",
+          params: { channelId },
+          search: { message: result.message.id },
+        });
+      } catch (error: unknown) {
+        const status = getHttpErrorStatus(error);
+        if (status === 403) {
+          alert(t("dmPermissionDenied"));
+          return;
+        }
+        alert(
+          getHttpErrorMessage(error) || t("dashboardDeepResearchCreateFailed"),
+        );
+      } finally {
+        setIsCreatingResearch(false);
+      }
+      return;
+    }
+
+    if (!selectedAgent) return;
 
     try {
       const channelId =
@@ -448,14 +553,18 @@ export function HomeMainContent() {
             agents={agents}
             selectedAgentUserId={selectedAgent?.userId ?? null}
             creditsLabel={creditsLabel}
+            isCreditsLow={isCreditsLow}
+            subscriptionPlanLabel={subscriptionPlanLabel}
             onSelectAgent={setSelectedAgentUserId}
           />
 
-          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-14 sm:gap-6 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
-            <DashboardPlanBadge planLabel={currentPlanLabel} />
+          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-8 pb-8 pt-14 sm:gap-10 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
+            {!isSubscribed ? (
+              <DashboardPlanBadge planLabel={currentPlanLabel} />
+            ) : null}
 
-            <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-5">
-              <h1 className="dashboard-landing-title max-w-[27.75rem] text-center text-[clamp(2.1rem,4vw,3.35rem)] leading-[0.99] text-[#2d2924]">
+            <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-8 sm:gap-10">
+              <h1 className="dashboard-landing-title text-center text-[clamp(1.6rem,2.8vw,2.5rem)] leading-[1.05] text-[#2d2924]">
                 {t("dashboardTitle")}
               </h1>
 
@@ -465,7 +574,11 @@ export function HomeMainContent() {
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
-                  placeholder={t("dashboardPromptPlaceholder")}
+                  placeholder={t(
+                    isDeepResearch
+                      ? "dashboardDeepResearchPlaceholder"
+                      : "dashboardPromptPlaceholder",
+                  )}
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
@@ -478,23 +591,35 @@ export function HomeMainContent() {
                       <Plus size={17} strokeWidth={2} />
                     </button>
 
-                    {DASHBOARD_ACTION_CHIPS.map((chip) => (
-                      <DashboardActionChip
-                        key={chip.key}
-                        label={t(chip.key)}
-                        icon={chip.icon}
-                        className={chip.className}
-                      />
-                    ))}
+                    {DASHBOARD_ACTION_CHIPS.map((chip) => {
+                      const isDeepResearchChip =
+                        chip.key === "dashboardActionDeepResearch";
+                      return (
+                        <DashboardActionChip
+                          key={chip.key}
+                          label={t(chip.key)}
+                          icon={chip.icon}
+                          className={chip.className}
+                          isActive={isDeepResearchChip && isDeepResearch}
+                          onClick={
+                            isDeepResearchChip
+                              ? () => setIsDeepResearch((prev) => !prev)
+                              : undefined
+                          }
+                        />
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
-                    <DashboardModelControl
-                      agent={selectedAgent}
-                      fallbackLabel={t("dashboardModelLabel")}
-                      isUpdating={isUpdatingSelectedAgentModel}
-                      onSelectModel={handleModelChange}
-                    />
+                    {!isDeepResearch && SHOW_COMPOSER_MODEL_CONTROL ? (
+                      <DashboardModelControl
+                        agent={selectedAgent}
+                        fallbackLabel={t("dashboardModelLabel")}
+                        isUpdating={isUpdatingSelectedAgentModel}
+                        onSelectModel={handleModelChange}
+                      />
+                    ) : null}
 
                     <Button
                       type="button"
@@ -504,7 +629,7 @@ export function HomeMainContent() {
                       aria-label={t("sendMessage", { ns: "message" })}
                       className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
                     >
-                      {createDirectChannel.isPending ? (
+                      {createDirectChannel.isPending || isCreatingResearch ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <ArrowUp size={16} strokeWidth={2.2} />
@@ -515,7 +640,7 @@ export function HomeMainContent() {
               </div>
             </div>
 
-            <DashboardTaskPill />
+            {/* <DashboardTaskPill /> */}
           </div>
         </div>
       </div>

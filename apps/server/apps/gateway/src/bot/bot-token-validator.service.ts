@@ -7,13 +7,19 @@ export class BotTokenValidatorService implements BotTokenValidatorInterface {
   constructor(private readonly botService: BotService) {}
 
   async validateBotToken(rawToken: string): Promise<JwtPayload | null> {
-    const result = await this.botService.validateAccessToken(rawToken);
-    if (!result) return null;
+    // Use the context variant so we carry tenantId through to AuthGuard.
+    // Bot requests hit gateway.railway.internal and don't send X-Tenant-ID,
+    // so TenantMiddleware leaves req.tenantId undefined — we must populate
+    // it from the bot's installed application here.
+    const context =
+      await this.botService.validateAccessTokenWithContext(rawToken);
+    if (!context) return null;
 
     return {
-      sub: result.userId,
-      email: result.email,
-      username: result.username,
+      sub: context.userId,
+      email: context.email,
+      username: context.username,
+      tenantId: context.tenantId,
     };
   }
 }

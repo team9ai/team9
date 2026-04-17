@@ -297,7 +297,9 @@ describe("computeRoundFoldMaps", () => {
       // Single folded round containing all 10 agent events
       expect(maps.roundStateMap.size).toBe(1);
       const first = maps.roundStateMap.get("a0");
-      expect(first?.stepCount).toBe(types.length);
+      // stepCount counts visible display rows — turn_separator renders as
+      // null in TrackingEventItem, so it never contributes to the count.
+      expect(first?.stepCount).toBe(types.length - 1);
     });
   });
 });

@@ -14,7 +14,7 @@
   "routines": "定期",
   "resources": "リソース",
   "skills": "スキル",
-  "library": "ライブラリ",
+  "library": "資料",
   "application": "アプリ",
   "more": "その他",
   "noWorkspace": "ワークスペースなし",
@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "残高不足です。クリックしてチャージ",
   "dashboardTitle": "今日は何をお手伝いしましょうか？",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "ディープリサーチ",
@@ -142,5 +143,8 @@
   "uninstallConfirmTitle": "{{name}} をアンインストールしますか？",
   "uninstallConfirmDescription": "このアプリはワークスペースから削除されます。このアプリに関連するデータが失われる可能性があります。",
   "dangerZone": "危険な操作",
-  "hideConversation": "会話を非表示"
+  "hideConversation": "会話を非表示",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "パーソナルアシスタント",
+  "agentPillModel": "モデル"
 }

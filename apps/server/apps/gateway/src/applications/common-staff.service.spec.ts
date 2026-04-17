@@ -1,5 +1,11 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
+// StaffService.createLlmProvider() is called even when streamText is
+// mocked, and it throws when neither OPENROUTER_API_KEY nor
+// CAPABILITY_HUB_URL is set. Provide a stub value up-front so tests
+// don't crash in minimal CI environments.
+process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
+
 const mockStreamText = jest.fn<any>();
 
 const mockOutputObject = jest.fn<any>().mockReturnValue('mock-output-spec');
@@ -20,6 +26,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
@@ -199,10 +206,19 @@ function mockStreamTextReturn(chunks: string[]) {
 function mockStreamTextWithOutputReturn(
   partials: unknown[],
   finalObj: unknown,
+  finishReason:
+    | 'stop'
+    | 'length'
+    | 'content-filter'
+    | 'tool-calls'
+    | 'error'
+    | 'other'
+    | 'unknown' = 'stop',
 ) {
   return {
     partialOutputStream: makeAsyncIterable(partials),
     output: Promise.resolve(finalObj),
+    finishReason: Promise.resolve(finishReason),
   };
 }
 
@@ -244,6 +260,7 @@ describe('CommonStaffService', () => {
   };
   let channelsService: { createDirectChannel: MockFn };
   let installedApplicationsService: { findById: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -278,6 +295,12 @@ describe('CommonStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
+
     // Default: streamText returns text stream (for generatePersona)
     // Candidate tests override with mockStreamTextWithOutputReturn
     mockStreamText.mockReset();
@@ -296,6 +319,7 @@ describe('CommonStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        { provide: UsersService, useValue: usersService },
         {
           provide: RedisService,
           useValue: {
@@ -506,6 +530,56 @@ describe('CommonStaffService', () => {
           peerUserId: MENTOR_ID,
           isMentorDm: true,
         });
+      });
+
+      it("includes the mentor's persisted language + timeZone in team9Context when set", async () => {
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'pt-BR',
+          timeZone: 'America/Sao_Paulo',
+        });
+
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        // The service must call getLocalePreferences with the MENTOR id, not the
+        // owner — common-staff mentor can differ from the creator of the bot.
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(
+          MENTOR_ID,
+        );
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toMatchObject({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: MENTOR_ID,
+          isMentorDm: true,
+          language: 'pt-BR',
+          timeZone: 'America/Sao_Paulo',
+        });
+      });
+
+      it('omits language and timeZone from team9Context when the mentor has no preferences', async () => {
+        // Default mock already returns { language: null, timeZone: null } —
+        // no override needed.
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).not.toHaveProperty('language');
+        expect(event.payload.team9Context).not.toHaveProperty('timeZone');
       });
 
       it('does not trigger sendInput when agenticBootstrap=false', async () => {
@@ -1539,6 +1613,10 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           temperature: 0.95,
           output: 'mock-output-spec',
+          // Regression: 3 candidates × ~300-word persona + JSON overhead
+          // easily blows past the provider default (~1024 for Claude via
+          // OpenRouter), truncating the last persona. Must stay explicit.
+          maxOutputTokens: 4096,
         }),
       );
       // Verify Output.object was called with the Zod schema
@@ -1547,6 +1625,39 @@ describe('CommonStaffService', () => {
         schema: { shape: Record<string, unknown> };
       };
       expect(schemaArg.schema).toBeDefined();
+    });
+
+    it("throws when the LLM stops for 'length' (truncation) so the client surfaces an error instead of saving a truncated persona", async () => {
+      // Regression for the 三选一 persona truncation bug: when the LLM
+      // exhausts the token budget mid-generation, Vercel AI SDK still
+      // resolves `result.output` with the partial object (personas cut
+      // off mid-sentence). We must inspect finishReason and throw so the
+      // frontend falls into its error path instead of persisting garbage.
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn(
+          [],
+          {
+            candidates: [
+              {
+                candidateIndex: 1,
+                displayName: 'Alex',
+                roleTitle: 'Ops',
+                persona: 'Alex is a meticulous operator who — ',
+                summary: 'Truncated mid-sentence',
+              },
+            ],
+          },
+          'length',
+        ),
+      );
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(/max_tokens limit/);
     });
 
     it('includes jobTitle and jobDescription in the prompt', async () => {
@@ -1671,11 +1782,15 @@ describe('CommonStaffService', () => {
     });
 
     it('propagates errors from result.output when stream completes but output rejects', async () => {
+      // Attach a no-op catch to prevent the rejection from firing an
+      // unhandled-rejection crash before the test consumer awaits it.
+      const outputRejection = Promise.reject(new Error('Validation failed'));
+      outputRejection.catch(() => {});
       mockStreamText.mockReturnValueOnce({
         partialOutputStream: makeAsyncIterable([
           { candidates: [{ candidateIndex: 1, displayName: 'A' }] },
         ]),
-        output: Promise.reject(new Error('Validation failed')),
+        output: outputRejection,
       });
 
       const gen = service.generateCandidates(

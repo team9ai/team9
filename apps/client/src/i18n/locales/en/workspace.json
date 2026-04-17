@@ -5,6 +5,8 @@
   "creating": "Creating...",
   "members": "Members",
   "workspaceSettings": "Workspace Settings",
+  "workspaceId": "Workspace ID",
+  "copyWorkspaceId": "Copy workspace ID",
   "name": "Name",
   "slug": "Slug",
   "logo": "Logo",
@@ -44,5 +46,90 @@
   "maxWorkspacesReached": "You can create a maximum of {{max}} workspaces. Please contact the administrator or reach out via our <discordLink>Discord</discordLink> for assistance.",
   "workspaceFull": "This workspace has reached the maximum of {{max}} members",
   "workspaceFullInvite": "Unable to join — this workspace has reached its member limit. Please contact the workspace administrator or reach out via our <discordLink>Discord</discordLink>.",
-  "expires": "Expires {{date}}"
+  "expires": "Expires {{date}}",
+  "billing": {
+    "interval": {
+      "day_one": "day",
+      "day_other": "{{count}} days",
+      "week_one": "week",
+      "week_other": "{{count}} weeks",
+      "month_one": "month",
+      "month_other": "{{count}} months",
+      "year_one": "year",
+      "year_other": "{{count}} years"
+    },
+    "plans": {
+      "creditsLabel": "{{credits}} credits",
+      "monthlyCredits": "{{credits}} credits per month",
+      "planCreditsWithCycle": "{{credits}} credits / {{cycle}}",
+      "creditsConfiguredInBillingHub": "Credits configured in Billing Hub",
+      "free": {
+        "title": "Free Plan",
+        "description": "Essential access to core models, research, and agent workflows.",
+        "features": {
+          "oneTimeCredits": "4,000 one-time credits",
+          "coreModels": "Access to core models",
+          "basicResearch": "Basic research",
+          "fileMemory": "Intelligent file and memory management",
+          "agentTools": "20+ tools for agents",
+          "multiAgent": "Multi-agent tasks",
+          "beta": "Early access to select beta features"
+        }
+      },
+      "plus": {
+        "description": "For regular usage with advanced models and premium agent tools.",
+        "features": {
+          "modelAccess": "Access to top frontier models, including GPT-5.4, Claude Opus 4.6, and Gemini 3.1 Pro",
+          "nanoBanana": "Nano Banana 2 included",
+          "fileMemory": "Intelligent file and memory management",
+          "premiumTools": "Access all premium tools for agents",
+          "multiAgent": "Concurrent multi-agent tasks",
+          "beta": "Early access to beta features",
+          "support": "Dedicated customer support"
+        }
+      },
+      "pro": {
+        "description": "For heavy workloads that need more credits and higher concurrency.",
+        "features": {
+          "modelAccess": "Access to top frontier models, including GPT-5.4, Claude Opus 4.6, and Gemini 3.1 Pro",
+          "nanoBanana": "Nano Banana 2 included",
+          "fileMemory": "Intelligent management of all files and memory",
+          "premiumTools": "Access all premium tools for agents",
+          "multiAgent": "High-concurrency multi-agent tasks",
+          "beta": "Early access to beta features",
+          "support": "Dedicated customer support"
+        }
+      },
+      "generic": {
+        "description": "Flexible billing for growing teams.",
+        "features": {
+          "sharedBilling": "Shared workspace billing controls for owners and admins",
+          "managedThroughBillingHub": "Managed through Billing Hub checkout and portal"
+        }
+      }
+    },
+    "page": {
+      "workspaceBilling": "{{workspace}} workspace billing",
+      "heading": "Choose your plan",
+      "subheading": "Select the plan that fits your workload.",
+      "exchangeRate": "1 USD = 1,000 credits across all plans.",
+      "subscriptionEnds": "The current subscription will end on {{date}}.",
+      "emptyPaidPlans": {
+        "title": "No paid plans configured",
+        "description": "Billing Hub does not currently expose any paid subscription products."
+      },
+      "actions": {
+        "manageBilling": "Manage billing",
+        "chooseFree": "Choose Free",
+        "currentPlan": "Current plan",
+        "choosePlan": "Choose {{plan}}"
+      },
+      "subscriptionRequired": {
+        "title": "Subscription Required",
+        "description": "You need an active subscription before purchasing credits. Please subscribe to a plan first.",
+        "cancel": "Cancel",
+        "viewPlans": "View Plans"
+      }
+    }
+  }
 }

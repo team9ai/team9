@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-16-hidden-application-flag.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Add hidden field, findAllVisible, and auto-install filter in ApplicationsService",
+      "status": "pending",
+      "description": "**Goal:** Type-level support for the flag, a tenant-aware visibility filter on the service, and an updated auto-install filter. Mark openclaw as hidden.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/applications/application.types.ts\n- Modify: apps/server/apps/gateway/src/applications/applications.service.ts\n- Modify: apps/server/apps/gateway/src/applications/applications.service.spec.ts\n\n**Verify:** pnpm --filter @team9/gateway test -- --testPathPattern 'applications.service.spec'\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/application.types.ts\", \"apps/server/apps/gateway/src/applications/applications.service.ts\", \"apps/server/apps/gateway/src/applications/applications.service.spec.ts\"], \"verifyCommand\": \"pnpm --filter @team9/gateway test -- --testPathPattern 'applications.service.spec'\", \"acceptanceCriteria\": [\"Application type has optional hidden?: boolean\", \"openclaw entry marked hidden: true\", \"findAllVisible(installedIds) filters hidden apps not in the set\", \"findAll unchanged, still returns all enabled apps\", \"findById still returns hidden apps\", \"findAutoInstall excludes hidden\", \"Unit tests cover all new paths\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Make ApplicationsController tenant-aware",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** GET /v1/applications and GET /v1/applications/:id respect the hidden flag per tenant via WorkspaceGuard + CurrentTenantId.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/applications/applications.controller.ts\n- Modify: apps/server/apps/gateway/src/applications/applications.controller.spec.ts\n\n**Verify:** pnpm --filter @team9/gateway test -- --testPathPattern 'applications.controller.spec'\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/applications.controller.ts\", \"apps/server/apps/gateway/src/applications/applications.controller.spec.ts\"], \"verifyCommand\": \"pnpm --filter @team9/gateway test -- --testPathPattern 'applications.controller.spec'\", \"acceptanceCriteria\": [\"Controller uses AuthGuard + WorkspaceGuard\", \"InstalledApplicationsService injected\", \"findAll resolves tenant, builds installedIds, calls findAllVisible\", \"findById 404s for hidden apps the tenant has not installed\", \"Tests cover all branches\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Reject new installs of hidden apps in InstalledApplicationsService.install",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Direct install of a hidden applicationId rejected with ForbiddenException before any DB write.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/applications/installed-applications.service.ts\n- Modify: apps/server/apps/gateway/src/applications/installed-applications.service.spec.ts\n\n**Verify:** pnpm --filter @team9/gateway test -- --testPathPattern 'installed-applications.service.spec'\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/installed-applications.service.ts\", \"apps/server/apps/gateway/src/applications/installed-applications.service.spec.ts\"], \"verifyCommand\": \"pnpm --filter @team9/gateway test -- --testPathPattern 'installed-applications.service.spec'\", \"acceptanceCriteria\": [\"install() throws ForbiddenException when hidden\", \"No db.insert or onInstall called on hidden path\", \"Existing install paths not regressed\", \"Uninstall of hidden app still works\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Full-module verification",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** Confirm the whole applications module stays green and the gateway compiles.\n\n**Files:** none (verification only; inline fixups allowed)\n\n**Verify:** pnpm --filter @team9/gateway test -- --testPathPattern applications && pnpm build:server\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"pnpm --filter @team9/gateway test -- --testPathPattern applications && pnpm build:server\", \"acceptanceCriteria\": [\"applications module tests green\", \"pnpm build:server succeeds\", \"No new TS errors\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-16T00:00:00Z"
+}

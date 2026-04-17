@@ -54,6 +54,36 @@ describe('ApplicationsService', () => {
       expect(personalStaff!.singleton).toBe(true);
       expect(personalStaff!.autoInstall).toBe(true);
     });
+
+    it('should mark openclaw as hidden', () => {
+      const openclaw = service.findAll().find((app) => app.id === 'openclaw');
+      expect(openclaw).toBeDefined();
+      expect(openclaw!.hidden).toBe(true);
+    });
+  });
+
+  describe('findAllVisible', () => {
+    it('excludes hidden apps when the tenant has not installed them', () => {
+      const apps = service.findAllVisible(new Set<string>());
+      expect(apps.some((app) => app.id === 'openclaw')).toBe(false);
+    });
+
+    it('includes hidden apps when the tenant has installed them', () => {
+      const apps = service.findAllVisible(new Set<string>(['openclaw']));
+      expect(apps.some((app) => app.id === 'openclaw')).toBe(true);
+    });
+
+    it('always includes non-hidden apps regardless of install state', () => {
+      const apps = service.findAllVisible(new Set<string>());
+      expect(apps.some((app) => app.id === 'base-model-staff')).toBe(true);
+      expect(apps.some((app) => app.id === 'common-staff')).toBe(true);
+      expect(apps.some((app) => app.id === 'personal-staff')).toBe(true);
+    });
+
+    it('never returns disabled apps', () => {
+      const apps = service.findAllVisible(new Set<string>(['openclaw']));
+      expect(apps.every((app) => app.enabled)).toBe(true);
+    });
   });
 
   describe('findById', () => {
@@ -66,6 +96,12 @@ describe('ApplicationsService', () => {
 
     it('should return undefined for unknown id', () => {
       expect(service.findById('nonexistent')).toBeUndefined();
+    });
+
+    it('still returns hidden apps (used by install/uninstall handlers)', () => {
+      const app = service.findById('openclaw');
+      expect(app).toBeDefined();
+      expect(app!.hidden).toBe(true);
     });
   });
 
@@ -99,6 +135,11 @@ describe('ApplicationsService', () => {
       const autoApps = service.findAutoInstall();
 
       expect(autoApps.some((app) => app.id === 'openclaw')).toBe(false);
+    });
+
+    it('excludes any hidden app even if autoInstall were set', () => {
+      const autoApps = service.findAutoInstall();
+      expect(autoApps.every((app) => !app.hidden)).toBe(true);
     });
   });
 });

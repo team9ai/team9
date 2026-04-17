@@ -548,7 +548,7 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
     listByRoutine: MockFn;
     replaceAllForRoutine: MockFn;
   };
-  let routinesService: { create: MockFn };
+  let routinesService: { create: MockFn; completeCreation: MockFn };
 
   const BOT_ROW = {
     id: 'bot-1',
@@ -586,6 +586,9 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
     };
     routinesService = {
       create: jest.fn<any>().mockResolvedValue(ROUTINE_ROW),
+      completeCreation: jest
+        .fn<any>()
+        .mockResolvedValue({ ...ROUTINE_ROW, status: 'upcoming' }),
     };
 
     // Directly instantiate to avoid NestJS DI token resolution issues in test
@@ -986,6 +989,134 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       ).rejects.toThrow(BadRequestException);
 
       expect(documentsService.update).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts routine:updated to the workspace after a successful update', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      const updatedRoutine = { ...ROUTINE_ROW, title: 'Updated Title' };
+      db.returning.mockResolvedValueOnce([updatedRoutine] as any);
+
+      await service.updateRoutine(
+        'routine-1',
+        { title: 'Updated Title' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    it('does NOT broadcast routine:updated when bot ownership verification fails', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { title: 'New' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast routine:updated when status transition is rejected', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { status: 'upcoming' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    // ── A-I4: triggers replace path emits exactly once ────────────────
+    it('emits routine:updated exactly once when dto.triggers is provided (replaceAllForRoutine path)', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
+
+      const triggers = [{ type: 'manual', config: {}, enabled: true }];
+      await service.updateRoutine(
+        'routine-1',
+        { triggers } as never,
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      // Triggers were replaced via the dedicated service
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'routine-1',
+        triggers,
+      );
+      // And only ONE broadcast happened — from the outer updateRoutine's
+      // tail emit, NOT from replaceAllForRoutine.
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+  });
+
+  describe('completeCreation', () => {
+    it('verifies bot ownership and delegates completion as the routine creator', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      await expect(
+        (service as any).completeCreation(
+          'routine-1',
+          { notes: 'approved' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual({ ...ROUTINE_ROW, status: 'upcoming' });
+
+      expect(routinesService.completeCreation).toHaveBeenCalledWith(
+        'routine-1',
+        { notes: 'approved' },
+        'owner-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('throws ForbiddenException when bot does not own the routine', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
+
+      await expect(
+        (service as any).completeCreation(
+          'routine-1',
+          {},
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(routinesService.completeCreation).not.toHaveBeenCalled();
     });
   });
 });

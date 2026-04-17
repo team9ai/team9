@@ -51,6 +51,7 @@ function makeChannel(overrides: Record<string, unknown> = {}) {
     id: CHANNEL_ID,
     tenantId: WORKSPACE_ID,
     isActivated: true,
+    isArchived: false,
     ...overrides,
   };
 }
@@ -78,6 +79,7 @@ describe('MessagesController', () => {
     assertReadAccess: MockFn;
     isMember: MockFn;
     findById: MockFn;
+    findByIdOrThrow: MockFn;
     getMemberRole: MockFn;
     assertMentionsAllowed: MockFn;
   };
@@ -96,6 +98,10 @@ describe('MessagesController', () => {
   let propertyDefinitionsService: Record<string, never>;
   let eventEmitter: {
     emit: MockFn;
+  };
+  let capabilityHubClient: {
+    request: MockFn;
+    serviceHeaders: MockFn;
   };
   let gatewayMQService:
     | {
@@ -147,6 +153,20 @@ describe('MessagesController', () => {
       assertReadAccess: jest.fn<any>().mockResolvedValue(undefined),
       isMember: jest.fn<any>().mockResolvedValue(true),
       findById: jest.fn<any>().mockResolvedValue(makeChannel()),
+      findByIdOrThrow: jest.fn<any>().mockResolvedValue({
+        ...makeChannel({ type: 'direct' }),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        otherUser: {
+          id: 'bot-user-1',
+          username: 'alpha_agent',
+          displayName: 'Alpha Agent',
+          avatarUrl: null,
+          status: 'online',
+          userType: 'bot',
+          agentType: 'openclaw',
+        },
+      }),
       getMemberRole: jest.fn<any>().mockResolvedValue('owner'),
       assertMentionsAllowed: jest.fn<any>().mockResolvedValue(undefined),
     };
@@ -161,6 +181,15 @@ describe('MessagesController', () => {
 
     eventEmitter = {
       emit: jest.fn<any>(),
+    };
+
+    capabilityHubClient = {
+      request: jest.fn<any>(),
+      serviceHeaders: jest.fn<any>().mockReturnValue({
+        'x-service-key': 'svc-key',
+        'x-user-id': USER_ID,
+        'x-tenant-id': WORKSPACE_ID,
+      }),
     };
 
     gatewayMQService = {
@@ -190,6 +219,7 @@ describe('MessagesController', () => {
       aiAutoFillService as never,
       propertyDefinitionsService as never,
       eventEmitter as never,
+      capabilityHubClient as never,
       gatewayMQService as never,
     );
     (controller as any).logger = {
@@ -284,6 +314,58 @@ describe('MessagesController', () => {
         CHANNEL_ID,
         USER_ID,
       );
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('rejects archived channels after membership is confirmed', async () => {
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isArchived: true }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('archived-channel error message mentions "archived"', async () => {
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isArchived: true }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toThrow(/archived/i);
+    });
+
+    it('reports deactivated (not archived) when a channel is both deactivated and archived', async () => {
+      // The controller checks isActivated before isArchived. If both flags
+      // are set, the deactivation error must win so the operational signal
+      // (the channel's execution is over) isn't masked by the archive
+      // state. This test pins the ordering so a future refactor can't
+      // silently swap the two checks.
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isActivated: false, isArchived: true }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toThrow(/deactivated/i);
+
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
     });
 
@@ -399,6 +481,43 @@ describe('MessagesController', () => {
       );
     });
 
+    it('does not publish channel triggers for deep-research messages', async () => {
+      const fullMessage = makeMessage({
+        metadata: {
+          deepResearch: {
+            taskId: 'task-1',
+            version: 1,
+          },
+        },
+      });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'research this market',
+          metadata: {
+            deepResearch: {
+              taskId: 'task-1',
+              version: 1,
+            },
+          },
+        } as never),
+      ).resolves.toEqual(fullMessage);
+
+      expect(gatewayMQService?.publishWorkspaceEvent).not.toHaveBeenCalled();
+      expect(gatewayMQService?.publishPostBroadcast).toHaveBeenCalled();
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'message.created',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            id: fullMessage.id,
+            senderId: fullMessage.senderId,
+          }),
+        }),
+      );
+    });
+
     it('skips websocket broadcast and MQ publish when skipBroadcast is set and MQ is not ready', async () => {
       gatewayMQService?.isReady.mockReturnValueOnce(false);
 
@@ -472,6 +591,137 @@ describe('MessagesController', () => {
       } as never);
 
       expect(channelsService.assertMentionsAllowed).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('startDeepResearch', () => {
+    it('creates a deep-research task and stores it as a non-auto-send chat message', async () => {
+      capabilityHubClient.request.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: { taskId: 'task-1', status: 'running' },
+          }),
+          {
+            status: 201,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+      const fullMessage = makeMessage({
+        content: 'research this market',
+        metadata: {
+          deepResearch: {
+            taskId: 'task-1',
+            version: 1,
+            origin: 'dashboard',
+          },
+        },
+      });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.startDeepResearch(USER_ID, CHANNEL_ID, {
+          input: 'research this market',
+          origin: 'dashboard',
+        } as never),
+      ).resolves.toEqual({
+        task: { id: 'task-1', status: 'running' },
+        message: fullMessage,
+      });
+
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(channelsService.findByIdOrThrow).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(capabilityHubClient.serviceHeaders).toHaveBeenCalledWith({
+        userId: USER_ID,
+        tenantId: WORKSPACE_ID,
+        botId: 'bot-user-1',
+      });
+      expect(capabilityHubClient.request).toHaveBeenCalledWith(
+        'POST',
+        '/api/deep-research/tasks',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'content-type': 'application/json',
+            'x-user-id': USER_ID,
+            'x-tenant-id': WORKSPACE_ID,
+          }),
+          body: JSON.stringify({
+            input: 'research this market',
+            agentConfig: undefined,
+          }),
+        }),
+      );
+      expect(gatewayMQService?.publishWorkspaceEvent).not.toHaveBeenCalled();
+      expect(gatewayMQService?.publishPostBroadcast).toHaveBeenCalled();
+    });
+
+    it('preserves structured hub errors for chat deep-research starts', async () => {
+      capabilityHubClient.request.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED',
+              message: 'Concurrency limit reached.',
+              details: { retryAfterSeconds: 42 },
+            },
+          }),
+          {
+            status: 429,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+
+      await expect(
+        controller.startDeepResearch(USER_ID, CHANNEL_ID, {
+          input: 'research this market',
+          origin: 'dashboard',
+        } as never),
+      ).rejects.toMatchObject({
+        status: 429,
+        response: {
+          success: false,
+          error: {
+            code: 'DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED',
+            message: 'Concurrency limit reached.',
+            details: { retryAfterSeconds: 42 },
+          },
+        },
+      });
+    });
+
+    it('rejects deep research outside bot DMs', async () => {
+      channelsService.findByIdOrThrow.mockResolvedValueOnce({
+        ...makeChannel({ type: 'direct' }),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        otherUser: {
+          id: 'human-2',
+          username: 'bob',
+          displayName: 'Bob',
+          avatarUrl: null,
+          status: 'online',
+          userType: 'human',
+          agentType: null,
+        },
+      });
+
+      await expect(
+        controller.startDeepResearch(USER_ID, CHANNEL_ID, {
+          input: 'research this market',
+        } as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(capabilityHubClient.request).not.toHaveBeenCalled();
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
     });
   });
 

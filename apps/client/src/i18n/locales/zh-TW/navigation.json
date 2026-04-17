@@ -11,11 +11,11 @@
   "personalAssistant": "個人助理",
   "chatButton": "聊天",
   "dmPermissionDenied": "這是一個私人助理，不開放私訊。",
-  "routines": "例行工作",
+  "routines": "例行",
   "resources": "資源",
   "skills": "技能",
   "library": "知識庫",
-  "application": "應用程式",
+  "application": "應用",
   "more": "更多",
   "noWorkspace": "無工作空間",
   "moreWorkspaces": "更多工作空間",
@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "餘額不足，點擊儲值",
   "dashboardTitle": "今天能為您做什麼？",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "深度研究",
@@ -142,5 +143,8 @@
   "uninstallConfirmTitle": "解除安裝 {{name}}？",
   "uninstallConfirmDescription": "這將從您的工作空間移除此應用程式。與此應用程式相關的資料可能會遺失。",
   "dangerZone": "危險操作",
-  "hideConversation": "隱藏對話"
+  "hideConversation": "隱藏對話",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "個人助理",
+  "agentPillModel": "模型"
 }

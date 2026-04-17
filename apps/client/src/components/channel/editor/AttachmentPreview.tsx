@@ -65,7 +65,7 @@ function ImageAttachmentItem({
           "w-20 h-20 rounded-lg overflow-hidden border-2 cursor-pointer",
           isError && "border-destructive/30",
           isUploading && "border-info/30",
-          !isError && !isUploading && "border-transparent",
+          !isError && !isUploading && "border-border",
         )}
         onClick={() => !isUploading && setIsPreviewOpen(true)}
       >
@@ -261,7 +261,7 @@ export function AttachmentPreview({
   if (files.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 pt-3">
+    <div className="flex flex-wrap gap-2 px-5 pt-3">
       {files.map((file) => (
         <AttachmentItem
           key={file.id}

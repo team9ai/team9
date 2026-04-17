@@ -13,6 +13,10 @@ export interface User {
   displayName?: string;
   avatarUrl?: string;
   isActive: boolean;
+  /** IETF BCP 47 language tag. Null when the user has not yet reported a preference. */
+  language?: string | null;
+  /** IANA time zone name. Null when the user has not yet reported a preference. */
+  timeZone?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +48,7 @@ export interface AuthResponse {
   user: User;
   accessToken: string;
   refreshToken: string;
+  isNewUser: boolean;
 }
 
 export interface TokenPair {

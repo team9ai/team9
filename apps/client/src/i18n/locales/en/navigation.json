@@ -103,9 +103,12 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "Low credits. Click to top up.",
   "dashboardTitle": "What can I help you with today?",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "Deep research",
+  "dashboardDeepResearchPlaceholder": "Describe the topic you want to research…",
+  "dashboardDeepResearchCreateFailed": "Failed to create deep research task",
   "dashboardActionGenerateImage": "Generate image",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "Press Enter to send. Use Shift+Enter for a new line.",
@@ -142,5 +145,8 @@
   "uninstallConfirmTitle": "Uninstall {{name}}?",
   "uninstallConfirmDescription": "This will remove the app from your workspace. Any data associated with this app may be lost.",
   "dangerZone": "Danger Zone",
-  "hideConversation": "Hide Conversation"
+  "hideConversation": "Hide Conversation",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Personal Assistant",
+  "agentPillModel": "Model"
 }

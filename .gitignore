@@ -69,3 +69,5 @@ tmp
 
 # Turbo
 .turbo
+
+.playwright-mcp

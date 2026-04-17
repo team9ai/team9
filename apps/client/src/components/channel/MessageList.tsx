@@ -8,7 +8,11 @@ import {
 } from "react-virtuoso";
 import { Loader2 } from "lucide-react";
 import type { Message, ChannelMember } from "@/types/im";
-import { getAgentMeta, pairToolEvents } from "@/lib/agent-events";
+import {
+  getAgentMeta,
+  pairToolEvents,
+  sortByEffectiveTime,
+} from "@/lib/agent-events";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
@@ -31,6 +35,7 @@ import { MessageItem } from "./MessageItem";
 import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
+import { StreamingThinkingRow } from "./StreamingThinkingRow";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
@@ -164,9 +169,18 @@ export function MessageList({
     };
   }, [channelId]);
 
-  // Messages come in DESC order (newest first), reverse to chronological for Virtuoso.
-  // Keep raw order for stable firstItemIndex tracking, then apply tool pairing for display.
-  const rawChrono = useMemo(() => [...messages].reverse(), [messages]);
+  // Messages come in DESC order (newest first). Two-step transform:
+  //   1. Reverse to chronological ascending.
+  //   2. Re-sort by effective time so thinking events (which persist at
+  //      end-of-thinking but carry `startedAt` for true beginning) slide
+  //      back into their real timeline position — otherwise "Thought for
+  //      4s" lands after the text reply it preceded.
+  // Tool pairing runs last so `tool_result` still hugs its `tool_call`
+  // regardless of any small startedAt skew between them.
+  const rawChrono = useMemo(
+    () => sortByEffectiveTime([...messages].reverse()),
+    [messages],
+  );
   const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
   const listData = useMemo<ChannelListItem[]>(() => {
     const items: ChannelListItem[] = chronoMessages.map((message) => ({
@@ -399,8 +413,17 @@ export function MessageList({
   const itemContent = useCallback(
     (index: number, item: ChannelListItem) => {
       if (item.type === "stream") {
+        // While streaming, lift thinking out of the bot bubble into a
+        // tracking row that looks identical to the persisted "Thought
+        // for Xs" row the user will see after the round finishes. The
+        // row is shown as soon as the stream is active — not gated on
+        // thinking content — so the "Thinking Ns" indicator appears
+        // immediately instead of waiting for the first thinking chunk
+        // (Claude only flushes thinking deltas when a reasoning block
+        // finalizes, which can be several seconds in).
         return (
           <div className="py-2">
+            <StreamingThinkingRow stream={item.stream} />
             <StreamingMessageItem stream={item.stream} members={members} />
           </div>
         );
@@ -424,24 +447,51 @@ export function MessageList({
       // a 1px placeholder (for the rest). Non-DM channels and latest rounds
       // fall through to normal rendering.
       const foldDecision = decideRoundRender(message.id, foldMapsRef.current);
-      if (foldDecision.kind === "summary") {
-        return (
-          <div className="py-0.5" data-round-summary-id={foldDecision.roundId}>
+      const isThinkingEvent = agentMeta?.agentEventType === "thinking";
+
+      // Thinking rows always render (they're the primary signal of what
+      // the agent did). Non-thinking steps inside a folded round either
+      // become the summary button (the round's anchor message) or a
+      // 1px placeholder. When the anchor *is* a thinking event, we
+      // still need the summary to show — we render it below the thinking
+      // row via `foldedRoundSummary` at the end of this function.
+      const foldedRoundSummary =
+        isThinkingEvent && foldDecision.kind === "summary" ? (
+          <div
+            key="round-summary"
+            className="py-0.5"
+            data-round-summary-id={foldDecision.roundId}
+          >
             <RoundCollapseSummary
               stepCount={foldDecision.stepCount}
               onClick={() => toggleRoundExpanded(foldDecision.roundId)}
             />
           </div>
-        );
-      }
-      if (foldDecision.kind === "hidden") {
-        return (
-          <div
-            className="min-h-px overflow-hidden"
-            aria-hidden="true"
-            data-round-hidden-id={foldDecision.roundId}
-          />
-        );
+        ) : null;
+
+      if (!isThinkingEvent) {
+        if (foldDecision.kind === "summary") {
+          return (
+            <div
+              className="py-0.5"
+              data-round-summary-id={foldDecision.roundId}
+            >
+              <RoundCollapseSummary
+                stepCount={foldDecision.stepCount}
+                onClick={() => toggleRoundExpanded(foldDecision.roundId)}
+              />
+            </div>
+          );
+        }
+        if (foldDecision.kind === "hidden") {
+          return (
+            <div
+              className="min-h-px overflow-hidden"
+              aria-hidden="true"
+              data-round-hidden-id={foldDecision.roundId}
+            />
+          );
+        }
       }
 
       // Combined tool_call + tool_result block: render both in one card,
@@ -465,11 +515,11 @@ export function MessageList({
             <div
               id={`message-${message.id}`}
               className={cn(
-                "ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
+                "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
                 isFirstInGroup ? "mt-1 pt-1.5" : "",
                 "pb-0.5",
               )}
-              style={{ paddingLeft: "13px" }}
+              style={{ paddingLeft: "9px" }}
             >
               <ToolCallBlock
                 callMetadata={agentMeta}
@@ -518,8 +568,8 @@ export function MessageList({
         return (
           <div
             id={`message-${message.id}`}
-            className="ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4 py-0.5"
-            style={{ paddingLeft: "13px" }}
+            className="ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4 py-0.5"
+            style={{ paddingLeft: "9px" }}
           >
             <A2UIResponseItem message={message} metadata={agentMeta} />
           </div>
@@ -544,42 +594,48 @@ export function MessageList({
 
       if (readOnly) {
         return (
-          <div className="py-0.5">
-            {showUnreadDivider && <UnreadDivider />}
-            <MessageItem
-              key={message.id}
-              message={message}
-              prevMessage={prevMessage}
-              isRootMessage={true}
-              isHighlighted={isHighlighted}
-              supportsProperties={supportsProperties}
-            />
-          </div>
+          <>
+            <div className="py-0.5">
+              {showUnreadDivider && <UnreadDivider />}
+              <MessageItem
+                key={message.id}
+                message={message}
+                prevMessage={prevMessage}
+                isRootMessage={true}
+                isHighlighted={isHighlighted}
+                supportsProperties={supportsProperties}
+              />
+            </div>
+            {foldedRoundSummary}
+          </>
         );
       }
 
       return (
-        <div className="py-0.5">
-          {showUnreadDivider && <UnreadDivider />}
-          <ChannelMessageItem
-            key={message.id}
-            message={message}
-            prevMessage={prevMessage}
-            currentUserId={currentUser?.id}
-            currentUserRole={currentUserRole}
-            showReplyCount={Boolean(hasReplies)}
-            onReplyCountClick={() => openThread(message.id)}
-            isHighlighted={isHighlighted}
-            channelId={channelId}
-            isDirect={channelType === "direct" || channelType === "echo"}
-            supportsProperties={supportsProperties}
-            editingMessageId={editingMessageId}
-            isEditSaving={updateMessage.isPending}
-            onEditStart={handleEditStart}
-            onEditSave={handleEditSave}
-            onEditCancel={handleEditCancel}
-          />
-        </div>
+        <>
+          <div className="py-0.5">
+            {showUnreadDivider && <UnreadDivider />}
+            <ChannelMessageItem
+              key={message.id}
+              message={message}
+              prevMessage={prevMessage}
+              currentUserId={currentUser?.id}
+              currentUserRole={currentUserRole}
+              showReplyCount={Boolean(hasReplies)}
+              onReplyCountClick={() => openThread(message.id)}
+              isHighlighted={isHighlighted}
+              channelId={channelId}
+              isDirect={channelType === "direct" || channelType === "echo"}
+              supportsProperties={supportsProperties}
+              editingMessageId={editingMessageId}
+              isEditSaving={updateMessage.isPending}
+              onEditStart={handleEditStart}
+              onEditSave={handleEditSave}
+              onEditCancel={handleEditCancel}
+            />
+          </div>
+          {foldedRoundSummary}
+        </>
       );
     },
     // foldMaps drives summary/hidden rendering. We read via foldMapsRef but

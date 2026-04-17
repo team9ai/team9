@@ -33,8 +33,9 @@ export function ApplicationMainContent() {
   });
 
   const { data: allApps } = useQuery({
-    queryKey: ["applications"],
+    queryKey: ["applications", workspaceId],
     queryFn: () => api.applications.getApplications(),
+    enabled: !!workspaceId,
   });
 
   const installMutation = useMutation({

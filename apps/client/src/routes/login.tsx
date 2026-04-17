@@ -17,6 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getErrorMessage } from "@/services/http";
 import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
+import { useTeam9PostHog } from "@/analytics/posthog/provider";
+import { captureWithBridge } from "@/analytics/posthog/capture";
+import { EVENTS } from "@/analytics/posthog/events";
 
 const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -420,6 +423,10 @@ function WebLoginView() {
   const authCompletedInSession = useRef(false);
   const lastAutoVerifyAttempt = useRef<string | null>(null);
   const authMethodRef = useRef<"email" | "google">("email");
+  const postAuthRedirectMode = useRef<"default" | "home">("default");
+  const pageViewFiredRef = useRef(false);
+
+  const { client: phClient } = useTeam9PostHog();
 
   const authStart = useAuthStart();
   const verifyCode = useVerifyCode();
@@ -428,29 +435,31 @@ function WebLoginView() {
   const { data: currentUser, isLoading } = useCurrentUser();
   const { data: invitationInfo } = useInvitationInfo(invite);
 
-  const navigateToPostAuthDestination = useCallback(() => {
-    if (invite) {
-      navigate({ to: "/invite/$code", params: { code: invite } });
-    } else {
-      navigate({ to: redirect || "/" });
-    }
-  }, [invite, navigate, redirect]);
+  const navigateToPostAuthDestination = useCallback(
+    (options?: { preferHome?: boolean }) => {
+      if (invite) {
+        navigate({
+          to: "/invite/$code",
+          params: { code: invite },
+          replace: true,
+        });
+        return;
+      }
+
+      navigate({
+        to: (options?.preferHome ? "/channels" : redirect || "/") as never,
+        replace: true,
+      });
+    },
+    [invite, navigate, redirect],
+  );
 
   const navigateAfterAuth = useCallback(async () => {
-    authCompletedInSession.current = true;
-
-    try {
-      const { default: posthog } = await import("posthog-js");
-      if (posthog.__loaded) {
-        posthog.capture("sign_up_completed", {
-          method: authMethodRef.current,
-          has_invite: !!invite,
-          is_desktop_flow: !!desktopSessionId,
-        });
-      }
-    } catch {
-      // Analytics should never block auth flow
+    if (authCompletedInSession.current) {
+      return;
     }
+
+    authCompletedInSession.current = true;
 
     if (desktopSessionId) {
       try {
@@ -464,18 +473,28 @@ function WebLoginView() {
       return;
     }
 
-    navigateToPostAuthDestination();
-  }, [
-    completeDesktop,
-    desktopSessionId,
-    invite,
-    navigateToPostAuthDestination,
-  ]);
+    setAuthState("authenticated");
+  }, [completeDesktop, desktopSessionId]);
 
   useEffect(() => {
+    if (!localStorage.getItem("auth_token")) return;
     if (!currentUser || isLoading || authCompletedInSession.current) return;
     void navigateAfterAuth();
   }, [currentUser, isLoading, navigateAfterAuth]);
+
+  useEffect(() => {
+    if (authState !== "authenticated" || desktopSessionId) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      navigateToPostAuthDestination({
+        preferHome: postAuthRedirectMode.current === "home",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [authState, desktopSessionId, navigateToPostAuthDestination]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -483,6 +502,14 @@ function WebLoginView() {
       return () => clearTimeout(timer);
     }
   }, [countdown]);
+
+  useEffect(() => {
+    if (pageViewFiredRef.current) return;
+    pageViewFiredRef.current = true;
+    captureWithBridge(phClient, EVENTS.SIGNUP_PAGE_VIEWED, {
+      page_key: "signup",
+    });
+  }, [phClient]);
 
   const autoVerifyAttemptKey = useMemo(() => {
     if (code.length !== 6 || !challengeId) return null;
@@ -504,13 +531,18 @@ function WebLoginView() {
     const doVerify = async () => {
       setError("");
       try {
+        postAuthRedirectMode.current = "home";
         setAuthState("verifying_code");
-        await verifyCode.mutateAsync({
+        const authResponse = await verifyCode.mutateAsync({
           email,
           challengeId: currentChallengeId,
           code,
         });
-        setAuthState("authenticated");
+        if (authResponse.isNewUser) {
+          captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+            signup_method: "email",
+          });
+        }
         await navigateAfterAuth();
       } catch (err: unknown) {
         setAuthState("code_sent");
@@ -526,12 +558,15 @@ function WebLoginView() {
     code,
     email,
     navigateAfterAuth,
+    phClient,
     t,
     verifyCode,
   ]);
 
   const handleContinueInBrowser = () => {
-    navigateToPostAuthDestination();
+    navigateToPostAuthDestination({
+      preferHome: postAuthRedirectMode.current === "home",
+    });
   };
 
   useEffect(() => {
@@ -556,6 +591,9 @@ function WebLoginView() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    captureWithBridge(phClient, EVENTS.SIGNUP_BUTTON_CLICKED, {
+      signup_method: "email",
+    });
 
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
@@ -588,13 +626,18 @@ function WebLoginView() {
     if (!challengeId) return;
 
     try {
+      postAuthRedirectMode.current = "home";
       setAuthState("verifying_code");
-      await verifyCode.mutateAsync({
+      const authResponse = await verifyCode.mutateAsync({
         email,
         challengeId,
         code,
       });
-      setAuthState("authenticated");
+      if (authResponse.isNewUser) {
+        captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+          signup_method: "email",
+        });
+      }
       await navigateAfterAuth();
     } catch (err: unknown) {
       setAuthState("code_sent");
@@ -624,6 +667,9 @@ function WebLoginView() {
     credential?: string;
   }) => {
     if (!credentialResponse.credential) return;
+    captureWithBridge(phClient, EVENTS.SIGNUP_BUTTON_CLICKED, {
+      signup_method: "google",
+    });
     setError("");
 
     if (invite) {
@@ -631,12 +677,18 @@ function WebLoginView() {
     }
 
     authMethodRef.current = "google";
+    postAuthRedirectMode.current = "default";
 
     try {
-      await googleAuth.mutateAsync({
+      const result = await googleAuth.mutateAsync({
         credential: credentialResponse.credential,
         signupSource: invite ? "invite" : "self",
       });
+      if (result.isNewUser) {
+        captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+          signup_method: "google",
+        });
+      }
       await navigateAfterAuth();
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("googleLoginFailed")));
@@ -650,6 +702,7 @@ function WebLoginView() {
     setDevCode(undefined);
     setError("");
     setDisplayName("");
+    postAuthRedirectMode.current = "default";
   };
 
   // Loading state
@@ -690,6 +743,26 @@ function WebLoginView() {
               {t("useInBrowser")}
             </button>
           </p>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  if (authState === "authenticated") {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary animate-spin" />
+            </div>
+            <p className="text-muted-foreground text-base font-medium">
+              {postAuthRedirectMode.current === "home" && !invite
+                ? t("redirectingHome")
+                : t("signingIn")}
+            </p>
+          </div>
         </GlassCard>
       </LoginLayout>
     );

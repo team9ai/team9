@@ -74,6 +74,8 @@ export interface BotAuthValidationContext {
   botId: string;
   userId: string;
   tenantId: string;
+  email: string;
+  username: string;
 }
 
 interface ValidatedBotTokenMatch {
@@ -573,11 +575,25 @@ export class BotService implements OnModuleInit {
         return null;
       }
 
+      const [user] = await this.db
+        .select({
+          email: schema.users.email,
+          username: schema.users.username,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.id, match.userId))
+        .limit(1);
+      if (!user) {
+        return null;
+      }
+
       return {
         context: {
           botId: match.botId,
           userId: match.userId,
           tenantId: match.tenantId,
+          email: user.email,
+          username: user.username,
         },
         version: match.authVersion,
       };

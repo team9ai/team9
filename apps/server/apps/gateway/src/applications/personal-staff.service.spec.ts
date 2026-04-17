@@ -1,5 +1,11 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
+// StaffService.createLlmProvider() is called even when streamText is
+// mocked, and it throws when neither OPENROUTER_API_KEY nor
+// CAPABILITY_HUB_URL is set. Provide a stub value up-front so tests
+// don't crash in minimal CI environments.
+process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
+
 const mockStreamText = jest.fn<any>();
 
 jest.unstable_mockModule('ai', () => ({
@@ -22,6 +28,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreatePersonalStaffDto,
   UpdatePersonalStaffDto,
@@ -207,6 +214,7 @@ describe('PersonalStaffService', () => {
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
   let installedApplicationsService: { findById: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -239,6 +247,12 @@ describe('PersonalStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
+
     mockStreamText.mockReset();
     mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
 
@@ -263,6 +277,7 @@ describe('PersonalStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -283,7 +298,9 @@ describe('PersonalStaffService', () => {
       );
 
       expect(result.roleTitle).toBe('Personal Assistant');
-      expect(result.jobDescription).toBe('Personal AI assistant');
+      expect(result.jobDescription).toBe(
+        'Dedicated personal assistant for your owner',
+      );
       expect(result.botId).toBe(BOT_ID);
       expect(result.userId).toBe(BOT_USER_ID);
       expect(result.persona).toBe('Friendly helper');
@@ -603,6 +620,48 @@ describe('PersonalStaffService', () => {
           peerUserId: OWNER_ID,
           isMentorDm: true,
         });
+      });
+
+      it("includes the owner's persisted language + timeZone in team9Context when set", async () => {
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
+
+        const dto = makeCreateDto();
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(
+          OWNER_ID,
+        );
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toMatchObject({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: OWNER_ID,
+          isMentorDm: true,
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
+      });
+
+      it('omits language and timeZone from team9Context when the owner has no preferences set', async () => {
+        // Default usersService.getLocalePreferences mock returns { language: null, timeZone: null } →
+        // neither key is spread into team9Context.
+        const dto = makeCreateDto();
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).not.toHaveProperty('language');
+        expect(event.payload.team9Context).not.toHaveProperty('timeZone');
       });
 
       it('triggers bootstrap when agenticBootstrap=true', async () => {

@@ -20,6 +20,7 @@ import wsService from "@/services/websocket";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import { StreamingMessageItem } from "./StreamingMessageItem";
+import { StreamingThinkingRow } from "./StreamingThinkingRow";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { ResizeHandle } from "./ResizeHandle";
 import { PropertyPanel } from "./properties/PropertyPanel";
@@ -318,8 +319,12 @@ export function ThreadPanel({
   const itemContent = useCallback(
     (_index: number, item: ThreadListItem) => {
       if (item.type === "stream") {
+        // Always render the thinking row while streaming — see the
+        // parallel comment in MessageList.tsx for why this isn't gated
+        // on thinking content.
         return (
           <div className="py-0.5">
+            <StreamingThinkingRow stream={item.stream} />
             <StreamingMessageItem stream={item.stream} members={members} />
           </div>
         );

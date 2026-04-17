@@ -33,16 +33,14 @@ export function useOnlineUsers() {
   });
 }
 
-export function getAlwaysOnlineBaseModelBotUserIds(
+export function getAlwaysOnlineAgentBotUserIds(
   apps: InstalledApplicationWithBots[] | undefined,
 ) {
   const userIds = new Set<string>();
 
   for (const app of apps ?? []) {
-    if (app.applicationId !== "base-model-staff") continue;
-
     for (const bot of app.bots) {
-      if ("managedMeta" in bot && bot.userId) {
+      if (bot.userId) {
         userIds.add(bot.userId);
       }
     }
@@ -51,7 +49,13 @@ export function getAlwaysOnlineBaseModelBotUserIds(
   return userIds;
 }
 
-export function useAlwaysOnlineBaseModelBotUserIds() {
+export function getAlwaysOnlineBaseModelBotUserIds(
+  apps: InstalledApplicationWithBots[] | undefined,
+) {
+  return getAlwaysOnlineAgentBotUserIds(apps);
+}
+
+export function useAlwaysOnlineAgentBotUserIds() {
   const workspaceId = useSelectedWorkspaceId();
   const { data: installedApps } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
@@ -61,9 +65,13 @@ export function useAlwaysOnlineBaseModelBotUserIds() {
   });
 
   return useMemo(
-    () => getAlwaysOnlineBaseModelBotUserIds(installedApps),
+    () => getAlwaysOnlineAgentBotUserIds(installedApps),
     [installedApps],
   );
+}
+
+export function useAlwaysOnlineBaseModelBotUserIds() {
+  return useAlwaysOnlineAgentBotUserIds();
 }
 
 /**
@@ -96,7 +104,7 @@ export function useUpdateStatus() {
  */
 export function useIsUserOnline(userId: string | undefined) {
   const { data: onlineUsers = {} } = useOnlineUsers();
-  const alwaysOnlineBotUserIds = useAlwaysOnlineBaseModelBotUserIds();
+  const alwaysOnlineBotUserIds = useAlwaysOnlineAgentBotUserIds();
 
   if (!userId) return false;
   return (

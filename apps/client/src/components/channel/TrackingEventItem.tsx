@@ -1,5 +1,17 @@
 import { useState, useEffect } from "react";
-import { ChevronRight } from "lucide-react";
+import {
+  AlertCircle,
+  Brain,
+  ChevronRight,
+  ClipboardList,
+  Flag,
+  List,
+  MousePointerClick,
+  PenLine,
+  Play,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
@@ -23,15 +35,9 @@ interface TrackingEventItemProps {
   collapsible?: boolean;
 }
 
-const STATUS_DOT_CLASSES: Record<AgentEventMetadata["status"], string> = {
-  running: "bg-emerald-500 animate-pulse",
-  completed: "bg-emerald-500",
-  failed: "bg-red-500",
-  resolved: "bg-emerald-500",
-  timeout: "bg-amber-500",
-  cancelled: "bg-red-500",
-};
-
+// Status drives color (yellow while running → green on success, red on
+// failure, amber on timeout). The same classes are applied to both the
+// event icon and its label so each row reads as one color-coded unit.
 const LABEL_CLASSES: Record<AgentEventMetadata["status"], string> = {
   running: "text-yellow-400",
   completed: "text-emerald-500",
@@ -39,6 +45,22 @@ const LABEL_CLASSES: Record<AgentEventMetadata["status"], string> = {
   resolved: "text-emerald-500",
   timeout: "text-amber-500",
   cancelled: "text-red-500",
+};
+
+// Event type drives the icon. Types that never actually render (like
+// turn_separator) still need a placeholder so TypeScript can keep the
+// record exhaustive.
+const EVENT_ICONS: Record<AgentEventMetadata["agentEventType"], LucideIcon> = {
+  thinking: Brain,
+  writing: PenLine,
+  tool_call: Wrench,
+  tool_result: ClipboardList,
+  agent_start: Play,
+  agent_end: Flag,
+  error: AlertCircle,
+  turn_separator: Brain,
+  a2ui_surface_update: List,
+  a2ui_response: MousePointerClick,
 };
 
 // i18n key mapping for each agent event type. The actual copy is resolved
@@ -86,15 +108,20 @@ export function formatDuration(ms: number, t: ChannelTFunction): string {
 }
 
 /**
- * Build the stats label for a thinking event. Examples (en):
- *   "Thinking (1200 tokens, 2m 3s)"
- *   "Thinking (1200 tokens)"
- *   "Thinking (2m 3s)"
- *   "Thinking"
+ * Build the label for a thinking event. Examples:
+ *   streaming  → "Thinking 1m 4s"  / "思考中 1 分 4 秒"
+ *   completed  → "Thought for 2m 12s" / "思考用时 2 分 12 秒"
+ *   no duration (edge case) → "Thinking" / "思考中"
  *
- * When `isStreaming` and `metadata.startedAt` is present, the duration is
- * computed live from the current clock. The caller is expected to re-render
- * on a timer to refresh this value.
+ * While streaming with a valid `startedAt`, the duration starts at 0s and
+ * ticks upward (the caller re-renders on a timer). We intentionally no
+ * longer gate on `elapsed > 0` so the label always reflects elapsed time
+ * from the moment thinking begins, rather than jumping in after the first
+ * second.
+ *
+ * Token counts are intentionally omitted — many providers surface only
+ * summarized thinking, so a raw token number next to a short summary was
+ * confusing. Duration is unambiguous.
  */
 export function buildThinkingStats(
   metadata: AgentEventMetadata,
@@ -102,36 +129,28 @@ export function buildThinkingStats(
   t: ChannelTFunction,
   nowMs: number = Date.now(),
 ): string {
-  const parts: string[] = [];
+  let durationText: string | null = null;
 
-  // Tokens: prefer totalTokens, fall back to outputTokens.
-  const tokens =
-    typeof metadata.totalTokens === "number"
-      ? metadata.totalTokens
-      : metadata.outputTokens;
-  if (typeof tokens === "number" && tokens > 0) {
-    parts.push(t("tracking.thinking.tokens", { count: tokens }));
-  }
-
-  // Duration: while streaming, compute from startedAt; otherwise use
-  // the final durationMs captured on completion.
   if (isStreaming && metadata.startedAt) {
     const startTs = new Date(metadata.startedAt).getTime();
     if (!Number.isNaN(startTs)) {
-      const elapsed = nowMs - startTs;
-      if (elapsed > 0) {
-        parts.push(formatDuration(elapsed, t));
-      }
+      const elapsed = Math.max(0, nowMs - startTs);
+      durationText = formatDuration(elapsed, t);
     }
   } else if (
+    !isStreaming &&
     typeof metadata.durationMs === "number" &&
-    metadata.durationMs > 0
+    metadata.durationMs >= 0
   ) {
-    parts.push(formatDuration(metadata.durationMs, t));
+    durationText = formatDuration(metadata.durationMs, t);
   }
 
-  if (parts.length === 0) return t("tracking.thinking.label");
-  return t("tracking.thinking.labelWithStats", { stats: parts.join(", ") });
+  if (durationText === null) {
+    return t("tracking.thinking.label");
+  }
+  return isStreaming
+    ? t("tracking.thinking.thinkingWithDuration", { stats: durationText })
+    : t("tracking.thinking.thoughtForDuration", { stats: durationText });
 }
 
 /**
@@ -207,13 +226,30 @@ export function TrackingEventItem({
     ? buildThinkingStats(metadata, isStreaming, t)
     : (toolCallLabel ?? eventTypeLabel);
 
+  // Icon stays status-colored so a glance at the left gutter conveys
+  // the outcome — except for lifecycle markers (thinking / agent_start
+  // / agent_end) that don't meaningfully "fail". Coloring those green
+  // or red would mislead: the model either thinks or it doesn't, and a
+  // start/end marker is a timeline beacon, not a pass/fail signal. So
+  // those stay muted gray (and still pulse while running). Failure
+  // cases for event types that can fail (tool_call, writing, error)
+  // continue to surface red on the icon.
+  const isNeutralIconType =
+    isThinking ||
+    metadata.agentEventType === "agent_start" ||
+    metadata.agentEventType === "agent_end";
+  const iconColorClass = isNeutralIconType
+    ? "text-muted-foreground"
+    : LABEL_CLASSES[status];
   const labelColorClass =
-    isThinking && status !== "failed"
-      ? "text-purple-400"
-      : LABEL_CLASSES[status];
+    status === "failed" || status === "cancelled"
+      ? "text-red-500"
+      : "text-foreground/70";
+  const EventIcon = EVENT_ICONS[metadata.agentEventType];
 
-  // Thinking events are special: no status dot, and default to
-  // collapsible even when `collapsible` prop isn't explicitly set.
+  // Thinking defaults to collapsible even when the `collapsible` prop
+  // isn't explicitly set (the thinking body lives inside the expandable
+  // panel below).
   const effectiveCollapsible = collapsible || isThinking;
 
   // For thinking, prefer metadata.thinking over the plain content prop.
@@ -247,22 +283,28 @@ export function TrackingEventItem({
           effectiveCollapsible ? () => setIsExpanded(!isExpanded) : undefined
         }
       >
-        {/* Status dot — hidden for thinking events by design */}
-        {!isThinking && (
-          <div
-            className={cn(
-              "w-2 h-2 rounded-full shrink-0 mr-[26px]",
-              STATUS_DOT_CLASSES[status],
-            )}
-          />
-        )}
+        {/* Event icon. Shape = event type; color = status. mr-[23px]
+            lines the label text start up with the message text in the
+            surrounding message rows (see note on paddingLeft in
+            MessageItem.tsx). */}
+        <EventIcon
+          data-testid="event-icon"
+          size={14}
+          strokeWidth={2.25}
+          className={cn(
+            "shrink-0 mr-[23px]",
+            iconColorClass,
+            status === "running" && "animate-pulse",
+          )}
+        />
+
         {/* Label */}
         <span
           className={cn(
             "text-xs font-semibold shrink-0",
             isThinking ? "whitespace-nowrap" : "w-[72px]",
             labelColorClass,
-            isThinking && isStreaming && "animate-pulse",
+            status === "running" && "animate-pulse",
           )}
         >
           {label}
@@ -299,15 +341,19 @@ export function TrackingEventItem({
           />
         )}
       </div>
-      {/* Expanded content */}
+      {/* Expanded content. Uses the theme's muted surface so the panel
+          reads cleanly in both light and dark mode — the old bg-black/30
+          rendered as muddy gray in light mode. Thinking keeps a faint
+          purple tint so the expandable reasoning stays visually distinct
+          from raw tool output. */}
       {effectiveCollapsible && isExpanded && (
         <div
           data-testid="expanded-content"
           className={cn(
             "mt-1 mb-1.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
             isThinking
-              ? "bg-purple-500/5 border border-purple-500/20 text-muted-foreground italic"
-              : "bg-black/30 border border-border font-mono text-muted-foreground",
+              ? "bg-purple-500/5 border border-purple-500/20 text-foreground/80 italic"
+              : "bg-muted/60 border border-border font-mono text-foreground/85",
           )}
         >
           {isThinking ? thinkingBody : displayContent}

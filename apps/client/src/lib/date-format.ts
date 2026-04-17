@@ -60,6 +60,27 @@ export function formatDateTime(
   return new Intl.DateTimeFormat(getCurrentLocale(), opts).format(date);
 }
 
+/**
+ * Slack-style absolute tooltip: locale-aware month/day + 12h time with
+ * AM/PM + seconds. Year is omitted when the target is in the current
+ * year to keep the bubble compact.
+ */
+export function formatAbsoluteTooltip(value: Date | string | number): string {
+  const date = toDate(value);
+  const now = new Date();
+  const sameYear = date.getFullYear() === now.getFullYear();
+  const opts: Intl.DateTimeFormatOptions = {
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  };
+  if (!sameYear) opts.year = "numeric";
+  return new Intl.DateTimeFormat(getCurrentLocale(), opts).format(date);
+}
+
 export function formatRelative(value: Date | string | number): string {
   const date = toDate(value);
   const now = Date.now();

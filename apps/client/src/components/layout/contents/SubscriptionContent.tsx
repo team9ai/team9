@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import {
-  FREE_PLAN_FEATURES,
   PlanCard,
   buildPlanFeatures,
   formatCredits,
@@ -22,6 +22,7 @@ import {
   formatMoney,
   formatPlanCredits,
   formatPlanOptionLabel,
+  getFreePlanFeatures,
   getPlanCardTheme,
   getPlanDescription,
   groupPlanProducts,
@@ -42,16 +43,28 @@ import {
   formatDateTime as formatDateTimeLocale,
 } from "@/lib/date-format";
 import type {
+  BillingProduct,
   BillingProductCustomAmount,
   WorkspaceBillingAccount,
   WorkspaceBillingTransaction,
 } from "@/types/workspace";
+import { useTeam9PostHog } from "@/analytics/posthog/provider";
+import { captureWithBridge } from "@/analytics/posthog/capture";
+import {
+  EVENTS,
+  type SubscriptionEntrySource,
+} from "@/analytics/posthog/events";
+import {
+  inferPlanName,
+  inferBillingInterval,
+} from "@/analytics/posthog/billing";
 
 type BillingView = "plans" | "credits";
 
 interface SubscriptionContentProps {
   workspaceIdFromSearch?: string;
   view?: BillingView;
+  entrySource?: SubscriptionEntrySource;
 }
 
 function formatCreditsFromCents(amountCents: number) {
@@ -171,7 +184,11 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 function getWorkspaceCredits(account: WorkspaceBillingAccount | null) {
-  return (account?.balance ?? 0) + (account?.effectiveQuota ?? 0);
+  return (
+    (account?.balance ?? 0) +
+    (account?.effectiveQuota ?? 0) +
+    (account?.grantBalance ?? 0)
+  );
 }
 
 function getTransactionAmountLabel(transaction: WorkspaceBillingTransaction) {
@@ -232,11 +249,29 @@ function MobileTableLabel({ children }: { children: string }) {
 export function SubscriptionContent({
   workspaceIdFromSearch,
   view,
+  entrySource,
 }: SubscriptionContentProps) {
-  const navigate = useNavigate();
+  const { t } = useTranslation("workspace");
+  const navigate = useNavigate({ from: "/subscription" });
   const { selectedWorkspaceId } = useWorkspaceStore();
   const workspaceId = workspaceIdFromSearch || selectedWorkspaceId || undefined;
   const currentView: BillingView = view === "credits" ? "credits" : "plans";
+
+  const { client: phClient } = useTeam9PostHog();
+  const effectiveEntrySource: SubscriptionEntrySource =
+    entrySource ?? "manage_credits";
+
+  const pageViewedFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = effectiveEntrySource;
+    if (pageViewedFiredRef.current === key) return;
+    pageViewedFiredRef.current = key;
+
+    captureWithBridge(phClient, EVENTS.SUBSCRIPTION_PLAN_PAGE_VIEWED, {
+      entry_source: effectiveEntrySource,
+      workspace_id: workspaceId,
+    });
+  }, [phClient, effectiveEntrySource, workspaceId]);
 
   const { data: workspaces, isLoading: isLoadingWorkspaces } =
     useUserWorkspaces();
@@ -246,7 +281,7 @@ export function SubscriptionContent({
   const canManageBilling =
     currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
 
-  const overview = useWorkspaceBillingOverview(workspaceId, canManageBilling);
+  const overview = useWorkspaceBillingOverview(workspaceId);
   const checkout = useCreateWorkspaceBillingCheckout(workspaceId);
   const portal = useCreateWorkspaceBillingPortal(workspaceId);
 
@@ -325,26 +360,43 @@ export function SubscriptionContent({
 
     navigate({
       to: "/subscription",
-      search: { workspaceId, view: nextView },
+      search: (prev) => ({ ...prev, workspaceId, view: nextView }),
     });
   };
 
-  const handleCheckout = async (
-    priceId: string,
-    type: "subscription" | "one_time",
-    nextView: BillingView,
-    amountCents?: number,
-  ) => {
-    if (type === "one_time" && !subscription) {
+  const handleCheckout = async (params: {
+    product: BillingProduct;
+    customAmountCents?: number;
+  }) => {
+    const { product, customAmountCents } = params;
+
+    if (product.type === "one_time" && !subscription) {
       setShowSubscriptionRequired(true);
       return;
     }
 
+    const amountCents = customAmountCents ?? product.amountCents;
+    const creditsAmount =
+      product.type === "one_time" && customAmountCents !== undefined
+        ? customAmountCents * 10
+        : (product.credits ?? null);
+
+    captureWithBridge(phClient, EVENTS.SUBSCRIPTION_BUTTON_CLICKED, {
+      entry_source: effectiveEntrySource,
+      plan_name: inferPlanName(product),
+      amount_cents: amountCents,
+      billing_interval: inferBillingInterval(product),
+      credits_amount: creditsAmount,
+      stripe_price_id: product.stripePriceId,
+      button_name: product.name,
+      workspace_id: workspaceId,
+    });
+
     const response = await checkout.mutateAsync({
-      priceId,
-      type,
-      view: nextView,
-      amountCents,
+      priceId: product.stripePriceId,
+      type: product.type ?? "subscription",
+      view: product.type === "one_time" ? "credits" : "plans",
+      amountCents: customAmountCents,
     });
     await openExternalUrl(response.checkoutUrl);
   };
@@ -477,10 +529,14 @@ export function SubscriptionContent({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                     <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
-                      Prepaid: {formatCredits(account?.balance ?? 0)}
+                      Top-up: {formatCredits(account?.balance ?? 0)}
                     </span>
                     <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
-                      Quota: {formatCredits(account?.effectiveQuota ?? 0)}
+                      Subscription:{" "}
+                      {formatCredits(account?.effectiveQuota ?? 0)}
+                    </span>
+                    <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
+                      Grant: {formatCredits(account?.grantBalance ?? 0)}
                     </span>
                   </div>
                 </CardContent>
@@ -552,12 +608,10 @@ export function SubscriptionContent({
                                 customAmountProduct &&
                                 customAmountCents !== null
                               ) {
-                                void handleCheckout(
-                                  customAmountProduct.stripePriceId,
-                                  "one_time",
-                                  "credits",
+                                void handleCheckout({
+                                  product: customAmountProduct,
                                   customAmountCents,
-                                );
+                                });
                               }
                             }}
                             disabled={
@@ -602,13 +656,7 @@ export function SubscriptionContent({
                             key={product.stripePriceId}
                             variant="outline"
                             className="h-auto rounded-full border-[#d5dfef] bg-white px-4 py-2.5 shadow-sm transition-all hover:border-[#9db8e2] hover:bg-[#f0f4fb] hover:shadow-md"
-                            onClick={() =>
-                              void handleCheckout(
-                                product.stripePriceId,
-                                "one_time",
-                                "credits",
-                              )
-                            }
+                            onClick={() => void handleCheckout({ product })}
                             disabled={checkout.isPending}
                             aria-label={`Add ${formatMoney(product.amountCents)}`}
                           >
@@ -772,27 +820,30 @@ export function SubscriptionContent({
           <div className="relative mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-5 sm:px-5 lg:px-6">
             {subscription?.cancelAtPeriodEnd ? (
               <div className="rounded-full border border-amber-200 bg-amber-50/90 px-5 py-3 text-sm text-amber-800">
-                The current subscription will end on{" "}
-                {formatDate(subscription.currentPeriodEnd)}.
+                {t("billing.page.subscriptionEnds", {
+                  date: formatDate(subscription.currentPeriodEnd),
+                })}
               </div>
             ) : null}
 
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl">
                 <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
-                  {currentWorkspace.name} workspace billing
+                  {t("billing.page.workspaceBilling", {
+                    workspace: currentWorkspace.name,
+                  })}
                 </div>
                 <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
-                  Choose your plan
+                  {t("billing.page.heading")}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-[#6a7d9e] sm:text-base">
-                  Select the plan that fits your workload.
+                  {t("billing.page.subheading")}
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 xl:justify-end">
                 <div className="rounded-full border border-white/80 bg-white/80 px-5 py-3 text-sm font-medium text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur">
-                  1 USD = 1,000 credits across all plans.
+                  {t("billing.page.exchangeRate")}
                 </div>
                 <Button
                   variant="outline"
@@ -800,20 +851,24 @@ export function SubscriptionContent({
                   onClick={() => void handleManageBilling("plans")}
                   disabled={portal.isPending}
                 >
-                  Manage billing
+                  {t("billing.page.actions.manageBilling")}
                 </Button>
               </div>
             </div>
 
             <div className="grid gap-6 xl:grid-cols-3">
               <PlanCard
-                badge="Free"
-                title="Free"
+                badge={t("billing.plans.free.title")}
+                title={t("billing.plans.free.title")}
                 priceAmount="$0"
-                priceCycle="month"
+                priceCycle={formatInterval("month", 1)}
                 description={getPlanDescription("free")}
-                features={FREE_PLAN_FEATURES}
-                actionLabel={subscription ? "Choose Free" : "Current plan"}
+                features={getFreePlanFeatures()}
+                actionLabel={
+                  subscription
+                    ? t("billing.page.actions.chooseFree")
+                    : t("billing.page.actions.currentPlan")
+                }
                 actionDisabled={!subscription}
                 onAction={
                   subscription
@@ -855,18 +910,18 @@ export function SubscriptionContent({
                     description={getPlanDescription(group.title)}
                     features={buildPlanFeatures(selectedProduct)}
                     actionLabel={
-                      isCurrentPlan ? "Current plan" : `Choose ${group.title}`
+                      isCurrentPlan
+                        ? t("billing.page.actions.currentPlan")
+                        : t("billing.page.actions.choosePlan", {
+                            plan: group.title,
+                          })
                     }
                     actionDisabled={isCurrentPlan}
                     onAction={
                       isCurrentPlan
                         ? undefined
                         : () => {
-                            void handleCheckout(
-                              selectedProduct.stripePriceId,
-                              "subscription",
-                              "plans",
-                            );
+                            void handleCheckout({ product: selectedProduct });
                           }
                     }
                     theme={getPlanCardTheme(groupIndex, group.title)}
@@ -888,8 +943,8 @@ export function SubscriptionContent({
 
             {planGroups.length === 0 ? (
               <SectionMessage
-                title="No paid plans configured"
-                description="Billing Hub does not currently expose any paid subscription products."
+                title={t("billing.page.emptyPaidPlans.title")}
+                description={t("billing.page.emptyPaidPlans.description")}
               />
             ) : null}
 
@@ -947,16 +1002,19 @@ export function SubscriptionContent({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Subscription Required</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("billing.page.subscriptionRequired.title")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              You need an active subscription before purchasing credits. Please
-              subscribe to a plan first.
+              {t("billing.page.subscriptionRequired.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t("billing.page.subscriptionRequired.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction onClick={() => navigateToView("plans")}>
-              View Plans
+              {t("billing.page.subscriptionRequired.viewPlans")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

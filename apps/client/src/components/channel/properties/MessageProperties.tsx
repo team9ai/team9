@@ -1,11 +1,84 @@
-import { useMemo } from "react";
-import { MoreHorizontal, Plus, Loader2 } from "lucide-react";
+import { useCallback, useMemo } from "react";
+import { MoreHorizontal, Loader2 } from "lucide-react";
 import { PropertyTag } from "./PropertyTag";
 import { PropertyValue } from "./PropertyValue";
-import { AiAutoFillButton } from "./AiAutoFillButton";
+import { PropertySelector } from "./PropertySelector";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import {
+  useRemoveProperty,
+  useSetProperty,
+} from "@/hooks/useMessageProperties";
+import { useChannelMembers } from "@/hooks/useChannels";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
 import type { PropertyDefinition } from "@/types/properties";
+
+function getDefDisplayName(def: PropertyDefinition): string {
+  const key = def.key.startsWith("_") ? def.key.slice(1) : def.key;
+  const normalized = key.replace(/_/g, " ");
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function PersonTooltipBody({
+  def,
+  value,
+  channelId,
+}: {
+  def: PropertyDefinition;
+  value: unknown;
+  channelId: string;
+}) {
+  const { data: members } = useChannelMembers(channelId);
+  const rawIds = Array.isArray(value) ? value : [value];
+  const ids = rawIds
+    .map((id) => (id == null ? "" : String(id)))
+    .filter((id) => id.length > 0);
+  const displayName = getDefDisplayName(def);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium">
+        {displayName}
+        <span className="ml-1 text-[11px] text-muted-foreground">
+          ({def.key})
+        </span>
+      </span>
+      {ids.length === 0 ? (
+        <span className="text-[11px] text-muted-foreground">—</span>
+      ) : (
+        ids.map((id) => {
+          const member = members?.find((m) => m.userId === id);
+          const user = member?.user;
+          const name = user?.displayName || user?.username || "Unknown User";
+          return (
+            <div key={id} className="flex items-center gap-1.5">
+              <UserAvatar
+                userId={id}
+                name={user?.displayName}
+                username={user?.username}
+                avatarUrl={user?.avatarUrl}
+                isBot={user?.userType === "bot"}
+                className="w-4 h-4"
+                fallbackClassName="text-[8px]"
+              />
+              <span className="text-xs">{name}</span>
+              {user?.username && user.username !== name && (
+                <span className="text-[11px] text-muted-foreground">
+                  @{user.username}
+                </span>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
 
 export interface MessagePropertiesProps {
   message: Message;
@@ -14,7 +87,6 @@ export interface MessagePropertiesProps {
   canEdit: boolean;
   aiAutoFillLoading?: boolean;
   propertyDisplayOrder?: "schema" | "chronological";
-  onEditProperties?: () => void;
 }
 
 /** Native property keys that should appear first, in this order */
@@ -38,9 +110,41 @@ export function MessageProperties({
   canEdit,
   aiAutoFillLoading = false,
   propertyDisplayOrder = "schema",
-  onEditProperties,
 }: MessagePropertiesProps) {
   const properties = message.properties;
+  const setProperty = useSetProperty(message.id, channelId);
+  const removeProperty = useRemoveProperty(message.id, channelId);
+
+  const handleSetProperty = useCallback(
+    (propertyKey: string, value: unknown) => {
+      const def = definitions.find((d) => d.key === propertyKey);
+      if (!def) return;
+      setProperty.mutate({
+        definitionId: def.id,
+        propertyKey: def.key,
+        value,
+      });
+    },
+    [definitions, setProperty],
+  );
+
+  const handleRemoveTagValue = useCallback(
+    (def: PropertyDefinition, target: unknown) => {
+      const current = properties?.[def.key];
+      const arr = Array.isArray(current) ? current : [];
+      const next = arr.filter((v) => v !== target);
+      if (next.length === 0) {
+        removeProperty.mutate({ definitionId: def.id, propertyKey: def.key });
+      } else {
+        setProperty.mutate({
+          definitionId: def.id,
+          propertyKey: def.key,
+          value: next,
+        });
+      }
+    },
+    [properties, removeProperty, setProperty],
+  );
 
   const visibleDefinitions = useMemo(() => {
     if (!definitions || definitions.length === 0) return [];
@@ -89,21 +193,33 @@ export function MessageProperties({
     return definitions.some((def) => hasValue(properties[def.key]));
   }, [definitions, properties]);
 
-  // Check if any definitions have aiAutoFill enabled
-  const hasAiAutoFillDefs = useMemo(
-    () => definitions.some((d) => d.aiAutoFill),
+  // When the schema has multiple person-type properties, custom (non-native)
+  // ones need their key prefix shown inside the pill so a reader can tell
+  // which slot is which (e.g. "Assignee:" vs "Reviewer:"). Native `_people`
+  // never shows the prefix — it's the default People slot.
+  const hasMultiplePersonDefs = useMemo(
+    () =>
+      (definitions?.filter((d) => d.valueType === "person").length ?? 0) > 1,
     [definitions],
   );
 
-  // Don't render at all if nothing to show and not in edit mode
-  if (visibleDefinitions.length === 0 && !canEdit && !aiAutoFillLoading) {
+  // Don't render at all if there are no chips AND no edit affordance.
+  // (The edit affordance is now only the "..." trigger, which requires
+  // existing values; empty-state adds happen via the hover toolbar or the
+  // trailing "+" next to reactions, not inside this row.)
+  const showEditButton = canEdit && hasAnyPropertyValue;
+  if (
+    visibleDefinitions.length === 0 &&
+    !showEditButton &&
+    !aiAutoFillLoading
+  ) {
     return null;
   }
 
   // Show shimmer when AI auto-fill is in progress
   if (aiAutoFillLoading) {
     return (
-      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+      <div className="flex flex-wrap items-center gap-1.5 mt-1 -ml-2">
         <Loader2 size={12} className="animate-spin text-muted-foreground" />
         <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
         <div className="h-5 w-24 rounded-full bg-muted animate-pulse" />
@@ -114,12 +230,13 @@ export function MessageProperties({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1 mt-1">
+    <div className="flex flex-wrap items-center gap-1 mt-1 -ml-2">
       {visibleDefinitions.map((def) => {
         const value = properties?.[def.key];
         if (!hasValue(value) && def.showInChatPolicy !== "show") return null;
 
-        // Tags and multi_select render as individual tag chips
+        // Tags and multi_select render as individual tag chips, each editable
+        // by clicking and each value individually removable via hover X.
         if (def.valueType === "tags" || def.valueType === "multi_select") {
           const values = Array.isArray(value) ? value : [];
           const options = Array.isArray(def.config?.options)
@@ -132,45 +249,145 @@ export function MessageProperties({
 
           return values.map((v, i) => {
             const opt = options.find((o) => o.value === v);
+            const label = opt?.label ?? String(v);
+            const displayName = getDefDisplayName(def);
             return (
-              <PropertyTag
-                key={`${def.id}-${String(v)}-${i}`}
-                label={opt?.label ?? String(v)}
-                color={opt?.color}
-              />
+              <Tooltip key={`${def.id}-${String(v)}-${i}`}>
+                <PropertySelector
+                  channelId={channelId}
+                  messageId={message.id}
+                  currentProperties={properties ?? {}}
+                  initialDefId={def.id}
+                  allowCreate={false}
+                  onSetProperty={handleSetProperty}
+                  trigger={
+                    <TooltipTrigger asChild>
+                      <PropertyTag
+                        label={label}
+                        color={opt?.color}
+                        canDelete={canEdit}
+                        onDelete={
+                          canEdit
+                            ? () => handleRemoveTagValue(def, v)
+                            : undefined
+                        }
+                        className={canEdit ? "cursor-pointer" : undefined}
+                      />
+                    </TooltipTrigger>
+                  }
+                />
+                <TooltipContent side="top" className="max-w-[240px]">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium">
+                      {displayName}: {label}
+                    </span>
+                    {def.description &&
+                      def.description.trim().toLowerCase() !==
+                        displayName.toLowerCase() && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {def.description}
+                        </span>
+                      )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             );
           });
         }
 
-        return <PropertyValue key={def.id} definition={def} value={value} />;
+        const showPersonKeyPrefix =
+          def.valueType === "person" &&
+          !def.key.startsWith("_") &&
+          hasMultiplePersonDefs;
+        const valueChip = (
+          <PropertyValue
+            definition={def}
+            value={value}
+            channelId={channelId}
+            showKeyPrefix={showPersonKeyPrefix}
+          />
+        );
+        const displayName = getDefDisplayName(def);
+
+        const tooltipContent =
+          def.valueType === "person" ? (
+            <TooltipContent side="top" className="max-w-[280px]">
+              <PersonTooltipBody
+                def={def}
+                value={value}
+                channelId={channelId}
+              />
+            </TooltipContent>
+          ) : (
+            <TooltipContent side="top" className="max-w-[240px]">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-medium">{displayName}</span>
+                {def.description &&
+                  def.description.trim().toLowerCase() !==
+                    displayName.toLowerCase() && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {def.description}
+                    </span>
+                  )}
+              </div>
+            </TooltipContent>
+          );
+
+        if (!canEdit) {
+          return (
+            <Tooltip key={def.id}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">{valueChip}</span>
+              </TooltipTrigger>
+              {tooltipContent}
+            </Tooltip>
+          );
+        }
+
+        return (
+          <Tooltip key={def.id}>
+            <PropertySelector
+              channelId={channelId}
+              messageId={message.id}
+              currentProperties={properties ?? {}}
+              initialDefId={def.id}
+              allowCreate={false}
+              onSetProperty={handleSetProperty}
+              trigger={
+                <TooltipTrigger asChild>
+                  <span className="inline-flex cursor-pointer hover:opacity-80 transition-opacity">
+                    {valueChip}
+                  </span>
+                </TooltipTrigger>
+              }
+            />
+            {tooltipContent}
+          </Tooltip>
+        );
       })}
 
-      {canEdit && hasAiAutoFillDefs && (
-        <AiAutoFillButton
-          messageId={message.id}
+      {showEditButton && (
+        <PropertySelector
           channelId={channelId}
-          size="sm"
+          messageId={message.id}
+          currentProperties={properties ?? {}}
+          onSetProperty={handleSetProperty}
+          trigger={
+            <button
+              type="button"
+              className={cn(
+                "inline-flex items-center justify-center",
+                "px-1.5 py-0.5 rounded text-xs",
+                "border border-dashed border-border",
+                "text-muted-foreground hover:bg-muted hover:text-foreground",
+                "transition-colors",
+              )}
+              title="Edit properties"
+            >
+              <MoreHorizontal size={12} />
+            </button>
+          }
         />
-      )}
-
-      {canEdit && (
-        <button
-          onClick={onEditProperties}
-          className={cn(
-            "inline-flex items-center justify-center",
-            "px-1.5 py-0.5 rounded text-xs",
-            "border border-dashed border-border",
-            "text-muted-foreground hover:bg-muted hover:text-foreground",
-            "transition-colors",
-          )}
-          title={hasAnyPropertyValue ? "Edit properties" : "Add properties"}
-        >
-          {hasAnyPropertyValue ? (
-            <MoreHorizontal size={12} />
-          ) : (
-            <Plus size={12} />
-          )}
-        </button>
       )}
     </div>
   );

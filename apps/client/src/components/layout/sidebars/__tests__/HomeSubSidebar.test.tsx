@@ -51,6 +51,11 @@ vi.mock("@/hooks/useChannels", () => ({
     data: [],
     isLoading: false,
   }),
+  useSetSidebarVisibility: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  }),
 }));
 
 vi.mock("@/hooks/useSections", () => ({

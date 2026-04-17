@@ -269,4 +269,136 @@ describe('BillingHubService', () => {
       service.getWorkspaceSubscription('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14'),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
+
+  describe('getWorkspaceOverview', () => {
+    const workspaceId = '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14';
+
+    // Dispatches mock responses based on the upstream URL so tests stay
+    // robust to the parallel-call order inside getWorkspaceOverview.
+    function installOverviewFetchMock() {
+      (global.fetch as jest.Mock).mockImplementation((url: any) => {
+        const urlString = String(url);
+        let data: unknown;
+
+        if (urlString.includes('/api/billing/account/transactions')) {
+          data = {
+            transactions: [
+              {
+                id: 'txn_1',
+                accountId: 'acct_1',
+                type: 'charge',
+                amount: -100,
+                balanceBefore: 500,
+                balanceAfter: 400,
+                operatorExternalId: 'user:op_1',
+                agentId: null,
+                referenceType: 'message',
+                referenceId: 'msg_1',
+                description: 'LLM usage',
+                createdAt: '2026-04-01T00:00:00.000Z',
+                productName: null,
+                paymentAmountCents: null,
+                invoiceId: 'in_1',
+              },
+            ],
+          };
+        } else if (urlString.includes('/api/billing/account')) {
+          data = {
+            account: {
+              id: 'acct_1',
+              ownerExternalId: `tenant:${workspaceId}`,
+              ownerType: 'organization',
+              ownerName: 'Team9',
+              balance: 400,
+              grantBalance: 0,
+              quota: 0,
+              quotaExpiresAt: null,
+              effectiveQuota: 0,
+              available: 400,
+              creditLimit: 0,
+              status: 'active',
+              metadata: null,
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-04-01T00:00:00.000Z',
+            },
+          };
+        } else if (urlString.includes('/api/billing/stripe/subscription')) {
+          data = { subscription: null };
+        } else if (urlString.includes('/api/billing/stripe/products')) {
+          data = [];
+        } else {
+          throw new Error(`Unexpected URL in overview test: ${urlString}`);
+        }
+
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ success: true, data })),
+        });
+      });
+    }
+
+    it('returns transactions when the caller is the workspace owner', async () => {
+      installOverviewFetchMock();
+
+      const overview = await service.getWorkspaceOverview(workspaceId, 'owner');
+
+      expect(overview.recentTransactions).toHaveLength(1);
+      expect(overview.recentTransactions[0].id).toBe('txn_1');
+      expect(overview.account?.balance).toBe(400);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/billing/account/transactions'),
+        expect.anything(),
+      );
+    });
+
+    it('returns transactions when the caller is a workspace admin', async () => {
+      installOverviewFetchMock();
+
+      const overview = await service.getWorkspaceOverview(workspaceId, 'admin');
+
+      expect(overview.recentTransactions).toHaveLength(1);
+    });
+
+    it('omits transactions and skips the transactions fetch for regular members', async () => {
+      installOverviewFetchMock();
+
+      const overview = await service.getWorkspaceOverview(
+        workspaceId,
+        'member',
+      );
+
+      expect(overview.recentTransactions).toEqual([]);
+      // Members still see account balance and plan info
+      expect(overview.account?.balance).toBe(400);
+      expect(global.fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/api/billing/account/transactions'),
+        expect.anything(),
+      );
+    });
+
+    it('omits transactions for guests', async () => {
+      installOverviewFetchMock();
+
+      const overview = await service.getWorkspaceOverview(workspaceId, 'guest');
+
+      expect(overview.recentTransactions).toEqual([]);
+      expect(global.fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/api/billing/account/transactions'),
+        expect.anything(),
+      );
+    });
+
+    it('defaults to the restricted view when no role is provided', async () => {
+      installOverviewFetchMock();
+
+      const overview = await service.getWorkspaceOverview(workspaceId);
+
+      expect(overview.recentTransactions).toEqual([]);
+      expect(global.fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/api/billing/account/transactions'),
+        expect.anything(),
+      );
+    });
+  });
 });

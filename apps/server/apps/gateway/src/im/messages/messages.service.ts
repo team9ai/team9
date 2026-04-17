@@ -288,7 +288,7 @@ export class MessagesService {
       replyCount: Number(replyCount),
       lastRepliers: replierSenders,
       lastReplyAt,
-      metadata: message.metadata as Record<string, unknown> | null,
+      metadata: message.metadata,
     };
   }
 
@@ -458,7 +458,7 @@ export class MessagesService {
         replyCount: replyCountsMap.get(message.id) || 0,
         lastRepliers: lastRepliersMap.get(message.id) || [],
         lastReplyAt: lastReplyAtMap.get(message.id) || null,
-        metadata: message.metadata as Record<string, unknown> | null,
+        metadata: message.metadata,
       });
     });
 

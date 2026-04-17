@@ -22,6 +22,7 @@ import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { ArrowUp, Sparkles, ChevronDown, Loader2 } from "lucide-react";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
 import {
   DropdownMenu,
@@ -56,6 +57,12 @@ interface RichTextEditorProps {
   uploadingFiles?: UploadingFile[];
   onRemoveFile?: (id: string) => void;
   onRetryFile?: (id: string) => void;
+  /**
+   * True while attachments are still uploading. Blocks submission (send button,
+   * Enter shortcut, auto-send) but does NOT disable the editor itself, so users
+   * can keep typing while uploads finish.
+   */
+  isUploading?: boolean;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
   /** HTML content to pre-fill in the editor (for edit mode) */
@@ -77,6 +84,10 @@ interface RichTextEditorProps {
   isBotDm?: boolean;
   /** Bot model switching info */
   botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
+  /** Whether deep research mode is active */
+  isDeepResearch?: boolean;
+  /** Toggle deep research mode */
+  onToggleDeepResearch?: () => void;
 }
 
 function Placeholder({ text, compact }: { text: string; compact?: boolean }) {
@@ -364,6 +375,7 @@ export function RichTextEditor({
   uploadingFiles = [],
   onRemoveFile,
   onRetryFile,
+  isUploading = false,
   initialDraft,
   initialHtml,
   onCancel,
@@ -373,6 +385,8 @@ export function RichTextEditor({
   onInitialDraftAutoSent,
   isBotDm = false,
   botModelSwitch,
+  isDeepResearch = false,
+  onToggleDeepResearch,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
   const hasAttachments = uploadingFiles.some((f) => f.status === "completed");
@@ -444,7 +458,7 @@ export function RichTextEditor({
             draft={initialDraft}
             enabled={autoSendInitialDraft}
             onSubmit={onSubmit}
-            disabled={disabled}
+            disabled={disabled || isUploading}
             hasAttachments={hasAttachments}
             onAutoSent={onInitialDraftAutoSent}
           />
@@ -462,7 +476,7 @@ export function RichTextEditor({
           />
         )}
 
-        {/* Bottom row: tools on left, model selector + send on right */}
+        {/* Bottom row: tools on left, send on right */}
         <div
           className={cn(
             "flex items-center justify-between",
@@ -470,58 +484,70 @@ export function RichTextEditor({
           )}
         >
           {!compact ? (
-            <EditorToolbar onFileSelect={onFileSelect} isBotDm={isBotDm} />
+            <EditorToolbar
+              channelId={channelId}
+              onFileSelect={onFileSelect}
+              isBotDm={isBotDm}
+              isDeepResearch={isDeepResearch}
+              onToggleDeepResearch={onToggleDeepResearch}
+            />
           ) : (
             <div />
           )}
           <div className="flex items-center gap-1.5">
-            {isBotDm && botModelSwitch && botModelSwitch.canSwitchModel && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    disabled={botModelSwitch.isUpdating}
-                    className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+            {SHOW_COMPOSER_MODEL_CONTROL &&
+              !isDeepResearch &&
+              isBotDm &&
+              botModelSwitch &&
+              botModelSwitch.canSwitchModel && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={botModelSwitch.isUpdating}
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {botModelSwitch.isUpdating ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} />
+                      )}
+                      <span>{botModelSwitch.currentModelLabel}</span>
+                      <ChevronDown size={11} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-60 rounded-xl p-1.5"
                   >
-                    {botModelSwitch.isUpdating ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={14} />
-                    )}
-                    <span>{botModelSwitch.currentModelLabel}</span>
-                    <ChevronDown size={11} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-60 rounded-xl p-1.5"
-                >
-                  <DropdownMenuRadioGroup
-                    value={
-                      botModelSwitch.currentModel
-                        ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
-                        : undefined
-                    }
-                    onValueChange={(value) => {
-                      const [provider, id] = value.split("::");
-                      if (!provider || !id) return;
-                      void botModelSwitch.updateModel({ provider, id });
-                    }}
-                  >
-                    {COMMON_STAFF_MODELS.map((model) => (
-                      <DropdownMenuRadioItem
-                        key={`${model.provider}::${model.id}`}
-                        value={`${model.provider}::${model.id}`}
-                        className="cursor-pointer rounded-lg py-2.5"
-                      >
-                        {model.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {isBotDm &&
+                    <DropdownMenuRadioGroup
+                      value={
+                        botModelSwitch.currentModel
+                          ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
+                          : undefined
+                      }
+                      onValueChange={(value) => {
+                        const [provider, id] = value.split("::");
+                        if (!provider || !id) return;
+                        void botModelSwitch.updateModel({ provider, id });
+                      }}
+                    >
+                      {COMMON_STAFF_MODELS.map((model) => (
+                        <DropdownMenuRadioItem
+                          key={`${model.provider}::${model.id}`}
+                          value={`${model.provider}::${model.id}`}
+                          className="cursor-pointer rounded-lg py-2.5"
+                        >
+                          {model.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            {SHOW_COMPOSER_MODEL_CONTROL &&
+              !isDeepResearch &&
+              isBotDm &&
               botModelSwitch &&
               !botModelSwitch.canSwitchModel &&
               botModelSwitch.currentModelLabel && (
@@ -532,7 +558,7 @@ export function RichTextEditor({
               )}
             <SendButton
               onSubmit={onSubmit}
-              disabled={disabled}
+              disabled={disabled || isUploading}
               hasAttachments={hasAttachments}
               clearOnSubmit={clearOnSubmit}
               submitLabel={submitLabel}
@@ -542,7 +568,7 @@ export function RichTextEditor({
 
         <KeyboardShortcutsPlugin
           onSubmit={onSubmit}
-          disabled={disabled}
+          disabled={disabled || isUploading}
           hasAttachments={hasAttachments}
           clearOnSubmit={clearOnSubmit}
         />

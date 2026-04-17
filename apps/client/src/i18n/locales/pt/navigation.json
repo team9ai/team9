@@ -1,7 +1,7 @@
 {
   "home": "Início",
-  "dms": "Mensagens diretas",
-  "activity": "Atividade",
+  "dms": "Chats",
+  "activity": "Avisos",
   "files": "Arquivos",
   "aiStaff": "Equipe de IA",
   "staff": "Equipe",
@@ -13,9 +13,9 @@
   "dmPermissionDenied": "Este é um assistente privado e não está aberto para mensagens diretas.",
   "routines": "Rotinas",
   "resources": "Recursos",
-  "skills": "Habilidades",
-  "library": "Biblioteca",
-  "application": "Aplicativos",
+  "skills": "Skills",
+  "library": "Biblio.",
+  "application": "Apps",
   "more": "Mais",
   "noWorkspace": "Sem workspace",
   "moreWorkspaces": "Mais workspaces",
@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1.280",
   "dashboardPlan": "Plano gratuito",
   "dashboardUpgrade": "Fazer upgrade",
+  "dashboardCreditsLowTitle": "Créditos baixos. Clique para recarregar.",
   "dashboardTitle": "Com o que posso ajudar hoje?",
   "dashboardPromptPlaceholder": "Mensagem para o dashboard...",
   "dashboardActionDeepResearch": "Pesquisa profunda",
@@ -142,5 +143,8 @@
   "uninstallConfirmTitle": "Desinstalar {{name}}?",
   "uninstallConfirmDescription": "Isso removerá o aplicativo do seu workspace. Quaisquer dados associados a este aplicativo podem ser perdidos.",
   "dangerZone": "Zona de perigo",
-  "hideConversation": "Ocultar conversa"
+  "hideConversation": "Ocultar conversa",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Assistente pessoal",
+  "agentPillModel": "Modelo"
 }

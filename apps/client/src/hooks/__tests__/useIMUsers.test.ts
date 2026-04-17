@@ -218,7 +218,7 @@ describe("useIMUsers hooks", () => {
     });
   });
 
-  it("treats base-model-staff bots as online by default", () => {
+  it("treats installed agent bots as online by default", () => {
     mockUseQuery.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => {
       if (queryKey[0] === "im-users" && queryKey[1] === "online") {
         return { data: {} };
@@ -258,7 +258,7 @@ describe("useIMUsers hooks", () => {
     expect(result.current).toBe(true);
   });
 
-  it("does not force non-base-model bots online", () => {
+  it("treats non-base-model agent bots as online by default", () => {
     mockUseQuery.mockImplementation(({ queryKey }: { queryKey: unknown[] }) => {
       if (queryKey[0] === "im-users" && queryKey[1] === "online") {
         return { data: {} };
@@ -299,6 +299,6 @@ describe("useIMUsers hooks", () => {
 
     const { result } = renderHook(() => useIsUserOnline("user-openclaw"));
 
-    expect(result.current).toBe(false);
+    expect(result.current).toBe(true);
   });
 });

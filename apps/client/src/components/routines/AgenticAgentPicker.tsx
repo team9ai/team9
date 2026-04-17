@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -27,37 +27,38 @@ interface AgenticAgentPickerProps {
   open: boolean;
   onClose: () => void;
   onManualCreate?: () => void;
+  onOpenCreationSession: (routineId: string) => void;
 }
 
 export function AgenticAgentPicker({
   open,
   onClose,
   onManualCreate,
+  onOpenCreationSession,
 }: AgenticAgentPickerProps) {
   const { t } = useTranslation("routines");
-  const navigate = useNavigate();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
-  const { data: allBots = [], isLoading: botsLoading } = useQuery({
+  const { data: installedApps = [], isLoading: botsLoading } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
-    queryFn: async () => {
-      const apps = await api.applications.getInstalledApplicationsWithBots();
-      return apps.filter((a) => a.status === "active").flatMap((a) => a.bots);
-    },
+    queryFn: () => api.applications.getInstalledApplicationsWithBots(),
     enabled: open && !!workspaceId,
   });
 
-  // Filter out openclaw bots (not yet supported for routine creation)
-  // and any bots with missing botId (defensive guard against malformed data)
   const eligibleBots = useMemo(
     () =>
-      allBots.filter(
-        (b) => b.botId && !("agentType" in b && b.agentType === "openclaw"),
-      ),
-    [allBots],
+      installedApps
+        .filter((a) => a.status === "active")
+        .flatMap((a) => a.bots)
+        .filter(
+          (b) => b.botId && !("agentType" in b && b.agentType === "openclaw"),
+        ),
+    [installedApps],
   );
 
   // Auto-select the first eligible bot when data loads
@@ -72,12 +73,10 @@ export function AgenticAgentPicker({
   const createMutation = useMutation({
     mutationFn: () =>
       api.routines.createWithCreationTask({ agentId: effectiveAgentId }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       handleClose();
-      void navigate({
-        to: "/messages/$channelId",
-        params: { channelId: data.creationChannelId },
-      });
+      await queryClient.invalidateQueries({ queryKey: ["routines"] });
+      onOpenCreationSession(data.routineId);
     },
     onError: (err) => {
       setError(
@@ -94,6 +93,12 @@ export function AgenticAgentPicker({
     onClose();
   }
 
+  function handleGoToAgents() {
+    handleClose();
+    void router.navigate({ to: "/ai-staff" });
+  }
+
+  const showEmptyState = !botsLoading && eligibleBots.length === 0;
   const canConfirm = !createMutation.isPending && eligibleBots.length > 0;
 
   return (
@@ -105,17 +110,38 @@ export function AgenticAgentPicker({
         </DialogHeader>
 
         <div className="py-2 space-y-4">
-          <div className="space-y-1.5">
-            <Label>{t("agentic.agentLabel")}</Label>
-            {botsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
-                <Loader2 className="w-4 h-4 animate-spin" />
+          {botsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          ) : showEmptyState ? (
+            <div className="rounded-md border border-dashed border-border p-4 space-y-3 text-center">
+              <div className="space-y-1">
+                <p className="text-sm text-foreground">
+                  {t("agentic.noAgentsAvailable")}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("agentic.noAgentsHint")}
+                </p>
               </div>
-            ) : eligibleBots.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("agentic.noAgentsAvailable")}
-              </p>
-            ) : (
+              <div className="flex flex-col gap-2">
+                <Button type="button" onClick={handleGoToAgents}>
+                  {t("agentic.goToAgents")}
+                </Button>
+                {onManualCreate && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onManualCreate}
+                  >
+                    {t("createManually")}
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>{t("agentic.agentLabel")}</Label>
               <Select
                 value={effectiveAgentId}
                 onValueChange={setSelectedAgentId}
@@ -133,14 +159,14 @@ export function AgenticAgentPicker({
                   ))}
                 </SelectContent>
               </Select>
-            )}
-          </div>
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
         <DialogFooter className="flex-col items-stretch gap-3 sm:flex-col">
-          {onManualCreate && (
+          {!showEmptyState && onManualCreate && (
             <button
               type="button"
               className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
@@ -157,17 +183,19 @@ export function AgenticAgentPicker({
             >
               {t("agentic.cancel")}
             </Button>
-            <Button
-              onClick={() => createMutation.mutate()}
-              disabled={!canConfirm}
-            >
-              {createMutation.isPending && (
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-              )}
-              {createMutation.isPending
-                ? t("agentic.navigatingToast")
-                : t("agentic.confirm")}
-            </Button>
+            {!showEmptyState && (
+              <Button
+                onClick={() => createMutation.mutate()}
+                disabled={!canConfirm}
+              >
+                {createMutation.isPending && (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                )}
+                {createMutation.isPending
+                  ? t("agentic.navigatingToast")
+                  : t("agentic.confirm")}
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

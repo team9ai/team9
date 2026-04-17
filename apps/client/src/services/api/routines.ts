@@ -200,6 +200,19 @@ export const routinesApi = {
     );
     return response.data;
   },
+
+  startCreationSession: async (
+    routineId: string,
+  ): Promise<{
+    creationChannelId: string;
+    creationSessionId: string;
+  }> => {
+    const response = await http.post<{
+      creationChannelId: string;
+      creationSessionId: string;
+    }>(`/v1/routines/${routineId}/start-creation-session`);
+    return response.data;
+  },
 };
 
 export default routinesApi;

@@ -1,10 +1,10 @@
 {
   "home": "Home",
   "dms": "DM's",
-  "activity": "Activiteit",
+  "activity": "Updates",
   "files": "Bestanden",
   "aiStaff": "AI-medewerkers",
-  "staff": "Medewerkers",
+  "staff": "Team",
   "myPersonalStaff": "Mijn persoonlijke medewerkers",
   "aiStaffSection": "AI-medewerkers",
   "membersSection": "Leden",
@@ -13,8 +13,8 @@
   "dmPermissionDenied": "Dit is een privéassistent en staat niet open voor directe berichten.",
   "routines": "Routines",
   "resources": "Bronnen",
-  "skills": "Vaardigheden",
-  "library": "Bibliotheek",
+  "skills": "Skills",
+  "library": "Biblio.",
   "application": "Apps",
   "more": "Meer",
   "noWorkspace": "Geen werkruimte",
@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1.280",
   "dashboardPlan": "Gratis abonnement",
   "dashboardUpgrade": "Upgraden",
+  "dashboardCreditsLowTitle": "Krediet laag. Klik om op te waarderen.",
   "dashboardTitle": "Waarmee kan ik je vandaag helpen?",
   "dashboardPromptPlaceholder": "Bericht naar dashboard...",
   "dashboardActionDeepResearch": "Diepgaand onderzoek",
@@ -142,5 +143,8 @@
   "uninstallConfirmTitle": "{{name}} verwijderen?",
   "uninstallConfirmDescription": "Hierdoor wordt de app uit je werkruimte verwijderd. Alle gegevens die bij deze app horen, kunnen verloren gaan.",
   "dangerZone": "Gevarenzone",
-  "hideConversation": "Gesprek verbergen"
+  "hideConversation": "Gesprek verbergen",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Persoonlijke assistent",
+  "agentPillModel": "Model"
 }

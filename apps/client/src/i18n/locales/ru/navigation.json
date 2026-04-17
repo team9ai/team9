@@ -1,10 +1,10 @@
 {
   "home": "Главная",
-  "dms": "Личные сообщения",
-  "activity": "Активность",
+  "dms": "Чаты",
+  "activity": "Лента",
   "files": "Файлы",
   "aiStaff": "ИИ-сотрудники",
-  "staff": "Сотрудники",
+  "staff": "Штат",
   "myPersonalStaff": "Мои личные сотрудники",
   "aiStaffSection": "ИИ-сотрудники",
   "membersSection": "Участники",
@@ -14,8 +14,8 @@
   "routines": "Рутины",
   "resources": "Ресурсы",
   "skills": "Навыки",
-  "library": "Библиотека",
-  "application": "Приложения",
+  "library": "Библ.",
+  "application": "Прил.",
   "more": "Ещё",
   "noWorkspace": "Нет рабочего пространства",
   "moreWorkspaces": "Другие рабочие пространства",
@@ -103,6 +103,7 @@
   "dashboardUsageValue": "1 280",
   "dashboardPlan": "Бесплатный план",
   "dashboardUpgrade": "Улучшить",
+  "dashboardCreditsLowTitle": "Мало кредитов. Нажмите, чтобы пополнить.",
   "dashboardTitle": "Чем я могу вам помочь сегодня?",
   "dashboardPromptPlaceholder": "Сообщение дашборду...",
   "dashboardActionDeepResearch": "Глубокое исследование",
@@ -142,5 +143,8 @@
   "uninstallConfirmTitle": "Удалить {{name}}?",
   "uninstallConfirmDescription": "Это удалит приложение из вашего рабочего пространства. Все данные, связанные с этим приложением, могут быть потеряны.",
   "dangerZone": "Опасная зона",
-  "hideConversation": "Скрыть беседу"
+  "hideConversation": "Скрыть беседу",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Личный ассистент",
+  "agentPillModel": "Модель"
 }

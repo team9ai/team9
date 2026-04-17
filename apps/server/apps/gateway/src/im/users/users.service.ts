@@ -36,6 +36,10 @@ export interface UserResponse {
   lastSeenAt: Date | null;
   userType: 'human' | 'bot' | 'system';
   agentType: AgentType | null;
+  /** IETF BCP 47 language tag. Null when the user has not yet reported a preference. */
+  language: string | null;
+  /** IANA time zone name. Null when the user has not yet reported a preference. */
+  timeZone: string | null;
 }
 
 type UserRowWithAgentContext = Omit<UserResponse, 'agentType'> & {
@@ -78,12 +82,16 @@ export class UsersService {
       status: row.status,
       lastSeenAt: row.lastSeenAt,
       userType: row.userType,
+      // Keep `agentType` last so the Redis-cached JSON has a stable key
+      // order; the cache read path does a string comparison in tests.
       agentType: resolveAgentType({
         userType: row.userType,
         applicationId: row.applicationId,
         managedProvider: row.managedProvider,
         managedMeta: row.managedMeta,
       }),
+      language: row.language,
+      timeZone: row.timeZone,
     };
   }
 
@@ -109,6 +117,8 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
@@ -388,6 +398,8 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
@@ -423,6 +435,44 @@ export class UsersService {
       .map((row) => this.mapUserResponse(row));
   }
 
+  /**
+   * Read a user's persisted locale preferences for agent session contexts.
+   *
+   * Both `users.language` and `users.timeZone` are nullable. Callers pass
+   * the returned values into `team9Context` only when non-null, so the
+   * agent-side default ("unknown → English, no zone hint") kicks in cleanly
+   * for users who have never reported preferences.
+   *
+   * Returns `{ language: null, timeZone: null }` when the user row does
+   * not exist — callers should not assume the user is present.
+   *
+   * **Values are format-guaranteed at the write boundary.** `UpdateUserDto`
+   * enforces strict regex on both fields (BCP 47 for `language`, IANA for
+   * `timeZone`) plus length caps — see `im/users/dto/update-user.dto.ts`.
+   * No other write path mutates these columns today (auth / bot / onboarding
+   * create paths leave both null). Downstream consumers that interpolate
+   * these values into system prompts can therefore rely on the absence of
+   * newlines, backticks, or other control characters without re-sanitizing
+   * here. If a new write path is added, it MUST apply the same validation.
+   */
+  async getLocalePreferences(
+    userId: string,
+  ): Promise<{ language: string | null; timeZone: string | null }> {
+    const rows = await this.db
+      .select({
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    const row = rows[0];
+    return {
+      language: row?.language ?? null,
+      timeZone: row?.timeZone ?? null,
+    };
+  }
+
   async getMultipleByIds(ids: string[]): Promise<UserResponse[]> {
     if (ids.length === 0) return [];
 
@@ -436,6 +486,8 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,

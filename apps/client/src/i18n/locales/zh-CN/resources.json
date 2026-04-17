@@ -3,7 +3,15 @@
   "tabs": {
     "all": "全部",
     "agent_computer": "Agent 计算机",
-    "api": "API"
+    "llm": "大模型",
+    "api": "API",
+    "mcp": "MCP 服务器",
+    "database": "数据库",
+    "browser": "浏览器",
+    "knowledge_base": "知识库",
+    "sandbox": "Sandbox",
+    "webhook": "Webhook",
+    "mail_calendar": "邮箱 & 日历"
   },
   "noResources": "暂无资源",
   "status": {
@@ -14,7 +22,15 @@
   },
   "type": {
     "agent_computer": "Agent 计算机",
-    "api": "API"
+    "api": "API",
+    "llm": "大模型",
+    "mcp": "MCP",
+    "database": "数据库",
+    "browser": "浏览器",
+    "knowledge_base": "知识库",
+    "sandbox": "Sandbox",
+    "webhook": "Webhook",
+    "mail_calendar": "邮箱/日历"
   },
   "connectionType": {
     "ahand": "Ahand",

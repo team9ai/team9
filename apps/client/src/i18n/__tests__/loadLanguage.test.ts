@@ -46,9 +46,9 @@ describe("loadLanguage", () => {
     const { loadLanguage } = await importModule();
     await loadLanguage("zh-CN");
 
-    // zh-CN directory exists with 12 namespace files, so addResourceBundle
-    // should be called 12 times (once per namespace)
-    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(12);
+    // zh-CN directory exists with 13 namespace files, so addResourceBundle
+    // should be called 13 times (once per namespace)
+    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(13);
     expect(i18n.addResourceBundle).toHaveBeenCalledWith(
       "zh-CN",
       "common",
@@ -114,7 +114,7 @@ describe("loadLanguage", () => {
   it("should cache loaded language (second call skips)", async () => {
     const { loadLanguage } = await importModule();
     await loadLanguage("zh-CN");
-    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(12);
+    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(13);
 
     // Now mark as already loaded
     (i18n.hasResourceBundle as Mock).mockReturnValue(true);

@@ -54,7 +54,23 @@ export type RoundGroupItem =
        * while collapsing older (non-latest) rounds.
        */
       isLatest: boolean;
-      /** Convenience alias for `messages.length` — used to render "N 步". */
+      /**
+       * Number of visible display rows for this round — drives the "N 步" /
+       * "(N steps)" copy on the collapse summary so the count matches what
+       * the user sees after expanding. This differs from `messages.length`
+       * because MessageList applies two visibility-changing transformations
+       * when rendering a round:
+       *
+       *   - `tool_result` whose matching `tool_call` is in the same round is
+       *     absorbed into the combined ToolCallBlock card (not a separate
+       *     row). Each such `tool_result` therefore contributes 0.
+       *   - `turn_separator` renders as `null` in TrackingEventItem, so it
+       *     is never shown to the user and contributes 0.
+       *
+       * Unpaired tool events (a `tool_result` without a matching `tool_call`
+       * in the same round, or a `tool_call` without a matching result) still
+       * render as their own row and contribute 1.
+       */
       stepCount: number;
     };
 
@@ -78,6 +94,48 @@ function isAgentEventMessage(message: Message): boolean {
   return AGENT_EVENT_TYPES.has(
     agentEventType as AgentEventMetadata["agentEventType"],
   );
+}
+
+/**
+ * Count the visible display rows a round will produce when expanded.
+ *
+ * Mirrors the visibility rules applied by `MessageList` when it renders
+ * agent-event messages, so the count shown on a folded round's summary
+ * matches the number of rows that will appear after the user expands it.
+ * See the `stepCount` docstring on `RoundGroupItem` for the full rules.
+ */
+function countVisibleSteps(roundMessages: Message[]): number {
+  const toolCallIds = new Set<string>();
+  for (const message of roundMessages) {
+    const metadata = message.metadata;
+    if (metadata === null || typeof metadata !== "object") continue;
+    const record = metadata as Record<string, unknown>;
+    if (
+      record.agentEventType === "tool_call" &&
+      typeof record.toolCallId === "string" &&
+      record.toolCallId
+    ) {
+      toolCallIds.add(record.toolCallId);
+    }
+  }
+
+  let count = 0;
+  for (const message of roundMessages) {
+    const metadata = message.metadata;
+    if (metadata === null || typeof metadata !== "object") continue;
+    const record = metadata as Record<string, unknown>;
+    const eventType = record.agentEventType;
+    if (eventType === "turn_separator") continue;
+    if (
+      eventType === "tool_result" &&
+      typeof record.toolCallId === "string" &&
+      toolCallIds.has(record.toolCallId)
+    ) {
+      continue;
+    }
+    count += 1;
+  }
+  return count;
 }
 
 /**
@@ -106,7 +164,7 @@ export function groupMessagesByRound(messages: Message[]): RoundGroupItem[] {
         roundId: roundMessages[0].id,
         messages: roundMessages,
         isLatest,
-        stepCount: roundMessages.length,
+        stepCount: countVisibleSteps(roundMessages),
       });
     }
     currentRound = null;

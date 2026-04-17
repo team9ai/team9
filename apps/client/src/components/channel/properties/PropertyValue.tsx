@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Check, X as XIcon, ExternalLink } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { useChannelMembers } from "@/hooks/useChannels";
 import { PropertyTag } from "./PropertyTag";
 import { cn } from "@/lib/utils";
 import type { PropertyDefinition, SelectOption } from "@/types/properties";
@@ -8,7 +9,15 @@ import type { PropertyDefinition, SelectOption } from "@/types/properties";
 export interface PropertyValueProps {
   definition: PropertyDefinition;
   value: unknown;
+  channelId?: string;
   className?: string;
+  /**
+   * For `person` properties: whether to render the property key as a prefix
+   * inside the pill (e.g. `Assignee:`). Defaults to false — callers should
+   * set it true only when disambiguation is needed (e.g. schema has multiple
+   * person-type definitions and the definition is custom, non-native).
+   */
+  showKeyPrefix?: boolean;
 }
 
 function getSelectOptions(definition: PropertyDefinition): SelectOption[] {
@@ -69,8 +78,13 @@ function truncateUrl(url: string, maxLen = 30): string {
 export function PropertyValue({
   definition,
   value,
+  channelId,
   className,
+  showKeyPrefix = false,
 }: PropertyValueProps) {
+  const { data: members } = useChannelMembers(
+    definition.valueType === "person" ? channelId : undefined,
+  );
   const label = definition.key.startsWith("_")
     ? definition.key.slice(1).replace(/_/g, " ")
     : definition.key;
@@ -144,19 +158,55 @@ export function PropertyValue({
       }
 
       case "person": {
-        const ids = Array.isArray(value) ? value : [value];
-        return (
-          <span className="inline-flex items-center gap-0.5">
-            {ids.slice(0, 3).map((id) => (
+        const rawIds = Array.isArray(value) ? value : [value];
+        const ids = rawIds
+          .map((id) => (id == null ? "" : String(id)))
+          .filter((id) => id.length > 0);
+        if (ids.length === 0) return null;
+
+        if (ids.length === 1) {
+          const id = ids[0];
+          const member = members?.find((m) => m.userId === id);
+          const user = member?.user;
+          const name = user?.displayName || user?.username || "Unknown User";
+          return (
+            <span className="inline-flex items-center gap-1">
               <UserAvatar
-                key={String(id)}
-                userId={String(id)}
+                userId={id}
+                name={user?.displayName}
+                username={user?.username}
+                avatarUrl={user?.avatarUrl}
+                isBot={user?.userType === "bot"}
                 className="w-4 h-4"
                 fallbackClassName="text-[8px]"
               />
-            ))}
-            {ids.length > 3 && (
-              <span className="text-muted-foreground">+{ids.length - 3}</span>
+              <span className="truncate max-w-[120px]">{name}</span>
+            </span>
+          );
+        }
+
+        return (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-flex items-center -space-x-1.5">
+              {ids.slice(0, 5).map((id) => {
+                const member = members?.find((m) => m.userId === id);
+                const user = member?.user;
+                return (
+                  <UserAvatar
+                    key={id}
+                    userId={id}
+                    name={user?.displayName}
+                    username={user?.username}
+                    avatarUrl={user?.avatarUrl}
+                    isBot={user?.userType === "bot"}
+                    className="w-5 h-5 ring-2 ring-background"
+                    fallbackClassName="text-[8px]"
+                  />
+                );
+              })}
+            </span>
+            {ids.length > 5 && (
+              <span className="text-muted-foreground">+{ids.length - 5}</span>
             )}
           </span>
         );
@@ -195,7 +245,7 @@ export function PropertyValue({
           </span>
         );
     }
-  }, [definition, value]);
+  }, [definition, value, members]);
 
   if (rendered === null) return null;
 
@@ -212,6 +262,10 @@ export function PropertyValue({
     return rendered;
   }
 
+  // Person shares the default pill wrapper, but the key prefix is opt-in via
+  // `showKeyPrefix` (callers decide based on schema disambiguation rules).
+  const hideLabel = definition.valueType === "person" && !showKeyPrefix;
+
   return (
     <span
       className={cn(
@@ -219,7 +273,9 @@ export function PropertyValue({
         className,
       )}
     >
-      <span className="text-muted-foreground">{displayLabel}:</span>
+      {!hideLabel && (
+        <span className="text-muted-foreground">{displayLabel}:</span>
+      )}
       {rendered}
     </span>
   );

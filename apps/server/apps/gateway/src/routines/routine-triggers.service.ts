@@ -13,6 +13,9 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { WS_EVENTS } from '@team9/shared';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { CreateTriggerDto, UpdateTriggerDto } from './dto/trigger.dto.js';
 
 @Injectable()
@@ -22,9 +25,36 @@ export class RoutineTriggersService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly wsGateway: WebsocketGateway,
   ) {}
 
   async create(routineId: string, dto: CreateTriggerDto, tenantId: string) {
+    const trigger = await this.createInternal(routineId, dto, tenantId);
+
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId },
+    );
+
+    return trigger;
+  }
+
+  /**
+   * Performs the actual trigger creation (validation + DB insert) WITHOUT
+   * emitting a `routine:updated` broadcast. Used directly by createBatch()
+   * so that creating a routine with N triggers via RoutinesService.create
+   * does not produce N broadcasts for a single logical create operation.
+   *
+   * The public create() wraps this and emits once — that path handles the
+   * single-trigger CRUD endpoint `POST /routines/:routineId/triggers`.
+   */
+  private async createInternal(
+    routineId: string,
+    dto: CreateTriggerDto,
+    tenantId: string,
+  ): Promise<schema.RoutineTrigger> {
     // Verify routine exists and belongs to tenant
     await this.getRoutineOrThrow(routineId, tenantId);
 
@@ -99,19 +129,38 @@ export class RoutineTriggersService {
       .where(eq(schema.routineTriggers.id, triggerId))
       .returning();
 
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId: trigger.routineId },
+    );
+
     return updated;
   }
 
   async delete(triggerId: string, tenantId: string) {
-    await this.getTriggerOrThrow(triggerId, tenantId);
+    const trigger = await this.getTriggerOrThrow(triggerId, tenantId);
 
     await this.db
       .delete(schema.routineTriggers)
       .where(eq(schema.routineTriggers.id, triggerId));
 
+    await this.wsGateway.broadcastToWorkspace(
+      tenantId,
+      WS_EVENTS.ROUTINE.UPDATED,
+      { routineId: trigger.routineId },
+    );
+
     return { success: true };
   }
 
+  /**
+   * Batch trigger creation — used by RoutinesService.create when a routine
+   * is POSTed with N triggers. Deliberately bypasses the public create()
+   * wrapper to avoid emitting N `routine:updated` broadcasts for one
+   * logical creation operation. The outer CREATE flow does NOT emit
+   * `routine:updated` either (it's a create, not an update).
+   */
   async createBatch(
     routineId: string,
     dtos: CreateTriggerDto[],
@@ -119,7 +168,7 @@ export class RoutineTriggersService {
   ) {
     const results: schema.RoutineTrigger[] = [];
     for (const dto of dtos) {
-      const trigger = await this.create(routineId, dto, tenantId);
+      const trigger = await this.createInternal(routineId, dto, tenantId);
       results.push(trigger);
     }
     return results;
@@ -129,6 +178,10 @@ export class RoutineTriggersService {
     routineId: string,
     triggers: CreateTriggerDto[],
   ): Promise<void> {
+    // No routine:updated emit here — outer callers (RoutinesService.update,
+    // RoutineBotService.updateRoutine) emit once at the tail of their flow,
+    // which already covers the triggers-replaced case. Emitting here would
+    // produce duplicate broadcasts for the same user-visible change.
     await this.db.transaction(async (tx) => {
       await tx
         .delete(schema.routineTriggers)
