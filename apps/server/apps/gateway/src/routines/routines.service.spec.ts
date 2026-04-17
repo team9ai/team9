@@ -77,6 +77,7 @@ describe('RoutinesService — TaskCast integration', () => {
   let routineTriggersService: {
     createBatch: MockFn;
     replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
@@ -105,6 +106,7 @@ describe('RoutinesService — TaskCast integration', () => {
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
@@ -3215,5 +3217,309 @@ describe('RoutinesService — TaskCast integration', () => {
 
       loggerWarn.mockRestore();
     });
+
+    it('kickoff payload includes draft triggers from routineTriggersService', async () => {
+      const expectedTriggers = [
+        {
+          id: 't-1',
+          type: 'manual',
+          config: {},
+          enabled: true,
+          routineId: ROUTINE_ID,
+        },
+      ];
+      mockGetRoutine();
+      routineTriggersService.listByRoutine.mockResolvedValueOnce(
+        expectedTriggers,
+      );
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (
+        (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
+          string,
+          { payload: Record<string, unknown> },
+          string,
+        ]
+      )[1].payload;
+      expect(payload.triggers).toEqual(expectedTriggers);
+      expect(routineTriggersService.listByRoutine).toHaveBeenCalledWith(
+        ROUTINE_ID,
+        TENANT_ID,
+      );
+    });
+
+    it('kickoff payload triggers defaults to [] when listByRoutine throws', async () => {
+      mockGetRoutine();
+      routineTriggersService.listByRoutine.mockRejectedValueOnce(
+        new Error('triggers fetch boom'),
+      );
+      const loggerWarn = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (
+        (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
+          string,
+          { payload: Record<string, unknown> },
+          string,
+        ]
+      )[1].payload;
+      expect(payload.triggers).toEqual([]);
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('failed to fetch draft triggers'),
+      );
+
+      loggerWarn.mockRestore();
+    });
+  });
+});
+
+// ── completeCreation race-condition tests (I2) ────────────────────────
+// These are separate describe blocks to keep the main completeCreation
+// fixtures clean, while testing the conditional UPDATE race gate.
+
+describe('RoutinesService — completeCreation race guard', () => {
+  type MockFn = jest.Mock<(...args: any[]) => any>;
+
+  function mockDb() {
+    const chain: Record<string, MockFn> = {};
+    const methods = [
+      'select',
+      'from',
+      'where',
+      'limit',
+      'insert',
+      'values',
+      'returning',
+      'update',
+      'set',
+      'and',
+      'orderBy',
+      'desc',
+      'delete',
+      'leftJoin',
+      'innerJoin',
+    ];
+    for (const m of methods) {
+      chain[m] = jest.fn<any>().mockReturnValue(chain);
+    }
+    chain.limit.mockResolvedValue([]);
+    chain.returning.mockResolvedValue([]);
+    return chain;
+  }
+
+  const DRAFT_ROUTINE = {
+    id: 'routine-1',
+    tenantId: 'tenant-1',
+    status: 'draft' as const,
+    creatorId: 'user-1',
+    botId: 'bot-1',
+    title: 'My Routine',
+    documentId: 'doc-1',
+    creationChannelId: 'channel-1',
+    scheduleType: 'once',
+    scheduleConfig: null,
+    description: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    currentExecutionId: null,
+  };
+
+  let service: RoutinesService;
+  let db: ReturnType<typeof mockDb>;
+  let botsService: { getBotById: MockFn };
+  let documentsService: { create: MockFn; update: MockFn; getById: MockFn };
+  let routineTriggersService: {
+    createBatch: MockFn;
+    replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
+  };
+  let channelsService: {
+    archiveCreationChannel: MockFn;
+    createRoutineSessionChannel: MockFn;
+    hardDeleteRoutineSessionChannel: MockFn;
+  };
+  let clawHiveService: {
+    deleteAgent: MockFn;
+    registerAgent: MockFn;
+    sendInput: MockFn;
+    createSession: MockFn;
+    deleteSession: MockFn;
+  };
+  let amqpConnection: { publish: MockFn };
+  let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
+
+  beforeEach(async () => {
+    db = mockDb();
+    amqpConnection = { publish: jest.fn<any>().mockResolvedValue(undefined) };
+    documentsService = {
+      create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
+      update: jest.fn<any>().mockResolvedValue(undefined),
+      getById: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'doc-1', content: 'some content' }),
+    };
+    routineTriggersService = {
+      createBatch: jest.fn<any>().mockResolvedValue(undefined),
+      replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
+    };
+    taskCastService = {
+      transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
+      publishEvent: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    channelsService = {
+      archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
+      createRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'channel-1' }),
+      hardDeleteRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
+    };
+    clawHiveService = {
+      deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+      registerAgent: jest.fn<any>().mockResolvedValue(undefined),
+      sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      createSession: jest
+        .fn<any>()
+        .mockResolvedValue({ sessionId: 'pre-created-session' }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    botsService = {
+      getBotById: jest
+        .fn<any>()
+        .mockResolvedValue({ botId: 'bot-1', userId: 'user-1' }),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RoutinesService,
+        { provide: DATABASE_CONNECTION, useValue: db },
+        { provide: AmqpConnection, useValue: amqpConnection },
+        { provide: DocumentsService, useValue: documentsService },
+        { provide: RoutineTriggersService, useValue: routineTriggersService },
+        { provide: TaskCastService, useValue: taskCastService },
+        { provide: ChannelsService, useValue: channelsService },
+        { provide: ClawHiveService, useValue: clawHiveService },
+        { provide: BotService, useValue: botsService },
+      ],
+    }).compile();
+
+    service = module.get<RoutinesService>(RoutinesService);
+  });
+
+  it('race-loss: returns winner state without dispatching autoRunFirst', async () => {
+    // Initial read: sees status='draft'
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    // Bot validation
+    botsService.getBotById.mockResolvedValueOnce({
+      botId: 'bot-1',
+      userId: 'user-1',
+    } as any);
+    // Doc content check
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-1',
+      content: 'some content',
+    } as any);
+    // Conditional UPDATE returns empty (lost the race)
+    db.returning.mockResolvedValueOnce([] as any);
+    // Re-fetch via getRoutineOrThrow returns the winner's upcoming state
+    db.limit.mockResolvedValueOnce([
+      { ...DRAFT_ROUTINE, status: 'upcoming' },
+    ] as any);
+
+    const startSpy = jest
+      .spyOn(service, 'start')
+      .mockResolvedValue({ success: true } as any);
+
+    const result = await service.completeCreation(
+      'routine-1',
+      { autoRunFirst: true }, // even with true, race-loser must NOT dispatch
+      'user-1',
+      'tenant-1',
+    );
+
+    expect(result.status).toBe('upcoming');
+    expect(startSpy).not.toHaveBeenCalled();
+    // Archive was still attempted on race-loss path (winner's channel)
+    expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+      'channel-1',
+      'tenant-1',
+    );
+
+    startSpy.mockRestore();
+  });
+
+  it('race-loss: archives channel best-effort even when archiveCreationChannel throws', async () => {
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    botsService.getBotById.mockResolvedValueOnce({
+      botId: 'bot-1',
+      userId: 'user-1',
+    } as any);
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-1',
+      content: 'some content',
+    } as any);
+    db.returning.mockResolvedValueOnce([] as any);
+    db.limit.mockResolvedValueOnce([
+      { ...DRAFT_ROUTINE, status: 'upcoming' },
+    ] as any);
+
+    channelsService.archiveCreationChannel.mockRejectedValueOnce(
+      new Error('archive boom'),
+    );
+    const loggerWarn = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    // Should NOT throw even if archive fails
+    const result = await service.completeCreation(
+      'routine-1',
+      {},
+      'user-1',
+      'tenant-1',
+    );
+
+    expect(result.status).toBe('upcoming');
+    expect(loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('race-loss'),
+    );
+
+    loggerWarn.mockRestore();
+  });
+
+  it('winner: still dispatches autoRunFirst when conditional UPDATE returns a row', async () => {
+    const UPDATED = { ...DRAFT_ROUTINE, status: 'upcoming' as const };
+
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    botsService.getBotById.mockResolvedValueOnce({
+      botId: 'bot-1',
+      userId: 'user-1',
+    } as any);
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-1',
+      content: 'some content',
+    } as any);
+    // Conditional UPDATE returns a row (we are the winner)
+    db.returning.mockResolvedValueOnce([UPDATED] as any);
+
+    const startSpy = jest
+      .spyOn(service, 'start')
+      .mockResolvedValue({ success: true } as any);
+
+    await service.completeCreation(
+      'routine-1',
+      { autoRunFirst: true },
+      'user-1',
+      'tenant-1',
+    );
+
+    expect(startSpy).toHaveBeenCalledTimes(1);
+
+    startSpy.mockRestore();
   });
 });

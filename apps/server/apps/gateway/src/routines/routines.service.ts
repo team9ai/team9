@@ -862,12 +862,44 @@ export class RoutinesService {
       });
     }
 
-    // Step 6: Update status to upcoming
+    // Step 6: Conditionally update status to upcoming only if still draft.
+    // Using WHERE id=? AND status='draft' with RETURNING lets us detect a
+    // concurrent caller that already flipped the status — empty result means
+    // we lost the race and must NOT dispatch autoRunFirst a second time.
     const [updated] = await this.db
       .update(schema.routines)
       .set({ status: 'upcoming', updatedAt: new Date() })
-      .where(eq(schema.routines.id, routineId))
+      .where(
+        and(
+          eq(schema.routines.id, routineId),
+          eq(schema.routines.status, 'draft'),
+        ),
+      )
       .returning();
+
+    if (!updated) {
+      // Lost the race — another concurrent caller already flipped this draft
+      // to upcoming. Fall back to the idempotent behaviour: archive channel
+      // best-effort, do NOT dispatch autoRunFirst (the winner already did or
+      // chose not to), and return the current routine state.
+      const winner = await this.getRoutineOrThrow(routineId, tenantId);
+      if (winner.creationChannelId) {
+        try {
+          await this.channelsService.archiveCreationChannel(
+            winner.creationChannelId,
+            tenantId,
+          );
+        } catch (e) {
+          this.logger.warn(
+            `completeCreation (race-loss): failed to archive creation channel ${winner.creationChannelId} for routine ${routineId}: ${e}`,
+          );
+        }
+      }
+      this.logger.log(
+        `completeCreation: routine ${routineId} race-loss; another caller already finalized`,
+      );
+      return winner;
+    }
 
     // Step 7a: archive the creation channel (best-effort, non-fatal)
     if (routine.creationChannelId) {
@@ -1121,6 +1153,21 @@ export class RoutinesService {
       }
     }
 
+    // Fetch existing triggers as best-effort enrichment so the agent can
+    // render an accurate state (e.g. "1 trigger configured") instead of
+    // showing "0 configured" for drafts that already have triggers.
+    let draftTriggers: unknown[] = [];
+    try {
+      draftTriggers = await this.routineTriggersService.listByRoutine(
+        routineId,
+        tenantId,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `startCreationSession: failed to fetch draft triggers for routine ${routineId}: ${err}`,
+      );
+    }
+
     // Build channel speculatively. The conditional UPDATE below is the
     // race gate — if two concurrent callers both reach this point, both
     // create channels, and the loser hard-deletes its own.
@@ -1225,7 +1272,7 @@ export class RoutinesService {
             description: routine.description ?? null,
             documentContent: draftDocumentContent,
             botId: routine.botId,
-            triggers: [], // Placeholder; current flow doesn't pre-seed triggers, reserved for future use
+            triggers: draftTriggers,
           },
         },
         tenantId,

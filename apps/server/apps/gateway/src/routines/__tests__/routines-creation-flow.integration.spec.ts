@@ -128,6 +128,7 @@ describe('Routine Creation Flow — integration', () => {
   let routineTriggersService: {
     createBatch: MockFn;
     replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
@@ -156,6 +157,7 @@ describe('Routine Creation Flow — integration', () => {
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
