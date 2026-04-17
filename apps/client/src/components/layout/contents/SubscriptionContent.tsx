@@ -252,7 +252,7 @@ export function SubscriptionContent({
   entrySource,
 }: SubscriptionContentProps) {
   const { t } = useTranslation("workspace");
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: "/subscription" });
   const { selectedWorkspaceId } = useWorkspaceStore();
   const workspaceId = workspaceIdFromSearch || selectedWorkspaceId || undefined;
   const currentView: BillingView = view === "credits" ? "credits" : "plans";
@@ -360,7 +360,7 @@ export function SubscriptionContent({
 
     navigate({
       to: "/subscription",
-      search: { workspaceId, view: nextView },
+      search: (prev) => ({ ...prev, workspaceId, view: nextView }),
     });
   };
 
