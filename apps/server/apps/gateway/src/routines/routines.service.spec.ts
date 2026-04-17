@@ -3814,10 +3814,6 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     describe('creator language propagation', () => {
-      beforeEach(() => {
-        usersService.getLocalePreferences.mockReset();
-      });
-
       it("includes creator's language + timeZone in team9Context when both are set", async () => {
         mockGetRoutine();
         usersService.getLocalePreferences.mockResolvedValue({
@@ -3897,6 +3893,36 @@ describe('RoutinesService — TaskCast integration', () => {
           creationChannelId: expect.any(String),
           isCreationChannel: true,
         });
+      });
+
+      it('rolls back claim + channel when getLocalePreferences rejects', async () => {
+        mockGetRoutine();
+        // Claim succeeds, but the locale read throws (transient DB issue).
+        usersService.getLocalePreferences.mockRejectedValue(
+          new Error('db down'),
+        );
+
+        await expect(
+          service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+        ).rejects.toThrow('db down');
+
+        // Speculative channel must be hard-deleted.
+        expect(
+          channelsService.hardDeleteRoutineSessionChannel,
+        ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+
+        // Routine creation columns cleared (claimed = true before getLocalePreferences throws)
+        expect(db.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            creationChannelId: null,
+            creationSessionId: null,
+          }),
+        );
+
+        // Kickoff MUST NOT have happened — the locale read runs after the
+        // claim but before createSession/sendInput.
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        expect(clawHiveService.sendInput).not.toHaveBeenCalled();
       });
     });
   });
