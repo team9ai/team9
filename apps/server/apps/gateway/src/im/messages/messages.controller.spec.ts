@@ -349,6 +349,26 @@ describe('MessagesController', () => {
       ).rejects.toThrow(/archived/i);
     });
 
+    it('reports deactivated (not archived) when a channel is both deactivated and archived', async () => {
+      // The controller checks isActivated before isArchived. If both flags
+      // are set, the deactivation error must win so the operational signal
+      // (the channel's execution is over) isn't masked by the archive
+      // state. This test pins the ordering so a future refactor can't
+      // silently swap the two checks.
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isActivated: false, isArchived: true }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toThrow(/deactivated/i);
+
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
     it('broadcasts, publishes MQ work, and emits search events on success', async () => {
       const dto = {
         clientMsgId: CLIENT_MSG_ID,
