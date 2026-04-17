@@ -43,7 +43,9 @@ Mirror Pandoc / `remark-math` defaults:
   - No newline inside.
 - Literal `\$` is an escape and contributes nothing.
 
-This set avoids the `"$5 for lunch, $10 for dinner"` false positive while supporting the screenshot's content (`$\sum_{k=1}^{n} k^3$`, `$$…$$` on its own line).
+This set avoids the `"$5 for lunch, $10 for dinner"` false positive on the HTML (Lexical) path, while supporting the screenshot's content (`$\sum_{k=1}^{n} k^3$`, `$$…$$` on its own line).
+
+**Known path divergence:** The Markdown path uses `remark-math` / `micromark-extension-math`, which enforces the opening-non-space and closing-non-space rules but **not** the "closing `$` not followed by a digit" rule. As a result, bot-authored Markdown like `"$5 for lunch, $10 for dinner"` would accidentally render as math on the Markdown path. In practice this is low-risk (bots generally escape `\$` for money amounts), and tightening it would require forking the remark plugin; deferred to a follow-up if it shows up in real content.
 
 `\(…\)` / `\[…\]` delimiters are enabled for free via `remark-math` on the Markdown path; on the HTML path they're not implemented in v1 (can be added later; no current need).
 
@@ -174,20 +176,21 @@ No user-provided HTML reaches KaTeX; we only hand it LaTeX source strings, which
 
 ## Edge cases (explicitly handled)
 
-| Input                             | Behavior                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `"$5 for lunch, $10 for dinner"`  | Plain text (digit-after rule).                                            |
-| ``"use `$PATH` env var"``         | Plain text (inside `<code>`).                                             |
-| `"https://example.com/$id"`       | Plain text (no closing `$`).                                              |
-| Math inside `<a>`                 | Plain text (skipped subtree).                                             |
-| Math inside mention span          | Plain text (skipped subtree).                                             |
-| `"$ foo$"` / `"$foo $"`           | Plain text (space-adjacent rule).                                         |
-| `"\\$100"`                        | Literal `$100` (escape).                                                  |
-| Empty `$ $` / `$$ $$`             | Plain text.                                                               |
-| Invalid LaTeX `$\frac{1}{$`       | `.katex-error` span; no throw.                                            |
-| `$\href{javascript:alert(1)}{x}$` | Error span or inert; no `href="javascript:"` in output.                   |
-| Multi-line inline `$a\nb$`        | Plain text (newline rule).                                                |
-| Very long formula                 | Rendered; no artificial length cap (upstream message-size limit applies). |
+| Input                                            | Behavior                                                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `"$5 for lunch, $10 for dinner"` (HTML path)     | Plain text (digit-after rule).                                                                                |
+| `"$5 for lunch, $10 for dinner"` (Markdown path) | **Renders as math** — `remark-math` does not enforce the digit-after rule. See "Known path divergence" above. |
+| ``"use `$PATH` env var"``                        | Plain text (inside `<code>`).                                                                                 |
+| `"https://example.com/$id"`                      | Plain text (no closing `$`).                                                                                  |
+| Math inside `<a>`                                | Plain text (skipped subtree).                                                                                 |
+| Math inside mention span                         | Plain text (skipped subtree).                                                                                 |
+| `"$ foo$"` / `"$foo $"`                          | Plain text (space-adjacent rule).                                                                             |
+| `"\\$100"`                                       | Literal `$100` (escape).                                                                                      |
+| Empty `$ $` / `$$ $$`                            | Plain text.                                                                                                   |
+| Invalid LaTeX `$\frac{1}{$`                      | `.katex-error` span; no throw.                                                                                |
+| `$\href{javascript:alert(1)}{x}$`                | Error span or inert; no `href="javascript:"` in output.                                                       |
+| Multi-line inline `$a\nb$`                       | Plain text (newline rule).                                                                                    |
+| Very long formula                                | Rendered; no artificial length cap (upstream message-size limit applies).                                     |
 
 ## Selection, copy, dark mode, font
 
