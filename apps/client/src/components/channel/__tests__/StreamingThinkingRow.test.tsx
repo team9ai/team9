@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import i18n from "@/i18n";
 import { StreamingThinkingRow } from "../StreamingThinkingRow";
@@ -110,6 +110,48 @@ describe("StreamingThinkingRow", () => {
     expect(wrapper.className).toContain("border-border");
     expect(wrapper.className).toContain("bg-muted/30");
     expect(wrapper.getAttribute("style")).toContain("padding-left: 9px");
+  });
+
+  it("freezes the 'Thought for' duration once reply text arrives, even as more text streams", () => {
+    // Regression: without freezing, `durationMs` was computed on every
+    // render as `Date.now() - startedAt`. Since the component re-renders
+    // on each streaming content delta, the completed-state duration
+    // kept ticking through the entire reply phase and only appeared to
+    // "stop" when the stream ended and the persisted row took over.
+    // This test rerenders the row with a steadily-growing real-time
+    // clock and asserts the label stays frozen at the duration captured
+    // at the first content arrival.
+    vi.useFakeTimers();
+    try {
+      const startedAt = new Date("2026-04-17T00:00:00.000Z").getTime();
+      // t = startedAt + 4s — the moment the first reply delta lands.
+      vi.setSystemTime(startedAt + 4000);
+      const firstFrame = {
+        streamId: "s-1" as const,
+        channelId: "ch-1",
+        senderId: "bot-1",
+        content: "Hi",
+        thinking: "reasoning",
+        isThinking: false,
+        isStreaming: true,
+        startedAt,
+      };
+      const { rerender } = render(<StreamingThinkingRow stream={firstFrame} />);
+      expect(screen.getByText("Thought for 4s")).toBeInTheDocument();
+
+      // Ten seconds of additional reply streaming — the row must still
+      // read "Thought for 4s", NOT "Thought for 14s".
+      vi.setSystemTime(startedAt + 14000);
+      rerender(
+        <StreamingThinkingRow
+          stream={{ ...firstFrame, content: "Hi there, long reply!" }}
+        />,
+      );
+      expect(screen.getByText("Thought for 4s")).toBeInTheDocument();
+      expect(screen.queryByText(/Thought for 1[0-9]s/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("collapses the thinking body by default (revealed on click)", () => {
