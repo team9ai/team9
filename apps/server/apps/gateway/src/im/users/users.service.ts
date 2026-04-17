@@ -435,6 +435,35 @@ export class UsersService {
       .map((row) => this.mapUserResponse(row));
   }
 
+  /**
+   * Read a user's persisted locale preferences for agent session contexts.
+   *
+   * Both `users.language` and `users.timeZone` are nullable. Callers pass
+   * the returned values into `team9Context` only when non-null, so the
+   * agent-side default ("unknown → English, no zone hint") kicks in cleanly
+   * for users who have never reported preferences.
+   *
+   * Returns `{ language: null, timeZone: null }` when the user row does
+   * not exist — callers should not assume the user is present.
+   */
+  async getLocalePreferences(
+    userId: string,
+  ): Promise<{ language: string | null; timeZone: string | null }> {
+    const rows = await this.db
+      .select({
+        language: schema.users.language,
+        timeZone: schema.users.timeZone,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    const row = rows[0];
+    return {
+      language: row?.language ?? null,
+      timeZone: row?.timeZone ?? null,
+    };
+  }
+
   async getMultipleByIds(ids: string[]): Promise<UserResponse[]> {
     if (ids.length === 0) return [];
 

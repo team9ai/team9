@@ -694,6 +694,52 @@ describe('UsersService', () => {
     });
   });
 
+  describe('getLocalePreferences', () => {
+    it('returns both fields when the user has language and timeZone set', async () => {
+      db.__state.selectResults.push([
+        { language: 'zh-CN', timeZone: 'Asia/Shanghai' },
+      ]);
+
+      const result = await service.getLocalePreferences('user-1');
+
+      expect(result).toEqual({ language: 'zh-CN', timeZone: 'Asia/Shanghai' });
+    });
+
+    it('returns { language: null, timeZone: null } when the user row does not exist', async () => {
+      db.__state.selectResults.push([]);
+
+      const result = await service.getLocalePreferences('missing-user');
+
+      expect(result).toEqual({ language: null, timeZone: null });
+    });
+
+    it('returns the null-correct tuple when only language is set', async () => {
+      db.__state.selectResults.push([{ language: 'zh-CN', timeZone: null }]);
+
+      const result = await service.getLocalePreferences('user-1');
+
+      expect(result).toEqual({ language: 'zh-CN', timeZone: null });
+    });
+
+    it('returns the null-correct tuple when only timeZone is set', async () => {
+      db.__state.selectResults.push([
+        { language: null, timeZone: 'America/Sao_Paulo' },
+      ]);
+
+      const result = await service.getLocalePreferences('user-1');
+
+      expect(result).toEqual({ language: null, timeZone: 'America/Sao_Paulo' });
+    });
+
+    it('returns { language: null, timeZone: null } when the user has neither field set', async () => {
+      db.__state.selectResults.push([{ language: null, timeZone: null }]);
+
+      const result = await service.getLocalePreferences('user-1');
+
+      expect(result).toEqual({ language: null, timeZone: null });
+    });
+  });
+
   describe('UpdateUserDto validation', () => {
     it('accepts usernames with underscores as well as lowercase letters, numbers, and hyphens', async () => {
       const dto = Object.assign(new UpdateUserDto(), {
