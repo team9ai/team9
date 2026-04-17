@@ -29,7 +29,10 @@ import {
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
-import { DocumentsService } from '../documents/documents.service.js';
+import {
+  DocumentsService,
+  type DocumentResponse,
+} from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../bot/bot.service.js';
@@ -841,10 +844,19 @@ export class RoutinesService {
     let documentContentEmpty = true;
     if (routine.documentId) {
       try {
-        const doc = await this.documentsService.getById(routine.documentId);
-        const content = (doc as { content?: string | null }).content;
-        if (content && content.trim() !== '') {
-          documentContentEmpty = false;
+        const doc: DocumentResponse = await this.documentsService.getById(
+          routine.documentId,
+        );
+        if (doc.tenantId !== tenantId) {
+          this.logger.warn(
+            `completeCreation: routine ${routineId} document ${routine.documentId} tenant mismatch (got ${doc.tenantId}, expected ${tenantId}); treating content as empty`,
+          );
+          // documentContentEmpty remains true → will push error below
+        } else {
+          const content = doc.currentVersion?.content;
+          if (content && content.trim() !== '') {
+            documentContentEmpty = false;
+          }
         }
       } catch {
         // Doc not found — treat as empty content
@@ -1140,10 +1152,22 @@ export class RoutinesService {
     let draftDocumentContent: string | null = null;
     if (routine.documentId) {
       try {
-        const doc = await this.documentsService.getById(routine.documentId);
-        const content = (doc as { content?: string | null }).content;
-        if (typeof content === 'string' && content.length > 0) {
-          draftDocumentContent = content;
+        const doc: DocumentResponse = await this.documentsService.getById(
+          routine.documentId,
+        );
+        if (doc.tenantId !== tenantId) {
+          this.logger.warn(
+            `startCreationSession: routine ${routineId} document ${routine.documentId} tenant mismatch (got ${doc.tenantId}, expected ${tenantId}); skipping enrichment`,
+          );
+          // leave draftDocumentContent as null
+        } else {
+          const content = doc.currentVersion?.content;
+          if (typeof content === 'string') {
+            const trimmed = content.trim();
+            if (trimmed.length > 0) {
+              draftDocumentContent = trimmed;
+            }
+          }
         }
       } catch (err) {
         // Best-effort enrichment; if the document fetch fails, leave null.
@@ -1156,12 +1180,16 @@ export class RoutinesService {
     // Fetch existing triggers as best-effort enrichment so the agent can
     // render an accurate state (e.g. "1 trigger configured") instead of
     // showing "0 configured" for drafts that already have triggers.
+    // Use a direct tenant-scoped DB select rather than routineTriggersService
+    // to avoid a redundant getRoutineOrThrow inside listByRoutine (we already
+    // validated the routine above). routineTriggers has no tenantId column, so
+    // we scope via the validated routineId FK only.
     let draftTriggers: unknown[] = [];
     try {
-      draftTriggers = await this.routineTriggersService.listByRoutine(
-        routineId,
-        tenantId,
-      );
+      draftTriggers = await this.db
+        .select()
+        .from(schema.routineTriggers)
+        .where(eq(schema.routineTriggers.routineId, routineId));
     } catch (err) {
       this.logger.warn(
         `startCreationSession: failed to fetch draft triggers for routine ${routineId}: ${err}`,

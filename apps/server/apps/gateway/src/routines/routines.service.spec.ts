@@ -99,9 +99,11 @@ describe('RoutinesService — TaskCast integration', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
       update: jest.fn<any>().mockResolvedValue(undefined),
-      getById: jest
-        .fn<any>()
-        .mockResolvedValue({ id: 'doc-1', content: 'some content' }),
+      getById: jest.fn<any>().mockResolvedValue({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
@@ -1919,7 +1921,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       const result = await service.completeCreation(
@@ -2043,7 +2046,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.limit.mockResolvedValueOnce([{ ...DRAFT_ROUTINE, title: '' }] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       await expect(
@@ -2062,7 +2066,8 @@ describe('RoutinesService — TaskCast integration', () => {
       ] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       await expect(
@@ -2079,7 +2084,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: '',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: '' },
       } as any);
 
       await expect(
@@ -2097,7 +2103,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       const result = await service.completeCreation(
@@ -2119,7 +2126,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       channelsService.archiveCreationChannel.mockRejectedValueOnce(
@@ -2152,7 +2160,8 @@ describe('RoutinesService — TaskCast integration', () => {
       ] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
@@ -2165,7 +2174,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       const result = await service.completeCreation(
@@ -2183,7 +2193,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
       botsService.getBotById.mockResolvedValue(null as any);
 
@@ -2231,6 +2242,44 @@ describe('RoutinesService — TaskCast integration', () => {
       });
     });
 
+    // ── documentContent shape + tenant-guard tests ────────────────────
+
+    it('completeCreation: tenant mismatch on document treats content as empty (rejects with documentContent required)', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'other-tenant',
+        currentVersion: { versionIndex: 1, content: 'foo' },
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
+
+    it('completeCreation: validates documentContent via doc.currentVersion.content (real shape)', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'real content' },
+      } as any);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result.status).toBe('upcoming');
+    });
+
     // ── autoRunFirst ─────────────────────────────────────────────────
 
     const setupDraftFixture = () => {
@@ -2238,7 +2287,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
     };
 
@@ -2715,19 +2765,25 @@ describe('RoutinesService — TaskCast integration', () => {
         claimResult = [{ id: ROUTINE_ID }],
       } = opts;
 
-      // Step 1: getRoutineOrThrow
+      // Step 1: getRoutineOrThrow — db.select().from().where().limit()
+      // We prime one db.where.mockReturnValueOnce(db) so that .where() returns
+      // the chain, allowing .limit() to resolve via the limit queue.
+      db.where.mockReturnValueOnce(db as any);
       db.limit.mockResolvedValueOnce([routine]);
 
-      // Step 3: bot-tenant validation leftJoin query.
-      // Only reached when routine.status === 'draft' and the idempotent
-      // short-circuit doesn't fire. Safe to enqueue unconditionally —
-      // tests that short-circuit won't consume it.
+      // Step 3: bot-tenant validation — db.select().from().leftJoin().where().limit()
+      // A second db.where.mockReturnValueOnce(db) keeps .where() chainable so
+      // .limit() can resolve via the limit queue.
       db.where.mockReturnValueOnce(db as any);
       db.limit.mockResolvedValueOnce(
         botTenantRow ? [botTenantRow] : ([] as any),
       );
 
-      // Step 4: atomic claim UPDATE returning()
+      // Step 5: inline trigger fetch — db.select().from().where() resolves directly.
+      // No tenantId column on routineTriggers; scoped by routineId only.
+      db.where.mockResolvedValueOnce([] as any);
+
+      // Step 6: atomic claim UPDATE returning()
       db.returning.mockResolvedValueOnce(claimResult as any);
 
       return routine;
@@ -3075,7 +3131,8 @@ describe('RoutinesService — TaskCast integration', () => {
       });
       documentsService.getById.mockResolvedValueOnce({
         id: DOCUMENT_ID,
-        content: 'draft doc content',
+        tenantId: TENANT_ID,
+        currentVersion: { versionIndex: 1, content: 'draft doc content' },
       });
 
       await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
@@ -3218,7 +3275,7 @@ describe('RoutinesService — TaskCast integration', () => {
       loggerWarn.mockRestore();
     });
 
-    it('kickoff payload includes draft triggers from routineTriggersService', async () => {
+    it('kickoff payload includes draft triggers from inline DB select', async () => {
       const expectedTriggers = [
         {
           id: 't-1',
@@ -3228,10 +3285,29 @@ describe('RoutinesService — TaskCast integration', () => {
           routineId: ROUTINE_ID,
         },
       ];
-      mockGetRoutine();
-      routineTriggersService.listByRoutine.mockResolvedValueOnce(
-        expectedTriggers,
-      );
+      // Three db.where() calls in startCreationSession before atomic claim:
+      //   #1 getRoutineOrThrow, #2 bot-tenant, #3 trigger fetch
+      const DRAFT = {
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        creatorId: USER_ID,
+        botId: BOT_ID,
+        status: 'draft',
+        title: 'Test Draft',
+        creationChannelId: null,
+        creationSessionId: null,
+      };
+
+      // #1 getRoutineOrThrow
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([DRAFT]);
+      // #2 bot-tenant leftJoin
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+      // #3 inline trigger fetch — returns our expected triggers
+      db.where.mockResolvedValueOnce(expectedTriggers as any);
+      // atomic claim
+      db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
       await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
 
@@ -3243,17 +3319,34 @@ describe('RoutinesService — TaskCast integration', () => {
         ]
       )[1].payload;
       expect(payload.triggers).toEqual(expectedTriggers);
-      expect(routineTriggersService.listByRoutine).toHaveBeenCalledWith(
-        ROUTINE_ID,
-        TENANT_ID,
-      );
     });
 
-    it('kickoff payload triggers defaults to [] when listByRoutine throws', async () => {
-      mockGetRoutine();
-      routineTriggersService.listByRoutine.mockRejectedValueOnce(
-        new Error('triggers fetch boom'),
-      );
+    it('kickoff payload triggers defaults to [] when inline trigger select throws', async () => {
+      const DRAFT = {
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        creatorId: USER_ID,
+        botId: BOT_ID,
+        status: 'draft',
+        title: 'Test Draft',
+        creationChannelId: null,
+        creationSessionId: null,
+      };
+
+      // #1 getRoutineOrThrow
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([DRAFT]);
+      // #2 bot-tenant leftJoin
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+      // #3 inline trigger fetch — throws synchronously so the surrounding
+      // try/catch in the service handles it gracefully
+      db.where.mockImplementationOnce(() => {
+        throw new Error('triggers fetch boom');
+      });
+      // atomic claim
+      db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+
       const loggerWarn = jest
         .spyOn((service as any).logger, 'warn')
         .mockImplementation(() => undefined);
@@ -3273,6 +3366,61 @@ describe('RoutinesService — TaskCast integration', () => {
       );
 
       loggerWarn.mockRestore();
+    });
+
+    // ── documentContent enrichment tests ──────────────────────────────
+
+    it('startCreationSession: kickoff payload includes documentContent from doc.currentVersion.content', async () => {
+      const DOCUMENT_ID = 'doc-1';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        currentVersion: { versionIndex: 1, content: 'doc body' },
+      } as any);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      expect(payload[1].payload.documentContent).toBe('doc body');
+    });
+
+    it('startCreationSession: documentContent stays null when doc tenantId mismatches', async () => {
+      const DOCUMENT_ID = 'doc-1';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: 'other-tenant',
+        currentVersion: { versionIndex: 1, content: 'leaked' },
+      } as any);
+      const loggerWarn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      expect(payload[1].payload.documentContent).toBeNull();
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('tenant mismatch'),
+      );
+      loggerWarn.mockRestore();
+    });
+
+    it('startCreationSession: documentContent stays null when currentVersion is null', async () => {
+      const DOCUMENT_ID = 'doc-1';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        currentVersion: null,
+      } as any);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      expect(payload[1].payload.documentContent).toBeNull();
     });
   });
 });
@@ -3358,9 +3506,11 @@ describe('RoutinesService — completeCreation race guard', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
       update: jest.fn<any>().mockResolvedValue(undefined),
-      getById: jest
-        .fn<any>()
-        .mockResolvedValue({ id: 'doc-1', content: 'some content' }),
+      getById: jest.fn<any>().mockResolvedValue({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
@@ -3423,7 +3573,8 @@ describe('RoutinesService — completeCreation race guard', () => {
     // Doc content check
     documentsService.getById.mockResolvedValueOnce({
       id: 'doc-1',
-      content: 'some content',
+      tenantId: 'tenant-1',
+      currentVersion: { versionIndex: 1, content: 'some content' },
     } as any);
     // Conditional UPDATE returns empty (lost the race)
     db.returning.mockResolvedValueOnce([] as any);
@@ -3462,7 +3613,8 @@ describe('RoutinesService — completeCreation race guard', () => {
     } as any);
     documentsService.getById.mockResolvedValueOnce({
       id: 'doc-1',
-      content: 'some content',
+      tenantId: 'tenant-1',
+      currentVersion: { versionIndex: 1, content: 'some content' },
     } as any);
     db.returning.mockResolvedValueOnce([] as any);
     db.limit.mockResolvedValueOnce([
@@ -3502,7 +3654,8 @@ describe('RoutinesService — completeCreation race guard', () => {
     } as any);
     documentsService.getById.mockResolvedValueOnce({
       id: 'doc-1',
-      content: 'some content',
+      tenantId: 'tenant-1',
+      currentVersion: { versionIndex: 1, content: 'some content' },
     } as any);
     // Conditional UPDATE returns a row (we are the winner)
     db.returning.mockResolvedValueOnce([UPDATED] as any);
