@@ -12,8 +12,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useFullContent } from "@/hooks/useMessages";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import linkifyHtml from "linkify-html";
 import Prism from "@/lib/prism";
+import { renderMathInHtml } from "@/lib/math";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
@@ -130,6 +133,11 @@ function HtmlMessageContent({ content, className }: MessageContentProps) {
         return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-language">${escapeHtml(lang || "text")}</span><button type="button" class="code-block-copy" data-code="${encodedForAttr}">Copy</button></div><pre class="code-block-pre"><code class="language-${escapeHtml(lang)}">${highlighted}</code></pre></div>`;
       },
     );
+
+    // Render LaTeX math. Runs after code-block highlighting (so $ inside
+    // <code>/<pre> is already nested in skipped subtrees) and before
+    // linkifyHtml (so URLs inside a formula aren't wrapped in <a>).
+    html = renderMathInHtml(html);
 
     html = linkifyHtml(html, {
       target: "_blank",
@@ -283,7 +291,18 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
   return (
     <div className={`${className ?? ""} markdown-message-content`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[
+          [
+            rehypeKatex,
+            {
+              throwOnError: false,
+              strict: "ignore",
+              output: "htmlAndMathml",
+              trust: false,
+            },
+          ],
+        ]}
         components={{
           code: MarkdownCodeRenderer,
           a: ({ href, children }) => (

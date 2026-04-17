@@ -1,5 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { PropsWithChildren, ReactElement } from "react";
 import { MessageAttachments } from "../MessageAttachments";
 import { fileApi } from "@/services/api/file";
 import type { MessageAttachment } from "@/types/im";
@@ -9,6 +11,21 @@ vi.mock("@/services/api/file", () => ({
     getDownloadUrl: vi.fn(),
   },
 }));
+
+// MessageAttachments uses `useQuery` (see the signed-URL cache in
+// `useFileDownloadUrl`). Without a client the hook throws "No QueryClient
+// set" on first render, so every test in this file needs its own provider
+// — a fresh QueryClient per test guarantees caches don't leak between
+// cases and keeps retry disabled so mocked rejections surface immediately.
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const Wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return render(ui, { wrapper: Wrapper });
+}
 
 function makeImageAttachment(
   overrides: Partial<MessageAttachment> = {},
@@ -45,7 +62,7 @@ describe("MessageAttachments", () => {
         expiresAt: "2026-04-03T00:00:00Z",
       });
 
-    const { rerender } = render(
+    const { rerender } = renderWithQueryClient(
       <MessageAttachments attachments={[makeImageAttachment()]} />,
     );
 

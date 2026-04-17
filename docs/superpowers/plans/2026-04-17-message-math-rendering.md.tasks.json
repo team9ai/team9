@@ -1,0 +1,47 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-17-message-math-rendering.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Install dependencies and wire global CSS",
+      "status": "pending",
+      "description": "**Goal:** Add KaTeX and friends to the client package, import the KaTeX stylesheet, and add the small CSS overrides.\n\n**Files:**\n- Modify: apps/client/package.json\n- Modify: apps/client/src/main.tsx\n- Modify: apps/client/src/global.css\n\n**Acceptance Criteria:**\n- katex, remark-math, rehype-katex in dependencies; @types/katex in devDependencies\n- main.tsx imports katex/dist/katex.min.css BEFORE ./global.css (so our global.css overrides win the cascade)\n- global.css has .katex, .math-block, .katex-display overrides\n- typecheck + build pass\n\n**Verify:** `pnpm -C apps/client typecheck && pnpm -C apps/client build`\n\n```json:metadata\n{\"files\": [\"apps/client/package.json\", \"apps/client/src/main.tsx\", \"apps/client/src/global.css\"], \"verifyCommand\": \"pnpm -C apps/client typecheck && pnpm -C apps/client build\", \"acceptanceCriteria\": [\"deps installed\", \"KaTeX CSS imported globally\", \"CSS overrides appended\", \"typecheck passes\", \"build succeeds\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Implement renderMathInHtml with unit tests (TDD)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Pure function `renderMathInHtml(html)` that walks the DOM, skips code/pre/a/script/style and mention subtrees, and replaces math delimiters with KaTeX-rendered HTML.\n\n**Files:**\n- Create: apps/client/src/lib/math.ts\n- Create: apps/client/src/lib/math.test.ts\n\n**Acceptance Criteria:**\n- Fast path for no `$`\n- Inline `$…$` and block `$$…$$` rendered with correct KaTeX options\n- Skipped subtrees: code, pre, a, script, style, [data-mention-user-id]\n- All bad/boundary cases from spec produce plain text\n- Invalid LaTeX returns .katex-error span; no throw\n- 100% line+branch coverage on math.ts\n\n**Verify:** `pnpm -C apps/client test src/lib/math.test.ts` + `pnpm -C apps/client test:cov -- src/lib/math.test.ts`\n\n```json:metadata\n{\"files\": [\"apps/client/src/lib/math.ts\", \"apps/client/src/lib/math.test.ts\"], \"verifyCommand\": \"pnpm -C apps/client test src/lib/math.test.ts\", \"acceptanceCriteria\": [\"fast path\", \"inline + block rendering\", \"skipped subtrees\", \"bad/boundary cases\", \"error path\", \"100% coverage\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Wire remark-math + rehype-katex into Markdown path",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** MarkdownMessageContent renders LaTeX via remark-math + rehype-katex with shared KaTeX options.\n\n**Files:**\n- Modify: apps/client/src/components/channel/MessageContent.tsx (Markdown path)\n\n**Acceptance Criteria:**\n- ReactMarkdown has remarkMath in remarkPlugins and rehypeKatex in rehypePlugins with { throwOnError: false, strict: 'ignore', output: 'htmlAndMathml', trust: false }\n- Existing Markdown-path tests still pass\n\n**Verify:** `pnpm -C apps/client test src/components/channel/__tests__`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/MessageContent.tsx\"], \"verifyCommand\": \"pnpm -C apps/client test src/components/channel/__tests__\", \"acceptanceCriteria\": [\"plugins wired correctly\", \"no regressions\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Wire renderMathInHtml into HTML (Lexical) path",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** HtmlMessageContent runs renderMathInHtml between code-block highlighting and linkifyHtml.\n\n**Files:**\n- Modify: apps/client/src/components/channel/MessageContent.tsx (HTML path)\n\n**Acceptance Criteria:**\n- processedContent pipeline order: mentions → code-blocks → renderMathInHtml → linkifyHtml\n- Existing HTML-path tests still pass\n\n**Verify:** `pnpm -C apps/client test src/components/channel/__tests__`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/MessageContent.tsx\"], \"verifyCommand\": \"pnpm -C apps/client test src/components/channel/__tests__\", \"acceptanceCriteria\": [\"math rendering inserted in pipeline\", \"order is correct\", \"no regressions\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Integration tests across both render paths",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** End-to-end coverage exercising MessageContent (Markdown + HTML) with math alongside code blocks and mentions.\n\n**Files:**\n- Create: apps/client/src/components/channel/__tests__/message-math.integration.test.tsx\n\n**Acceptance Criteria:**\n- Markdown message with `$\\sum k$` renders .katex\n- Lexical HTML with inline + block math renders both (.katex and .katex-display)\n- Combined code + mention + math renders each correctly\n- Screenshot-style content renders without error\n\n**Verify:** `pnpm -C apps/client test src/components/channel/__tests__/message-math.integration.test.tsx`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/__tests__/message-math.integration.test.tsx\"], \"verifyCommand\": \"pnpm -C apps/client test src/components/channel/__tests__/message-math.integration.test.tsx\", \"acceptanceCriteria\": [\"markdown path\", \"html path inline + block\", \"combined code/mention/math\", \"screenshot content\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Final verification (tests, coverage, lint, typecheck, build, manual)",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Confirm no regressions and sanity-check the feature in the browser.\n\n**Acceptance Criteria:**\n- Full client test suite green\n- Lint clean\n- Typecheck clean\n- Build succeeds\n- math.ts at 100% coverage\n- Manual browser check: screenshot content renders, copy-paste yields LaTeX source, `$5 vs $10` stays plain text, `$PATH` in fenced code stays plain text\n\n**Verify:** `pnpm -C apps/client test && pnpm -C apps/client test:cov && pnpm -C apps/client lint:ci && pnpm -C apps/client typecheck && pnpm -C apps/client build`\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"pnpm -C apps/client test && pnpm -C apps/client lint:ci && pnpm -C apps/client typecheck && pnpm -C apps/client build\", \"acceptanceCriteria\": [\"full tests pass\", \"coverage 100% on math.ts\", \"lint clean\", \"typecheck clean\", \"build succeeds\", \"manual verification passes\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-17T00:00:00Z"
+}
