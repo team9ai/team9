@@ -346,6 +346,53 @@ describe('AuthService', () => {
       expect(updatePayload).not.toHaveProperty('avatarUrl');
       expect(db.set.mock.calls).toHaveLength(1);
     });
+
+    it('returns isNewUser=true for new Google user signup', async () => {
+      const googlePayload = {
+        email: 'new-google-isNew@test.com',
+        name: 'New Google User',
+        picture: 'https://lh3.googleusercontent.com/new.jpg',
+      };
+      mockGooglePayload(googlePayload);
+
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([
+        {
+          ...USER_ROW,
+          id: 'new-google-uuid',
+          email: googlePayload.email,
+          username: 'new_google_user',
+          displayName: googlePayload.name,
+          avatarUrl: googlePayload.picture,
+        },
+      ]);
+
+      const result = await service.googleLogin({ credential: 'google-token' });
+
+      expect(result.isNewUser).toBe(true);
+    });
+
+    it('returns isNewUser=false for existing Google user login', async () => {
+      const existingUser = {
+        ...USER_ROW,
+        email: 'existing-google-isNew@test.com',
+        username: 'existing_google',
+        displayName: 'Existing Google User',
+        avatarUrl: null,
+        emailVerified: true,
+      };
+      mockGooglePayload({
+        email: existingUser.email,
+        name: 'New Name From Google',
+        picture: 'https://lh3.googleusercontent.com/pic.jpg',
+      });
+
+      db.limit.mockResolvedValueOnce([existingUser]);
+
+      const result = await service.googleLogin({ credential: 'google-token' });
+
+      expect(result.isNewUser).toBe(false);
+    });
   });
 
   // ── verifyCode ────────────────────────────────────────────────────
@@ -565,6 +612,51 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('race@test.com');
       // Should NOT insert a new user
       expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('returns isNewUser=true for new user signup via email verification', async () => {
+      const { challenge, code, challengeId } = makeChallenge({
+        flow: 'signup',
+        email: 'fresh@test.com',
+        signupDisplayName: 'Fresh User',
+      });
+      redisService.get.mockResolvedValue(JSON.stringify(challenge));
+
+      // completeSignup: no existing user found, then username uniqueness check passes
+      db.limit.mockImplementation((() => {
+        return Promise.resolve([]);
+      }) as any);
+
+      const newUser = {
+        ...USER_ROW,
+        id: 'fresh-user-uuid',
+        email: 'fresh@test.com',
+        username: 'fresh_user',
+        displayName: 'Fresh User',
+      };
+      db.returning.mockResolvedValue([newUser]);
+
+      const result = await service.verifyCode({
+        email: 'fresh@test.com',
+        challengeId,
+        code,
+      });
+
+      expect(result.isNewUser).toBe(true);
+    });
+
+    it('returns isNewUser=false for existing user login via email', async () => {
+      const { challenge, code, challengeId } = makeChallenge();
+      redisService.get.mockResolvedValue(JSON.stringify(challenge));
+      db.limit.mockResolvedValue([USER_ROW]);
+
+      const result = await service.verifyCode({
+        email: 'alice@test.com',
+        challengeId,
+        code,
+      });
+
+      expect(result.isNewUser).toBe(false);
     });
   });
 
@@ -947,6 +1039,36 @@ describe('AuthService', () => {
       );
       expect(redisService.del).toHaveBeenCalledWith(
         'im:login_session_by_user:user-uuid',
+      );
+    });
+
+    it('returns isNewUser=false and writes isNewUser=false to Redis session payload', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+      };
+      const verifiedUser = {
+        ...USER_ROW,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+      db.returning.mockResolvedValueOnce([verifiedUser]);
+      redisService.get.mockResolvedValue('login-session-1');
+
+      const result = await service.verifyEmail('token-123');
+
+      expect(result.isNewUser).toBe(false);
+      expect(redisService.set).toHaveBeenCalledWith(
+        'im:login_session:login-session-1',
+        expect.stringContaining('"isNewUser":false'),
+        300,
       );
     });
 

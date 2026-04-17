@@ -17,6 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getErrorMessage } from "@/services/http";
 import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
+import { useTeam9PostHog } from "@/analytics/posthog/provider";
+import { captureWithBridge } from "@/analytics/posthog/capture";
+import { EVENTS } from "@/analytics/posthog/events";
 
 const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -421,6 +424,9 @@ function WebLoginView() {
   const lastAutoVerifyAttempt = useRef<string | null>(null);
   const authMethodRef = useRef<"email" | "google">("email");
   const postAuthRedirectMode = useRef<"default" | "home">("default");
+  const pageViewFiredRef = useRef(false);
+
+  const { client: phClient } = useTeam9PostHog();
 
   const authStart = useAuthStart();
   const verifyCode = useVerifyCode();
@@ -455,19 +461,6 @@ function WebLoginView() {
 
     authCompletedInSession.current = true;
 
-    try {
-      const { default: posthog } = await import("posthog-js");
-      if (posthog.__loaded) {
-        posthog.capture("sign_up_completed", {
-          method: authMethodRef.current,
-          has_invite: !!invite,
-          is_desktop_flow: !!desktopSessionId,
-        });
-      }
-    } catch {
-      // Analytics should never block auth flow
-    }
-
     if (desktopSessionId) {
       try {
         await completeDesktop.mutateAsync({
@@ -481,7 +474,7 @@ function WebLoginView() {
     }
 
     setAuthState("authenticated");
-  }, [completeDesktop, desktopSessionId, invite]);
+  }, [completeDesktop, desktopSessionId]);
 
   useEffect(() => {
     if (!localStorage.getItem("auth_token")) return;
@@ -510,6 +503,14 @@ function WebLoginView() {
     }
   }, [countdown]);
 
+  useEffect(() => {
+    if (pageViewFiredRef.current) return;
+    pageViewFiredRef.current = true;
+    captureWithBridge(phClient, EVENTS.SIGNUP_PAGE_VIEWED, {
+      page_key: "signup",
+    });
+  }, [phClient]);
+
   const autoVerifyAttemptKey = useMemo(() => {
     if (code.length !== 6 || !challengeId) return null;
     return `${challengeId}:${code}`;
@@ -532,11 +533,16 @@ function WebLoginView() {
       try {
         postAuthRedirectMode.current = "home";
         setAuthState("verifying_code");
-        await verifyCode.mutateAsync({
+        const authResponse = await verifyCode.mutateAsync({
           email,
           challengeId: currentChallengeId,
           code,
         });
+        if (authResponse.isNewUser) {
+          captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+            signup_method: "email",
+          });
+        }
         await navigateAfterAuth();
       } catch (err: unknown) {
         setAuthState("code_sent");
@@ -552,6 +558,7 @@ function WebLoginView() {
     code,
     email,
     navigateAfterAuth,
+    phClient,
     t,
     verifyCode,
   ]);
@@ -584,6 +591,9 @@ function WebLoginView() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    captureWithBridge(phClient, EVENTS.SIGNUP_BUTTON_CLICKED, {
+      signup_method: "email",
+    });
 
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
@@ -618,11 +628,16 @@ function WebLoginView() {
     try {
       postAuthRedirectMode.current = "home";
       setAuthState("verifying_code");
-      await verifyCode.mutateAsync({
+      const authResponse = await verifyCode.mutateAsync({
         email,
         challengeId,
         code,
       });
+      if (authResponse.isNewUser) {
+        captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+          signup_method: "email",
+        });
+      }
       await navigateAfterAuth();
     } catch (err: unknown) {
       setAuthState("code_sent");
@@ -652,6 +667,9 @@ function WebLoginView() {
     credential?: string;
   }) => {
     if (!credentialResponse.credential) return;
+    captureWithBridge(phClient, EVENTS.SIGNUP_BUTTON_CLICKED, {
+      signup_method: "google",
+    });
     setError("");
 
     if (invite) {
@@ -662,10 +680,15 @@ function WebLoginView() {
     postAuthRedirectMode.current = "default";
 
     try {
-      await googleAuth.mutateAsync({
+      const result = await googleAuth.mutateAsync({
         credential: credentialResponse.credential,
         signupSource: invite ? "invite" : "self",
       });
+      if (result.isNewUser) {
+        captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+          signup_method: "google",
+        });
+      }
       await navigateAfterAuth();
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("googleLoginFailed")));
