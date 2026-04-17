@@ -353,11 +353,7 @@ describe('AuthService', () => {
         name: 'New Google User',
         picture: 'https://lh3.googleusercontent.com/new.jpg',
       };
-      jest
-        .spyOn(OAuth2Client.prototype as any, 'verifyIdToken')
-        .mockResolvedValue({
-          getPayload: () => googlePayload,
-        } as any);
+      mockGooglePayload(googlePayload);
 
       db.limit.mockResolvedValueOnce([]);
       db.returning.mockResolvedValueOnce([
@@ -385,15 +381,11 @@ describe('AuthService', () => {
         avatarUrl: null,
         emailVerified: true,
       };
-      jest
-        .spyOn(OAuth2Client.prototype as any, 'verifyIdToken')
-        .mockResolvedValue({
-          getPayload: () => ({
-            email: existingUser.email,
-            name: 'New Name From Google',
-            picture: 'https://lh3.googleusercontent.com/pic.jpg',
-          }),
-        } as any);
+      mockGooglePayload({
+        email: existingUser.email,
+        name: 'New Name From Google',
+        picture: 'https://lh3.googleusercontent.com/pic.jpg',
+      });
 
       db.limit.mockResolvedValueOnce([existingUser]);
 
@@ -1047,6 +1039,36 @@ describe('AuthService', () => {
       );
       expect(redisService.del).toHaveBeenCalledWith(
         'im:login_session_by_user:user-uuid',
+      );
+    });
+
+    it('returns isNewUser=false and writes isNewUser=false to Redis session payload', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+      };
+      const verifiedUser = {
+        ...USER_ROW,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+      db.returning.mockResolvedValueOnce([verifiedUser]);
+      redisService.get.mockResolvedValue('login-session-1');
+
+      const result = await service.verifyEmail('token-123');
+
+      expect(result.isNewUser).toBe(false);
+      expect(redisService.set).toHaveBeenCalledWith(
+        'im:login_session:login-session-1',
+        expect.stringContaining('"isNewUser":false'),
+        300,
       );
     });
 

@@ -422,6 +422,7 @@ export class AuthService {
         JSON.stringify({
           status: 'verified',
           ...tokens,
+          isNewUser: false,
           user: {
             id: user.id,
             email: user.email,
