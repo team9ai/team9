@@ -51,6 +51,7 @@ import type { RetryExecutionDto } from './dto/trigger.dto.js';
 import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js';
 import { TaskCastService } from './taskcast.service.js';
+import { UsersService } from '../im/users/users.service.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ export class RoutinesService {
     private readonly channelsService: ChannelsService,
     private readonly clawHiveService: ClawHiveService,
     private readonly botsService: BotService,
+    private readonly usersService: UsersService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -1304,11 +1306,15 @@ export class RoutinesService {
 
       claimed = true;
 
+      const locale = await this.usersService.getLocalePreferences(userId);
+
       const team9Context: Record<string, unknown> = {
         routineId,
         creatorUserId: userId,
         creationChannelId: channel.id,
         isCreationChannel: true,
+        ...(locale.language ? { language: locale.language } : {}),
+        ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
       };
 
       await this.clawHiveService.createSession(

@@ -18,6 +18,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { StaffService, type StaffBotResult } from './staff.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreatePersonalStaffDto,
   UpdatePersonalStaffDto,
@@ -55,6 +56,7 @@ export class PersonalStaffService {
     private readonly channelsService: ChannelsService,
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly staffService: StaffService,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
@@ -98,32 +100,6 @@ export class PersonalStaffService {
       .limit(1);
 
     return rows[0] ?? null;
-  }
-
-  /**
-   * Read a user's persisted locale preferences for bootstrap event payloads.
-   *
-   * Both columns are nullable; this helper returns `{ language: null, timeZone: null }`
-   * when the user row does not exist or has not yet reported preferences.
-   * Callers pass the returned values into `team9Context` only when non-null
-   * so the agent-side default ("unknown → English") kicks in cleanly.
-   */
-  private async getUserLocale(
-    userId: string,
-  ): Promise<{ language: string | null; timeZone: string | null }> {
-    const rows = await this.db
-      .select({
-        language: schema.users.language,
-        timeZone: schema.users.timeZone,
-      })
-      .from(schema.users)
-      .where(eq(schema.users.id, userId))
-      .limit(1);
-    const row = rows[0];
-    return {
-      language: row?.language ?? null,
-      timeZone: row?.timeZone ?? null,
-    };
   }
 
   /**
@@ -295,7 +271,7 @@ export class PersonalStaffService {
           // agent can greet them in the right language and format times in
           // the right zone. Both columns are nullable; when unset the agent
           // falls back to English + no zone hint.
-          const locale = await this.getUserLocale(ownerId);
+          const locale = await this.usersService.getLocalePreferences(ownerId);
 
           const sessionId = `team9/${tenantId}/${result.agentId}/dm/${ownerDmChannel.id}`;
           await this.clawHiveService.sendInput(

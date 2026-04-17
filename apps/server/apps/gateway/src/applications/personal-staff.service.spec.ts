@@ -28,6 +28,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreatePersonalStaffDto,
   UpdatePersonalStaffDto,
@@ -213,6 +214,7 @@ describe('PersonalStaffService', () => {
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
   let installedApplicationsService: { findById: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -245,6 +247,12 @@ describe('PersonalStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
+
     mockStreamText.mockReset();
     mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
 
@@ -269,6 +277,7 @@ describe('PersonalStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -614,18 +623,17 @@ describe('PersonalStaffService', () => {
       });
 
       it("includes the owner's persisted language + timeZone in team9Context when set", async () => {
-        // Queue two results: (1) findPersonalStaffBot must see no existing
-        // bot, (2) getUserLocale must see the mentor's preferences row.
-        // `mockResolvedValueOnce` values are consumed FIFO before the
-        // sticky `mockResolvedValue([])` default from the describe-level
-        // beforeEach.
-        db.limit.mockResolvedValueOnce([]);
-        db.limit.mockResolvedValueOnce([
-          { language: 'zh-CN', timeZone: 'Asia/Shanghai' },
-        ]);
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
 
         const dto = makeCreateDto();
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(
+          OWNER_ID,
+        );
 
         const call = clawHiveService.sendInput.mock.calls[0];
         const event = call[1] as {
@@ -643,7 +651,7 @@ describe('PersonalStaffService', () => {
       });
 
       it('omits language and timeZone from team9Context when the owner has no preferences set', async () => {
-        // Default db.limit mock returns [] → getUserLocale returns nulls →
+        // Default usersService.getLocalePreferences mock returns { language: null, timeZone: null } →
         // neither key is spread into team9Context.
         const dto = makeCreateDto();
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);

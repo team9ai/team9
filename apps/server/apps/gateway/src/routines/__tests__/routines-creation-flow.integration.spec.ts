@@ -25,6 +25,7 @@ import { BotService } from '../../bot/bot.service.js';
 import { RoutineTriggersService } from '../routine-triggers.service.js';
 import { AmqpConnection } from '@team9/rabbitmq';
 import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import { UsersService } from '../../im/users/users.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -145,6 +146,10 @@ describe('Routine Creation Flow — integration', () => {
   };
   let botsService: { getBotById: MockFn };
   let wsGateway: { broadcastToWorkspace: MockFn };
+  // Mocked at boundary because DB fixture seeding for `users.language` is not
+  // the feature under test here. The creator returns zh-CN to verify the
+  // language flows through to team9Context.language on createSession.
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -191,6 +196,11 @@ describe('Routine Creation Flow — integration', () => {
     wsGateway = {
       broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
     };
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: 'zh-CN', timeZone: null }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -204,6 +214,7 @@ describe('Routine Creation Flow — integration', () => {
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
         { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -515,6 +526,7 @@ describe('Routine Creation Flow — integration', () => {
           creatorUserId: USER_ID,
           creationChannelId: CHANNEL_ID,
           isCreationChannel: true,
+          language: 'zh-CN',
         }),
       }),
       TENANT_ID,
