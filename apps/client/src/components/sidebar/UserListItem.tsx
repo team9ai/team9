@@ -6,6 +6,7 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { Link } from "@tanstack/react-router";
 import { useIsUserOnline } from "@/hooks/useIMUsers";
 import type { AgentType } from "@/types/im";
+import { AgentPillRow } from "./AgentPillRow";
 
 export interface UserListItemProps {
   /** Display name */
@@ -36,6 +37,12 @@ export interface UserListItemProps {
   isBot?: boolean;
   /** Managed agent category for badge display */
   agentType?: AgentType | null;
+  /** Bot staff classification — drives second-line pill rendering */
+  staffKind?: "common" | "personal" | "other" | null;
+  /** Common-staff role title (only used when staffKind='common') */
+  roleTitle?: string | null;
+  /** Personal-staff owner display name (only used when staffKind='personal') */
+  ownerName?: string | null;
 }
 
 /**
@@ -57,6 +64,9 @@ export function UserListItem({
   avatarSize = "default",
   isBot = false,
   agentType,
+  staffKind,
+  roleTitle,
+  ownerName,
 }: UserListItemProps) {
   const isOnline = useIsUserOnline(userId);
   const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-9 h-9";
@@ -101,11 +111,17 @@ export function UserListItem({
           </div>
           <AgentTypeBadge agentType={agentType} />
         </div>
-        {subtitle && (
+        {isBot && staffKind ? (
+          <AgentPillRow
+            staffKind={staffKind}
+            roleTitle={roleTitle}
+            ownerName={ownerName}
+          />
+        ) : subtitle ? (
           <div className="text-xs text-nav-foreground-faint truncate">
             {subtitle}
           </div>
-        )}
+        ) : null}
       </div>
       {unreadCount > 0 && (
         <Badge variant="notification" size="sm" count={unreadCount} />
