@@ -232,6 +232,16 @@ export class MessagesController {
       );
     }
 
+    // Reject messages to archived channels (e.g. one-time routine-creation
+    // channels archived on finishRoutineCreation). Without this, agent tools
+    // like SendToChannel and Reply's non-streaming fallback appear successful
+    // but the message never reaches anyone.
+    if (channel && channel.isArchived) {
+      throw new ForbiddenException(
+        'Channel is archived and no longer accepts new messages',
+      );
+    }
+
     // Validate @mention permissions (block mentions of restricted personal staff)
     if (dto.content) {
       const mentions = parseMentions(dto.content);

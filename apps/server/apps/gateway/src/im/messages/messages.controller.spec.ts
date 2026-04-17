@@ -51,6 +51,7 @@ function makeChannel(overrides: Record<string, unknown> = {}) {
     id: CHANNEL_ID,
     tenantId: WORKSPACE_ID,
     isActivated: true,
+    isArchived: false,
     ...overrides,
   };
 }
@@ -314,6 +315,38 @@ describe('MessagesController', () => {
         USER_ID,
       );
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('rejects archived channels after membership is confirmed', async () => {
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isArchived: true }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('archived-channel error message mentions "archived"', async () => {
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isArchived: true }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toThrow(/archived/i);
     });
 
     it('broadcasts, publishes MQ work, and emits search events on success', async () => {
