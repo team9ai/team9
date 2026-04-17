@@ -5,6 +5,7 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { RedisModule } from '@team9/redis';
 import { ClawHiveModule } from '@team9/claw-hive';
 import { AiClientModule } from '@team9/ai-client';
+import { UsersModule } from '../im/users/users.module.js';
 import { ApplicationsController } from './applications.controller.js';
 import { ApplicationsService } from './applications.service.js';
 import { InstalledApplicationsController } from './installed-applications.controller.js';
@@ -27,6 +28,7 @@ import {
     RedisModule,
     ClawHiveModule,
     AiClientModule,
+    UsersModule,
   ],
   controllers: [
     ApplicationsController,
