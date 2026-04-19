@@ -849,4 +849,102 @@ describe('BotService', () => {
       );
     });
   });
+
+  // ── getBotMentorId ────────────────────────────────────────────────
+
+  describe('getBotMentorId', () => {
+    it('returns { mentorId, isActive } when the bot exists', async () => {
+      db.limit.mockResolvedValueOnce([
+        { mentorId: 'mentor-1', isActive: true },
+      ] as any);
+
+      const result = await service.getBotMentorId('bot-user-1');
+
+      expect(result).toEqual({ mentorId: 'mentor-1', isActive: true });
+      expect(db.select).toHaveBeenCalled();
+      expect(db.from).toHaveBeenCalled();
+      expect(db.where).toHaveBeenCalled();
+      expect(db.limit).toHaveBeenCalledWith(1);
+    });
+
+    it('returns null when no bot row exists for the given botUserId', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      const result = await service.getBotMentorId('nonexistent-user');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns the row with isActive: false for a disabled bot', async () => {
+      db.limit.mockResolvedValueOnce([
+        { mentorId: 'mentor-2', isActive: false },
+      ] as any);
+
+      const result = await service.getBotMentorId('inactive-bot-user');
+
+      expect(result).toEqual({ mentorId: 'mentor-2', isActive: false });
+    });
+  });
+
+  // ── findActiveBotsByMentorId ──────────────────────────────────────
+
+  describe('findActiveBotsByMentorId', () => {
+    it('returns [] when the mentor has no active bots in the tenant', async () => {
+      // findActiveBotsByMentorId does not call .limit(), it resolves from the
+      // last chained method (.where()). Patch .where() to return a resolved
+      // promise for this test only.
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns all active bots for a mentor in the given tenant', async () => {
+      db.where.mockResolvedValueOnce([
+        { botUserId: 'bot-user-a' },
+        { botUserId: 'bot-user-b' },
+      ] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual([
+        { botUserId: 'bot-user-a' },
+        { botUserId: 'bot-user-b' },
+      ]);
+    });
+
+    it('filters out inactive bots (only active bots are returned by the query)', async () => {
+      // The query itself applies the isActive=true filter in the WHERE clause.
+      // Returning only active rows from the mock simulates correct DB behavior.
+      db.where.mockResolvedValueOnce([{ botUserId: 'bot-user-active' }] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual([{ botUserId: 'bot-user-active' }]);
+      // Verify the query chain was invoked (innerJoin was called)
+      expect(db.innerJoin).toHaveBeenCalled();
+      expect(db.where).toHaveBeenCalled();
+    });
+
+    it('returns [] when bots belong to a different tenant', async () => {
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'other-tenant',
+      );
+
+      expect(result).toEqual([]);
+    });
+  });
 });

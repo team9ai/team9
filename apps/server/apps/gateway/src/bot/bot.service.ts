@@ -1091,6 +1091,48 @@ export class BotService implements OnModuleInit {
     const storedHash = storedAccessToken.slice(separatorIndex + 1);
     return bcrypt.compare(rawHex, storedHash);
   }
+
+  /**
+   * Return the mentor ID and active flag for a bot identified by its user ID.
+   * Returns null if no bot row exists for the given botUserId.
+   */
+  async getBotMentorId(
+    botUserId: string,
+  ): Promise<{ mentorId: string | null; isActive: boolean } | null> {
+    const [row] = await this.db
+      .select({
+        mentorId: schema.bots.mentorId,
+        isActive: schema.bots.isActive,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.userId, botUserId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Return every active bot whose mentor is `mentorId` and whose user is a
+   * member of `tenantId`.
+   */
+  async findActiveBotsByMentorId(
+    mentorId: string,
+    tenantId: string,
+  ): Promise<{ botUserId: string }[]> {
+    return this.db
+      .select({ botUserId: schema.bots.userId })
+      .from(schema.bots)
+      .innerJoin(
+        schema.tenantMembers,
+        eq(schema.bots.userId, schema.tenantMembers.userId),
+      )
+      .where(
+        and(
+          eq(schema.bots.mentorId, mentorId),
+          eq(schema.bots.isActive, true),
+          eq(schema.tenantMembers.tenantId, tenantId),
+        ),
+      );
+  }
 }
 
 export interface BotTokenResult {
