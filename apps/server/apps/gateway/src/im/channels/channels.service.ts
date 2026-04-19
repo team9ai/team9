@@ -35,6 +35,10 @@ import {
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
 import { TabsService } from '../views/tabs.service.js';
+import {
+  resolveEffectiveMembership,
+  type ChannelRole,
+} from './effective-membership.js';
 
 // Minimal interface needed from BotService to avoid a runtime circular import.
 // The concrete implementation is injected via the 'BOT_SERVICE' token, which is
@@ -45,6 +49,10 @@ export interface IBotService {
   getBotMentorId(
     botUserId: string,
   ): Promise<{ mentorId: string | null; isActive: boolean } | null>;
+  findActiveBotsByMentorId(
+    mentorId: string,
+    tenantId: string,
+  ): Promise<{ botUserId: string }[]>;
 }
 
 // Aliased `users` row used to JOIN the bot owner alongside the channel-member
@@ -889,8 +897,11 @@ export class ChannelsService {
     dto: UpdateChannelDto,
     requesterId: string,
   ): Promise<ChannelResponse> {
-    // Check permission
-    const role = await this.getMemberRole(id, requesterId);
+    // Check permission using effective role (includes mentor-derived access)
+    const tenantId = await this.getChannelTenantId(id);
+    const role = tenantId
+      ? await this.getEffectiveRole(id, requesterId, tenantId)
+      : await this.getMemberRole(id, requesterId);
     if (!role || !['owner', 'admin'].includes(role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
@@ -914,6 +925,45 @@ export class ChannelsService {
   }
 
   async getUserChannels(
+    userId: string,
+    tenantId?: string,
+  ): Promise<ChannelWithUnread[]> {
+    const direct = await this.getDirectUserChannels(userId, tenantId);
+
+    // If tenantId is not provided we cannot safely scope the derivation query,
+    // so skip the UNION and return only direct channels.
+    if (!tenantId) {
+      return direct;
+    }
+
+    // Fetch mentor-derived channel memberships (channels where the user
+    // mentors an active bot that holds a membership).
+    const derived = await resolveEffectiveMembership({
+      db: this.db,
+      botService: this.botService,
+      userId,
+      tenantId,
+    });
+
+    const directIds = new Set(direct.map((c) => c.id));
+    const extraIds = derived
+      .map((d) => d.channelId)
+      .filter((id) => !directIds.has(id));
+
+    if (extraIds.length === 0) {
+      return direct;
+    }
+
+    // Load channel rows for derived-only ids with unread counts.
+    const extras = await this.fetchChannelsByIds(extraIds, userId);
+    return [...direct, ...extras];
+  }
+
+  /**
+   * Direct-membership channel query — the original body of getUserChannels.
+   * Returns channels where the user has an active `im_channel_members` row.
+   */
+  private async getDirectUserChannels(
     userId: string,
     tenantId?: string,
   ): Promise<ChannelWithUnread[]> {
@@ -1057,6 +1107,55 @@ export class ChannelsService {
       const { showInDmSidebar: _, ...rest } = channel;
       return rest;
     });
+  }
+
+  /**
+   * Fetch channel rows (with unread counts) for a set of channel ids that are
+   * derived via mentor-lookup and are NOT present in the user's direct-member
+   * list. These channels are group/tracking channels — no otherUser enrichment.
+   */
+  private async fetchChannelsByIds(
+    channelIds: string[],
+    userId: string,
+  ): Promise<ChannelWithUnread[]> {
+    if (channelIds.length === 0) return [];
+
+    const rows = await this.db
+      .select({
+        id: schema.channels.id,
+        tenantId: schema.channels.tenantId,
+        name: schema.channels.name,
+        description: schema.channels.description,
+        type: schema.channels.type,
+        avatarUrl: schema.channels.avatarUrl,
+        createdBy: schema.channels.createdBy,
+        sectionId: schema.channels.sectionId,
+        order: schema.channels.order,
+        isArchived: schema.channels.isArchived,
+        isActivated: schema.channels.isActivated,
+        snapshot: schema.channels.snapshot,
+        createdAt: schema.channels.createdAt,
+        updatedAt: schema.channels.updatedAt,
+        unreadCount:
+          sql<number>`COALESCE(${schema.userChannelReadStatus.unreadCount}, 0)`.as(
+            'unread_count',
+          ),
+        lastReadMessageId: schema.userChannelReadStatus.lastReadMessageId,
+      })
+      .from(schema.channels)
+      .leftJoin(
+        schema.userChannelReadStatus,
+        and(
+          eq(schema.userChannelReadStatus.channelId, schema.channels.id),
+          eq(schema.userChannelReadStatus.userId, userId),
+        ),
+      )
+      .where(inArray(schema.channels.id, channelIds));
+
+    return rows.map((row) => ({
+      ...row,
+      // Derived-only channels are never DM/echo, so no otherUser needed.
+    }));
   }
 
   /**
@@ -1221,8 +1320,11 @@ export class ChannelsService {
     userId: string,
     requesterId: string,
   ): Promise<void> {
-    // Check requester permission
-    const requesterRole = await this.getMemberRole(channelId, requesterId);
+    // Check requester permission using effective role (includes mentor-derived)
+    const tenantId = await this.getChannelTenantId(channelId);
+    const requesterRole = tenantId
+      ? await this.getEffectiveRole(channelId, requesterId, tenantId)
+      : await this.getMemberRole(channelId, requesterId);
     if (!requesterRole || !['owner', 'admin'].includes(requesterRole)) {
       // Allow users to remove themselves
       if (userId !== requesterId) {
@@ -1275,6 +1377,36 @@ export class ChannelsService {
   async isMember(channelId: string, userId: string): Promise<boolean> {
     const role = await this.getMemberRole(channelId, userId);
     return role !== null;
+  }
+
+  /**
+   * Retrieve the tenantId for a channel. Returns null if the channel
+   * doesn't exist or has no tenant. Used internally by auth guards that
+   * receive channelId but not tenantId.
+   */
+  private async getChannelTenantId(channelId: string): Promise<string | null> {
+    const channel = await this.findById(channelId);
+    return channel?.tenantId ?? null;
+  }
+
+  /**
+   * Resolve the effective channel role for a user, considering both direct
+   * membership and mentor-derived membership (the user mentors an active bot
+   * that is a member of the channel). Uncached so mentor changes take effect
+   * immediately.
+   */
+  async getEffectiveRole(
+    channelId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<ChannelRole | null> {
+    return resolveEffectiveMembership({
+      db: this.db,
+      botService: this.botService,
+      userId,
+      tenantId,
+      channelId,
+    });
   }
 
   /**
@@ -1374,9 +1506,12 @@ export class ChannelsService {
     dto: UpdateMemberDto,
     requesterId: string,
   ): Promise<void> {
-    // Only owner can change roles
+    // Only owner can change roles; use effective role to cover mentor-derived ownership
     if (dto.role) {
-      const requesterRole = await this.getMemberRole(channelId, requesterId);
+      const tenantId = await this.getChannelTenantId(channelId);
+      const requesterRole = tenantId
+        ? await this.getEffectiveRole(channelId, requesterId, tenantId)
+        : await this.getMemberRole(channelId, requesterId);
       if (requesterRole !== 'owner') {
         throw new ForbiddenException('Only owner can change roles');
       }
@@ -1421,18 +1556,20 @@ export class ChannelsService {
     channelId: string,
     requesterId: string,
   ): Promise<ChannelResponse> {
-    // Check permission
-    const role = await this.getMemberRole(channelId, requesterId);
+    // Get channel first (needed for type check below and tenantId for auth)
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    // Check permission using effective role (includes mentor-derived access)
+    const role = channel.tenantId
+      ? await this.getEffectiveRole(channelId, requesterId, channel.tenantId)
+      : await this.getMemberRole(channelId, requesterId);
     if (!role || !['owner', 'admin'].includes(role)) {
       throw new ForbiddenException(
         'Insufficient permissions to archive channel',
       );
-    }
-
-    // Get channel to check type
-    const channel = await this.findById(channelId);
-    if (!channel) {
-      throw new NotFoundException('Channel not found');
     }
     if (channel.type === 'direct' || channel.type === 'echo') {
       throw new ForbiddenException('Cannot archive direct message channels');
@@ -1658,7 +1795,11 @@ export class ChannelsService {
     channelId: string,
     requesterId: string,
   ): Promise<ChannelResponse> {
-    const role = await this.getMemberRole(channelId, requesterId);
+    // Use effective role (includes mentor-derived access)
+    const tenantId = await this.getChannelTenantId(channelId);
+    const role = tenantId
+      ? await this.getEffectiveRole(channelId, requesterId, tenantId)
+      : await this.getMemberRole(channelId, requesterId);
     if (!role || !['owner', 'admin'].includes(role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
@@ -1689,15 +1830,16 @@ export class ChannelsService {
     requesterId: string,
     confirmationName?: string,
   ): Promise<void> {
-    // Only owner can delete
-    const role = await this.getMemberRole(channelId, requesterId);
-    if (role !== 'owner') {
-      throw new ForbiddenException('Only owner can delete a channel');
-    }
-
+    // Only owner can delete; use effective role so mentor-derived owners can also delete
     const channel = await this.findById(channelId);
     if (!channel) {
       throw new NotFoundException('Channel not found');
+    }
+    const effectiveRole = channel.tenantId
+      ? await this.getEffectiveRole(channelId, requesterId, channel.tenantId)
+      : await this.getMemberRole(channelId, requesterId);
+    if (effectiveRole !== 'owner') {
+      throw new ForbiddenException('Only owner can delete a channel');
     }
 
     if (channel.type === 'direct' || channel.type === 'echo') {

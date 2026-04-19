@@ -93,6 +93,7 @@ describe('ChannelsService', () => {
           provide: BOT_SERVICE_TOKEN,
           useValue: {
             getBotMentorId: jest.fn<any>().mockResolvedValue(null),
+            findActiveBotsByMentorId: jest.fn<any>().mockResolvedValue([]),
           },
         },
       ],
@@ -1404,7 +1405,9 @@ describe('ChannelsService', () => {
             managedMeta: null,
             agentType: 'openclaw',
           },
-        ] as any);
+        ] as any)
+        // resolveEffectiveMembership DB query (no derived channels since botService returns [])
+        .mockResolvedValueOnce([] as any);
 
       const result = await service.getUserChannels('user-1', 'tenant-1');
 
@@ -1451,6 +1454,8 @@ describe('ChannelsService', () => {
       };
       db.where.mockResolvedValueOnce([mockChannel] as any);
       db.where.mockResolvedValueOnce([] as any);
+      // resolveEffectiveMembership DB query (no derived channels)
+      db.where.mockResolvedValueOnce([] as any);
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', true);
     });
@@ -1477,6 +1482,8 @@ describe('ChannelsService', () => {
       };
       db.where.mockResolvedValueOnce([mockChannel] as any);
       // Second where call: batch member fetch for direct channels
+      db.where.mockResolvedValueOnce([] as any);
+      // resolveEffectiveMembership DB query (no derived channels)
       db.where.mockResolvedValueOnce([] as any);
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', false);
@@ -1543,7 +1550,9 @@ describe('ChannelsService', () => {
             ownerDisplayName: null,
             ownerUsername: null,
           },
-        ] as any);
+        ] as any)
+        // resolveEffectiveMembership DB query (no derived channels)
+        .mockResolvedValueOnce([] as any);
 
       const result = await service.getUserChannels('user-1', 'tenant-1');
 
@@ -1755,7 +1764,7 @@ describe('ChannelsService', () => {
         isArchived: true,
       };
 
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('admin');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('admin');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         type: 'private',
@@ -1778,7 +1787,7 @@ describe('ChannelsService', () => {
     });
 
     it('rejects archiving direct channels', async () => {
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         type: 'direct',
@@ -1954,7 +1963,7 @@ describe('ChannelsService', () => {
     it('rejects deletion when the confirmation name does not match', async () => {
       const redisService = (service as any).redis;
 
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         name: 'expected-name',
@@ -1973,7 +1982,7 @@ describe('ChannelsService', () => {
     it('deletes a private channel for the owner and invalidates cache', async () => {
       const redisService = (service as any).redis;
 
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         name: 'expected-name',

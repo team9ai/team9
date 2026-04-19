@@ -26,7 +26,8 @@ export function maxRole(
 }
 
 export interface ResolveArgs {
-  db: PostgresJsDatabase;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: PostgresJsDatabase<any>;
   /** Only `findActiveBotsByMentorId` is required — keeps the helper mockable. */
   botService: Pick<BotService, 'findActiveBotsByMentorId'>;
   userId: string;
