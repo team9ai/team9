@@ -77,6 +77,7 @@ describe('ChannelsController', () => {
         .fn<any>()
         .mockResolvedValue([{ userId: USER_ID }]),
       getMemberRole: jest.fn<any>().mockResolvedValue('owner'),
+      getEffectiveRoleForAuth: jest.fn<any>().mockResolvedValue('owner'),
       isMember: jest.fn<any>().mockResolvedValue(true),
       isBot: jest.fn<any>().mockResolvedValue(false),
       addMember: jest.fn<any>().mockResolvedValue(undefined),
@@ -316,24 +317,30 @@ describe('ChannelsController', () => {
   });
 
   it('rejects addMember when the requester has no role', async () => {
-    channelsService.getMemberRole.mockResolvedValueOnce(null);
+    // getEffectiveRoleForAuth now used instead of getMemberRole (spec §6.2 #3)
+    channelsService.getEffectiveRoleForAuth.mockResolvedValueOnce(null);
 
     await expect(
-      controller.addMember(USER_ID, CHANNEL_ID, {
+      controller.addMember(USER_ID, TENANT_ID, CHANNEL_ID, {
         userId: TARGET_USER_ID,
       } as never),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
+    expect(channelsService.getEffectiveRoleForAuth).toHaveBeenCalledWith(
+      CHANNEL_ID,
+      USER_ID,
+      TENANT_ID,
+    );
     expect(channelsService.isBot).not.toHaveBeenCalled();
     expect(channelsService.addMember).not.toHaveBeenCalled();
   });
 
   it('rejects human invites for non-owner members', async () => {
-    channelsService.getMemberRole.mockResolvedValueOnce('member');
+    channelsService.getEffectiveRoleForAuth.mockResolvedValueOnce('member');
     channelsService.isBot.mockResolvedValueOnce(false);
 
     await expect(
-      controller.addMember(USER_ID, CHANNEL_ID, {
+      controller.addMember(USER_ID, TENANT_ID, CHANNEL_ID, {
         userId: TARGET_USER_ID,
       } as never),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -343,15 +350,20 @@ describe('ChannelsController', () => {
 
   it('allows member invites for bots and notifies the new member and the room', async () => {
     const channel = makeChannel({ type: 'private' });
-    channelsService.getMemberRole.mockResolvedValueOnce('member');
+    channelsService.getEffectiveRoleForAuth.mockResolvedValueOnce('member');
     channelsService.isBot.mockResolvedValueOnce(true);
     channelsService.findByIdOrThrow.mockResolvedValueOnce(channel);
 
-    const result = await controller.addMember(USER_ID, CHANNEL_ID, {
+    const result = await controller.addMember(USER_ID, TENANT_ID, CHANNEL_ID, {
       userId: BOT_ID,
       role: 'member',
     } as never);
 
+    expect(channelsService.getEffectiveRoleForAuth).toHaveBeenCalledWith(
+      CHANNEL_ID,
+      USER_ID,
+      TENANT_ID,
+    );
     expect(channelsService.addMember).toHaveBeenCalledWith(
       CHANNEL_ID,
       BOT_ID,
@@ -688,6 +700,57 @@ describe('ChannelsController', () => {
         TENANT_ID,
       );
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  // ── addMember mentor-derived auth regression (spec §6.2 #3) ─────────────────
+
+  describe('addMember controller-level auth: mentor-derived access (spec §6.2 #3)', () => {
+    it('allows a mentor-derived owner to add a bot (sabotage-verified)', async () => {
+      // Simulate: user is not a direct member but is the mentor of the channel owner bot.
+      // getEffectiveRoleForAuth returns 'owner' (mentor-derived).
+      const channel = makeChannel({ type: 'private' });
+      channelsService.getEffectiveRoleForAuth.mockResolvedValueOnce('owner');
+      channelsService.isBot.mockResolvedValueOnce(true);
+      channelsService.findByIdOrThrow.mockResolvedValueOnce(channel);
+
+      const result = await controller.addMember(
+        USER_ID,
+        TENANT_ID,
+        CHANNEL_ID,
+        {
+          userId: BOT_ID,
+          role: 'member',
+        } as never,
+      );
+
+      // Auth was checked with effective (mentor-derived) lookup, NOT direct getMemberRole
+      expect(channelsService.getEffectiveRoleForAuth).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+      expect(channelsService.getMemberRole).not.toHaveBeenCalled();
+      expect(channelsService.addMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        BOT_ID,
+        'member',
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it('denies access when getEffectiveRoleForAuth returns null — sabotage: confirms regression guard', async () => {
+      // If the derivation path were removed (reverted to getMemberRole only),
+      // a mentor with no direct membership would hit this null branch.
+      channelsService.getEffectiveRoleForAuth.mockResolvedValueOnce(null);
+
+      await expect(
+        controller.addMember(USER_ID, TENANT_ID, CHANNEL_ID, {
+          userId: BOT_ID,
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(channelsService.addMember).not.toHaveBeenCalled();
     });
   });
 });

@@ -1380,11 +1380,30 @@ export class ChannelsService {
   }
 
   /**
-   * Retrieve the tenantId for a channel. Returns null if the channel
-   * doesn't exist or has no tenant. Used internally by auth guards that
-   * receive channelId but not tenantId.
+   * Derivation-aware membership check.
+   *
+   * Returns true when the user is a direct member OR when the user mentors an
+   * active bot that is a member of the channel (spec §6.2 point 2).
+   *
+   * Use this for all auth-gate checks. Use isMember() only for non-auth
+   * display purposes where the direct-only semantics are intentional (e.g.
+   * deactivate/activate where the caller must literally be the bot itself).
    */
-  private async getChannelTenantId(channelId: string): Promise<string | null> {
+  async isChannelMember(
+    channelId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const role = await this.getEffectiveRole(channelId, userId, tenantId);
+    return role !== null;
+  }
+
+  /**
+   * Retrieve the tenantId for a channel. Returns null if the channel
+   * doesn't exist or has no tenant. Used by auth guards and
+   * getEffectiveRoleForAuth when the request doesn't carry a tenant header.
+   */
+  async getChannelTenantId(channelId: string): Promise<string | null> {
     const channel = await this.findById(channelId);
     return channel?.tenantId ?? null;
   }
@@ -1410,18 +1429,48 @@ export class ChannelsService {
   }
 
   /**
+   * Derivation-aware role lookup for controller-level auth guards.
+   *
+   * When the request carries a tenantId (from CurrentTenantId decorator),
+   * delegates directly to getEffectiveRole. When tenantId is absent (e.g.
+   * token-only auth without a tenant header), fetches the channel's tenantId
+   * and retries. Falls back to direct-only getMemberRole if the channel has
+   * no tenant (e.g. DM channels).
+   *
+   * Returns null if the channel does not exist or the user has no role.
+   */
+  async getEffectiveRoleForAuth(
+    channelId: string,
+    userId: string,
+    tenantId: string | undefined,
+  ): Promise<ChannelRole | null> {
+    const resolvedTenantId =
+      tenantId ?? (await this.getChannelTenantId(channelId));
+    if (resolvedTenantId) {
+      return this.getEffectiveRole(channelId, userId, resolvedTenantId);
+    }
+    // Channel has no tenant (e.g. DM) — fall back to direct membership
+    return this.getMemberRole(channelId, userId);
+  }
+
+  /**
    * Assert that a user has read access to a channel.
-   * - Channel members always have access.
+   * - Channel members (direct or mentor-derived) always have access (§6.2 #2).
    * - Public channels are readable by anyone.
    * - Tracking channels are readable by any tenant member.
    * Throws ForbiddenException if none of the above apply.
    */
   async assertReadAccess(channelId: string, userId: string): Promise<void> {
-    const isMember = await this.isMember(channelId, userId);
-    if (isMember) return;
-
     const channel = await this.findById(channelId);
     if (!channel) throw new ForbiddenException('Access denied');
+
+    // Use derivation-aware membership when tenantId is available (§6.2 #2).
+    // Fall back to direct-only check for channels without a tenant.
+    const member = channel.tenantId
+      ? await this.isChannelMember(channelId, userId, channel.tenantId)
+      : await this.isMember(channelId, userId);
+    if (member) return;
+
     if (channel.type === 'public') return;
     if (
       channel.type === 'tracking' &&
@@ -1934,7 +1983,11 @@ export class ChannelsService {
       return null;
     }
 
-    const isMember = await this.isMember(channelId, userId);
+    // Use derivation-aware membership so a mentor-derived user is shown as a
+    // member in the UI preview (spec §6.2 #2).
+    const isMember = channel.tenantId
+      ? await this.isChannelMember(channelId, userId, channel.tenantId)
+      : await this.isMember(channelId, userId);
     const memberCount = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(schema.channelMembers)

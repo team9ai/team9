@@ -451,4 +451,81 @@ describe('ChannelsService — effective membership wiring (§8.1 #12–#17)', ()
       );
     });
   });
+
+  // ── #18: isChannelMember returns true for mentor-derived user (§6.2 #2) ──────
+
+  describe('#18 isChannelMember returns true for mentor-derived user (spec §6.2 #2)', () => {
+    it('returns true when user mentors the owner bot', async () => {
+      // User mentors bot-1, which is an owner of the channel
+      botServiceMock.findActiveBotsByMentorId.mockResolvedValueOnce([
+        { botUserId: BOT_USER_ID },
+      ]);
+      db.where.mockResolvedValueOnce([
+        { channelId: CHANNEL_ID, userId: BOT_USER_ID, role: 'owner' },
+      ] as any);
+
+      const result = await service.isChannelMember(
+        CHANNEL_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('returns false for a stranger with no mentored bots (sabotage test)', async () => {
+      // Without the derivation call, this would be unreachable — but sabotage confirms
+      // that removing the getEffectiveRole delegation breaks the true case above.
+      botServiceMock.findActiveBotsByMentorId.mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.isChannelMember(
+        CHANNEL_ID,
+        'stranger-2',
+        TENANT_ID,
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
+  // ── #19: assertReadAccess does NOT throw for mentor-derived user (§6.2 #2) ───
+
+  describe('#19 assertReadAccess passes for mentor-derived user (spec §6.2 #2)', () => {
+    it('does not throw when user mentors the channel owner bot', async () => {
+      // assertReadAccess calls findById first (via redis.getOrSet), then isChannelMember
+      redisMock.getOrSet.mockResolvedValueOnce({
+        ...BASE_CHANNEL,
+        type: 'private', // private channel — would normally require direct membership
+      } as any);
+
+      // isChannelMember → getEffectiveRole: user mentors bot that owns the channel
+      botServiceMock.findActiveBotsByMentorId.mockResolvedValueOnce([
+        { botUserId: BOT_USER_ID },
+      ]);
+      db.where.mockResolvedValueOnce([
+        { channelId: CHANNEL_ID, userId: BOT_USER_ID, role: 'owner' },
+      ] as any);
+
+      await expect(
+        service.assertReadAccess(CHANNEL_ID, USER_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws ForbiddenException for a stranger — sabotage test for assertReadAccess', async () => {
+      // Private channel, no bots, no direct membership → must throw
+      redisMock.getOrSet.mockResolvedValueOnce({
+        ...BASE_CHANNEL,
+        type: 'private',
+      } as any);
+      botServiceMock.findActiveBotsByMentorId.mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertReadAccess(CHANNEL_ID, 'stranger-2'),
+      ).rejects.toBeInstanceOf(
+        (await import('@nestjs/common')).ForbiddenException,
+      );
+    });
+  });
 });

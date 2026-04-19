@@ -1236,14 +1236,29 @@ describe('ChannelsService', () => {
 
   describe('assertReadAccess', () => {
     let redisService: { getOrSet: MockFn };
+    let botService: { findActiveBotsByMentorId: MockFn };
 
     beforeEach(() => {
       redisService = (service as any).redis;
+      botService = (service as any).botService;
     });
 
-    it('should pass when user is a channel member', async () => {
-      // getMemberRole → returns 'member'
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+    it('should pass when user is a direct channel member', async () => {
+      // assertReadAccess now calls findById first, then isChannelMember.
+      // findById → returns private channel with tenantId
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'private',
+        tenantId: 't-1',
+      });
+      // isChannelMember → getEffectiveRole → resolveEffectiveMembership:
+      // botService returns no mentored bots, but db.where returns user as direct owner
+      botService.findActiveBotsByMentorId = jest
+        .fn<any>()
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([
+        { channelId: 'ch-1', userId: 'user-1', role: 'owner' },
+      ]);
 
       await expect(
         service.assertReadAccess('ch-1', 'user-1'),
@@ -1251,12 +1266,15 @@ describe('ChannelsService', () => {
     });
 
     it('should pass for public channel when user is not a member', async () => {
-      // getMemberRole → null (not a member)
+      // findById → public channel with tenantId
       redisService.getOrSet = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        // findById → public channel
         .mockResolvedValueOnce({ id: 'ch-1', type: 'public', tenantId: 't-1' });
+      // isChannelMember → getEffectiveRole → no bots, no direct membership → null
+      botService.findActiveBotsByMentorId = jest
+        .fn<any>()
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]); // no membership rows
 
       await expect(
         service.assertReadAccess('ch-1', 'user-1'),
@@ -1264,16 +1282,17 @@ describe('ChannelsService', () => {
     });
 
     it('should pass for tracking channel when user is a tenant member', async () => {
-      // getMemberRole → null
-      redisService.getOrSet = jest
+      // findById → tracking channel
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'tracking',
+        tenantId: 't-1',
+      });
+      // isChannelMember → getEffectiveRole → no bots, no direct membership → null
+      botService.findActiveBotsByMentorId = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        // findById → tracking channel
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'tracking',
-          tenantId: 't-1',
-        });
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]); // no membership
       // isUserInTenant → found
       db.limit.mockResolvedValueOnce([{ id: 'member-1' }]);
 
@@ -1283,14 +1302,17 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for tracking channel when user is NOT a tenant member', async () => {
-      redisService.getOrSet = jest
+      // findById → tracking channel
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'tracking',
+        tenantId: 't-1',
+      });
+      // isChannelMember → no membership
+      botService.findActiveBotsByMentorId = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'tracking',
-          tenantId: 't-1',
-        });
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]);
       // isUserInTenant → not found
       db.limit.mockResolvedValueOnce([]);
 
@@ -1300,14 +1322,14 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for tracking channel with null tenantId', async () => {
-      redisService.getOrSet = jest
-        .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'tracking',
-          tenantId: null,
-        });
+      // findById → tracking channel without tenantId
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'tracking',
+        tenantId: null,
+      });
+      // isChannelMember is skipped (no tenantId); falls back to isMember → getMemberRole
+      redisService.getOrSet.mockResolvedValueOnce(null); // getMemberRole → not member
 
       await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
@@ -1315,10 +1337,8 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for non-existent channel', async () => {
-      redisService.getOrSet = jest
-        .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
+      // findById → null
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce(null);
 
       await expect(
         service.assertReadAccess('nonexistent', 'user-1'),
@@ -1326,14 +1346,17 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for private channel when user is not a member', async () => {
-      redisService.getOrSet = jest
+      // findById → private channel with tenantId
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'private',
+        tenantId: 't-1',
+      });
+      // isChannelMember → no bots, no direct membership → null
+      botService.findActiveBotsByMentorId = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'private',
-          tenantId: 't-1',
-        });
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]);
 
       await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
