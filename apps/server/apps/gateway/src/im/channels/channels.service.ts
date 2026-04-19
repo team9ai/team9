@@ -26,6 +26,7 @@ import {
   UpdateChannelDto,
   UpdateMemberDto,
 } from './dto/index.js';
+import { CreateBotChannelDto } from './dto/create-bot-channel.dto.js';
 import { RedisService } from '@team9/redis';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
@@ -34,6 +35,17 @@ import {
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
 import { TabsService } from '../views/tabs.service.js';
+
+// Minimal interface needed from BotService to avoid a runtime circular import.
+// The concrete implementation is injected via the 'BOT_SERVICE' token, which is
+// provided by BotModule (global). Using a string token + interface avoids the
+// channels.service.ts → bot.service.ts → channels.service.ts ESM cycle.
+export const BOT_SERVICE_TOKEN = 'BOT_SERVICE' as const;
+export interface IBotService {
+  getBotMentorId(
+    botUserId: string,
+  ): Promise<{ mentorId: string | null; isActive: boolean } | null>;
+}
 
 // Aliased `users` row used to JOIN the bot owner alongside the channel-member
 // user row (which is itself a join on `schema.users`). Declared at module
@@ -147,6 +159,8 @@ export class ChannelsService {
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
     private readonly tabsService: TabsService,
+    @Inject(BOT_SERVICE_TOKEN)
+    private readonly botService: IBotService,
   ) {}
 
   /**
@@ -1156,9 +1170,11 @@ export class ChannelsService {
     channelId: string,
     userId: string,
     role: 'owner' | 'admin' | 'member' = 'member',
+    tx?: PostgresJsDatabase<typeof schema>,
   ): Promise<void> {
+    const db = tx ?? this.db;
     // Check if user has any membership record (active or left)
-    const [existing] = await this.db
+    const [existing] = await db
       .select()
       .from(schema.channelMembers)
       .where(
@@ -1176,7 +1192,7 @@ export class ChannelsService {
         throw new ConflictException('User is already a member');
       }
       // User previously left - rejoin by clearing leftAt and updating joinedAt
-      await this.db
+      await db
         .update(schema.channelMembers)
         .set({
           leftAt: null,
@@ -1186,7 +1202,7 @@ export class ChannelsService {
         .where(eq(schema.channelMembers.id, existing.id));
     } else {
       // No existing record - insert new
-      await this.db.insert(schema.channelMembers).values({
+      await db.insert(schema.channelMembers).values({
         id: uuidv7(),
         channelId,
         userId,
@@ -1957,5 +1973,93 @@ export class ChannelsService {
     }
 
     return channelIds.length;
+  }
+
+  /**
+   * Create a channel on behalf of a bot. The bot is inserted as `owner`.
+   * If the bot has a mentor, the mentor is also inserted as `owner`.
+   * Optional `memberUserIds` are validated for tenant membership in a single
+   * query and inserted as `member`. All inserts happen inside a single
+   * transaction that rolls back on any error.
+   */
+  async createChannelForBot(
+    botUserId: string,
+    tenantId: string,
+    dto: CreateBotChannelDto,
+  ): Promise<ChannelResponse> {
+    const bot = await this.botService.getBotMentorId(botUserId);
+    if (!bot) throw new NotFoundException('Bot not found');
+    if (!bot.isActive) throw new ForbiddenException('Bot is inactive');
+
+    const mentorId = bot.mentorId;
+
+    return this.db.transaction(async (tx) => {
+      // Insert the channel row and use the returned id for subsequent calls
+      // so that tests can assert on the id from the mock's returning() value.
+      const [channel] = await tx
+        .insert(schema.channels)
+        .values({
+          id: uuidv7(),
+          tenantId,
+          name: dto.name,
+          description: dto.description,
+          type: dto.type,
+          avatarUrl: dto.avatarUrl,
+          sectionId: dto.sectionId,
+          createdBy: botUserId,
+        })
+        .returning();
+
+      const channelId = channel.id;
+
+      // Add bot as owner
+      await this.addMember(channelId, botUserId, 'owner', tx);
+
+      // Add mentor as owner (if present and distinct from bot)
+      if (mentorId && mentorId !== botUserId) {
+        await this.addMember(channelId, mentorId, 'owner', tx);
+      }
+
+      // Dedupe memberUserIds, dropping bot and mentor ids before validation
+      const seedIds = Array.from(
+        new Set(
+          (dto.memberUserIds ?? []).filter(
+            (id) => id !== botUserId && id !== mentorId,
+          ),
+        ),
+      );
+
+      if (seedIds.length > 0) {
+        // Validate existence + tenant scope in one query via tenantMembers.
+        // A user id that is missing from im_users OR belongs to a different
+        // tenant will not have a matching (tenantId, userId) row.
+        const existing = await tx
+          .select({ userId: schema.tenantMembers.userId })
+          .from(schema.tenantMembers)
+          .where(
+            and(
+              inArray(schema.tenantMembers.userId, seedIds),
+              eq(schema.tenantMembers.tenantId, tenantId),
+            ),
+          );
+
+        const existingIds = new Set(
+          existing.map((u: { userId: string }) => u.userId),
+        );
+        const missing = seedIds.filter((id) => !existingIds.has(id));
+        if (missing.length > 0) {
+          throw new BadRequestException(
+            `Invalid memberUserIds: ${missing.join(',')}`,
+          );
+        }
+
+        for (const uid of seedIds) {
+          await this.addMember(channelId, uid, 'member', tx);
+        }
+      }
+
+      await this.tabsService.seedBuiltinTabs(channelId);
+      return channel;
+    });
   }
 }
