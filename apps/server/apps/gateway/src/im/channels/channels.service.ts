@@ -1993,10 +1993,10 @@ export class ChannelsService {
 
     const mentorId = bot.mentorId;
 
-    return this.db.transaction(async (tx) => {
+    const channel = await this.db.transaction(async (tx) => {
       // Insert the channel row and use the returned id for subsequent calls
       // so that tests can assert on the id from the mock's returning() value.
-      const [channel] = await tx
+      const [channelRow] = await tx
         .insert(schema.channels)
         .values({
           id: uuidv7(),
@@ -2010,7 +2010,7 @@ export class ChannelsService {
         })
         .returning();
 
-      const channelId = channel.id;
+      const channelId = channelRow.id;
 
       // Add bot as owner
       await this.addMember(channelId, botUserId, 'owner', tx);
@@ -2058,8 +2058,14 @@ export class ChannelsService {
         }
       }
 
-      await this.tabsService.seedBuiltinTabs(channelId);
-      return channel;
+      return channelRow;
     });
+
+    // Seed built-in tabs AFTER the transaction commits so a transient
+    // tab-seeding failure does not roll back the channel itself. This
+    // mirrors the existing `create` method (user path) which also calls
+    // seedBuiltinTabs outside the transaction.
+    await this.tabsService.seedBuiltinTabs(channel.id);
+    return channel;
   }
 }
