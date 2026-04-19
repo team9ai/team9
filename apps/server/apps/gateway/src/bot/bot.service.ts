@@ -1093,8 +1093,8 @@ export class BotService implements OnModuleInit {
   }
 
   /**
-   * Return the mentor ID and active flag for a bot identified by its user ID.
-   * Returns null if no bot row exists for the given botUserId.
+   * Look up a bot's mentorId and isActive flag by its userId. Returns null
+   * when no bot row exists.
    */
   async getBotMentorId(
     botUserId: string,
@@ -1111,8 +1111,7 @@ export class BotService implements OnModuleInit {
   }
 
   /**
-   * Return every active bot whose mentor is `mentorId` and whose user is a
-   * member of `tenantId`.
+   * List every active bot mentored by the given user, scoped to a tenant.
    */
   async findActiveBotsByMentorId(
     mentorId: string,

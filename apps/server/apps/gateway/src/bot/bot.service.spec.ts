@@ -9,10 +9,32 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClawHiveService } from '@team9/claw-hive';
-import { BotService } from './bot.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
-import { DATABASE_CONNECTION } from '@team9/database';
+
+// ── drizzle-orm helper spies ──────────────────────────────────────────
+// jest.unstable_mockModule must be called before any dynamic import of the
+// module being mocked (and before the service that transitively imports it).
+
+const mockEq = jest.fn((col: unknown, val: unknown) => ({ __eq: [col, val] }));
+const mockAnd = jest.fn((...args: unknown[]) => ({ __and: args }));
+const mockLike = jest.fn((col: unknown, pat: unknown) => ({
+  __like: [col, pat],
+}));
+const mockAliasedTable = jest.fn((table: unknown, alias: unknown) => ({
+  __aliasedTable: [table, alias],
+}));
+
+jest.unstable_mockModule('@team9/database', () => ({
+  DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION_mock'),
+  eq: mockEq,
+  and: mockAnd,
+  like: mockLike,
+  aliasedTable: mockAliasedTable,
+}));
+
+const { BotService } = await import('./bot.service.js');
+const { DATABASE_CONNECTION } = await import('@team9/database');
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -102,6 +124,8 @@ describe('BotService', () => {
   };
 
   beforeEach(async () => {
+    mockEq.mockClear();
+    mockAnd.mockClear();
     db = mockDb();
     channelsService = {
       createDirectChannel: jest.fn<any>().mockResolvedValue({}),
@@ -901,6 +925,11 @@ describe('BotService', () => {
       );
 
       expect(result).toEqual([]);
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      expect(mockAnd).toHaveBeenCalled();
     });
 
     it('returns all active bots for a mentor in the given tenant', async () => {
@@ -918,6 +947,11 @@ describe('BotService', () => {
         { botUserId: 'bot-user-a' },
         { botUserId: 'bot-user-b' },
       ]);
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      expect(mockAnd).toHaveBeenCalled();
     });
 
     it('filters out inactive bots (only active bots are returned by the query)', async () => {
@@ -931,9 +965,14 @@ describe('BotService', () => {
       );
 
       expect(result).toEqual([{ botUserId: 'bot-user-active' }]);
-      // Verify the query chain was invoked (innerJoin was called)
+      // Verify the query chain was invoked (innerJoin was called).
       expect(db.innerJoin).toHaveBeenCalled();
       expect(db.where).toHaveBeenCalled();
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      expect(mockAnd).toHaveBeenCalled();
     });
 
     it('returns [] when bots belong to a different tenant', async () => {
@@ -945,6 +984,11 @@ describe('BotService', () => {
       );
 
       expect(result).toEqual([]);
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'other-tenant');
+      expect(mockAnd).toHaveBeenCalled();
     });
   });
 });
