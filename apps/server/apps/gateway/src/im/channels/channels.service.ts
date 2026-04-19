@@ -1401,7 +1401,7 @@ export class ChannelsService {
   /**
    * Retrieve the tenantId for a channel. Returns null if the channel
    * doesn't exist or has no tenant. Used by auth guards and
-   * getEffectiveRoleForAuth when the request doesn't carry a tenant header.
+   * getEffectiveRole when the request doesn't carry a tenant header.
    */
   async getChannelTenantId(channelId: string): Promise<string | null> {
     const channel = await this.findById(channelId);
@@ -1409,45 +1409,29 @@ export class ChannelsService {
   }
 
   /**
-   * Resolve the effective channel role for a user, considering both direct
-   * membership and mentor-derived membership (the user mentors an active bot
-   * that is a member of the channel). Uncached so mentor changes take effect
-   * immediately.
+   * Resolve a user's effective role on a channel, combining direct membership
+   * with mentor derivation.
+   *
+   * - Tenant scope is required for derivation. If `tenantId` is omitted/null,
+   *   this method fetches the channel's tenantId via `getChannelTenantId`.
+   * - For tenantless channels (DMs with no tenantId), falls back to the cached
+   *   direct lookup via `getMemberRole`, since mentor derivation is per-tenant.
    */
   async getEffectiveRole(
     channelId: string,
     userId: string,
-    tenantId: string,
-  ): Promise<ChannelRole | null> {
-    return resolveEffectiveMembership({
-      db: this.db,
-      botService: this.botService,
-      userId,
-      tenantId,
-      channelId,
-    });
-  }
-
-  /**
-   * Derivation-aware role lookup for controller-level auth guards.
-   *
-   * When the request carries a tenantId (from CurrentTenantId decorator),
-   * delegates directly to getEffectiveRole. When tenantId is absent (e.g.
-   * token-only auth without a tenant header), fetches the channel's tenantId
-   * and retries. Falls back to direct-only getMemberRole if the channel has
-   * no tenant (e.g. DM channels).
-   *
-   * Returns null if the channel does not exist or the user has no role.
-   */
-  async getEffectiveRoleForAuth(
-    channelId: string,
-    userId: string,
-    tenantId: string | undefined,
+    tenantId?: string | null,
   ): Promise<ChannelRole | null> {
     const resolvedTenantId =
       tenantId ?? (await this.getChannelTenantId(channelId));
     if (resolvedTenantId) {
-      return this.getEffectiveRole(channelId, userId, resolvedTenantId);
+      return resolveEffectiveMembership({
+        db: this.db,
+        botService: this.botService,
+        userId,
+        tenantId: resolvedTenantId,
+        channelId,
+      });
     }
     // Channel has no tenant (e.g. DM) — fall back to direct membership
     return this.getMemberRole(channelId, userId);

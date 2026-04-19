@@ -216,7 +216,7 @@ export class ChannelsController {
   ): Promise<{ success: boolean }> {
     // Use derivation-aware role lookup so a mentor of the channel owner bot
     // can add members even without direct membership (spec §6.2 #3).
-    const role = await this.channelsService.getEffectiveRoleForAuth(
+    const role = await this.channelsService.getEffectiveRole(
       channelId,
       userId,
       tenantId,
