@@ -1,6 +1,13 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
+  PanelRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,6 +38,7 @@ import type {
 export interface TableViewProps {
   channelId: string;
   view: ChannelView;
+  onJumpToMessage?: (messageId: string) => void;
 }
 
 // ==================== Inline Cell Editor ====================
@@ -94,12 +102,14 @@ function TableRow({
   channelId,
   currentUserId,
   columnWidths,
+  onJumpToMessage,
 }: {
   message: ViewMessageItem;
   visibleDefs: PropertyDefinition[];
   channelId: string;
   currentUserId: string | undefined;
   columnWidths: Record<string, number>;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
 
@@ -118,7 +128,24 @@ function TableRow({
           maxWidth: columnWidths["__content"] ?? 320,
         }}
       >
-        <span className="line-clamp-2">{contentPreview || "..."}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="line-clamp-2 flex-1">{contentPreview || "..."}</span>
+          {onJumpToMessage && (
+            <button
+              type="button"
+              aria-label="Open in chat"
+              title="Open in chat"
+              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-1.5 py-0.5 bg-background"
+              onClick={(e) => {
+                e.stopPropagation();
+                onJumpToMessage(message.id);
+              }}
+            >
+              <PanelRight className="h-3 w-3" />
+              <span>OPEN</span>
+            </button>
+          )}
+        </div>
       </td>
 
       {visibleDefs.map((def) => {
@@ -384,7 +411,11 @@ function ColumnHeader({
 
 // ==================== Main TableView ====================
 
-export function TableView({ channelId, view }: TableViewProps) {
+export function TableView({
+  channelId,
+  view,
+  onJumpToMessage,
+}: TableViewProps) {
   const { data: definitions = [] } = usePropertyDefinitions(channelId);
   const {
     data: infiniteData,
@@ -652,6 +683,7 @@ export function TableView({ channelId, view }: TableViewProps) {
                   channelId={channelId}
                   currentUserId={currentUser?.id}
                   columnWidths={effectiveWidths}
+                  onJumpToMessage={onJumpToMessage}
                 />
               ))}
               <NewMessageRow channelId={channelId} colSpan={totalColumns} />
