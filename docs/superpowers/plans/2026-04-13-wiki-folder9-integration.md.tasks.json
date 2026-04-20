@@ -58,7 +58,7 @@
     {
       "id": 8,
       "subject": "Task 9: WikisModule wiring into AppModule",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** Register the new module and verify gateway boots.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/wikis.module.ts\n- Modify: apps/server/apps/gateway/src/app.module.ts\n\n**Verify:** pnpm dev:server boots; GET /api/wikis returns [] with JWT\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.module.ts\",\"apps/server/apps/gateway/src/app.module.ts\"],\"verifyCommand\":\"pnpm dev:server\",\"acceptanceCriteria\":[\"WikisModule imports DatabaseModule + WebsocketModule via forwardRef\",\"Exports WikisService for WorkspaceModule\",\"Gateway boots with no errors\"]}\n```"
     },
