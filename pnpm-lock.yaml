@@ -191,7 +191,7 @@ importers:
         specifier: ^8.0.3
         version: 8.0.3
       eventsource-parser:
-        specifier: ^3.0.6
+        specifier: 3.0.6
         version: 3.0.6(patch_hash=b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979)
       highlight.js:
         specifier: ^11.11.1
