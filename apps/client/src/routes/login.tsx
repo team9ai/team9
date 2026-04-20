@@ -20,9 +20,13 @@ import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
 import { useTeam9PostHog } from "@/analytics/posthog/provider";
 import { captureWithBridge } from "@/analytics/posthog/capture";
 import { EVENTS } from "@/analytics/posthog/events";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+const TURNSTILE_SITE_KEY = import.meta.env
+  .VITE_CLOUDFLARE_TURNSTILE_SITE_KEY as string | undefined;
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
@@ -420,6 +424,8 @@ function WebLoginView() {
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [countdown, setCountdown] = useState(0);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const authCompletedInSession = useRef(false);
   const lastAutoVerifyAttempt = useRef<string | null>(null);
   const authMethodRef = useRef<"email" | "google">("email");
@@ -595,6 +601,11 @@ function WebLoginView() {
       signup_method: "email",
     });
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError(t("turnstileNotReady"));
+      return;
+    }
+
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
     }
@@ -604,6 +615,7 @@ function WebLoginView() {
         email,
         ...(authState === "need_display_name" ? { displayName } : {}),
         signupSource: invite ? "invite" : "self",
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
 
       if (result.action === "need_display_name") {
@@ -616,6 +628,9 @@ function WebLoginView() {
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("loginFailed")));
+    } finally {
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
   };
 
@@ -647,11 +662,18 @@ function WebLoginView() {
 
   const handleResendCode = async () => {
     setError("");
+
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError(t("turnstileNotReady"));
+      return;
+    }
+
     try {
       const result = await authStart.mutateAsync({
         email,
         ...(displayName ? { displayName } : {}),
         signupSource: invite ? "invite" : "self",
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
       if (result.action === "code_sent") {
         setChallengeId(result.challengeId!);
@@ -660,6 +682,9 @@ function WebLoginView() {
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("loginFailed")));
+    } finally {
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
   };
 
@@ -672,6 +697,11 @@ function WebLoginView() {
     });
     setError("");
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError(t("turnstileNotReady"));
+      return;
+    }
+
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
     }
@@ -683,6 +713,7 @@ function WebLoginView() {
       const result = await googleAuth.mutateAsync({
         credential: credentialResponse.credential,
         signupSource: invite ? "invite" : "self",
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
       if (result.isNewUser) {
         captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
@@ -692,6 +723,9 @@ function WebLoginView() {
       await navigateAfterAuth();
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("googleLoginFailed")));
+    } finally {
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
   };
 
@@ -1010,6 +1044,20 @@ function WebLoginView() {
           {error && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Turnstile Widget */}
+          {TURNSTILE_SITE_KEY && (
+            <div className="flex justify-center">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                options={{ action: "auth-start", theme: "auto" }}
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken(null)}
+                onExpire={() => setTurnstileToken(null)}
+              />
             </div>
           )}
 

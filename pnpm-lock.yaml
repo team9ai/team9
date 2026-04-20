@@ -79,6 +79,9 @@ importers:
       "@lexical/utils":
         specifier: ^0.39.0
         version: 0.39.0
+      "@marsidev/react-turnstile":
+        specifier: ^1.5.0
+        version: 1.5.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       "@posthog/react":
         specifier: ^1.8.2
         version: 1.8.2(@types/react@19.2.7)(posthog-js@1.364.1)(react@19.2.3)
@@ -4309,6 +4312,15 @@ packages:
         integrity: sha512-Z7C/xXCiGWsg0KuKsHTKJxbWhpI3Vs5GwLfOean7MGyVFGqdRgBbAjOCh6u4bbjPc/8MJ2pZmK/0DLdCbivLDA==,
       }
     engines: { node: ">=8" }
+
+  "@marsidev/react-turnstile@1.5.0":
+    resolution:
+      {
+        integrity: sha512-Ph6mcj8u9WBDsBO7s9jKPsyRDz1sBPBJwrk+Ngx09vFInvKsQ6U6kW5amEcGq4dHOreB6DgFrOJk7/fy318YlQ==,
+      }
+    peerDependencies:
+      react: ^17.0.2 || ^18.0.0 || ^19.0
+      react-dom: ^17.0.2 || ^18.0.0 || ^19.0
 
   "@mediapipe/tasks-vision@0.10.17":
     resolution:
@@ -19886,6 +19898,11 @@ snapshots:
       yjs: 13.6.29
 
   "@lukeed/csprng@1.1.0": {}
+
+  "@marsidev/react-turnstile@1.5.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)":
+    dependencies:
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   "@mediapipe/tasks-vision@0.10.17": {}
 
