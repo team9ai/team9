@@ -93,9 +93,12 @@ describe('AuthController (integration)', () => {
         .expect(200);
 
       expect(res.body.action).toBe('code_sent');
-      expect(authService.authStart).toHaveBeenCalledWith({
-        email: 'alice@test.com',
-      });
+      expect(authService.authStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'alice@test.com',
+        }),
+        expect.any(String),
+      );
     });
 
     it('should accept optional displayName', async () => {
@@ -110,10 +113,13 @@ describe('AuthController (integration)', () => {
         .send({ email: 'new@test.com', displayName: 'New User' })
         .expect(200);
 
-      expect(authService.authStart).toHaveBeenCalledWith({
-        email: 'new@test.com',
-        displayName: 'New User',
-      });
+      expect(authService.authStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'new@test.com',
+          displayName: 'New User',
+        }),
+        expect.any(String),
+      );
     });
 
     it('should reject invalid email with 400', async () => {
@@ -145,9 +151,12 @@ describe('AuthController (integration)', () => {
         .send({ email: 'alice@test.com', malicious: 'payload' })
         .expect(200);
 
-      expect(authService.authStart).toHaveBeenCalledWith({
-        email: 'alice@test.com',
-      });
+      expect(authService.authStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'alice@test.com',
+        }),
+        expect.any(String),
+      );
     });
   });
 
