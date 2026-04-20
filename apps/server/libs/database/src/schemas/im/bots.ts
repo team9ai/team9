@@ -43,6 +43,14 @@ export interface BotExtra {
       allowMention?: boolean;
       allowDirectMessage?: boolean;
     };
+    /**
+     * ISO-8601 timestamp of the first successful
+     * `team9:bootstrap.start` dispatch. Set after the onboarding wizard
+     * fires the agentic greeting so that onboarding retries (e.g. after a
+     * downstream `provisionCommonStaff` failure) do not re-fire and
+     * duplicate the greeting. Absent means bootstrap has not yet run.
+     */
+    bootstrappedAt?: string;
   };
 }
 

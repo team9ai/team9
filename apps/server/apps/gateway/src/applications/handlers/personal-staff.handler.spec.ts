@@ -65,7 +65,34 @@ describe('PersonalStaffHandler', () => {
     expect(mockPersonalStaffService.createStaff).not.toHaveBeenCalled();
   });
 
-  it('should create personal staff for each human member', async () => {
+  it('should create personal staff WITHOUT bootstrap for a single-owner fresh workspace', async () => {
+    // Fresh workspace case: the onboarding wizard will drive the final
+    // identity + locale and explicitly trigger bootstrap after updateStaff,
+    // so the handler must NOT fire an early bootstrap with default English
+    // name.
+    buildSelectChain([
+      { userId: 'owner-1', userType: 'human' },
+      { userId: 'bot-1', userType: 'bot' },
+    ]);
+
+    const result = await handler.onInstall(baseContext);
+
+    expect(result).toEqual({});
+    expect(mockPersonalStaffService.createStaff).toHaveBeenCalledTimes(1);
+    expect(mockPersonalStaffService.createStaff).toHaveBeenCalledWith(
+      'installed-app-1',
+      'tenant-1',
+      'owner-1',
+      {
+        model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+        agenticBootstrap: false,
+      },
+    );
+  });
+
+  it('should create personal staff WITH bootstrap when backfilling multi-member workspace', async () => {
+    // Multi-member backfill case: onboarding wizard won't re-run for these
+    // users, so bootstrap must fire here or they never get a greeting.
     buildSelectChain([
       { userId: 'human-1', userType: 'human' },
       { userId: 'human-2', userType: 'human' },
@@ -82,7 +109,7 @@ describe('PersonalStaffHandler', () => {
       'human-1',
       {
         model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
-        agenticBootstrap: false,
+        agenticBootstrap: true,
       },
     );
     expect(mockPersonalStaffService.createStaff).toHaveBeenCalledWith(
@@ -91,7 +118,7 @@ describe('PersonalStaffHandler', () => {
       'human-2',
       {
         model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
-        agenticBootstrap: false,
+        agenticBootstrap: true,
       },
     );
   });
