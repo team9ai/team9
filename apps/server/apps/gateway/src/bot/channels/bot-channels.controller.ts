@@ -50,13 +50,15 @@ export class BotChannelsController {
     } else {
       // Private channel: fan out to each materialized member (bot + mentor + seeded members)
       const members = await this.channelsService.getChannelMembers(channel.id);
-      for (const member of members) {
-        await this.websocketGateway.sendToUser(
-          member.userId,
-          WS_EVENTS.CHANNEL.CREATED,
-          channel,
-        );
-      }
+      await Promise.all(
+        members.map((member) =>
+          this.websocketGateway.sendToUser(
+            member.userId,
+            WS_EVENTS.CHANNEL.CREATED,
+            channel,
+          ),
+        ),
+      );
     }
 
     this.eventEmitter.emit('channel.created', { channel });
