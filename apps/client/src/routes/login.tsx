@@ -878,6 +878,20 @@ function WebLoginView() {
             </Button>
           </form>
 
+          {/* Turnstile Widget for resend */}
+          {TURNSTILE_SITE_KEY && (
+            <div className="flex justify-center mt-4">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                options={{ action: "auth-start", theme: "auto" }}
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken(null)}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-between mt-5 pt-4 border-t border-border/50">
             <button
               type="button"
