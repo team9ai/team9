@@ -9,4 +9,9 @@ export class GoogleLoginDto {
   @IsString()
   @IsIn(['self', 'invite'])
   signupSource?: 'self' | 'invite';
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  turnstileToken?: string;
 }

@@ -33,6 +33,7 @@ import {
   CompleteDesktopSessionDto,
 } from './dto/index.js';
 import { USER_EVENTS, type UserRegisteredEvent } from './events/user.events.js';
+import { TurnstileService } from './turnstile.service.js';
 
 export interface TokenPair {
   accessToken: string;
@@ -147,6 +148,7 @@ export class AuthService {
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly emailService: EmailService,
+    private readonly turnstileService: TurnstileService,
   ) {}
 
   private getJwtExpiresIn(value: string): JwtSignOptions['expiresIn'] {
@@ -585,7 +587,11 @@ export class AuthService {
     };
   }
 
-  async googleLogin(dto: GoogleLoginDto): Promise<AuthResponse> {
+  async googleLogin(
+    dto: GoogleLoginDto,
+    clientIp: string,
+  ): Promise<AuthResponse> {
+    await this.turnstileService.verify(dto.turnstileToken, clientIp);
     const googleClientId = env.GOOGLE_CLIENT_ID;
     if (!googleClientId) {
       throw new BadRequestException('Google login is not configured');
@@ -962,7 +968,11 @@ export class AuthService {
 
   // --- New code-based auth flow ---
 
-  async authStart(dto: AuthStartDto): Promise<AuthStartResponse> {
+  async authStart(
+    dto: AuthStartDto,
+    clientIp: string,
+  ): Promise<AuthStartResponse> {
+    await this.turnstileService.verify(dto.turnstileToken, clientIp);
     // Rate limiting
     const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
     const recentAttempt = await this.redisService.get(rateLimitKey);

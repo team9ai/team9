@@ -17,6 +17,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
+import { TurnstileService } from './turnstile.service.js';
+import { AuthStartDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
@@ -70,6 +72,7 @@ describe('AuthService', () => {
   let jwtService: Record<string, MockFn>;
   let emailService: Record<string, MockFn>;
   let eventEmitter: Record<string, MockFn>;
+  let turnstileService: TurnstileService;
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
@@ -108,10 +111,15 @@ describe('AuthService', () => {
         { provide: RedisService, useValue: redisService },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: EmailService, useValue: emailService },
+        {
+          provide: TurnstileService,
+          useValue: { verify: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+    turnstileService = module.get(TurnstileService);
 
     // Stub generateTokenPair to avoid needing real JWT keys
     jest.spyOn(service as any, 'generateTokenPair').mockReturnValue({
@@ -131,7 +139,10 @@ describe('AuthService', () => {
     it('should return need_display_name for unknown email without displayName', async () => {
       db.limit.mockResolvedValue([]); // no existing user
 
-      const result = await service.authStart({ email: 'new@test.com' });
+      const result = await service.authStart(
+        { email: 'new@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('need_display_name');
       expect(result.email).toBe('new@test.com');
@@ -141,10 +152,13 @@ describe('AuthService', () => {
     it('should send code for unknown email with displayName (signup flow)', async () => {
       db.limit.mockResolvedValue([]); // no existing user
 
-      const result = await service.authStart({
-        email: 'new@test.com',
-        displayName: 'New User',
-      });
+      const result = await service.authStart(
+        {
+          email: 'new@test.com',
+          displayName: 'New User',
+        },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(result.challengeId).toBeDefined();
@@ -160,7 +174,10 @@ describe('AuthService', () => {
     it('should send code for existing verified user (login flow)', async () => {
       db.limit.mockResolvedValue([USER_ROW]);
 
-      const result = await service.authStart({ email: 'alice@test.com' });
+      const result = await service.authStart(
+        { email: 'alice@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(redisService.set).toHaveBeenCalledWith(
@@ -174,7 +191,10 @@ describe('AuthService', () => {
       process.env.DEV_SKIP_EMAIL_VERIFICATION = 'false';
       db.limit.mockResolvedValue([USER_ROW]);
 
-      const result = await service.authStart({ email: 'alice@test.com' });
+      const result = await service.authStart(
+        { email: 'alice@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(result).not.toHaveProperty('verificationCode');
@@ -189,7 +209,10 @@ describe('AuthService', () => {
       const unverifiedUser = { ...USER_ROW, emailVerified: false };
       db.limit.mockResolvedValue([unverifiedUser]);
 
-      const result = await service.authStart({ email: 'alice@test.com' });
+      const result = await service.authStart(
+        { email: 'alice@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(redisService.set).toHaveBeenCalledWith(
@@ -204,7 +227,7 @@ describe('AuthService', () => {
       db.limit.mockResolvedValue([botUser]);
 
       await expect(
-        service.authStart({ email: 'bot@test.com' }),
+        service.authStart({ email: 'bot@test.com' }, '127.0.0.1'),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -213,7 +236,7 @@ describe('AuthService', () => {
       db.limit.mockResolvedValue([inactiveUser]);
 
       await expect(
-        service.authStart({ email: 'alice@test.com' }),
+        service.authStart({ email: 'alice@test.com' }, '127.0.0.1'),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -221,8 +244,21 @@ describe('AuthService', () => {
       redisService.get.mockResolvedValue('1'); // rate limit hit
 
       await expect(
-        service.authStart({ email: 'alice@test.com' }),
+        service.authStart({ email: 'alice@test.com' }, '127.0.0.1'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('calls TurnstileService.verify with token and clientIp', async () => {
+      const verifySpy = jest.spyOn(turnstileService, 'verify');
+      try {
+        await service.authStart(
+          { email: 'a@b.com', turnstileToken: 'tok' } as AuthStartDto,
+          '9.9.9.9',
+        );
+      } catch {
+        // Downstream may fail due to unmocked DB — that's fine, we only care about verify
+      }
+      expect(verifySpy).toHaveBeenCalledWith('tok', '9.9.9.9');
     });
   });
 
@@ -257,7 +293,10 @@ describe('AuthService', () => {
         },
       ]);
 
-      const result = await service.googleLogin({ credential: 'google-token' });
+      const result = await service.googleLogin(
+        { credential: 'google-token' },
+        '127.0.0.1',
+      );
 
       expect(result.user.displayName).toBe('Google Name');
       expect(result.user.avatarUrl).toBe(googlePayload.picture);
@@ -293,7 +332,10 @@ describe('AuthService', () => {
         },
       ]);
 
-      const result = await service.googleLogin({ credential: 'google-token' });
+      const result = await service.googleLogin(
+        { credential: 'google-token' },
+        '127.0.0.1',
+      );
 
       expect(result.user.displayName).toBe('Fallback Name');
       expect(result.user.avatarUrl).toBe(
@@ -330,7 +372,10 @@ describe('AuthService', () => {
 
       db.limit.mockResolvedValueOnce([existingUser]);
 
-      const result = await service.googleLogin({ credential: 'google-token' });
+      const result = await service.googleLogin(
+        { credential: 'google-token' },
+        '127.0.0.1',
+      );
 
       expect(result.user.displayName).toBe(existingUser.displayName);
       expect(result.user.avatarUrl).toBe(existingUser.avatarUrl);
@@ -367,7 +412,10 @@ describe('AuthService', () => {
         },
       ]);
 
-      const result = await service.googleLogin({ credential: 'google-token' });
+      const result = await service.googleLogin(
+        { credential: 'google-token' },
+        '127.0.0.1',
+      );
 
       expect(result.isNewUser).toBe(true);
     });
@@ -389,7 +437,10 @@ describe('AuthService', () => {
 
       db.limit.mockResolvedValueOnce([existingUser]);
 
-      const result = await service.googleLogin({ credential: 'google-token' });
+      const result = await service.googleLogin(
+        { credential: 'google-token' },
+        '127.0.0.1',
+      );
 
       expect(result.isNewUser).toBe(false);
     });
@@ -824,7 +875,7 @@ describe('AuthService', () => {
       process.env.GOOGLE_CLIENT_ID = '';
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }),
+        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
       ).rejects.toThrow('Google login is not configured');
     });
 
@@ -834,7 +885,7 @@ describe('AuthService', () => {
         .mockRejectedValueOnce(new Error('bad credential'));
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }),
+        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
       ).rejects.toThrow('Invalid Google credential');
     });
 
@@ -846,7 +897,7 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }),
+        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
       ).rejects.toThrow('Invalid Google credential');
     });
 
@@ -866,9 +917,12 @@ describe('AuthService', () => {
           }),
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
-      const result = await service.googleLogin({
-        credential: 'google-credential',
-      });
+      const result = await service.googleLogin(
+        {
+          credential: 'google-credential',
+        },
+        '127.0.0.1',
+      );
 
       expect(result.user.email).toBe(existingUser.email);
       expect(db.update).toHaveBeenCalledTimes(1);
@@ -902,9 +956,12 @@ describe('AuthService', () => {
           }),
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
-      const result = await service.googleLogin({
-        credential: 'google-credential',
-      });
+      const result = await service.googleLogin(
+        {
+          credential: 'google-credential',
+        },
+        '127.0.0.1',
+      );
 
       expect(result.user).toEqual({
         id: insertedUser.id,
@@ -951,9 +1008,12 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({
-          credential: 'google-credential',
-        }),
+        service.googleLogin(
+          {
+            credential: 'google-credential',
+          },
+          '127.0.0.1',
+        ),
       ).rejects.toThrow('provision failed');
 
       expect(db.delete).toHaveBeenCalled();
@@ -971,7 +1031,7 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }),
+        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
       ).rejects.toThrow('This account cannot log in');
     });
 
@@ -987,7 +1047,7 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }),
+        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
       ).rejects.toThrow('Account is disabled');
     });
   });
