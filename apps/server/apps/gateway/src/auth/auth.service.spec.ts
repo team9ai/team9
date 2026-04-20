@@ -18,7 +18,7 @@ import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
 import { TurnstileService } from './turnstile.service.js';
-import { AuthStartDto, GoogleLoginDto } from './dto/index.js';
+import { AuthStartDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
@@ -333,10 +333,7 @@ describe('AuthService', () => {
         },
       ]);
 
-      const result = await service.googleLogin(
-        { credential: 'google-token' },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({ credential: 'google-token' });
 
       expect(result.user.displayName).toBe('Google Name');
       expect(result.user.avatarUrl).toBe(googlePayload.picture);
@@ -372,10 +369,7 @@ describe('AuthService', () => {
         },
       ]);
 
-      const result = await service.googleLogin(
-        { credential: 'google-token' },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({ credential: 'google-token' });
 
       expect(result.user.displayName).toBe('Fallback Name');
       expect(result.user.avatarUrl).toBe(
@@ -412,10 +406,7 @@ describe('AuthService', () => {
 
       db.limit.mockResolvedValueOnce([existingUser]);
 
-      const result = await service.googleLogin(
-        { credential: 'google-token' },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({ credential: 'google-token' });
 
       expect(result.user.displayName).toBe(existingUser.displayName);
       expect(result.user.avatarUrl).toBe(existingUser.avatarUrl);
@@ -452,10 +443,7 @@ describe('AuthService', () => {
         },
       ]);
 
-      const result = await service.googleLogin(
-        { credential: 'google-token' },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({ credential: 'google-token' });
 
       expect(result.isNewUser).toBe(true);
     });
@@ -477,10 +465,7 @@ describe('AuthService', () => {
 
       db.limit.mockResolvedValueOnce([existingUser]);
 
-      const result = await service.googleLogin(
-        { credential: 'google-token' },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({ credential: 'google-token' });
 
       expect(result.isNewUser).toBe(false);
     });
@@ -820,7 +805,7 @@ describe('AuthService', () => {
       process.env.GOOGLE_CLIENT_ID = '';
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
+        service.googleLogin({ credential: 'google-credential' }),
       ).rejects.toThrow('Google login is not configured');
     });
 
@@ -830,7 +815,7 @@ describe('AuthService', () => {
         .mockRejectedValueOnce(new Error('bad credential'));
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
+        service.googleLogin({ credential: 'google-credential' }),
       ).rejects.toThrow('Invalid Google credential');
     });
 
@@ -842,7 +827,7 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
+        service.googleLogin({ credential: 'google-credential' }),
       ).rejects.toThrow('Invalid Google credential');
     });
 
@@ -862,12 +847,9 @@ describe('AuthService', () => {
           }),
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
-      const result = await service.googleLogin(
-        {
-          credential: 'google-credential',
-        },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({
+        credential: 'google-credential',
+      });
 
       expect(result.user.email).toBe(existingUser.email);
       expect(db.update).toHaveBeenCalledTimes(1);
@@ -901,12 +883,9 @@ describe('AuthService', () => {
           }),
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
-      const result = await service.googleLogin(
-        {
-          credential: 'google-credential',
-        },
-        '127.0.0.1',
-      );
+      const result = await service.googleLogin({
+        credential: 'google-credential',
+      });
 
       expect(result.user).toEqual({
         id: insertedUser.id,
@@ -953,12 +932,9 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin(
-          {
-            credential: 'google-credential',
-          },
-          '127.0.0.1',
-        ),
+        service.googleLogin({
+          credential: 'google-credential',
+        }),
       ).rejects.toThrow('provision failed');
 
       expect(db.delete).toHaveBeenCalled();
@@ -976,7 +952,7 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
+        service.googleLogin({ credential: 'google-credential' }),
       ).rejects.toThrow('This account cannot log in');
     });
 
@@ -992,24 +968,8 @@ describe('AuthService', () => {
         } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
 
       await expect(
-        service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
+        service.googleLogin({ credential: 'google-credential' }),
       ).rejects.toThrow('Account is disabled');
-    });
-
-    it('calls TurnstileService.verify with token and clientIp', async () => {
-      const verifySpy = jest.spyOn(turnstileService, 'verify');
-      try {
-        await service.googleLogin(
-          {
-            credential: 'google-token',
-            turnstileToken: 'tok',
-          } as GoogleLoginDto,
-          '9.9.9.9',
-        );
-      } catch {
-        // Downstream Google verification may fail — we only assert verify was called
-      }
-      expect(verifySpy).toHaveBeenCalledWith('tok', '9.9.9.9');
     });
   });
 

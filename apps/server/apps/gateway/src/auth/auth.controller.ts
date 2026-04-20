@@ -94,11 +94,8 @@ export class AuthController {
 
   @Post('google')
   @HttpCode(HttpStatus.OK)
-  async googleLogin(
-    @Body() dto: GoogleLoginDto,
-    @Req() req: Request,
-  ): Promise<AuthResponse> {
-    return this.authService.googleLogin(dto, this.getClientIp(req));
+  async googleLogin(@Body() dto: GoogleLoginDto): Promise<AuthResponse> {
+    return this.authService.googleLogin(dto);
   }
 
   @Post('resend-verification')

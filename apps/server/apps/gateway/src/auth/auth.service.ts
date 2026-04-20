@@ -370,11 +370,9 @@ export class AuthService {
     };
   }
 
-  async googleLogin(
-    dto: GoogleLoginDto,
-    clientIp: string,
-  ): Promise<AuthResponse> {
-    await this.turnstileService.verify(dto.turnstileToken, clientIp);
+  async googleLogin(dto: GoogleLoginDto): Promise<AuthResponse> {
+    // Google ID tokens are cryptographically signed and Google applies its
+    // own bot/abuse protection on the OAuth flow, so no Turnstile check here.
     const googleClientId = env.GOOGLE_CLIENT_ID;
     if (!googleClientId) {
       throw new BadRequestException('Google login is not configured');

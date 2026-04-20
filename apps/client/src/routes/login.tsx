@@ -705,11 +705,6 @@ function WebLoginView() {
     });
     setError("");
 
-    if (TURNSTILE_SITE_KEY && !turnstileToken) {
-      setError(t("turnstileNotReady"));
-      return;
-    }
-
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
     }
@@ -717,11 +712,12 @@ function WebLoginView() {
     authMethodRef.current = "google";
     postAuthRedirectMode.current = "default";
 
+    // Google ID tokens are cryptographically signed and already carry
+    // Google's own bot/abuse protection, so we skip Turnstile here.
     try {
       const result = await googleAuth.mutateAsync({
         credential: credentialResponse.credential,
         signupSource: invite ? "invite" : "self",
-        ...(turnstileToken ? { turnstileToken } : {}),
       });
       if (result.isNewUser) {
         captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
@@ -731,9 +727,6 @@ function WebLoginView() {
       await navigateAfterAuth();
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("googleLoginFailed")));
-    } finally {
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
     }
   };
 
@@ -1080,7 +1073,8 @@ function WebLoginView() {
             className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-xl"
             disabled={
               authStart.isPending ||
-              (authState === "need_display_name" && !displayName.trim())
+              (authState === "need_display_name" && !displayName.trim()) ||
+              (!!TURNSTILE_SITE_KEY && !turnstileToken)
             }
           >
             {authStart.isPending ? (

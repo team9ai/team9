@@ -70,7 +70,6 @@ export interface VerifyCodeRequest {
 export interface GoogleLoginRequest {
   credential: string;
   signupSource?: "self" | "invite";
-  turnstileToken?: string;
 }
 
 export interface DesktopSessionResponse {
