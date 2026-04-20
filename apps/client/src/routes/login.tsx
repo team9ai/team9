@@ -736,6 +736,7 @@ function WebLoginView() {
     setDevCode(undefined);
     setError("");
     setDisplayName("");
+    setTurnstileToken(null);
     postAuthRedirectMode.current = "default";
   };
 
