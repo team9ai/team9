@@ -96,7 +96,6 @@ describe('AuthService', () => {
     emailService = {
       sendVerificationCodeEmail: jest.fn<any>().mockResolvedValue(true),
       sendVerificationEmail: jest.fn<any>().mockResolvedValue(true),
-      sendLoginEmail: jest.fn<any>().mockResolvedValue(true),
     };
     eventEmitter = {
       emit: jest.fn<any>(),
