@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -13,7 +14,9 @@ import {
   and,
   asc,
   eq,
+  inArray,
   isNull,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -367,50 +370,72 @@ export class OnboardingService {
     if (record.status === 'provisioned') {
       return record;
     }
-    if (record.status === 'provisioning') {
-      throw new BadRequestException(
-        'Onboarding provisioning is already in progress',
-      );
-    }
-    if (record.status !== 'completed' && record.status !== 'failed') {
+
+    const lang = normalizeOnboardingLanguage(dto.lang);
+
+    // Atomic state transition guards against concurrent complete() callers
+    // (e.g. double-clicked "Finish" button). Only the request that flips the
+    // row from completed|failed → provisioning gets a RETURNING row and
+    // proceeds; losers re-read to emit a precise error.
+    const [claimed] = await this.db
+      .update(schema.workspaceOnboarding)
+      .set({
+        status: 'provisioning',
+        version: sql`${schema.workspaceOnboarding.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.workspaceOnboarding.id, record.id),
+          inArray(schema.workspaceOnboarding.status, ['completed', 'failed']),
+        ),
+      )
+      .returning();
+
+    if (!claimed) {
+      // Re-read is non-transactional: the row can transition again between the
+      // failed CAS and this SELECT. Worst case the caller retries and hits the
+      // `status === 'provisioned'` short-circuit above. No data corruption.
+      const current = await this.findRecord(workspaceId, userId);
+      if (current?.status === 'provisioning') {
+        throw new BadRequestException(
+          'Onboarding provisioning is already in progress',
+        );
+      }
+      if (current?.status === 'provisioned') {
+        return current;
+      }
       throw new BadRequestException(
         'Onboarding must be completed before provisioning',
       );
     }
 
-    const lang = normalizeOnboardingLanguage(dto.lang);
-
-    await this.db
-      .update(schema.workspaceOnboarding)
-      .set({
-        status: 'provisioning',
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.workspaceOnboarding.id, record.id));
-
+    // Use the row returned by the CAS UPDATE as the authoritative snapshot,
+    // not the pre-CAS `record` read — otherwise stepData mutations between
+    // requireRecord and the CAS would provision on stale data.
     try {
       await this.provisionChannels(
         workspaceId,
         userId,
-        record.stepData.channels,
+        claimed.stepData.channels,
       );
       await this.provisionPersonalStaff(
         workspaceId,
         userId,
-        record.stepData.agents,
+        claimed.stepData.agents,
         lang,
       );
       await this.provisionCommonStaff(
         workspaceId,
         userId,
-        record.stepData.agents,
+        claimed.stepData.agents,
       );
       try {
         await this.provisionRoutines(
           workspaceId,
           userId,
-          record.id,
-          record.stepData,
+          claimed.id,
+          claimed.stepData,
         );
       } catch (routineErr) {
         this.logger.warn(
@@ -418,16 +443,17 @@ export class OnboardingService {
           routineErr,
         );
       }
-      await this.persistPreferences(workspaceId, record.stepData);
+      await this.persistPreferences(workspaceId, claimed.stepData);
 
       const [updated] = await this.db
         .update(schema.workspaceOnboarding)
         .set({
           status: 'provisioned',
+          version: sql`${schema.workspaceOnboarding.version} + 1`,
           completedAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(schema.workspaceOnboarding.id, record.id))
+        .where(eq(schema.workspaceOnboarding.id, claimed.id))
         .returning();
 
       return updated;
@@ -440,9 +466,10 @@ export class OnboardingService {
         .update(schema.workspaceOnboarding)
         .set({
           status: 'failed',
+          version: sql`${schema.workspaceOnboarding.version} + 1`,
           updatedAt: new Date(),
         })
-        .where(eq(schema.workspaceOnboarding.id, record.id))
+        .where(eq(schema.workspaceOnboarding.id, claimed.id))
         .returning();
 
       return failed;
@@ -457,12 +484,11 @@ export class OnboardingService {
       'status' | 'currentStep' | 'stepData' | 'completedAt'
     >,
   ) {
-    const existing = await this.findRecord(workspaceId, userId);
-    if (existing) {
-      return existing;
-    }
-
-    const [record] = await this.db
+    // Race-safe insert: two concurrent callers (e.g. duplicate webhook, double
+    // tab) both pass the check-then-insert guard and collide on the
+    // (tenant_id, user_id) unique index. ON CONFLICT DO NOTHING lets the
+    // duplicate become a no-op, and we re-SELECT to return the winning row.
+    const [inserted] = await this.db
       .insert(schema.workspaceOnboarding)
       .values({
         id: uuidv7(),
@@ -474,9 +500,25 @@ export class OnboardingService {
         completedAt: values.completedAt ?? null,
         version: 1,
       })
+      .onConflictDoNothing({
+        target: [
+          schema.workspaceOnboarding.tenantId,
+          schema.workspaceOnboarding.userId,
+        ],
+      })
       .returning();
 
-    return record;
+    if (inserted) {
+      return inserted;
+    }
+
+    const existing = await this.findRecord(workspaceId, userId);
+    if (!existing) {
+      throw new InternalServerErrorException(
+        `Failed to create workspace onboarding for tenant ${workspaceId} user ${userId}`,
+      );
+    }
+    return existing;
   }
 
   private async provisionChannels(
