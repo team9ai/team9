@@ -31,6 +31,7 @@ import { parseFrontmatter } from './utils/frontmatter.js';
 import {
   Folder9ApiError,
   Folder9Permission,
+  type Folder9DiffEntry,
   type Folder9Proposal,
   type Folder9UpdateFolderInput,
 } from './types/folder9.types.js';
@@ -478,6 +479,33 @@ export class WikisService {
   }
 
   /**
+   * Fetch the raw bytes of a file from a Wiki. Requires `read` permission.
+   *
+   * Returns an `ArrayBuffer` unchanged from folder9 — the controller wraps it
+   * in a NestJS `StreamableFile` so the HTTP response is a binary stream
+   * instead of a base64-round-tripped JSON body. Used primarily for cover
+   * images and other binary assets embedded in the Wiki.
+   *
+   * Uses the same per-wiki read-scoped token as {@link getTree} and
+   * {@link getPage} so concurrent reads share the token cache.
+   */
+  async getRaw(
+    workspaceId: string,
+    wikiId: string,
+    user: ActingUser,
+    path: string,
+  ): Promise<ArrayBuffer> {
+    const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
+    requirePermission(wiki, user, 'read');
+    const token = await this.getFolderToken(
+      wiki.folder9FolderId,
+      'read',
+      this.readCreatedBy(wiki),
+    );
+    return this.folder9.getRaw(workspaceId, wiki.folder9FolderId, token, path);
+  }
+
+  /**
    * Commit one or more file changes to a Wiki.
    *
    * Permission logic (per the design spec §"Commit Handling: auto vs review"):
@@ -600,6 +628,34 @@ export class WikisService {
       reviewedBy: p.reviewed_by ?? null,
       reviewedAt: null,
     }));
+  }
+
+  /**
+   * Fetch the diff summary for a single proposal. Requires `read` permission.
+   *
+   * The service passes the folder9 diff entries through untouched — they're
+   * consumed by the UI's diff viewer which already expects folder9's
+   * (Path/Status/OldContent/NewContent) shape.
+   */
+  async getProposalDiff(
+    workspaceId: string,
+    wikiId: string,
+    user: ActingUser,
+    proposalId: string,
+  ): Promise<Folder9DiffEntry[]> {
+    const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
+    requirePermission(wiki, user, 'read');
+    const token = await this.getFolderToken(
+      wiki.folder9FolderId,
+      'read',
+      this.readCreatedBy(wiki),
+    );
+    return this.folder9.getProposalDiff(
+      workspaceId,
+      wiki.folder9FolderId,
+      proposalId,
+      token,
+    );
   }
 
   /**

@@ -64,9 +64,11 @@ function mockFolder9() {
     createToken: jest.fn<any>(),
     getTree: jest.fn<any>(),
     getBlob: jest.fn<any>(),
+    getRaw: jest.fn<any>(),
     commit: jest.fn<any>(),
     listProposals: jest.fn<any>(),
     getProposal: jest.fn<any>(),
+    getProposalDiff: jest.fn<any>(),
     approveProposal: jest.fn<any>(),
     rejectProposal: jest.fn<any>(),
   } as unknown as jest.Mocked<Folder9ClientService> & {
@@ -76,8 +78,11 @@ function mockFolder9() {
     createToken: MockFn;
     getTree: MockFn;
     getBlob: MockFn;
+    getRaw: MockFn;
     commit: MockFn;
     listProposals: MockFn;
+    getProposal: MockFn;
+    getProposalDiff: MockFn;
     approveProposal: MockFn;
     rejectProposal: MockFn;
   };
@@ -826,6 +831,65 @@ describe('WikisService', () => {
     });
   });
 
+  // ── getRaw ──────────────────────────────────────────────────────────
+  describe('getRaw', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    it('returns raw bytes for a read user', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]); // getWikiOrThrow
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      const bytes = new Uint8Array([1, 2, 3, 4]).buffer;
+      f9.getRaw.mockResolvedValue(bytes);
+
+      const result = await svc.getRaw('ws-1', 'wiki-1', user, 'cover.png');
+
+      expect(result).toBe(bytes);
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'f9-1',
+          permission: 'read',
+          created_by: 'wiki:f9-1',
+        }),
+      );
+      expect(f9.getRaw).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-read',
+        'cover.png',
+      );
+    });
+
+    it('throws NotFoundException before minting a token when wiki missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      await expect(
+        svc.getRaw('ws-1', 'missing', user, 'cover.png'),
+      ).rejects.toThrow(NotFoundException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getRaw).not.toHaveBeenCalled();
+    });
+
+    it('shares the per-wiki read-scoped token across callers', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getRaw.mockResolvedValue(new ArrayBuffer(0));
+
+      await svc.getRaw(
+        'ws-1',
+        'wiki-1',
+        { id: 'agent-1', isAgent: true },
+        'cover.png',
+      );
+
+      // Token created_by is stable per-wiki regardless of caller identity so
+      // multiple readers share a single cached token entry.
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ created_by: 'wiki:f9-1' }),
+      );
+    });
+  });
+
   // ── commitPage ──────────────────────────────────────────────────────
   describe('commitPage', () => {
     const writeUser = { id: 'user-1', isAgent: false };
@@ -1207,6 +1271,52 @@ describe('WikisService', () => {
         NotFoundException,
       );
       expect(f9.createToken).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── getProposalDiff ─────────────────────────────────────────────────
+  describe('getProposalDiff', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    it('returns diff entries for a read user', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      const entries = [
+        {
+          Path: 'a.md',
+          Status: 'modified' as const,
+          OldContent: 'old',
+          NewContent: 'new',
+        },
+      ];
+      f9.getProposalDiff.mockResolvedValue(entries);
+
+      const result = await svc.getProposalDiff('ws-1', 'wiki-1', user, 'p-1');
+
+      expect(result).toBe(entries);
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'f9-1',
+          permission: 'read',
+          created_by: 'wiki:f9-1',
+        }),
+      );
+      expect(f9.getProposalDiff).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'p-1',
+        'tok-read',
+      );
+    });
+
+    it('throws NotFoundException for missing wiki before calling folder9', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      await expect(
+        svc.getProposalDiff('ws-1', 'missing', user, 'p-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getProposalDiff).not.toHaveBeenCalled();
     });
   });
 
