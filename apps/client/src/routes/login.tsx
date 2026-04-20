@@ -28,6 +28,18 @@ const IS_TAURI =
 const TURNSTILE_SITE_KEY = import.meta.env
   .VITE_CLOUDFLARE_TURNSTILE_SITE_KEY as string | undefined;
 
+// Map app i18n language to Turnstile's supported language tags.
+// Turnstile accepts: ar-eg, de, en, es, fa, fr, id, it, ja, ko, nl, pl,
+// pt-br, ru, tr, uk, zh-cn, zh-tw (see Cloudflare Turnstile docs).
+function toTurnstileLanguage(lng: string): string {
+  const lower = lng.toLowerCase();
+  if (lower.startsWith("zh-hans")) return "zh-cn";
+  if (lower.startsWith("zh-hant")) return "zh-tw";
+  if (lower === "zh-cn" || lower === "zh-tw") return lower;
+  if (lower.startsWith("pt")) return "pt-br";
+  return lower.split("-")[0];
+}
+
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
   { name: "Outlook", url: "https://outlook.live.com" },
@@ -412,7 +424,11 @@ type AuthState =
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function WebLoginView() {
-  const { t } = useTranslation("auth");
+  const { t, i18n } = useTranslation("auth");
+  const turnstileLanguage = useMemo(
+    () => toTurnstileLanguage(i18n.language || "en"),
+    [i18n.language],
+  );
   const navigate = useNavigate();
   const { redirect, invite, desktopSessionId } = Route.useSearch();
 
@@ -1046,7 +1062,11 @@ function WebLoginView() {
               <Turnstile
                 ref={turnstileRef}
                 siteKey={TURNSTILE_SITE_KEY}
-                options={{ action: "auth-start", theme: "auto" }}
+                options={{
+                  action: "auth-start",
+                  theme: "auto",
+                  language: turnstileLanguage,
+                }}
                 onSuccess={setTurnstileToken}
                 onError={() => setTurnstileToken(null)}
                 onExpire={() => setTurnstileToken(null)}
