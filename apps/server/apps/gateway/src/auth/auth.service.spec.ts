@@ -18,7 +18,7 @@ import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
 import { TurnstileService } from './turnstile.service.js';
-import { AuthStartDto } from './dto/index.js';
+import { AuthStartDto, GoogleLoginDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
@@ -259,6 +259,27 @@ describe('AuthService', () => {
         // Downstream may fail due to unmocked DB — that's fine, we only care about verify
       }
       expect(verifySpy).toHaveBeenCalledWith('tok', '9.9.9.9');
+    });
+
+    it('does not touch Redis or DB when verify() rejects', async () => {
+      const verifySpy = jest
+        .spyOn(turnstileService, 'verify')
+        .mockRejectedValueOnce(
+          new BadRequestException('TURNSTILE_TOKEN_REQUIRED'),
+        );
+      const redisGetSpy = jest.spyOn(redisService, 'get');
+      const dbLimitSpy = jest.spyOn(db, 'limit');
+
+      await expect(
+        service.authStart(
+          { email: 'a@b.com', turnstileToken: '' } as AuthStartDto,
+          '9.9.9.9',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(verifySpy).toHaveBeenCalledTimes(1);
+      expect(redisGetSpy).not.toHaveBeenCalled();
+      expect(dbLimitSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -1049,6 +1070,22 @@ describe('AuthService', () => {
       await expect(
         service.googleLogin({ credential: 'google-credential' }, '127.0.0.1'),
       ).rejects.toThrow('Account is disabled');
+    });
+
+    it('calls TurnstileService.verify with token and clientIp', async () => {
+      const verifySpy = jest.spyOn(turnstileService, 'verify');
+      try {
+        await service.googleLogin(
+          {
+            credential: 'google-token',
+            turnstileToken: 'tok',
+          } as GoogleLoginDto,
+          '9.9.9.9',
+        );
+      } catch {
+        // Downstream Google verification may fail — we only assert verify was called
+      }
+      expect(verifySpy).toHaveBeenCalledWith('tok', '9.9.9.9');
     });
   });
 
