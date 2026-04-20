@@ -1,9 +1,9 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
-import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -34,10 +34,18 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  const app = await NestFactory.create(AppModule);
+  // `rawBody: true` makes the original request bytes available on
+  // `RawBodyRequest#rawBody`; the folder9 webhook controller needs them to
+  // verify the HMAC-SHA256 signature against the exact payload sent by
+  // folder9 (JSON.stringify of the parsed body is not byte-stable).
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
 
-  // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
-  app.use(json({ limit: '1mb' }));
+  // Raise JSON body parser limit to 1 MB to support long text messages (up to
+  // 100K chars). `useBodyParser` respects the `rawBody: true` option above,
+  // whereas `app.use(express.json())` would strip the raw buffer.
+  app.useBodyParser('json', { limit: '1mb' });
 
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {
