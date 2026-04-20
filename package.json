@@ -69,7 +69,8 @@
     ],
     "patchedDependencies": {
       "eventsource-parser@3.0.6": "patches/eventsource-parser@3.0.6.patch"
-    }
+    },
+    "allowNonAppliedPatches": true
   },
   "engines": {
     "node": ">=18.0.0",
