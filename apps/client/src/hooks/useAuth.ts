@@ -7,8 +7,6 @@ import {
 import * as Sentry from "@sentry/react";
 import { invoke } from "@tauri-apps/api/core";
 import api, {
-  type LoginRequest,
-  type RegisterRequest,
   type AuthStartRequest,
   type GoogleLoginRequest,
   type VerifyCodeRequest,
@@ -59,21 +57,6 @@ export const syncCurrentUser = (
     appActions.setUser(null);
     Sentry.setUser(null);
   }
-};
-
-export const useLogin = () => {
-  return useMutation({
-    mutationFn: (data: LoginRequest) => api.auth.login(data),
-    // Login now sends a magic link email, no tokens returned
-  });
-};
-
-export const useRegister = () => {
-  return useMutation({
-    mutationFn: (data: RegisterRequest) => api.auth.register(data),
-    // No longer auto-login after registration
-    // User needs to verify email first
-  });
 };
 
 export const useVerifyEmail = () => {

@@ -14,15 +14,11 @@ import { AuthService } from './auth.service.js';
 import type {
   AuthResponse,
   TokenPair,
-  RegisterResponse,
-  LoginResponse,
   AuthStartResponse,
   DesktopSessionResponse,
   PollLoginResponse,
 } from './auth.service.js';
 import {
-  RegisterDto,
-  LoginDto,
   RefreshTokenDto,
   VerifyEmailDto,
   ResendVerificationDto,
@@ -52,8 +48,11 @@ export class AuthController {
 
   @Post('start')
   @HttpCode(HttpStatus.OK)
-  async authStart(@Body() dto: AuthStartDto): Promise<AuthStartResponse> {
-    return this.authService.authStart(dto);
+  async authStart(
+    @Body() dto: AuthStartDto,
+    @Req() req: Request,
+  ): Promise<AuthStartResponse> {
+    return this.authService.authStart(dto, this.getClientIp(req));
   }
 
   @Post('verify-code')
@@ -80,19 +79,6 @@ export class AuthController {
     return this.authService.completeDesktopSession(dto, userId);
   }
 
-  // --- Legacy endpoints (kept for backward compatibility) ---
-
-  @Post('register')
-  async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
-    return this.authService.register(dto);
-  }
-
-  @Post('login')
-  @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto): Promise<LoginResponse> {
-    return this.authService.login(dto);
-  }
-
   @Get('verify-email')
   async verifyEmail(@Query() dto: VerifyEmailDto): Promise<AuthResponse> {
     return this.authService.verifyEmail(dto.token);
@@ -108,8 +94,11 @@ export class AuthController {
 
   @Post('google')
   @HttpCode(HttpStatus.OK)
-  async googleLogin(@Body() dto: GoogleLoginDto): Promise<AuthResponse> {
-    return this.authService.googleLogin(dto);
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: Request,
+  ): Promise<AuthResponse> {
+    return this.authService.googleLogin(dto, this.getClientIp(req));
   }
 
   @Post('resend-verification')

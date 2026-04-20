@@ -1,6 +1,7 @@
 import {
   IsEmail,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -19,4 +20,9 @@ export class AuthStartDto {
   @IsString()
   @IsIn(['self', 'invite'])
   signupSource?: 'self' | 'invite';
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  turnstileToken?: string;
 }
