@@ -51,7 +51,7 @@
     {
       "id": 7,
       "subject": "Task 8: Folder9WebhookController + WebSocket broadcast",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Receive folder9 webhook, verify HMAC, rebroadcast on Team9 WS gateway scoped to workspace.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/folder9-webhook.controller.ts + spec\n\n**Verify:** pnpm --filter @team9/server test -- folder9-webhook.controller.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/folder9-webhook.controller.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/folder9-webhook.controller.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- folder9-webhook.controller.spec --coverage\",\"acceptanceCriteria\":[\"HMAC-SHA256 verification\",\"Invalid signature returns 401\",\"4 known events rebroadcast to workspace room\",\"Unknown folder_id logs and returns 200\",\"100% coverage\"]}\n```"
     },
