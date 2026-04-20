@@ -91,10 +91,11 @@ RUN if [ "$EDITION" = "community" ]; then \
 # Reinstall to create symlinks
 RUN pnpm install --ignore-scripts
 
-# Clean tsbuildinfo and build all packages
+# Clean tsbuildinfo and build all packages (exclude @team9/client — only its
+# package.json is present in this image, the client source is not copied).
 RUN find apps/server -name "*.tsbuildinfo" -delete && \
     find enterprise -name "*.tsbuildinfo" -delete 2>/dev/null || true && \
-    pnpm --filter '@team9/*' --filter '!@team9/server' build
+    pnpm --filter '@team9/*' --filter '!@team9/server' --filter '!@team9/client' build
 
 # Use pnpm deploy to create a standalone deployment
 RUN pnpm --filter @team9/gateway deploy --prod /app/deploy
