@@ -83,6 +83,18 @@ The browser never talks to folder9 directly. The gateway uses folder9's PSK for 
 
 ## Data Model
 
+### Invariant: Wikis are a subset of folder9 folders
+
+folder9 hosts many kinds of managed folders — Wikis today, agent workspaces / task scratch / other uses in the future. Team9's `workspace_wikis` table is the **allow-list** defining which folder9 folders are surfaced as Wikis in this feature.
+
+**All Wikis are folder9 managed folders; not all folder9 managed folders are Wikis.**
+
+Consequences for the gateway:
+
+- Every gateway operation starts from a `wikiId` (Team9 primary key), never from a bare `folder9FolderId`.
+- Webhook events naming a `folder_id` that has no matching `workspace_wikis` row are dropped with a log (not an error).
+- Backfill scripts, enumeration endpoints, and any future admin tooling must filter through `workspace_wikis` — never query folder9's `/api/workspaces/{ws}/folders` and treat the response as "the list of Wikis."
+
 ### New Team9 Table: `workspace_wikis`
 
 Lightweight pointer table. folder9 remains the source of truth for content, history, proposals, and access.

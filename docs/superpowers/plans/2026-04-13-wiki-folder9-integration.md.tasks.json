@@ -37,7 +37,7 @@
     {
       "id": 5,
       "subject": "Task 6: WikisService (tree / page / commit / proposals)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Extend WikisService with getTree/getPage/commitPage/listProposals/approveProposal/rejectProposal, all permission-gated.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/wikis/wikis.service.ts\n- Modify: apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\n\n**Verify:** pnpm --filter @team9/server test -- wikis.service.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.service.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- wikis.service.spec --coverage\",\"acceptanceCriteria\":[\"getTree requires read\",\"getPage parses frontmatter via util\",\"commitPage computes effective propose flag per spec matrix\",\"commit passes authorName/authorEmail from user profile\",\"approve/reject require write\",\"100% coverage\"]}\n```"
     },
