@@ -6,7 +6,10 @@ import {
   beforeEach,
   afterEach,
 } from '@jest/globals';
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { TurnstileService } from './turnstile.service.js';
 
 describe('TurnstileService', () => {
@@ -112,6 +115,30 @@ describe('TurnstileService', () => {
       mockSiteverify({ success: true });
       const service = new TurnstileService();
       await expect(service.verify('ok', '1.2.3.4')).resolves.toBeUndefined();
+    });
+
+    it('throws ServiceUnavailable when fetch rejects (network error)', async () => {
+      process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = 'secret';
+      fetchSpy.mockRejectedValue(new Error('ENOTFOUND'));
+      const service = new TurnstileService();
+      await expect(service.verify('tok', '1.2.3.4')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      await expect(service.verify('tok', '1.2.3.4')).rejects.toMatchObject({
+        response: { message: 'TURNSTILE_SITEVERIFY_UNAVAILABLE' },
+      });
+    });
+
+    it('throws ServiceUnavailable when siteverify returns non-200', async () => {
+      process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY = 'secret';
+      fetchSpy.mockResolvedValue(new Response('Bad Gateway', { status: 502 }));
+      const service = new TurnstileService();
+      await expect(service.verify('tok', '1.2.3.4')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      await expect(service.verify('tok', '1.2.3.4')).rejects.toMatchObject({
+        response: { message: 'TURNSTILE_SITEVERIFY_UNAVAILABLE' },
+      });
     });
   });
 });

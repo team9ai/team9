@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { env } from '@team9/shared';
 
 interface SiteverifyResponse {
@@ -37,23 +42,34 @@ export class TurnstileService {
       throw new BadRequestException('TURNSTILE_TOKEN_REQUIRED');
     }
 
-    const res = await fetch(
-      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          secret: this.secret,
-          response: token,
-          remoteip: clientIp,
-        }),
-      },
-    );
-    const body = (await res.json()) as SiteverifyResponse;
+    let body: SiteverifyResponse;
+    try {
+      const res = await fetch(
+        'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            secret: this.secret,
+            response: token,
+            remoteip: clientIp,
+          }),
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      body = (await res.json()) as SiteverifyResponse;
+    } catch (err) {
+      this.logger.warn(
+        `Turnstile siteverify unreachable [ip=${clientIp}]: ${err}`,
+      );
+      throw new ServiceUnavailableException('TURNSTILE_SITEVERIFY_UNAVAILABLE');
+    }
 
     if (!body.success) {
       this.logger.warn(
-        `Turnstile verification failed: ${JSON.stringify(body['error-codes'])}`,
+        `Turnstile verification failed [ip=${clientIp}]: ${JSON.stringify(body['error-codes'])}`,
       );
       throw new BadRequestException({
         message: 'TURNSTILE_VERIFICATION_FAILED',
