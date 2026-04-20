@@ -44,7 +44,7 @@
     {
       "id": 6,
       "subject": "Task 7: WikisController",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** REST endpoints under /api/wikis/* wired thinly to WikisService.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/wikis.controller.ts + spec\n\n**Verify:** pnpm --filter @team9/server test -- wikis.controller.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.controller.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/wikis.controller.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- wikis.controller.spec --coverage\",\"acceptanceCriteria\":[\"All spec API endpoints implemented\",\"AuthGuard + WorkspaceGuard applied\",\"Thin pass-through to service\",\"100% coverage\"]}\n```"
     },
