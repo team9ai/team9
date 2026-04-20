@@ -26,8 +26,6 @@ function mockAuthService() {
     verifyCode: jest.fn<any>(),
     createDesktopSession: jest.fn<any>(),
     completeDesktopSession: jest.fn<any>(),
-    register: jest.fn<any>(),
-    login: jest.fn<any>(),
     verifyEmail: jest.fn<any>(),
     pollLogin: jest.fn<any>(),
     googleLogin: jest.fn<any>(),
