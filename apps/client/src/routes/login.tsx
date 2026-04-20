@@ -468,8 +468,15 @@ function WebLoginView() {
         return;
       }
 
+      // Navigating to "/" forces a double pass through _authenticated's
+      // beforeLoad (via _authenticated/index.tsx's redirect to /channels),
+      // which mutates Zustand mid-transition and races the router state
+      // machine. Skip it when there's no explicit deep link.
+      const hasDeepLink = redirect && redirect !== "/";
+      const destination =
+        options?.preferHome || !hasDeepLink ? "/channels" : redirect;
       navigate({
-        to: (options?.preferHome ? "/channels" : redirect || "/") as never,
+        to: destination as never,
         replace: true,
       });
     },
