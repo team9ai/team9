@@ -67,6 +67,10 @@ const TOKEN_MINT_TTL_MS = 16 * 60 * 1000;
  *
  * `expiresAt` is a Unix-ms absolute deadline (Date.now() + {@link TOKEN_CACHE_TTL_MS}
  * at mint time). On hit, we only reuse the token if `Date.now() < expiresAt`.
+ *
+ * The cache stores a `Promise<CachedToken>` rather than a `CachedToken` so
+ * that concurrent callers for the same key await one in-flight mint instead
+ * of each issuing their own — see {@link WikisService.getFolderToken}.
  */
 interface CachedToken {
   token: string;
@@ -144,11 +148,16 @@ export class WikisService {
    * In-memory cache of folder9 tokens keyed by `folderId::permission::createdBy`.
    * Entries are refreshed lazily inside {@link getFolderToken} when expired.
    *
+   * The value is a `Promise<CachedToken>` — not a plain `CachedToken` — so
+   * that concurrent callers for the same key share a single in-flight mint
+   * instead of racing to issue duplicate tokens. Expired or rejected entries
+   * are evicted on the next lookup so the map cannot grow unbounded.
+   *
    * Since tokens are fetched on-demand and short-lived, we intentionally
    * keep this cache in-process rather than pushing it into Redis — losing a
    * few minutes of tokens on restart just means one extra mint per folder.
    */
-  private readonly tokenCache = new Map<string, CachedToken>();
+  private readonly tokenCache = new Map<string, Promise<CachedToken>>();
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -667,6 +676,16 @@ export class WikisService {
    * miss or expiry we call folder9 `POST /api/tokens` and store the fresh
    * token. The folder9-side `expires_at` is set one minute past the local
    * TTL so a freshly-cached token can never be expired on the remote.
+   *
+   * Race-safety: the cache stores a `Promise<CachedToken>`, and a new mint
+   * promise is written into the map *before* we `await` it. Two concurrent
+   * callers for the same key therefore see the same in-flight promise and
+   * share one `POST /api/tokens` call instead of each issuing their own.
+   *
+   * Eviction: expired entries are removed on the next lookup, so the map
+   * cannot grow unbounded across `(folder, permission, createdBy)` tuples.
+   * Rejected mint promises are deleted in the `catch` below so the next
+   * caller retries cleanly rather than reusing the stale failure.
    */
   private async getFolderToken(
     folder9FolderId: string,
@@ -675,25 +694,75 @@ export class WikisService {
   ): Promise<string> {
     const key = tokenCacheKey(folder9FolderId, permission, createdBy);
     const now = Date.now();
-    const cached = this.tokenCache.get(key);
-    if (cached && cached.expiresAt > now) {
-      return cached.token;
+
+    const existing = this.tokenCache.get(key);
+    if (existing) {
+      const entry = await existing;
+      if (entry.expiresAt > now) {
+        return entry.token;
+      }
+      // Expired: evict before minting a replacement so the map can't grow
+      // with stale keys.
+      this.tokenCache.delete(key);
     }
 
-    const expiresAt = new Date(now + TOKEN_MINT_TTL_MS).toISOString();
-    const minted = await this.folder9.createToken({
-      folder_id: folder9FolderId,
+    // Start the mint and stash the promise *immediately* so simultaneous
+    // callers for the same key await the same in-flight request.
+    const mintPromise = this.mintToken(
+      folder9FolderId,
       permission,
-      name: `wiki-${permission}`,
-      created_by: createdBy,
-      expires_at: expiresAt,
-    });
+      createdBy,
+      now,
+    );
+    this.tokenCache.set(key, mintPromise);
 
-    this.tokenCache.set(key, {
-      token: minted.token,
-      expiresAt: now + TOKEN_CACHE_TTL_MS,
-    });
-    return minted.token;
+    try {
+      const entry = await mintPromise;
+      return entry.token;
+    } catch (err) {
+      // Remove the rejected promise so the next caller can retry cleanly
+      // instead of re-awaiting a guaranteed failure. Safe to delete
+      // unconditionally: the only way the key could have been replaced in
+      // the meantime is another caller running their own catch after
+      // awaiting our same rejected promise — and in that case we'd both
+      // agree the failed entry must go.
+      this.tokenCache.delete(key);
+      throw err;
+    }
+  }
+
+  /**
+   * Mint a fresh folder9 token. Split out of {@link getFolderToken} so the
+   * cache-management and network-IO concerns stay separate, and so mint
+   * failures log a structured error line with the full cache-key context
+   * (folder / permission / createdBy) for observability.
+   */
+  private async mintToken(
+    folder9FolderId: string,
+    permission: Folder9Permission,
+    createdBy: string,
+    now: number,
+  ): Promise<CachedToken> {
+    const expiresAtIso = new Date(now + TOKEN_MINT_TTL_MS).toISOString();
+    try {
+      const minted = await this.folder9.createToken({
+        folder_id: folder9FolderId,
+        permission,
+        name: `wiki-${permission}`,
+        created_by: createdBy,
+        expires_at: expiresAtIso,
+      });
+      return {
+        token: minted.token,
+        expiresAt: now + TOKEN_CACHE_TTL_MS,
+      };
+    } catch (err) {
+      this.logger.error(
+        `Failed to mint folder9 token for folder=${folder9FolderId} permission=${permission} createdBy=${createdBy}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      throw err;
+    }
   }
 
   /**

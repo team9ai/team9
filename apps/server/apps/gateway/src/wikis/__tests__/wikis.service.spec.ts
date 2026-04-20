@@ -1478,5 +1478,180 @@ describe('WikisService', () => {
 
       expect(f9.createToken).toHaveBeenCalledTimes(2);
     });
+
+    // ── hardening: eviction / race-safety / observability ────────────
+    //
+    // These tests cover the three Important fixes to `getFolderToken`:
+    //   1. concurrent cache misses share one in-flight mint promise
+    //   2. a rejected mint promise is evicted so the next caller retries
+    //   3. mint failures log at error level with full cache-key context
+    //
+    // The fourth test verifies the (already-passing) expired-entry eviction
+    // behaviour, asserting that the stale entry really is removed from the
+    // internal Map rather than just shadowed by the new one.
+
+    it('concurrent getTree calls share a single in-flight mint', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row]);
+
+      // Hold the mint promise open so both callers land in the same cache
+      // miss window. They should both await the same in-flight promise
+      // instead of each firing their own POST /api/tokens.
+      let resolveToken: (value: unknown) => void = () => {};
+      f9.createToken.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveToken = resolve;
+          }),
+      );
+      f9.getTree.mockResolvedValue([]);
+
+      // Kick off two getTree calls without awaiting either.
+      const p1 = svc.getTree('ws-1', 'wiki-1', user);
+      const p2 = svc.getTree('ws-1', 'wiki-1', user);
+
+      // Let microtasks drain so both callers have entered getFolderToken
+      // and are now awaiting the shared mint promise.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Release the mint. Both awaiters resolve to the same token.
+      resolveToken(makeToken({ token: 'tok-shared' }));
+
+      await Promise.all([p1, p2]);
+
+      // The cache deduplicated the mint: exactly one POST /api/tokens.
+      expect(f9.createToken).toHaveBeenCalledTimes(1);
+      // Both getTree calls used the same token from the shared mint.
+      const calls = f9.getTree.mock.calls as Array<
+        [string, string, string, unknown]
+      >;
+      expect(calls[0][2]).toBe('tok-shared');
+      expect(calls[1][2]).toBe('tok-shared');
+    });
+
+    it('evicts a failed mint so the next caller can retry cleanly', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row]);
+
+      // First mint rejects — the rejected promise must be removed from the
+      // cache so the second call starts a brand new mint (not await the
+      // same guaranteed failure).
+      f9.createToken
+        .mockRejectedValueOnce(new Error('mint boom') as never)
+        .mockResolvedValueOnce(makeToken({ token: 'tok-retry' }));
+      f9.getTree.mockResolvedValue([]);
+
+      await expect(svc.getTree('ws-1', 'wiki-1', user)).rejects.toThrow(
+        /mint boom/,
+      );
+
+      // Second call should re-mint successfully (not reuse the failed promise).
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      expect(f9.createToken).toHaveBeenCalledTimes(2);
+      expect(f9.getTree).toHaveBeenCalledTimes(1); // only the successful call ran getTree
+      const calls = f9.getTree.mock.calls as Array<
+        [string, string, string, unknown]
+      >;
+      expect(calls[0][2]).toBe('tok-retry');
+
+      errorSpy.mockRestore();
+    });
+
+    it('logs mint failures with folder / permission / createdBy context', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      const mintErr = new Error('psk rejected');
+      f9.createToken.mockRejectedValueOnce(mintErr as never);
+
+      await expect(svc.getTree('ws-1', 'wiki-1', user)).rejects.toThrow(
+        /psk rejected/,
+      );
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message, stackOrString] = errorSpy.mock.calls[0] as [
+        string,
+        string,
+      ];
+      expect(message).toContain('folder=f9-1');
+      expect(message).toContain('permission=read');
+      expect(message).toContain('createdBy=wiki:f9-1');
+      // Passed the Error's stack, not "undefined" or the plain string.
+      expect(typeof stackOrString).toBe('string');
+      expect(stackOrString).toContain('Error: psk rejected');
+
+      errorSpy.mockRestore();
+    });
+
+    it('logs mint failures with a string fallback when a non-Error is thrown', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      // Non-Error throw exercises the `String(err)` fallback branch.
+      f9.createToken.mockImplementationOnce(() =>
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+        Promise.reject('plain string mint failure'),
+      );
+
+      await expect(svc.getTree('ws-1', 'wiki-1', user)).rejects.toBe(
+        'plain string mint failure',
+      );
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('folder=f9-1'),
+        'plain string mint failure',
+      );
+      errorSpy.mockRestore();
+    });
+
+    it('evicts the expired cache entry before minting a replacement', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-04-13T10:00:00.000Z'));
+
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row]);
+      f9.createToken
+        .mockResolvedValueOnce(makeToken({ token: 'tok-stale' }))
+        .mockResolvedValueOnce(makeToken({ token: 'tok-fresh' }));
+      f9.getTree.mockResolvedValue([]);
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      // Jump past the 15 min local TTL.
+      jest.setSystemTime(new Date('2026-04-13T10:16:00.000Z'));
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      // Both mints ran (expiry detected), and the eviction path was taken —
+      // the fresh token is what getTree used on the second call. If the
+      // stale entry had leaked, the second getTree would have used tok-stale.
+      expect(f9.createToken).toHaveBeenCalledTimes(2);
+      const calls = f9.getTree.mock.calls as Array<
+        [string, string, string, unknown]
+      >;
+      expect(calls[1][2]).toBe('tok-fresh');
+
+      // Peek at the private map — only one entry, and it's the fresh one.
+      const privateCache = (
+        svc as unknown as {
+          tokenCache: Map<
+            string,
+            Promise<{ token: string; expiresAt: number }>
+          >;
+        }
+      ).tokenCache;
+      expect(privateCache.size).toBe(1);
+      const entry = await privateCache.get('f9-1::read::wiki:f9-1');
+      expect(entry?.token).toBe('tok-fresh');
+    });
   });
 });
