@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -189,6 +190,7 @@ export class OnboardingService {
         currentStep: dto.currentStep ?? record.currentStep,
         status: dto.status ?? record.status,
         stepData: mergedStepData,
+        version: sql`${schema.workspaceOnboarding.version} + 1`,
         updatedAt: new Date(),
       })
       .where(eq(schema.workspaceOnboarding.id, record.id))
@@ -393,9 +395,9 @@ export class OnboardingService {
       .returning();
 
     if (!claimed) {
-      // Re-read is non-transactional: the row can transition again between the
-      // failed CAS and this SELECT. Worst case the caller retries and hits the
-      // `status === 'provisioned'` short-circuit above. No data corruption.
+      // Re-read is non-transactional: the row can transition again between
+      // the failed CAS and this SELECT. Map the observed status to a precise
+      // error instead of a blanket "must be completed" rejection.
       const current = await this.findRecord(workspaceId, userId);
       if (current?.status === 'provisioning') {
         throw new BadRequestException(
@@ -404,6 +406,14 @@ export class OnboardingService {
       }
       if (current?.status === 'provisioned') {
         return current;
+      }
+      if (current?.status === 'completed' || current?.status === 'failed') {
+        // Tight race: winner finished (possibly with failure) and the row is
+        // back in a claimable state. Signal the caller to retry rather than
+        // claiming "must be completed", which would be misleading.
+        throw new ConflictException(
+          'Onboarding state changed during provisioning; please retry.',
+        );
       }
       throw new BadRequestException(
         'Onboarding must be completed before provisioning',
@@ -514,8 +524,13 @@ export class OnboardingService {
 
     const existing = await this.findRecord(workspaceId, userId);
     if (!existing) {
+      // Log identifiers server-side; keep the client-facing message generic so
+      // Nest's default serializer does not echo tenant/user IDs back on a 500.
+      this.logger.error(
+        `Failed to create workspace onboarding after INSERT ON CONFLICT race: tenant=${workspaceId} user=${userId}`,
+      );
       throw new InternalServerErrorException(
-        `Failed to create workspace onboarding for tenant ${workspaceId} user ${userId}`,
+        'Failed to create workspace onboarding',
       );
     }
     return existing;

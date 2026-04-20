@@ -1131,6 +1131,31 @@ describe('OnboardingService — complete() concurrency guard', () => {
     ).rejects.toThrow(/must be completed before provisioning/);
   });
 
+  it('rejects with 409 "please retry" when the re-read observes completed/failed (race winner finished and row is claimable again)', async () => {
+    const record = makeOnboardingRecord({ status: 'completed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([{ ...record, status: 'failed' }]); // winner finished with failure
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringMatching(/state changed during provisioning/i),
+    });
+  });
+
+  it('rejects with 409 "please retry" when the re-read observes completed (winner rolled row back to completed)', async () => {
+    const record = makeOnboardingRecord({ status: 'failed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([{ ...record, status: 'completed' }]); // another writer rewound state
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
   it('increments version via sql expression when claiming provisioning status', async () => {
     // Use the pipeline helper with a failed-status record so that the CAS
     // claim is the first UPDATE on db.set — we then inspect its arguments.
@@ -1164,5 +1189,54 @@ describe('OnboardingService — complete() concurrency guard', () => {
     // and writes a plain number — the CAS must bump via a server-side SQL
     // expression so two racing workers cannot both land version = N+1.
     expect(typeof claimArgs.version).not.toBe('number');
+  });
+});
+
+// ── updateState version monotonicity ─────────────────────────────────────────
+
+describe('OnboardingService — updateState version bump', () => {
+  let service: any;
+  let db: any;
+  let enqueue: any;
+
+  beforeEach(() => {
+    const mock = createDbMock();
+    db = mock.db;
+    enqueue = mock.enqueue;
+
+    service = new OnboardingService(
+      db,
+      {
+        findByNameAndTenant: jest.fn<any>().mockResolvedValue(null),
+        create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
+      },
+      {
+        findByApplicationId: jest.fn<any>().mockResolvedValue(null),
+        install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
+      },
+      {
+        findPersonalStaffBot: jest.fn<any>().mockResolvedValue(null),
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
+        updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      },
+      {
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
+      },
+      {
+        create: jest.fn<any>().mockResolvedValue({ id: 'routine-id' }),
+      },
+    );
+  });
+
+  it('bumps version via sql expression on every updateState write so the column is monotone across all state transitions, not just CAS claims', async () => {
+    const record = makeOnboardingRecord({ status: 'in_progress' });
+    enqueue([record]); // requireRecord
+    enqueue([{ ...record, currentStep: 2 }]); // update returning
+
+    await service.updateState(WORKSPACE_ID, USER_ID, { currentStep: 2 });
+
+    const setArgs = db.set.mock.calls[0][0];
+    expect(setArgs).toHaveProperty('version');
+    expect(typeof setArgs.version).not.toBe('number');
   });
 });
