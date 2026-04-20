@@ -308,3 +308,40 @@ separately; not blocking this change.
 
 - `apps/server/apps/gateway/src/auth/dto/register.dto.ts`
 - `apps/server/apps/gateway/src/auth/dto/login.dto.ts`
+
+## Runbook: Cloudflare Dashboard setup
+
+1. Cloudflare Dashboard → **Turnstile → Add site**.
+2. Site name: `team9-app-auth`.
+3. Hostnames: `app.team9.ai`, `localhost` (dev).
+4. Widget mode: **Managed**.
+5. Click **Create**. Copy:
+   - **Site key** → set as `VITE_CLOUDFLARE_TURNSTILE_SITE_KEY` in the frontend
+     deployment env (Vite picks this up at build time — remember to rebuild).
+   - **Secret key** → set as `CLOUDFLARE_TURNSTILE_SECRET_KEY` in the gateway
+     deployment env (read at runtime by `env.CLOUDFLARE_TURNSTILE_SECRET_KEY`).
+6. Redeploy backend first. Confirm gateway logs do **not** show the warning
+   `Turnstile secret not configured — auth Turnstile verification will be
+SKIPPED`. If that warning appears in production, the env var didn't load.
+7. Redeploy frontend.
+8. Smoke test in an incognito window at `https://app.team9.ai/login`:
+   - Widget renders (invisible for most users, possibly a one-click checkbox)
+   - `POST /v1/auth/start` request body includes `turnstileToken`
+   - Successful email submission → code screen shown
+   - "Resend code" → widget on code-entry screen re-runs, token refreshed, resend succeeds
+9. Monitor for 24 hours:
+   - Cloudflare Dashboard → Turnstile → Analytics (pass rate, challenge rate)
+   - Gateway logs: `Turnstile verification failed` / `Turnstile siteverify unreachable`
+10. Revert: clear both env vars and redeploy. Backend falls back to skip-with-warning (non-prod paths); prod hard-fails on boot so the skip behavior only activates after the env var removal + redeploy.
+
+### Local development keys (Cloudflare test keys)
+
+If you want to exercise the widget locally without creating a real site:
+
+| Purpose               | Site key                   | Secret key                            |
+| --------------------- | -------------------------- | ------------------------------------- |
+| Always pass           | `1x00000000000000000000AA` | `1x0000000000000000000000000000000AA` |
+| Always block          | `2x00000000000000000000AB` | `2x0000000000000000000000000000000AA` |
+| Always invisible pass | `3x00000000000000000000FF` | `3x0000000000000000000000000000000AA` |
+
+Set both the site and secret key — pairs must match for siteverify to work.
