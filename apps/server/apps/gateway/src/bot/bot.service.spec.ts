@@ -18,6 +18,7 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 
 const mockEq = jest.fn((col: unknown, val: unknown) => ({ __eq: [col, val] }));
 const mockAnd = jest.fn((...args: unknown[]) => ({ __and: args }));
+const mockIsNull = jest.fn((col: unknown) => ({ __isNull: col }));
 const mockLike = jest.fn((col: unknown, pat: unknown) => ({
   __like: [col, pat],
 }));
@@ -29,6 +30,7 @@ jest.unstable_mockModule('@team9/database', () => ({
   DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION_mock'),
   eq: mockEq,
   and: mockAnd,
+  isNull: mockIsNull,
   like: mockLike,
   aliasedTable: mockAliasedTable,
 }));
@@ -126,6 +128,7 @@ describe('BotService', () => {
   beforeEach(async () => {
     mockEq.mockClear();
     mockAnd.mockClear();
+    mockIsNull.mockClear();
     db = mockDb();
     channelsService = {
       createDirectChannel: jest.fn<any>().mockResolvedValue({}),
@@ -929,6 +932,9 @@ describe('BotService', () => {
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      // Ensure active-membership predicate (tenantMembers.leftAt IS NULL) is
+      // applied — stale tenant members must not grant mentor-derived access.
+      expect(mockIsNull).toHaveBeenCalled();
       expect(mockAnd).toHaveBeenCalled();
     });
 
@@ -951,6 +957,9 @@ describe('BotService', () => {
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      // Ensure active-membership predicate (tenantMembers.leftAt IS NULL) is
+      // applied — stale tenant members must not grant mentor-derived access.
+      expect(mockIsNull).toHaveBeenCalled();
       expect(mockAnd).toHaveBeenCalled();
     });
 
@@ -972,6 +981,9 @@ describe('BotService', () => {
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
       expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      // Ensure active-membership predicate (tenantMembers.leftAt IS NULL) is
+      // applied — stale tenant members must not grant mentor-derived access.
+      expect(mockIsNull).toHaveBeenCalled();
       expect(mockAnd).toHaveBeenCalled();
     });
 

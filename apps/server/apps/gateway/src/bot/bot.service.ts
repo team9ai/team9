@@ -9,6 +9,7 @@ import {
   and,
   like,
   aliasedTable,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -1112,6 +1113,9 @@ export class BotService implements OnModuleInit {
 
   /**
    * List every active bot mentored by the given user, scoped to a tenant.
+   * Filters out bots whose tenant membership has been revoked
+   * (tenantMembers.leftAt IS NOT NULL) so a bot whose owning user left the
+   * tenant cannot keep producing mentor-derived permissions.
    */
   async findActiveBotsByMentorId(
     mentorId: string,
@@ -1129,6 +1133,7 @@ export class BotService implements OnModuleInit {
           eq(schema.bots.mentorId, mentorId),
           eq(schema.bots.isActive, true),
           eq(schema.tenantMembers.tenantId, tenantId),
+          isNull(schema.tenantMembers.leftAt),
         ),
       );
   }

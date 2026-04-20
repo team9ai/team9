@@ -2209,8 +2209,9 @@ export class ChannelsService {
 
       if (mentorId && mentorId !== botUserId) {
         // Validate mentor + seed members in one tenantMembers query.
-        // A user id that is missing from im_users OR belongs to a different
-        // tenant will not have a matching (tenantId, userId) row.
+        // A user id that is missing from im_users, belongs to a different
+        // tenant, or has left the tenant (leftAt IS NOT NULL) will not have
+        // a matching active row.
         const idsToValidate = [mentorId, ...seedIds];
         const existing = await tx
           .select({ userId: schema.tenantMembers.userId })
@@ -2219,6 +2220,7 @@ export class ChannelsService {
             and(
               inArray(schema.tenantMembers.userId, idsToValidate),
               eq(schema.tenantMembers.tenantId, tenantId),
+              isNull(schema.tenantMembers.leftAt),
             ),
           );
 
@@ -2248,6 +2250,7 @@ export class ChannelsService {
         }
       } else if (seedIds.length > 0) {
         // No mentor: validate seed members in a separate tenantMembers query.
+        // Same active-membership requirement as the mentor branch above.
         const existing = await tx
           .select({ userId: schema.tenantMembers.userId })
           .from(schema.tenantMembers)
@@ -2255,6 +2258,7 @@ export class ChannelsService {
             and(
               inArray(schema.tenantMembers.userId, seedIds),
               eq(schema.tenantMembers.tenantId, tenantId),
+              isNull(schema.tenantMembers.leftAt),
             ),
           );
 

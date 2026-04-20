@@ -316,6 +316,10 @@ describe('ChannelsService.createChannelForBot', () => {
       schema.tenantMembers.userId,
       expect.any(Array),
     );
+    // Active-membership predicate: tenantMembers.leftAt IS NULL must be
+    // included so a user who left the tenant cannot be materialized as a
+    // channel member. Dropping this filter fails this test.
+    expect(mockIsNull).toHaveBeenCalledWith(schema.tenantMembers.leftAt);
 
     // addMember for 'member' role must NOT have been called
     const memberCalls = addMemberSpy.mock.calls.filter(
@@ -357,6 +361,10 @@ describe('ChannelsService.createChannelForBot', () => {
       schema.tenantMembers.userId,
       expect.any(Array),
     );
+    // Active-membership predicate: tenantMembers.leftAt IS NULL must be
+    // included so a user who left the tenant cannot be materialized as a
+    // channel member. Dropping this filter fails this test.
+    expect(mockIsNull).toHaveBeenCalledWith(schema.tenantMembers.leftAt);
 
     addMemberSpy.mockRestore();
   });
@@ -396,6 +404,10 @@ describe('ChannelsService.createChannelForBot', () => {
       schema.tenantMembers.userId,
       expect.any(Array),
     );
+    // Active-membership predicate: tenantMembers.leftAt IS NULL must be
+    // included so a user who left the tenant cannot be materialized as a
+    // channel member. Dropping this filter fails this test.
+    expect(mockIsNull).toHaveBeenCalledWith(schema.tenantMembers.leftAt);
 
     // Mentor should have been added as owner
     expect(addMemberSpy).toHaveBeenCalledWith(
