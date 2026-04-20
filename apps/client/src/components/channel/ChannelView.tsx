@@ -595,37 +595,36 @@ export function ChannelView({
             </p>
           </div>
         ) : (
-          <div key={jumpSeq} className="contents">
-            <ChannelContent
-              channelId={channelId}
-              channelType={channel?.type}
-              messages={messages}
-              isLoading={isFetchingNextPage}
-              onLoadMore={() => {
-                if (hasNextPage) fetchNextPage();
-              }}
-              hasMore={hasNextPage}
-              onLoadNewer={() => {
-                if (hasPreviousPage) fetchPreviousPage();
-              }}
-              hasNewer={hasPreviousPage}
-              isLoadingNewer={isFetchingPreviousPage}
-              highlightMessageId={jumpHighlightId ?? initialMessageId}
-              readOnly={isPreviewMode}
-              thinkingBotIds={thinkingBotIds}
-              members={members}
-              lastReadMessageId={unreadAnchor}
-              hasMoreUnsynced={hasMoreUnsynced}
-              showReadOnlyBar={isPreviewMode || readOnly}
-              onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
-              isSendDisabled={showOverlay}
-              initialDraft={initialDraft}
-              autoSendInitialDraft={autoSendInitialDraft}
-              onInitialDraftAutoSent={onInitialDraftAutoSent}
-              isBotDm={isBotDm}
-              botModelSwitch={isBotDm ? botModelSwitch : undefined}
-            />
-          </div>
+          <ChannelContent
+            channelId={channelId}
+            channelType={channel?.type}
+            messages={messages}
+            isLoading={isFetchingNextPage}
+            onLoadMore={() => {
+              if (hasNextPage) fetchNextPage();
+            }}
+            hasMore={hasNextPage}
+            onLoadNewer={() => {
+              if (hasPreviousPage) fetchPreviousPage();
+            }}
+            hasNewer={hasPreviousPage}
+            isLoadingNewer={isFetchingPreviousPage}
+            highlightMessageId={jumpHighlightId ?? initialMessageId}
+            highlightSeq={jumpSeq}
+            readOnly={isPreviewMode}
+            thinkingBotIds={thinkingBotIds}
+            members={members}
+            lastReadMessageId={unreadAnchor}
+            hasMoreUnsynced={hasMoreUnsynced}
+            showReadOnlyBar={isPreviewMode || readOnly}
+            onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
+            isSendDisabled={showOverlay}
+            initialDraft={initialDraft}
+            autoSendInitialDraft={autoSendInitialDraft}
+            onInitialDraftAutoSent={onInitialDraftAutoSent}
+            isBotDm={isBotDm}
+            botModelSwitch={isBotDm ? botModelSwitch : undefined}
+          />
         )}
 
         {(isInstanceStopped || isInstanceStarting) && (

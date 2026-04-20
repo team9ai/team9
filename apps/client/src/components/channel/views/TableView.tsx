@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
@@ -111,6 +112,7 @@ function TableRow({
   columnWidths: Record<string, number>;
   onJumpToMessage?: (messageId: string) => void;
 }) {
+  const { t } = useTranslation("channel");
   const [editingCell, setEditingCell] = useState<string | null>(null);
 
   const contentPreview = useMemo(() => {
@@ -133,8 +135,8 @@ function TableRow({
           {onJumpToMessage && (
             <button
               type="button"
-              aria-label="Open in chat"
-              title="Open in chat"
+              aria-label={t("table.openInChat")}
+              title={t("table.openInChat")}
               className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-1.5 py-0.5 bg-background"
               onClick={(e) => {
                 e.stopPropagation();
