@@ -2156,10 +2156,14 @@ export class ChannelsService {
 
   /**
    * Create a channel on behalf of a bot. The bot is inserted as `owner`.
-   * If the bot has a mentor, the mentor is also inserted as `owner`.
-   * Optional `memberUserIds` are validated for tenant membership in a single
-   * query and inserted as `member`. All inserts happen inside a single
-   * transaction that rolls back on any error.
+   * If the bot has a mentor, the mentor is also inserted as `owner` — but
+   * only after validating that the mentor belongs to the same tenant. If the
+   * mentor row is in an inconsistent state (cross-tenant), the mentor owner
+   * row is silently skipped and a warning is logged so operators can detect
+   * the anomaly. Optional `memberUserIds` are validated for tenant membership
+   * and inserted as `member`. When a mentor is present, mentor + seed ids are
+   * validated in a single tenantMembers query. All inserts happen inside a
+   * single transaction that rolls back on any error.
    */
   async createChannelForBot(
     botUserId: string,
@@ -2194,11 +2198,6 @@ export class ChannelsService {
       // Add bot as owner
       await this.addMember(channelId, botUserId, 'owner', tx);
 
-      // Add mentor as owner (if present and distinct from bot)
-      if (mentorId && mentorId !== botUserId) {
-        await this.addMember(channelId, mentorId, 'owner', tx);
-      }
-
       // Dedupe memberUserIds, dropping bot and mentor ids before validation
       const seedIds = Array.from(
         new Set(
@@ -2208,10 +2207,47 @@ export class ChannelsService {
         ),
       );
 
-      if (seedIds.length > 0) {
-        // Validate existence + tenant scope in one query via tenantMembers.
+      if (mentorId && mentorId !== botUserId) {
+        // Validate mentor + seed members in one tenantMembers query.
         // A user id that is missing from im_users OR belongs to a different
         // tenant will not have a matching (tenantId, userId) row.
+        const idsToValidate = [mentorId, ...seedIds];
+        const existing = await tx
+          .select({ userId: schema.tenantMembers.userId })
+          .from(schema.tenantMembers)
+          .where(
+            and(
+              inArray(schema.tenantMembers.userId, idsToValidate),
+              eq(schema.tenantMembers.tenantId, tenantId),
+            ),
+          );
+
+        const existingIds = new Set(
+          existing.map((u: { userId: string }) => u.userId),
+        );
+
+        // Add mentor as owner only if they are in the tenant; skip + warn
+        // otherwise to avoid creating cross-tenant membership rows.
+        if (existingIds.has(mentorId)) {
+          await this.addMember(channelId, mentorId, 'owner', tx);
+        } else {
+          this.logger.warn(
+            `createChannelForBot: mentorId ${mentorId} is not a member of tenant ${tenantId}; skipping mentor owner row`,
+          );
+        }
+
+        const missing = seedIds.filter((id) => !existingIds.has(id));
+        if (missing.length > 0) {
+          throw new BadRequestException(
+            `Invalid memberUserIds: ${missing.join(',')}`,
+          );
+        }
+
+        for (const uid of seedIds) {
+          await this.addMember(channelId, uid, 'member', tx);
+        }
+      } else if (seedIds.length > 0) {
+        // No mentor: validate seed members in a separate tenantMembers query.
         const existing = await tx
           .select({ userId: schema.tenantMembers.userId })
           .from(schema.tenantMembers)

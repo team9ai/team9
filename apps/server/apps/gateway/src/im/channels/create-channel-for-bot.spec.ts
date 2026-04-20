@@ -210,6 +210,8 @@ describe('ChannelsService.createChannelForBot', () => {
       isActive: true,
     });
     db.returning.mockResolvedValueOnce([CHANNEL_ROW] as any);
+    // tenantMembers query for mentor (no seed ids): mentor is in the tenant
+    db.where.mockResolvedValueOnce([{ userId: MENTOR_ID }] as any);
 
     const addMemberSpy = jest
       .spyOn(service, 'addMember')
@@ -286,8 +288,12 @@ describe('ChannelsService.createChannelForBot', () => {
     });
     db.returning.mockResolvedValueOnce([CHANNEL_ROW] as any);
 
-    // tenantMembers validation: 'u-cross' is absent (excluded by tenant filter)
-    db.where.mockResolvedValueOnce([{ userId: 'u-valid' }] as any);
+    // Combined query for mentor + seed ids. Mentor and 'u-valid' are present;
+    // 'u-cross' is absent (excluded by tenant filter).
+    db.where.mockResolvedValueOnce([
+      { userId: MENTOR_ID },
+      { userId: 'u-valid' },
+    ] as any);
 
     const addMemberSpy = jest
       .spyOn(service, 'addMember')
@@ -364,8 +370,9 @@ describe('ChannelsService.createChannelForBot', () => {
       { ...CHANNEL_ROW, type: 'private' },
     ] as any);
 
-    // tenantMembers validation returns both seed members as valid
+    // Combined query validates mentor + both seed members in one shot
     db.where.mockResolvedValueOnce([
+      { userId: MENTOR_ID },
       { userId: 'u-1' },
       { userId: 'u-2' },
     ] as any);
@@ -390,7 +397,14 @@ describe('ChannelsService.createChannelForBot', () => {
       expect.any(Array),
     );
 
-    // Both members should have been added
+    // Mentor should have been added as owner
+    expect(addMemberSpy).toHaveBeenCalledWith(
+      'chan-1',
+      MENTOR_ID,
+      'owner',
+      expect.anything(),
+    );
+    // Both seed members should have been added
     expect(addMemberSpy).toHaveBeenCalledWith(
       'chan-1',
       'u-1',
@@ -403,6 +417,59 @@ describe('ChannelsService.createChannelForBot', () => {
       'member',
       expect.anything(),
     );
+
+    addMemberSpy.mockRestore();
+  });
+
+  // ── Mentor cross-tenant guard ─────────────────────────────────────────
+  //
+  // Security: if mentorId is not in tenantMembers for this tenant, the mentor
+  // row must NOT be inserted. The channel must still succeed with bot as owner.
+  // Sabotage-verify: removing the existingIds.has(mentorId) guard from
+  // channels.service.ts causes this test to fail because addMember would be
+  // called with mentorId + 'owner'.
+
+  it('skips mentor owner row when mentorId is not in the bot tenant, but channel still succeeds', async () => {
+    const CROSS_TENANT_MENTOR = 'mentor-other-tenant';
+    botServiceMock.getBotMentorId.mockResolvedValueOnce({
+      mentorId: CROSS_TENANT_MENTOR,
+      isActive: true,
+    });
+    db.returning.mockResolvedValueOnce([CHANNEL_ROW] as any);
+    // tenantMembers query returns empty — mentor is NOT in this tenant
+    db.where.mockResolvedValueOnce([] as any);
+
+    const addMemberSpy = jest
+      .spyOn(service, 'addMember')
+      .mockResolvedValue(undefined as any);
+
+    const result = await service.createChannelForBot(BOT_USER_ID, TENANT_ID, {
+      name: 'ops',
+      type: 'public',
+    });
+
+    // Channel should have been created successfully
+    expect(result).toEqual(CHANNEL_ROW);
+
+    // Bot is owner
+    expect(addMemberSpy).toHaveBeenCalledWith(
+      'chan-1',
+      BOT_USER_ID,
+      'owner',
+      expect.anything(),
+    );
+    // Mentor must NOT have been inserted
+    expect(addMemberSpy).not.toHaveBeenCalledWith(
+      expect.anything(),
+      CROSS_TENANT_MENTOR,
+      'owner',
+      expect.anything(),
+    );
+    // addMember called exactly once (bot only)
+    expect(addMemberSpy).toHaveBeenCalledTimes(1);
+
+    // Tabs still seeded
+    expect(tabsServiceMock.seedBuiltinTabs).toHaveBeenCalledWith('chan-1');
 
     addMemberSpy.mockRestore();
   });
@@ -452,6 +519,8 @@ describe('ChannelsService.createChannelForBot', () => {
       isActive: true,
     });
     db.returning.mockResolvedValueOnce([CHANNEL_ROW] as any);
+    // seedIds is empty after filtering; query still runs for mentor alone
+    db.where.mockResolvedValueOnce([{ userId: MENTOR_ID }] as any);
 
     const addMemberSpy = jest
       .spyOn(service, 'addMember')
@@ -463,7 +532,7 @@ describe('ChannelsService.createChannelForBot', () => {
       memberUserIds: [BOT_USER_ID, MENTOR_ID],
     });
 
-    // Only bot + mentor as owners, no member calls; tenantMembers not queried
+    // Only bot + mentor as owners, no member calls
     expect(addMemberSpy).toHaveBeenCalledTimes(2);
     expect(addMemberSpy).not.toHaveBeenCalledWith(
       expect.anything(),
@@ -477,8 +546,11 @@ describe('ChannelsService.createChannelForBot', () => {
       'member',
       expect.anything(),
     );
-    // Validation query must NOT have been issued because seedIds is empty
-    expect(mockInArray).not.toHaveBeenCalled();
+    // Mentor tenancy check uses inArray([mentorId]) — inArray WAS called
+    expect(mockInArray).toHaveBeenCalledWith(
+      schema.tenantMembers.userId,
+      expect.arrayContaining([MENTOR_ID]),
+    );
 
     addMemberSpy.mockRestore();
   });
