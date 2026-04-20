@@ -260,13 +260,14 @@ describe('AuthService', () => {
       expect(verifySpy).toHaveBeenCalledWith('tok', '9.9.9.9');
     });
 
-    it('does not touch Redis or DB when verify() rejects', async () => {
+    it('does not hit the DB when verify() rejects', async () => {
       const verifySpy = jest
         .spyOn(turnstileService, 'verify')
         .mockRejectedValueOnce(
           new BadRequestException('TURNSTILE_TOKEN_REQUIRED'),
         );
-      const redisGetSpy = jest.spyOn(redisService, 'get');
+      // Cache miss so verify runs
+      (redisService.get as jest.Mock).mockResolvedValueOnce(null);
       const dbLimitSpy = jest.spyOn(db, 'limit');
 
       await expect(
@@ -277,8 +278,27 @@ describe('AuthService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(verifySpy).toHaveBeenCalledTimes(1);
-      expect(redisGetSpy).not.toHaveBeenCalled();
       expect(dbLimitSpy).not.toHaveBeenCalled();
+    });
+
+    it('skips Turnstile verify when the email is already in the passed cache', async () => {
+      const verifySpy = jest.spyOn(turnstileService, 'verify');
+      // Cache hit: email was verified within the challenge TTL window
+      (redisService.get as jest.Mock).mockImplementation((key: string) => {
+        if (key.startsWith('im:turnstile_passed:')) return Promise.resolve('1');
+        return Promise.resolve(null);
+      });
+
+      try {
+        await service.authStart(
+          { email: 'a@b.com' } as AuthStartDto, // no turnstileToken
+          '9.9.9.9',
+        );
+      } catch {
+        // Downstream may throw due to unmocked DB — that's fine.
+      }
+
+      expect(verifySpy).not.toHaveBeenCalled();
     });
   });
 

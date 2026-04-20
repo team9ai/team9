@@ -662,18 +662,13 @@ function WebLoginView() {
 
   const handleResendCode = async () => {
     setError("");
-
-    if (TURNSTILE_SITE_KEY && !turnstileToken) {
-      setError(t("turnstileNotReady"));
-      return;
-    }
-
+    // Backend recognizes the email's prior Turnstile verification via Redis
+    // cache, so resend does not need a fresh widget token.
     try {
       const result = await authStart.mutateAsync({
         email,
         ...(displayName ? { displayName } : {}),
         signupSource: invite ? "invite" : "self",
-        ...(turnstileToken ? { turnstileToken } : {}),
       });
       if (result.action === "code_sent") {
         setChallengeId(result.challengeId!);
@@ -682,9 +677,6 @@ function WebLoginView() {
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("loginFailed")));
-    } finally {
-      turnstileRef.current?.reset();
-      setTurnstileToken(null);
     }
   };
 
@@ -878,20 +870,6 @@ function WebLoginView() {
               )}
             </Button>
           </form>
-
-          {/* Turnstile Widget for resend */}
-          {TURNSTILE_SITE_KEY && (
-            <div className="flex justify-center mt-4">
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={TURNSTILE_SITE_KEY}
-                options={{ action: "auth-start", theme: "auto" }}
-                onSuccess={setTurnstileToken}
-                onError={() => setTurnstileToken(null)}
-                onExpire={() => setTurnstileToken(null)}
-              />
-            </div>
-          )}
 
           <div className="flex items-center justify-between mt-5 pt-4 border-t border-border/50">
             <button

@@ -118,6 +118,9 @@ export class AuthService {
   private readonly AUTH_CHALLENGE_PREFIX = 'im:auth_challenge:';
   private readonly AUTH_CHALLENGE_TTL = 600; // 10 minutes
   private readonly AUTH_CHALLENGE_MAX_ATTEMPTS = 5;
+  // Marks an email that recently passed Turnstile verification so that
+  // resend-code requests (within the challenge TTL window) can skip re-verification.
+  private readonly TURNSTILE_PASSED_PREFIX = 'im:turnstile_passed:';
   private readonly DESKTOP_SESSION_RATE_PREFIX = 'im:desktop_session_rate:';
   private readonly DESKTOP_SESSION_RATE_LIMIT = 10; // max 10 sessions per minute per IP
   private readonly DESKTOP_SESSION_RATE_TTL = 60;
@@ -752,7 +755,18 @@ export class AuthService {
     dto: AuthStartDto,
     clientIp: string,
   ): Promise<AuthStartResponse> {
-    await this.turnstileService.verify(dto.turnstileToken, clientIp);
+    // Skip Turnstile verification if this email already passed it within the
+    // challenge TTL window (resend-code path). Otherwise verify and cache.
+    const turnstilePassedKey = `${this.TURNSTILE_PASSED_PREFIX}${dto.email}`;
+    const alreadyPassed = await this.redisService.get(turnstilePassedKey);
+    if (!alreadyPassed) {
+      await this.turnstileService.verify(dto.turnstileToken, clientIp);
+      await this.redisService.set(
+        turnstilePassedKey,
+        '1',
+        this.AUTH_CHALLENGE_TTL,
+      );
+    }
     // Rate limiting
     const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
     const recentAttempt = await this.redisService.get(rateLimitKey);
