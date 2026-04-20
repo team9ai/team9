@@ -1,0 +1,26 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-20-table-view-open-in-chat.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: useMessageJump hook with unit tests",
+      "status": "pending",
+      "description": "**Goal:** Isolated hook that exposes jumpToMessage(id) and current {highlightId, seq}, switching activeTabId to the channel's messages tab when called.\n\n**Files:**\n- Create: apps/client/src/hooks/useMessageJump.ts\n- Create: apps/client/src/hooks/__tests__/useMessageJump.test.tsx\n\n**Verify:** cd apps/client && pnpm test src/hooks/__tests__/useMessageJump.test.tsx -- --run\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useMessageJump.ts\",\"apps/client/src/hooks/__tests__/useMessageJump.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm test src/hooks/__tests__/useMessageJump.test.tsx -- --run\",\"acceptanceCriteria\":[\"Hook exports useMessageJump(channelTabs, setActiveTabId)\",\"Returns {jumpToMessage, highlightId, seq}\",\"First jump sets highlightId and seq=1 and calls setActiveTabId with messages tab id\",\"Repeat jump to same id bumps seq\",\"Jump to different id updates highlightId and bumps seq\",\"No messages tab = no-op\",\"jumpToMessage ref stable across renders\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: TableView row OPEN button + prop forwarding",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** TableView accepts onJumpToMessage and renders a hover-revealed OPEN button in each row's Content cell that calls it with the message id. Tests in Views.test.tsx cover the new behavior.\n\n**Files:**\n- Modify: apps/client/src/components/channel/views/TableView.tsx\n- Modify: apps/client/src/components/channel/views/__tests__/Views.test.tsx\n\n**Verify:** cd apps/client && pnpm test src/components/channel/views/__tests__/Views.test.tsx -- --run\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/views/TableView.tsx\",\"apps/client/src/components/channel/views/__tests__/Views.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm test src/components/channel/views/__tests__/Views.test.tsx -- --run\",\"acceptanceCriteria\":[\"TableViewProps has optional onJumpToMessage\",\"Prop forwarded to each TableRow\",\"Content cell button has aria-label 'Open in chat' when prop provided\",\"Click calls onJumpToMessage with row message.id\",\"Click uses stopPropagation so it does not trigger edit\",\"No button rendered when prop absent\",\"Button uses opacity-0 group-hover:opacity-100\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Wire ChannelView — pass jump callback down and drive highlight",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** ChannelView uses useMessageJump and wires it so clicking OPEN on a table row switches the active tab to the messages tab and causes MessageList to scroll to + highlight the target message; repeat clicks on the same message re-trigger scroll via a seq-keyed wrapper.\n\n**Files:**\n- Modify: apps/client/src/components/channel/ChannelView.tsx\n\n**Verify:** Manual smoke test in dev + regression suite: cd apps/client && pnpm test -- --run\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/ChannelView.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm test -- --run\",\"acceptanceCriteria\":[\"ChannelView calls useMessageJump(channelTabs, setActiveTabId)\",\"TableView receives onJumpToMessage=jumpToMessage\",\"ChannelContent highlightMessageId = jumpHighlightId ?? initialMessageId\",\"Wrapper around ChannelContent is keyed on jumpSeq\",\"initialMessageId deep-link flow still works\",\"Manual: click OPEN switches to chat tab, scrolls, highlights; repeat click re-triggers\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-20T00:00:00Z"
+}
