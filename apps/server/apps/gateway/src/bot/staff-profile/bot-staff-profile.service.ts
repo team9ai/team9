@@ -85,7 +85,8 @@ interface BotRow {
   extra: BotExtra | null;
   managedMeta: { agentId?: string } | null;
   displayName: string | null;
-  updatedAt: Date;
+  botUpdatedAt: Date;
+  userUpdatedAt: Date;
 }
 
 /**
@@ -188,7 +189,8 @@ export class BotStaffProfileService {
         extra: schema.bots.extra,
         managedMeta: schema.bots.managedMeta,
         displayName: schema.users.displayName,
-        updatedAt: schema.bots.updatedAt,
+        botUpdatedAt: schema.bots.updatedAt,
+        userUpdatedAt: schema.users.updatedAt,
       })
       .from(schema.bots)
       .innerJoin(schema.users, eq(schema.users.id, schema.bots.userId))
@@ -230,12 +232,22 @@ export class BotStaffProfileService {
             description: PERSONAL_STAFF_JOB_DESCRIPTION,
           };
 
+    const identity: Record<string, unknown> = { ...(kindBlock.identity ?? {}) };
+    if (!('name' in identity) && row.displayName) {
+      identity.name = row.displayName;
+    }
+
+    const updatedAt =
+      row.botUpdatedAt > row.userUpdatedAt
+        ? row.botUpdatedAt
+        : row.userUpdatedAt;
+
     const snapshot: StaffProfileSnapshot = {
       agentId: row.managedMeta?.agentId ?? '',
       botUserId: row.botUserId,
-      identity: kindBlock.identity ?? {},
+      identity,
       role,
-      updatedAt: row.updatedAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
     };
 
     if (row.mentorId) {
@@ -254,7 +266,10 @@ export class BotStaffProfileService {
     if (patch === undefined) return existing;
     const next: Record<string, unknown> = { ...existing };
     for (const [key, value] of Object.entries(patch)) {
-      if (value === null) {
+      if (
+        value === null ||
+        (key === 'name' && typeof value === 'string' && value.length === 0)
+      ) {
         delete next[key];
       } else {
         next[key] = value;
