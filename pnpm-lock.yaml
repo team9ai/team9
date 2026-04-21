@@ -244,6 +244,9 @@ importers:
       transliteration:
         specifier: ^2.6.0
         version: 2.6.0
+      yaml:
+        specifier: ^2.8.3
+        version: 2.8.3
       zustand:
         specifier: ^5.0.9
         version: 5.0.9(@types/react@19.2.7)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
