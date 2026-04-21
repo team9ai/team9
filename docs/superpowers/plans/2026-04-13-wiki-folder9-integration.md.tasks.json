@@ -99,7 +99,7 @@
     {
       "id": 14,
       "subject": "Task 15: Wiki routes + WikiMainContent shell",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [12],
       "description": "**Goal:** TanStack router files for /wiki, /wiki/$slug, /wiki/$slug/$; WikiMainContent reads store and renders page view or empty state.\n\n**Files:**\n- Create: apps/client/src/routes/_authenticated/wiki/index.tsx, $wikiSlug.tsx, $wikiSlug.$.tsx\n- Modify: WikiMainContent.tsx\n- Create: WikiEmptyState.tsx\n\n**Verify:** pnpm --filter @team9/client build\n\n```json:metadata\n{\"files\":[\"apps/client/src/routes/_authenticated/wiki/\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\",\"apps/client/src/components/wiki/WikiEmptyState.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client build\",\"acceptanceCriteria\":[\"/wiki shows empty state\",\"/wiki/:slug selects wiki + index.md\",\"/wiki/:slug/:path sets store + auto-expands parents\",\"Build passes with generated routeTree\"]}\n```"
     },
