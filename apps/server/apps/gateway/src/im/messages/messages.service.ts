@@ -1,10 +1,12 @@
 import {
   Injectable,
   Inject,
+  Optional,
   NotFoundException,
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { determineMessageType, truncateContent } from './message-utils.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -29,6 +31,11 @@ import {
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
+import { type GatewayMQService } from '@team9/rabbitmq';
+import { type PostBroadcastTask } from '@team9/shared';
+import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { WS_EVENTS } from '../websocket/events/events.constants.js';
 
 export interface MessageSender {
   id: string;
@@ -118,6 +125,11 @@ export class MessagesService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly channelSequenceService: ChannelSequenceService,
     private readonly messagePropertiesService: MessagePropertiesService,
+    @Optional()
+    private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
+    @Optional() private readonly websocketGateway?: WebsocketGateway,
+    @Optional() private readonly gatewayMQService?: GatewayMQService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   private mapMessageSender(row: {
@@ -1127,5 +1139,100 @@ export class MessagesService {
     }
 
     return { content: message.content ?? '' };
+  }
+
+  /**
+   * Send a message authored by a bot user.
+   *
+   * Designed for bot-to-user DM dispatch (e.g. after provisioning a DM channel
+   * via ChannelsService.assertBotCanDm).  Compared to the human-authored path in
+   * MessagesController.createMessage it intentionally:
+   *  - Skips mention validation (bots write to channels they just provisioned).
+   *  - Does NOT publish RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED (bot-authored
+   *    messages must not trigger channel-message agent workflows).
+   *
+   * Requires imWorkerGrpcClientService, websocketGateway to be injected (they
+   * are registered as optional in the constructor so that existing unit tests of
+   * this service that don't need these deps can continue to instantiate it
+   * without them).
+   */
+  async sendFromBot(params: {
+    botUserId: string;
+    channelId: string;
+    content: string;
+    attachments?: Array<{
+      fileKey: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+    }>;
+    workspaceId: string;
+  }): Promise<{ channelId: string; messageId: string }> {
+    if (!this.imWorkerGrpcClientService) {
+      throw new Error('sendFromBot: imWorkerGrpcClientService is not injected');
+    }
+    if (!this.websocketGateway) {
+      throw new Error('sendFromBot: websocketGateway is not injected');
+    }
+
+    const { botUserId, channelId, content, attachments, workspaceId } = params;
+
+    const clientMsgId = uuidv7();
+    const messageType = determineMessageType(content, !!attachments?.length);
+
+    const result = await this.imWorkerGrpcClientService.createMessage({
+      clientMsgId,
+      channelId,
+      senderId: botUserId,
+      content,
+      type: messageType,
+      workspaceId,
+      attachments,
+    });
+
+    const message = await this.getMessageWithDetails(result.msgId);
+    const [withProps] = await this.mergeProperties([message]);
+    const preview = this.truncateForPreview(withProps);
+
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.MESSAGE.NEW,
+      preview,
+    );
+
+    // Fire-and-forget post-broadcast task (unread counts, outbox completion)
+    if (this.gatewayMQService?.isReady()) {
+      const task: PostBroadcastTask = {
+        msgId: result.msgId,
+        channelId,
+        senderId: botUserId,
+        workspaceId,
+        broadcastAt: Date.now(),
+      };
+      this.gatewayMQService.publishPostBroadcast(task).catch((err) => {
+        this.logger.warn(`sendFromBot post-broadcast publish failed: ${err}`);
+      });
+    }
+
+    // Emit for search indexing (symmetric with controller path)
+    this.eventEmitter?.emit('message.created', {
+      message: {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        parentId: message.parentId,
+        createdAt: message.createdAt,
+      },
+      channel: { id: channelId },
+      sender: { id: botUserId },
+    });
+
+    // NOTE: intentionally skipping RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED publish
+    // — bot-authored messages must not trigger channel-message agent workflows.
+
+    return { channelId, messageId: result.msgId };
   }
 }
