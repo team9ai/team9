@@ -1,0 +1,38 @@
+{
+  "myDevices": "Meus dispositivos",
+  "thisMac": "Este Mac",
+  "otherDevices_zero": "Meus outros dispositivos",
+  "otherDevices_one": "Meus outros dispositivos (1)",
+  "otherDevices_other": "Meus outros dispositivos ({{count}})",
+  "allowLocalDevice": "Permitir como destino do agente",
+  "removeThisDevice": "Remover este dispositivo",
+  "confirmRemoveThisMac": "Remover este dispositivo? O daemon será desconectado e sua identidade ahand local será apagada.",
+  "confirmRemove": "Remover {{name}}? Esse dispositivo perderá a conexão.",
+  "thisMacRemoved": "Este dispositivo foi removido.",
+  "removed": "{{name}} foi removido.",
+  "remove": "Remover",
+
+  "online": "● Online",
+  "offline": "Offline",
+  "connecting": "⟳ Conectando…",
+  "disabled": "Desativado",
+  "notConnected": "Não conectado",
+  "statusAnyOnline": "Alguns dispositivos online",
+  "statusNoneOnline": "Nenhum dispositivo online",
+  "lastSeen": "última atividade {{when}}",
+  "neverSeen": "nunca visto",
+
+  "error": {
+    "header": "✕ Erro",
+    "jwtExpired": "Sessão expirada; atualizando…",
+    "hubUnavailable": "Serviço remoto indisponível. Tente novamente.",
+    "toggleFailed": "Falha ao alternar: {{msg}}",
+    "removeFailed": "Falha ao remover: {{msg}}"
+  },
+
+  "ctaTitle": "Deixe agentes assumirem seu computador",
+  "ctaBody": "Use o app de desktop Team9 para transformar esta máquina no braço de execução remota do seu agente — com custo quase zero.",
+  "ctaPrimaryAction": "Abrir app de desktop",
+  "ctaSecondaryAction": "Baixar app de desktop",
+  "noAppInstalledHint": "Se nada aconteceu, o app de desktop pode ainda não estar instalado."
+}

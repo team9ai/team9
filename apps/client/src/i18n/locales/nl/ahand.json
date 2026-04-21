@@ -1,0 +1,38 @@
+{
+  "myDevices": "Mijn apparaten",
+  "thisMac": "Deze Mac",
+  "otherDevices_zero": "Mijn andere apparaten",
+  "otherDevices_one": "Mijn andere apparaten (1)",
+  "otherDevices_other": "Mijn andere apparaten ({{count}})",
+  "allowLocalDevice": "Toestaan als agent-doel",
+  "removeThisDevice": "Dit apparaat verwijderen",
+  "confirmRemoveThisMac": "Dit apparaat verwijderen? De daemon zal de verbinding verbreken en je lokale ahand-identiteit wordt gewist.",
+  "confirmRemove": "{{name}} verwijderen? Dat apparaat verliest zijn verbinding.",
+  "thisMacRemoved": "Dit apparaat is verwijderd.",
+  "removed": "{{name}} is verwijderd.",
+  "remove": "Verwijderen",
+
+  "online": "● Online",
+  "offline": "Offline",
+  "connecting": "⟳ Verbinden…",
+  "disabled": "Uitgeschakeld",
+  "notConnected": "Niet verbonden",
+  "statusAnyOnline": "Sommige apparaten online",
+  "statusNoneOnline": "Geen apparaten online",
+  "lastSeen": "laatst actief {{when}}",
+  "neverSeen": "nooit gezien",
+
+  "error": {
+    "header": "✕ Fout",
+    "jwtExpired": "Sessie verlopen; vernieuwen…",
+    "hubUnavailable": "Externe service niet beschikbaar. Probeer het opnieuw.",
+    "toggleFailed": "Schakelen mislukt: {{msg}}",
+    "removeFailed": "Verwijderen mislukt: {{msg}}"
+  },
+
+  "ctaTitle": "Laat agents je computer overnemen",
+  "ctaBody": "Gebruik de Team9-desktop-app om deze machine te veranderen in de remote-uitvoeringsarm van je agent — tegen bijna nul kosten.",
+  "ctaPrimaryAction": "Desktop-app openen",
+  "ctaSecondaryAction": "Desktop-app downloaden",
+  "noAppInstalledHint": "Als er niets is gebeurd, is de desktop-app mogelijk nog niet geïnstalleerd."
+}

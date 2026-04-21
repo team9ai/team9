@@ -1,0 +1,38 @@
+{
+  "myDevices": "我的裝置",
+  "thisMac": "這台電腦",
+  "otherDevices_zero": "我的其他裝置",
+  "otherDevices_one": "我的其他裝置 (1)",
+  "otherDevices_other": "我的其他裝置 ({{count}})",
+  "allowLocalDevice": "允許作為 agent 可用機器",
+  "removeThisDevice": "移除此裝置",
+  "confirmRemoveThisMac": "確定移除此裝置？daemon 將斷開連線，本機 ahand 身分將被清除。",
+  "confirmRemove": "確定移除 {{name}}？該機器會失去連線。",
+  "thisMacRemoved": "已移除此裝置。",
+  "removed": "已移除 {{name}}。",
+  "remove": "移除",
+
+  "online": "● 線上",
+  "offline": "離線",
+  "connecting": "⟳ 連線中…",
+  "disabled": "已停用",
+  "notConnected": "未連線",
+  "statusAnyOnline": "有裝置在線",
+  "statusNoneOnline": "無裝置在線",
+  "lastSeen": "最後活躍 {{when}}",
+  "neverSeen": "從未上線",
+
+  "error": {
+    "header": "✕ 錯誤",
+    "jwtExpired": "工作階段已過期，正在重新整理…",
+    "hubUnavailable": "遠端服務無法使用，請稍後再試。",
+    "toggleFailed": "切換失敗：{{msg}}",
+    "removeFailed": "移除失敗：{{msg}}"
+  },
+
+  "ctaTitle": "讓 Agent 接管你的電腦",
+  "ctaBody": "使用 Team9 桌面應用程式把這台電腦變成你 Agent 的遠端執行手臂，以極低的成本獲得本機 shell 能力。",
+  "ctaPrimaryAction": "開啟桌面應用程式",
+  "ctaSecondaryAction": "下載桌面應用程式",
+  "noAppInstalledHint": "如果沒有反應，桌面應用程式可能尚未安裝。"
+}

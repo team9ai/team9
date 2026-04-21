@@ -1,0 +1,38 @@
+{
+  "myDevices": "我的设备",
+  "thisMac": "这台电脑",
+  "otherDevices_zero": "我的其他设备",
+  "otherDevices_one": "我的其他设备 (1)",
+  "otherDevices_other": "我的其他设备 ({{count}})",
+  "allowLocalDevice": "允许作为 agent 可用机器",
+  "removeThisDevice": "移除此设备",
+  "confirmRemoveThisMac": "确定移除此设备？daemon 将断开连接，本地 ahand 身份将被清除。",
+  "confirmRemove": "确定移除 {{name}}？该机器会失去连接。",
+  "thisMacRemoved": "已移除此设备。",
+  "removed": "已移除 {{name}}。",
+  "remove": "移除",
+
+  "online": "● 在线",
+  "offline": "离线",
+  "connecting": "⟳ 连接中…",
+  "disabled": "已停用",
+  "notConnected": "未连接",
+  "statusAnyOnline": "有设备在线",
+  "statusNoneOnline": "无设备在线",
+  "lastSeen": "最后活跃 {{when}}",
+  "neverSeen": "从未上线",
+
+  "error": {
+    "header": "✕ 错误",
+    "jwtExpired": "会话已过期，正在刷新…",
+    "hubUnavailable": "远程服务不可用，请稍后重试。",
+    "toggleFailed": "切换失败：{{msg}}",
+    "removeFailed": "移除失败：{{msg}}"
+  },
+
+  "ctaTitle": "让 Agent 接管你的电脑",
+  "ctaBody": "使用 Team9 桌面应用把这台电脑变成你 Agent 的远程执行手臂，以极低的成本获得本机 shell 能力。",
+  "ctaPrimaryAction": "打开桌面应用",
+  "ctaSecondaryAction": "下载桌面应用",
+  "noAppInstalledHint": "如果没有反应，桌面应用可能尚未安装。"
+}

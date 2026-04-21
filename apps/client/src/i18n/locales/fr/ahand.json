@@ -1,0 +1,38 @@
+{
+  "myDevices": "Mes appareils",
+  "thisMac": "Ce Mac",
+  "otherDevices_zero": "Mes autres appareils",
+  "otherDevices_one": "Mes autres appareils (1)",
+  "otherDevices_other": "Mes autres appareils ({{count}})",
+  "allowLocalDevice": "Autoriser comme cible de l'agent",
+  "removeThisDevice": "Supprimer cet appareil",
+  "confirmRemoveThisMac": "Supprimer cet appareil ? Le daemon sera déconnecté et votre identité ahand locale sera effacée.",
+  "confirmRemove": "Supprimer {{name}} ? Cet appareil perdra sa connexion.",
+  "thisMacRemoved": "Cet appareil a été supprimé.",
+  "removed": "{{name}} a été supprimé.",
+  "remove": "Supprimer",
+
+  "online": "● En ligne",
+  "offline": "Hors ligne",
+  "connecting": "⟳ Connexion…",
+  "disabled": "Désactivé",
+  "notConnected": "Non connecté",
+  "statusAnyOnline": "Certains appareils sont en ligne",
+  "statusNoneOnline": "Aucun appareil en ligne",
+  "lastSeen": "dernière activité {{when}}",
+  "neverSeen": "jamais vu",
+
+  "error": {
+    "header": "✕ Erreur",
+    "jwtExpired": "Session expirée ; actualisation…",
+    "hubUnavailable": "Service distant indisponible. Veuillez réessayer.",
+    "toggleFailed": "Échec du changement : {{msg}}",
+    "removeFailed": "Échec de la suppression : {{msg}}"
+  },
+
+  "ctaTitle": "Laissez les agents prendre le contrôle de votre ordinateur",
+  "ctaBody": "Utilisez l'application de bureau Team9 pour transformer cette machine en bras d'exécution distant de votre agent — à coût quasi nul.",
+  "ctaPrimaryAction": "Ouvrir l'application de bureau",
+  "ctaSecondaryAction": "Télécharger l'application de bureau",
+  "noAppInstalledHint": "Si rien ne se passe, l'application de bureau n'est peut-être pas encore installée."
+}

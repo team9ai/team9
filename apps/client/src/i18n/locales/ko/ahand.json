@@ -1,0 +1,38 @@
+{
+  "myDevices": "내 기기",
+  "thisMac": "이 Mac",
+  "otherDevices_zero": "다른 내 기기",
+  "otherDevices_one": "다른 내 기기 (1)",
+  "otherDevices_other": "다른 내 기기 ({{count}})",
+  "allowLocalDevice": "에이전트 실행 대상으로 허용",
+  "removeThisDevice": "이 기기 제거",
+  "confirmRemoveThisMac": "이 기기를 제거하시겠습니까? 데몬 연결이 끊기고 로컬 ahand 자격이 삭제됩니다.",
+  "confirmRemove": "{{name}}을(를) 제거하시겠습니까? 해당 기기의 연결이 끊깁니다.",
+  "thisMacRemoved": "이 기기를 제거했습니다.",
+  "removed": "{{name}}을(를) 제거했습니다.",
+  "remove": "제거",
+
+  "online": "● 온라인",
+  "offline": "오프라인",
+  "connecting": "⟳ 연결 중…",
+  "disabled": "사용 안 함",
+  "notConnected": "연결되지 않음",
+  "statusAnyOnline": "일부 기기가 온라인 상태입니다",
+  "statusNoneOnline": "온라인 상태인 기기가 없습니다",
+  "lastSeen": "마지막 활동 {{when}}",
+  "neverSeen": "활동 기록 없음",
+
+  "error": {
+    "header": "✕ 오류",
+    "jwtExpired": "세션이 만료되었습니다. 새로 고치는 중…",
+    "hubUnavailable": "원격 서비스에 연결할 수 없습니다. 다시 시도해 주세요.",
+    "toggleFailed": "전환 실패: {{msg}}",
+    "removeFailed": "제거 실패: {{msg}}"
+  },
+
+  "ctaTitle": "에이전트에게 컴퓨터를 맡겨 보세요",
+  "ctaBody": "Team9 데스크톱 앱을 사용하여 이 컴퓨터를 에이전트의 원격 실행 수단으로 바꾸세요. 거의 제로 비용으로 로컬 shell 능력을 얻을 수 있습니다.",
+  "ctaPrimaryAction": "데스크톱 앱 열기",
+  "ctaSecondaryAction": "데스크톱 앱 다운로드",
+  "noAppInstalledHint": "반응이 없다면 데스크톱 앱이 아직 설치되지 않았을 수 있습니다."
+}

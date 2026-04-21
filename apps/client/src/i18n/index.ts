@@ -15,6 +15,7 @@ import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
 import enOnboarding from "./locales/en/onboarding.json";
 import enDeepResearch from "./locales/en/deepResearch.json";
+import enAhand from "./locales/en/ahand.json";
 
 import { loadLanguage, NAMESPACES } from "./loadLanguage";
 
@@ -56,6 +57,7 @@ const resources = {
     skills: enSkills,
     onboarding: enOnboarding,
     deepResearch: enDeepResearch,
+    ahand: enAhand,
   },
 };
 
