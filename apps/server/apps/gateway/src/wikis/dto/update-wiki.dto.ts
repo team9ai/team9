@@ -14,7 +14,11 @@ export class UpdateWikiDto {
 
   @IsOptional()
   @IsString()
-  @Length(0, 8)
+  // 32 UTF-16 code units: comfortably covers ZWJ-joined emoji (e.g. the
+  // family emoji 👨‍👩‍👧‍👦 is 11 units, flag sequences are up to 14) without
+  // allowing arbitrary free text to sneak through as an "icon". Kept in
+  // sync with the create-wiki DTO.
+  @Length(0, 32)
   icon?: string;
 
   @IsOptional()
