@@ -72,6 +72,21 @@ const PROPOSAL_REJECTED = 'proposal.rejected';
 const REF_UPDATED = 'ref.updated';
 
 /**
+ * Canonical 8-4-4-4-12 UUID pattern. `workspace_wikis.folder9_folder_id` is a
+ * Postgres `uuid` column, so any lookup keyed on a non-UUID string is
+ * guaranteed to miss — worse, feeding an arbitrary string to the DB would
+ * raise `22P02 invalid input syntax for type uuid` and surface as a 500.
+ *
+ * We validate *after* HMAC verification (so attackers can't probe the regex
+ * without a secret) but *before* the DB lookup: a malformed `folder_id`
+ * means the payload is broken, not that the sender is unauthorised. We log
+ * at warn and return 200 so folder9 doesn't retry a request that will never
+ * succeed, matching the "unknown folder_id" branch's behaviour below.
+ */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
  * Receives HMAC-signed webhook events from folder9 and re-broadcasts the
  * relevant ones on the team9 WebSocket gateway, scoped to the wiki's
  * workspace room.
@@ -182,6 +197,17 @@ export class Folder9WebhookController {
       event !== REF_UPDATED
     ) {
       this.logger.debug(`ignored folder9 event ${String(event)}`);
+      return;
+    }
+
+    // 3a. Validate `folder_id` shape *before* the DB query. The column is
+    //     Postgres `uuid`, so handing an arbitrary string to drizzle would
+    //     bubble a 22P02 cast error up as a 500 — and 500s cause folder9 to
+    //     retry. Log + 200 instead, same as the unknown-folder branch.
+    if (!UUID_PATTERN.test(folderId)) {
+      this.logger.warn(
+        `webhook with malformed folder_id "${folderId}" (event=${event}) — ignoring`,
+      );
       return;
     }
 

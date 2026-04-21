@@ -313,6 +313,21 @@ describe('Folder9WebhookController', () => {
       expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
     });
 
+    it('ignores webhooks with a malformed (non-UUID) folder_id (200 OK + warn log, no DB query)', async () => {
+      // A malformed folder_id must not reach the DB — Postgres would raise
+      // 22P02 on the uuid cast and surface as a 500, triggering retries.
+      const { raw, req } = makeRawReq({
+        event: 'proposal.approved',
+        folder_id: 'not-a-uuid',
+        data: { proposal_id: PROPOSAL_ID },
+      });
+      await expect(
+        controller.receive(req, sign(raw, SECRET)),
+      ).resolves.toBeUndefined();
+      expect(db.select).not.toHaveBeenCalled();
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
     it('ignores webhooks whose folder_id is not a known wiki (200 OK + warn log)', async () => {
       db = makeDbMock(null);
       controller = new Folder9WebhookController(db as never, ws as never);
