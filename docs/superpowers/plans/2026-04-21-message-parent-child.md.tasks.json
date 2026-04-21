@@ -24,7 +24,7 @@
     {
       "id": 4,
       "subject": "Task 4: Cycle detection + depth limit (WITH RECURSIVE)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** CTE-based cycle check across relation edges AND thread parentId before parent-kind INSERTs.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-relations.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-relations.service.spec.ts\",\"acceptanceCriteria\":[\"direct and indirect cycles rejected\",\"depth>=10 rejected\",\"thread-derived cycles caught\",\"cycle check skipped for relationKind=related\"]}\n```"
     },
