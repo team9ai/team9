@@ -29,6 +29,7 @@ import {
   resolveWikiPermission,
 } from './utils/permission.js';
 import { parseFrontmatter } from './utils/frontmatter.js';
+import { validateWikiPath } from './utils/path-validation.js';
 import {
   Folder9ApiError,
   Folder9Permission,
@@ -507,6 +508,9 @@ export class WikisService {
     user: ActingUser,
     path: string,
   ): Promise<PageDto> {
+    // Defence-in-depth: reject traversal / absolute / control-char paths
+    // before any DB / folder9 work. See validateWikiPath for rule details.
+    validateWikiPath(path);
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
     requirePermission(wiki, user, 'read');
     const token = await this.getFolderToken(
@@ -559,6 +563,9 @@ export class WikisService {
     user: ActingUser,
     path: string,
   ): Promise<ArrayBuffer> {
+    // Defence-in-depth: reject traversal / absolute / control-char paths
+    // before any DB / folder9 work. See validateWikiPath for rule details.
+    validateWikiPath(path);
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
     requirePermission(wiki, user, 'read');
     const token = await this.getFolderToken(
@@ -603,6 +610,14 @@ export class WikisService {
     commit: { sha: string };
     proposal: { id: string; status: string } | null;
   }> {
+    // Defence-in-depth: reject traversal / absolute / control-char paths on
+    // every file in the batch before any DB / folder9 work. A single bad
+    // path fails the entire commit (no partial application). See
+    // validateWikiPath for rule details.
+    for (const file of dto.files) {
+      validateWikiPath(file.path);
+    }
+
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
     const actualPerm = resolveWikiPermission(wiki, user);
 
@@ -778,14 +793,25 @@ export class WikisService {
       'write',
       profile.displayName,
     );
-    await this.folder9.rejectProposal(
-      workspaceId,
-      wiki.folder9FolderId,
-      proposalId,
-      token,
-      user.id,
-      reason,
-    );
+    try {
+      await this.folder9.rejectProposal(
+        workspaceId,
+        wiki.folder9FolderId,
+        proposalId,
+        token,
+        user.id,
+        reason,
+      );
+    } catch (err) {
+      // Mirrors approveProposal: a 409 from folder9 means the proposal was
+      // already resolved (raced with another reviewer), so surface a
+      // ConflictException the controller can map to HTTP 409 instead of
+      // leaking a raw Folder9ApiError as a 500.
+      if (err instanceof Folder9ApiError && err.status === 409) {
+        throw new ConflictException('Proposal already resolved');
+      }
+      throw err;
+    }
   }
 
   /**

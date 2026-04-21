@@ -8,6 +8,7 @@ import {
 } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Logger,
@@ -1165,6 +1166,22 @@ describe('WikisService', () => {
       );
       warnSpy.mockRestore();
     });
+
+    it('rejects a traversal path (../foo.md) before any DB / folder9 work', async () => {
+      await expect(
+        svc.getPage('ws-1', 'wiki-1', user, '../foo.md'),
+      ).rejects.toThrow(BadRequestException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getBlob).not.toHaveBeenCalled();
+    });
+
+    it('rejects an absolute path (/etc/passwd) before any DB / folder9 work', async () => {
+      await expect(
+        svc.getPage('ws-1', 'wiki-1', user, '/etc/passwd'),
+      ).rejects.toThrow(BadRequestException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getBlob).not.toHaveBeenCalled();
+    });
   });
 
   // ── getRaw ──────────────────────────────────────────────────────────
@@ -1223,6 +1240,14 @@ describe('WikisService', () => {
       expect(f9.createToken).toHaveBeenCalledWith(
         expect.objectContaining({ created_by: 'wiki:f9-1' }),
       );
+    });
+
+    it('rejects a traversal path (foo/../bar.png) before any DB / folder9 work', async () => {
+      await expect(
+        svc.getRaw('ws-1', 'wiki-1', user, 'foo/../bar.png'),
+      ).rejects.toThrow(BadRequestException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getRaw).not.toHaveBeenCalled();
     });
   });
 
@@ -1399,6 +1424,36 @@ describe('WikisService', () => {
         'tok-propose',
         expect.objectContaining({ propose: true }),
       );
+    });
+
+    it('rejects a traversal file path (../evil.md) before any DB / folder9 work', async () => {
+      // Path validation runs *before* loading the wiki row, so no DB query
+      // or token mint should fire — caller sees BadRequestException only.
+      await expect(
+        svc.commitPage('ws-1', 'wiki-1', writeUser, {
+          message: 'bad',
+          files: [
+            { path: '../evil.md', content: 'x', action: 'create' as const },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.commit).not.toHaveBeenCalled();
+    });
+
+    it('rejects a mixed batch where any file path fails validation', async () => {
+      // A single bad path must fail the whole commit — partial application
+      // of a multi-file commit would violate "all or nothing" semantics.
+      await expect(
+        svc.commitPage('ws-1', 'wiki-1', writeUser, {
+          message: 'batch',
+          files: [
+            { path: 'good.md', content: 'ok', action: 'create' as const },
+            { path: '/absolute.md', content: 'x', action: 'create' as const },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(f9.commit).not.toHaveBeenCalled();
     });
 
     it('read-only user → ForbiddenException, folder9 NOT called', async () => {
@@ -1806,6 +1861,60 @@ describe('WikisService', () => {
         svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
       ).rejects.toThrow(ForbiddenException);
       expect(f9.rejectProposal).not.toHaveBeenCalled();
+    });
+
+    it('maps folder9 409 to ConflictException (race with another reviewer)', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.rejectProposal.mockRejectedValue(
+        new Folder9ApiError(409, '/reject', { error: 'CONFLICT' }),
+      );
+
+      await expect(
+        svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('re-throws non-409 folder9 errors unchanged', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.rejectProposal.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
+      ).rejects.toThrow(/boom/);
+    });
+
+    it('re-throws non-409 Folder9ApiError unchanged', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      const apiErr = new Folder9ApiError(500, '/reject', {
+        error: 'INTERNAL',
+      });
+      f9.rejectProposal.mockRejectedValue(apiErr);
+
+      let caught: unknown;
+      try {
+        await svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1');
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBe(apiErr);
     });
   });
 
