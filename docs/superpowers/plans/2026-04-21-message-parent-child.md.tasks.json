@@ -108,14 +108,14 @@
     {
       "id": 16,
       "subject": "Task 16: TableView rendering \u2014 indent / expand / ancestor-dim",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [15],
       "description": "**Goal:** Indented rows, expand arrows, ancestor-dim style, keyboard support, DOM-level collapse.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/views/TableView.tsx\",\"apps/client/src/components/channel/views/TableRow.tsx\",\"apps/client/src/components/channel/views/__tests__/TableHierarchy.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- TableHierarchy\",\"acceptanceCriteria\":[\"indent = depth*16px\",\"expand arrow only when hasChildren\",\"ancestor rows dimmed\",\"keyboard arrow keys toggle\",\"collapsed subtrees removed from DOM\"]}\n```"
     },
     {
       "id": 17,
       "subject": "Task 17: useTreeLoader hook",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [16, 10],
       "description": "**Goal:** Hook for initial fetch, expand, loadMoreRoots, and WS invalidation.\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useTreeLoader.ts\",\"apps/client/src/hooks/__tests__/useTreeLoader.test.tsx\",\"apps/client/src/components/channel/views/TableView.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- useTreeLoader TableView\",\"acceptanceCriteria\":[\"initial fetch with default depth\",\"expand merges one more level\",\"loadMoreRoots appends next page\",\"WS events trigger refetch\"]}\n```"
     },
