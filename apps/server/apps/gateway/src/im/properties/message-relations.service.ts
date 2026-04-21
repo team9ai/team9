@@ -16,7 +16,7 @@ import {
   RelationTargetNotFoundError,
 } from './message-relations.errors.js';
 
-const { messageRelations, messages } = schema;
+const { messageRelations, messages, messageProperties } = schema;
 
 export interface SetRelationTargetsParams {
   sourceMessageId: string;
@@ -38,6 +38,26 @@ export interface SetRelationTargetsResult {
 export interface IncomingSource {
   sourceMessageId: string;
   propertyDefinitionId: string;
+}
+
+export interface EffectiveParent {
+  id: string;
+  source: 'relation' | 'thread';
+}
+
+export interface SubtreeNode {
+  messageId: string;
+  effectiveParentId: string | null;
+  parentSource: 'relation' | 'thread' | null;
+  depth: number;
+  hasChildren: boolean;
+}
+
+export interface GetSubtreeParams {
+  channelId: string;
+  rootIds: string[];
+  maxDepth: number;
+  parentDefinitionId: string;
 }
 
 @Injectable()
@@ -207,6 +227,157 @@ export class MessageRelationsService {
       .orderBy(desc(messageRelations.createdAt));
 
     return rows;
+  }
+
+  /**
+   * Resolve the effective parent of a message for a given parent-type property definition.
+   *
+   * Priority:
+   *   1. If `im_message_properties.jsonValue.explicitlyCleared === true` → null
+   *   2. Stored relation edge (im_message_relations with relation_kind='parent')
+   *   3. Thread parentId from im_messages
+   *   4. null
+   */
+  async getEffectiveParent(
+    messageId: string,
+    parentDefinitionId: string,
+  ): Promise<EffectiveParent | null> {
+    // 1) Check explicit clear flag stored in jsonValue
+    const [prop] = await this.db
+      .select({ jsonValue: messageProperties.jsonValue })
+      .from(messageProperties)
+      .where(
+        and(
+          eq(messageProperties.messageId, messageId),
+          eq(messageProperties.propertyDefinitionId, parentDefinitionId),
+        ),
+      )
+      .limit(1);
+
+    if (prop) {
+      const json = prop.jsonValue as { explicitlyCleared?: boolean } | null;
+      if (json?.explicitlyCleared === true) return null;
+    }
+
+    // 2) Stored relation edge
+    const [rel] = await this.db
+      .select({ targetMessageId: messageRelations.targetMessageId })
+      .from(messageRelations)
+      .where(
+        and(
+          eq(messageRelations.sourceMessageId, messageId),
+          eq(messageRelations.propertyDefinitionId, parentDefinitionId),
+          eq(messageRelations.relationKind, 'parent'),
+        ),
+      )
+      .limit(1);
+
+    if (rel) return { id: rel.targetMessageId, source: 'relation' };
+
+    // 3) Thread parent from message row
+    const [msg] = await this.db
+      .select({ parentId: messages.parentId })
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+
+    if (msg?.parentId) return { id: msg.parentId, source: 'thread' };
+
+    return null;
+  }
+
+  /**
+   * Return a flat list of subtree nodes rooted at `rootIds`, expanding children
+   * up to `maxDepth` levels. Children are resolved via both stored relation edges
+   * and thread parentId links. Depth-0 nodes are the roots themselves.
+   *
+   * The `hasChildren` flag is computed by probing one level beyond `maxDepth`:
+   * any node that appears as a parent_id in the result set has children.
+   *
+   * Deleted messages (is_deleted = true) are excluded from the result.
+   */
+  async getSubtree(params: GetSubtreeParams): Promise<SubtreeNode[]> {
+    const { channelId, rootIds, maxDepth, parentDefinitionId } = params;
+
+    if (rootIds.length === 0) return [];
+
+    // Build a SQL array literal for the root IDs so we can use ANY(...)
+    const rootIdsSql = sql.join(
+      rootIds.map((id) => sql`${id}::uuid`),
+      sql`, `,
+    );
+
+    const rows = (await this.db.execute(sql`
+      WITH RECURSIVE tree(id, parent_id, parent_source, depth) AS (
+        -- Anchor: the root messages at depth 0
+        SELECT
+          id,
+          NULL::uuid AS parent_id,
+          NULL::text AS parent_source,
+          0 AS depth
+        FROM im_messages
+        WHERE id = ANY(ARRAY[${rootIdsSql}]) AND is_deleted = false
+        UNION ALL
+        -- Recursive step: find children of current level
+        SELECT
+          child.id,
+          COALESCE(rel.target_message_id, child.parent_id) AS parent_id,
+          CASE
+            WHEN rel.target_message_id IS NOT NULL THEN 'relation'
+            WHEN child.parent_id IS NOT NULL THEN 'thread'
+            ELSE NULL
+          END AS parent_source,
+          tree.depth + 1 AS depth
+        FROM tree
+        JOIN im_messages child
+          ON (
+            -- Thread children: child.parent_id points to tree.id
+            child.parent_id = tree.id
+            OR
+            -- Relation children: child has a parent-relation pointing to tree.id
+            child.id IN (
+              SELECT source_message_id
+              FROM im_message_relations
+              WHERE target_message_id = tree.id
+                AND relation_kind = 'parent'
+                AND property_definition_id = ${parentDefinitionId}::uuid
+            )
+          )
+        LEFT JOIN im_message_relations rel
+          ON rel.source_message_id = child.id
+         AND rel.relation_kind = 'parent'
+         AND rel.property_definition_id = ${parentDefinitionId}::uuid
+        WHERE child.channel_id = ${channelId}::uuid
+          AND child.is_deleted = false
+          -- Probe one level beyond maxDepth to determine hasChildren
+          AND tree.depth < ${maxDepth + 1}
+      )
+      SELECT id, parent_id, parent_source, depth FROM tree
+    `)) as unknown as Array<{
+      id: string;
+      parent_id: string | null;
+      parent_source: 'relation' | 'thread' | null;
+      depth: number;
+    }>;
+
+    // Collect all IDs that appear as a parent — they have children in the result set
+    const parentsInResult = new Set(
+      rows
+        .filter((r) => r.parent_id !== null)
+        .map((r) => r.parent_id as string),
+    );
+
+    // Visible nodes are those at depth <= maxDepth; probe nodes (depth > maxDepth)
+    // are only used to determine hasChildren and are excluded from the output.
+    const visible = rows.filter((r) => r.depth <= maxDepth);
+
+    return visible.map((r) => ({
+      messageId: r.id,
+      effectiveParentId: r.parent_id,
+      parentSource: r.parent_source,
+      depth: r.depth,
+      hasChildren: parentsInResult.has(r.id),
+    }));
   }
 
   /**

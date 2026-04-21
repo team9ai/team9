@@ -42,6 +42,12 @@ const schemaModule = {
     channelId: 'messages.channelId',
     tenantId: 'messages.tenantId',
     isDeleted: 'messages.isDeleted',
+    parentId: 'messages.parentId',
+  },
+  messageProperties: {
+    messageId: 'mp.messageId',
+    propertyDefinitionId: 'mp.propertyDefinitionId',
+    jsonValue: 'mp.jsonValue',
   },
 };
 
@@ -862,6 +868,313 @@ describe('MessageRelationsService', () => {
       expect(result.addedTargetIds).toEqual([targetId1, targetId2]);
       // related kind — execute never called for cycle check
       expect(db.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getEffectiveParent
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('getEffectiveParent', () => {
+    it('returns null when no property row, no relation, and no thread parentId', async () => {
+      // 1) no messageProperties row
+      db.__state.selectResults.push([]);
+      // 2) no relation
+      db.__state.selectResults.push([]);
+      // 3) message row with no parentId
+      db.__state.selectResults.push([{ parentId: null }]);
+
+      const result = await service.getEffectiveParent('msg-1', 'def-1');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns { source: thread } when only thread parentId is present', async () => {
+      // 1) no messageProperties row
+      db.__state.selectResults.push([]);
+      // 2) no explicit relation
+      db.__state.selectResults.push([]);
+      // 3) message has a thread parentId
+      db.__state.selectResults.push([{ parentId: 'thread-parent-id' }]);
+
+      const result = await service.getEffectiveParent('msg-1', 'def-1');
+
+      expect(result).toEqual({ id: 'thread-parent-id', source: 'thread' });
+    });
+
+    it('returns { source: relation } when an explicit relation exists, overriding thread parentId', async () => {
+      // 1) no explicit clear flag
+      db.__state.selectResults.push([{ jsonValue: null }]);
+      // 2) stored relation found
+      db.__state.selectResults.push([
+        { targetMessageId: 'relation-parent-id' },
+      ]);
+      // 3) thread parentId (should be ignored since relation takes priority)
+      // (no need to push, we never reach step 3)
+
+      const result = await service.getEffectiveParent('msg-1', 'def-1');
+
+      expect(result).toEqual({ id: 'relation-parent-id', source: 'relation' });
+      // Only 2 select queries — stops after finding relation
+      expect(db.__queries.select).toHaveLength(2);
+    });
+
+    it('returns null when explicitlyCleared=true even if thread parentId exists', async () => {
+      // 1) property row with explicitlyCleared flag
+      db.__state.selectResults.push([
+        { jsonValue: { explicitlyCleared: true } },
+      ]);
+      // no further queries should be made
+
+      const result = await service.getEffectiveParent('msg-1', 'def-1');
+
+      expect(result).toBeNull();
+      // Only 1 select query — short-circuits after finding explicitlyCleared
+      expect(db.__queries.select).toHaveLength(1);
+    });
+
+    it('returns null when message is not found (message row absent, defensive)', async () => {
+      // 1) no property row
+      db.__state.selectResults.push([]);
+      // 2) no relation
+      db.__state.selectResults.push([]);
+      // 3) message row absent
+      db.__state.selectResults.push([]);
+
+      const result = await service.getEffectiveParent(
+        'nonexistent-msg',
+        'def-1',
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('ignores explicitlyCleared=false and falls through to relation', async () => {
+      // 1) property row with explicitlyCleared=false — should NOT short-circuit
+      db.__state.selectResults.push([
+        { jsonValue: { explicitlyCleared: false } },
+      ]);
+      // 2) stored relation found
+      db.__state.selectResults.push([{ targetMessageId: 'rel-parent' }]);
+
+      const result = await service.getEffectiveParent('msg-1', 'def-1');
+
+      expect(result).toEqual({ id: 'rel-parent', source: 'relation' });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getSubtree
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('getSubtree', () => {
+    it('returns empty array when rootIds is empty', async () => {
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: [],
+        maxDepth: 3,
+        parentDefinitionId: 'def-1',
+      });
+
+      expect(result).toEqual([]);
+      // No DB query should have been made
+      expect(db.execute).not.toHaveBeenCalled();
+    });
+
+    it('returns root node at depth 0 with no parent', async () => {
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1'],
+        maxDepth: 3,
+        parentDefinitionId: 'def-1',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        messageId: 'root-1',
+        effectiveParentId: null,
+        parentSource: null,
+        depth: 0,
+        hasChildren: false,
+      });
+    });
+
+    it('returns root and descendants up to maxDepth', async () => {
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+        {
+          id: 'child-1',
+          parent_id: 'root-1',
+          parent_source: 'thread',
+          depth: 1,
+        },
+        {
+          id: 'grandchild-1',
+          parent_id: 'child-1',
+          parent_source: 'thread',
+          depth: 2,
+        },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1'],
+        maxDepth: 2,
+        parentDefinitionId: 'def-1',
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result[0]).toMatchObject({ messageId: 'root-1', depth: 0 });
+      expect(result[1]).toMatchObject({ messageId: 'child-1', depth: 1 });
+      expect(result[2]).toMatchObject({ messageId: 'grandchild-1', depth: 2 });
+    });
+
+    it('sets hasChildren=true when a node has children in the result set', async () => {
+      // root-1 is a parent of child-1, child-1 is a parent of probe-node (depth=maxDepth+1)
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+        {
+          id: 'child-1',
+          parent_id: 'root-1',
+          parent_source: 'thread',
+          depth: 1,
+        },
+        // probe-level node at depth 2 (maxDepth=1) — signals child-1 has children
+        {
+          id: 'probe-1',
+          parent_id: 'child-1',
+          parent_source: 'thread',
+          depth: 2,
+        },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1'],
+        maxDepth: 1,
+        parentDefinitionId: 'def-1',
+      });
+
+      // Only depth<=maxDepth nodes visible (root-1 and child-1)
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        messageId: 'root-1',
+        hasChildren: true,
+      });
+      expect(result[1]).toMatchObject({
+        messageId: 'child-1',
+        hasChildren: true,
+      });
+    });
+
+    it('drops probe-level nodes (depth > maxDepth) from visible output', async () => {
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+        // probe node at depth 1 when maxDepth=0
+        {
+          id: 'probe-1',
+          parent_id: 'root-1',
+          parent_source: 'thread',
+          depth: 1,
+        },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1'],
+        maxDepth: 0,
+        parentDefinitionId: 'def-1',
+      });
+
+      // Only depth=0 node should appear; probe at depth=1 excluded
+      expect(result).toHaveLength(1);
+      expect(result[0].messageId).toBe('root-1');
+      // root-1 has children because probe-1 has parent_id='root-1'
+      expect(result[0].hasChildren).toBe(true);
+    });
+
+    it('prefers relation edge over thread parentId in parent_source', async () => {
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+        {
+          id: 'child-1',
+          parent_id: 'root-1',
+          parent_source: 'relation',
+          depth: 1,
+        },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1'],
+        maxDepth: 2,
+        parentDefinitionId: 'def-1',
+      });
+
+      expect(result[1]).toMatchObject({
+        messageId: 'child-1',
+        parentSource: 'relation',
+        effectiveParentId: 'root-1',
+      });
+    });
+
+    it('filters out deleted children (is_deleted=false clause handled by DB)', async () => {
+      // The CTE WHERE clause filters deleted messages. The service simply passes
+      // on what the DB returns — we verify it does not re-include deleted rows.
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+        // Only non-deleted child included by DB
+        {
+          id: 'child-live',
+          parent_id: 'root-1',
+          parent_source: 'thread',
+          depth: 1,
+        },
+        // Note: 'child-deleted' would be absent because the CTE filters it out
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1'],
+        maxDepth: 2,
+        parentDefinitionId: 'def-1',
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.every((n) => n.messageId !== 'child-deleted')).toBe(true);
+    });
+
+    it('handles multiple roots at depth 0', async () => {
+      db.__state.executeResults.push([
+        { id: 'root-1', parent_id: null, parent_source: null, depth: 0 },
+        { id: 'root-2', parent_id: null, parent_source: null, depth: 0 },
+        {
+          id: 'child-1',
+          parent_id: 'root-1',
+          parent_source: 'thread',
+          depth: 1,
+        },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['root-1', 'root-2'],
+        maxDepth: 2,
+        parentDefinitionId: 'def-1',
+      });
+
+      expect(result).toHaveLength(3);
+      const root2 = result.find((n) => n.messageId === 'root-2');
+      expect(root2).toMatchObject({
+        depth: 0,
+        effectiveParentId: null,
+        parentSource: null,
+        hasChildren: false,
+      });
     });
   });
 });
