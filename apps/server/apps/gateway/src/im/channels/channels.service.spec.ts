@@ -12,7 +12,6 @@ import type { BotExtra } from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { TabsService } from '../views/tabs.service.js';
-import { BOT_SERVICE_TOKEN } from './channels.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -87,13 +86,6 @@ describe('ChannelsService', () => {
           provide: TabsService,
           useValue: {
             seedBuiltinTabs: jest.fn<any>().mockResolvedValue(undefined),
-          },
-        },
-        {
-          provide: BOT_SERVICE_TOKEN,
-          useValue: {
-            getBotMentorId: jest.fn<any>().mockResolvedValue(null),
-            findActiveBotsByMentorId: jest.fn<any>().mockResolvedValue([]),
           },
         },
       ],
@@ -1236,29 +1228,14 @@ describe('ChannelsService', () => {
 
   describe('assertReadAccess', () => {
     let redisService: { getOrSet: MockFn };
-    let botService: { findActiveBotsByMentorId: MockFn };
 
     beforeEach(() => {
       redisService = (service as any).redis;
-      botService = (service as any).botService;
     });
 
-    it('should pass when user is a direct channel member', async () => {
-      // assertReadAccess now calls findById first, then isChannelMember.
-      // findById → returns private channel with tenantId
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
-        id: 'ch-1',
-        type: 'private',
-        tenantId: 't-1',
-      });
-      // isChannelMember → getEffectiveRole → resolveEffectiveMembership:
-      // botService returns no mentored bots, but db.where returns user as direct owner
-      botService.findActiveBotsByMentorId = jest
-        .fn<any>()
-        .mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([
-        { channelId: 'ch-1', userId: 'user-1', role: 'owner' },
-      ]);
+    it('should pass when user is a channel member', async () => {
+      // getMemberRole → returns 'member'
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
 
       await expect(
         service.assertReadAccess('ch-1', 'user-1'),
@@ -1266,15 +1243,12 @@ describe('ChannelsService', () => {
     });
 
     it('should pass for public channel when user is not a member', async () => {
-      // findById → public channel with tenantId
+      // getMemberRole → null (not a member)
       redisService.getOrSet = jest
         .fn<any>()
+        .mockResolvedValueOnce(null)
+        // findById → public channel
         .mockResolvedValueOnce({ id: 'ch-1', type: 'public', tenantId: 't-1' });
-      // isChannelMember → getEffectiveRole → no bots, no direct membership → null
-      botService.findActiveBotsByMentorId = jest
-        .fn<any>()
-        .mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([]); // no membership rows
 
       await expect(
         service.assertReadAccess('ch-1', 'user-1'),
@@ -1282,17 +1256,16 @@ describe('ChannelsService', () => {
     });
 
     it('should pass for tracking channel when user is a tenant member', async () => {
-      // findById → tracking channel
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
-        id: 'ch-1',
-        type: 'tracking',
-        tenantId: 't-1',
-      });
-      // isChannelMember → getEffectiveRole → no bots, no direct membership → null
-      botService.findActiveBotsByMentorId = jest
+      // getMemberRole → null
+      redisService.getOrSet = jest
         .fn<any>()
-        .mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([]); // no membership
+        .mockResolvedValueOnce(null)
+        // findById → tracking channel
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'tracking',
+          tenantId: 't-1',
+        });
       // isUserInTenant → found
       db.limit.mockResolvedValueOnce([{ id: 'member-1' }]);
 
@@ -1302,17 +1275,14 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for tracking channel when user is NOT a tenant member', async () => {
-      // findById → tracking channel
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
-        id: 'ch-1',
-        type: 'tracking',
-        tenantId: 't-1',
-      });
-      // isChannelMember → no membership
-      botService.findActiveBotsByMentorId = jest
+      redisService.getOrSet = jest
         .fn<any>()
-        .mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'tracking',
+          tenantId: 't-1',
+        });
       // isUserInTenant → not found
       db.limit.mockResolvedValueOnce([]);
 
@@ -1322,14 +1292,14 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for tracking channel with null tenantId', async () => {
-      // findById → tracking channel without tenantId
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
-        id: 'ch-1',
-        type: 'tracking',
-        tenantId: null,
-      });
-      // isChannelMember is skipped (no tenantId); falls back to isMember → getMemberRole
-      redisService.getOrSet.mockResolvedValueOnce(null); // getMemberRole → not member
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'tracking',
+          tenantId: null,
+        });
 
       await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
@@ -1337,8 +1307,10 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for non-existent channel', async () => {
-      // findById → null
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce(null);
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
 
       await expect(
         service.assertReadAccess('nonexistent', 'user-1'),
@@ -1346,17 +1318,14 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for private channel when user is not a member', async () => {
-      // findById → private channel with tenantId
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
-        id: 'ch-1',
-        type: 'private',
-        tenantId: 't-1',
-      });
-      // isChannelMember → no bots, no direct membership → null
-      botService.findActiveBotsByMentorId = jest
+      redisService.getOrSet = jest
         .fn<any>()
-        .mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'private',
+          tenantId: 't-1',
+        });
 
       await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
@@ -1428,9 +1397,7 @@ describe('ChannelsService', () => {
             managedMeta: null,
             agentType: 'openclaw',
           },
-        ] as any)
-        // resolveEffectiveMembership DB query (no derived channels since botService returns [])
-        .mockResolvedValueOnce([] as any);
+        ] as any);
 
       const result = await service.getUserChannels('user-1', 'tenant-1');
 
@@ -1477,8 +1444,6 @@ describe('ChannelsService', () => {
       };
       db.where.mockResolvedValueOnce([mockChannel] as any);
       db.where.mockResolvedValueOnce([] as any);
-      // resolveEffectiveMembership DB query (no derived channels)
-      db.where.mockResolvedValueOnce([] as any);
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', true);
     });
@@ -1505,8 +1470,6 @@ describe('ChannelsService', () => {
       };
       db.where.mockResolvedValueOnce([mockChannel] as any);
       // Second where call: batch member fetch for direct channels
-      db.where.mockResolvedValueOnce([] as any);
-      // resolveEffectiveMembership DB query (no derived channels)
       db.where.mockResolvedValueOnce([] as any);
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', false);
@@ -1573,9 +1536,7 @@ describe('ChannelsService', () => {
             ownerDisplayName: null,
             ownerUsername: null,
           },
-        ] as any)
-        // resolveEffectiveMembership DB query (no derived channels)
-        .mockResolvedValueOnce([] as any);
+        ] as any);
 
       const result = await service.getUserChannels('user-1', 'tenant-1');
 
@@ -1787,7 +1748,7 @@ describe('ChannelsService', () => {
         isArchived: true,
       };
 
-      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('admin');
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('admin');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         type: 'private',
@@ -1810,7 +1771,7 @@ describe('ChannelsService', () => {
     });
 
     it('rejects archiving direct channels', async () => {
-      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         type: 'direct',
@@ -1986,7 +1947,7 @@ describe('ChannelsService', () => {
     it('rejects deletion when the confirmation name does not match', async () => {
       const redisService = (service as any).redis;
 
-      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         name: 'expected-name',
@@ -2005,7 +1966,7 @@ describe('ChannelsService', () => {
     it('deletes a private channel for the owner and invalidates cache', async () => {
       const redisService = (service as any).redis;
 
-      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         name: 'expected-name',
