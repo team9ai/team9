@@ -279,6 +279,9 @@ import * as pushSubscriptionApi from "./push-subscription";
 import * as notificationPreferencesApi from "./notification-preferences";
 import propertiesApi from "./properties";
 import { viewsApi, tabsApi } from "./views";
+import wikisApi from "./wikis";
+
+export { wikisApi } from "./wikis";
 
 export const api = {
   auth: authApi,
@@ -298,6 +301,7 @@ export const api = {
   properties: propertiesApi,
   views: viewsApi,
   tabs: tabsApi,
+  wikis: wikisApi,
 };
 
 export default api;
