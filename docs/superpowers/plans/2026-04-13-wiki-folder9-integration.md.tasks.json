@@ -141,7 +141,7 @@
     {
       "id": 20,
       "subject": "Task 21: Review panel (list + diff + approve/reject)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [18],
       "description": "**Goal:** Review workflow UI: sub-sidebar badge + proposals list + diff view + approve/reject with permission gating. Also extends gateway with /proposals/:id/diff endpoint.\n\n**Files:**\n- Create: ReviewPanel.tsx, ProposalDiffView.tsx, two route files\n- Modify: WikiSubSidebar.tsx (badge)\n- Modify: gateway WikisService/Controller for diff endpoint\n\n**Verify:** pnpm --filter @team9/client test -- ReviewPanel && pnpm --filter @team9/server test -- wikis.service\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/ReviewPanel.tsx\",\"apps/client/src/components/wiki/ProposalDiffView.tsx\",\"apps/client/src/routes/_authenticated/wiki/$wikiSlug.review.tsx\",\"apps/server/apps/gateway/src/wikis/wikis.service.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- Review\",\"acceptanceCriteria\":[\"Review icon with pending count badge\",\"List + detail routes\",\"Diff view renders file-level diffs\",\"Approve/reject gated on write perm\",\"409 -> toast conflict\"]}\n```"
     },

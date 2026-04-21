@@ -8,6 +8,7 @@ const mockWikisApi = vi.hoisted(() => ({
   listProposals: vi.fn(),
   approveProposal: vi.fn(),
   rejectProposal: vi.fn(),
+  getProposalDiff: vi.fn(),
 }));
 
 vi.mock("@/services/api/wikis", () => ({
@@ -16,6 +17,7 @@ vi.mock("@/services/api/wikis", () => ({
 
 import {
   useApproveProposal,
+  useProposalDiff,
   useRejectProposal,
   useWikiProposals,
 } from "../useWikiProposals";
@@ -183,6 +185,78 @@ describe("useRejectProposal", () => {
       "wiki-1",
       "p-1",
       "nope",
+    );
+  });
+});
+
+describe("useProposalDiff", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = makeClient();
+  });
+
+  const wrapper =
+    () =>
+    ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+  it("is disabled when either arg is null", () => {
+    const { result } = renderHook(() => useProposalDiff(null, null), {
+      wrapper: wrapper(),
+    });
+    expect(result.current.isFetching).toBe(false);
+    expect(mockWikisApi.getProposalDiff).not.toHaveBeenCalled();
+  });
+
+  it("is disabled when only the proposal id is null", () => {
+    const { result } = renderHook(() => useProposalDiff("wiki-1", null), {
+      wrapper: wrapper(),
+    });
+    expect(result.current.isFetching).toBe(false);
+    expect(mockWikisApi.getProposalDiff).not.toHaveBeenCalled();
+  });
+
+  it("fetches the diff when both args are provided", async () => {
+    mockWikisApi.getProposalDiff.mockResolvedValue([
+      {
+        Path: "README.md",
+        Status: "modified",
+        OldContent: "a",
+        NewContent: "b",
+      },
+    ]);
+
+    const { result } = renderHook(() => useProposalDiff("wiki-1", "p-1"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() =>
+      expect(result.current.data).toEqual([
+        {
+          Path: "README.md",
+          Status: "modified",
+          OldContent: "a",
+          NewContent: "b",
+        },
+      ]),
+    );
+    expect(mockWikisApi.getProposalDiff).toHaveBeenCalledWith("wiki-1", "p-1");
+  });
+
+  it("uses the scoped diff query key so proposal invalidations bust it", async () => {
+    mockWikisApi.getProposalDiff.mockResolvedValue([]);
+
+    renderHook(() => useProposalDiff("wiki-1", "p-9"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData(wikiKeys.proposalDiff("wiki-1", "p-9")),
+      ).toEqual([]),
     );
   });
 });

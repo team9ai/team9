@@ -211,6 +211,23 @@ describe("wikisApi", () => {
       { reason: "nope" },
     );
   });
+
+  it("getProposalDiff() GETs the diff endpoint and unwraps data", async () => {
+    const fakeDiff = [
+      {
+        Path: "README.md",
+        Status: "modified" as const,
+        OldContent: "a",
+        NewContent: "b",
+      },
+    ];
+    mockHttp.get.mockResolvedValueOnce({ data: fakeDiff });
+    const result = await wikisApi.getProposalDiff("wiki-1", "p-1");
+    expect(mockHttp.get).toHaveBeenCalledWith(
+      "/v1/wikis/wiki-1/proposals/p-1/diff",
+    );
+    expect(result).toEqual(fakeDiff);
+  });
 });
 
 describe("wikisApi.getRawObjectUrl", () => {

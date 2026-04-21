@@ -84,3 +84,18 @@ export interface CommitPageResponse {
   commit: { sha: string };
   proposal: { id: string; status: string } | null;
 }
+
+/**
+ * One file's diff as returned by the gateway's
+ * `GET /v1/wikis/:wikiId/proposals/:proposalId/diff` endpoint.
+ *
+ * The field names use folder9's native capitalization (Go exports its
+ * struct fields as PascalCase JSON) — the gateway intentionally passes
+ * them through untouched so the UI can consume the wire format directly.
+ */
+export interface ProposalDiffEntry {
+  Path: string;
+  Status: "added" | "modified" | "deleted";
+  OldContent: string;
+  NewContent: string;
+}

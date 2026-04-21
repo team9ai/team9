@@ -44,3 +44,22 @@ export function useRejectProposal(wikiId: string) {
     },
   });
 }
+
+/**
+ * Fetch the diff for a single proposal. Disabled until both `wikiId` and
+ * `proposalId` are known so the Review detail route can render its loading
+ * state cleanly before the params hydrate.
+ */
+export function useProposalDiff(
+  wikiId: string | null,
+  proposalId: string | null,
+) {
+  return useQuery({
+    queryKey:
+      wikiId && proposalId
+        ? wikiKeys.proposalDiff(wikiId, proposalId)
+        : (["wikis", "proposalDiff", "disabled"] as const),
+    queryFn: () => wikisApi.getProposalDiff(wikiId!, proposalId!),
+    enabled: !!wikiId && !!proposalId,
+  });
+}

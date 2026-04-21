@@ -6,6 +6,7 @@ import type {
   CommitPageInput,
   CommitPageResponse,
   PageDto,
+  ProposalDiffEntry,
   ProposalDto,
   TreeEntryDto,
   WikiApprovalMode,
@@ -129,6 +130,21 @@ export const wikisApi = {
       `/v1/wikis/${wikiId}/proposals/${proposalId}/reject`,
       reason ? { reason } : {},
     );
+  },
+
+  /**
+   * Fetch the diff summary for a proposal. Returns folder9's native
+   * PascalCase diff entries unchanged — see `ProposalDiffEntry` in
+   * `@/types/wiki` for the shape.
+   */
+  getProposalDiff: async (
+    wikiId: string,
+    proposalId: string,
+  ): Promise<ProposalDiffEntry[]> => {
+    const response = await http.get<ProposalDiffEntry[]>(
+      `/v1/wikis/${wikiId}/proposals/${proposalId}/diff`,
+    );
+    return response.data;
   },
 
   /**

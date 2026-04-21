@@ -29,6 +29,12 @@ export const wikiKeys = {
     status
       ? (["wikis", id, "proposals", status] as const)
       : (["wikis", id, "proposals"] as const),
+  /**
+   * Diff summary for a single proposal. Scoped under the proposal so a
+   * `proposals` invalidation also busts the diff cache automatically.
+   */
+  proposalDiff: (id: string, proposalId: string) =>
+    ["wikis", id, "proposals", "diff", proposalId] as const,
 };
 
 export function useWikis() {
