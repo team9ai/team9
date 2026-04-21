@@ -2,7 +2,6 @@ import {
   Injectable,
   Inject,
   Optional,
-  forwardRef,
   NotFoundException,
   ForbiddenException,
   Logger,
@@ -34,9 +33,7 @@ import {
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
 import { GatewayMQService } from '@team9/rabbitmq';
 import { type PostBroadcastTask } from '@team9/shared';
-import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
-import { WS_EVENTS } from '../websocket/events/events.constants.js';
 
 export interface MessageSender {
   id: string;
@@ -128,9 +125,6 @@ export class MessagesService {
     private readonly messagePropertiesService: MessagePropertiesService,
     @Optional()
     private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
-    @Inject(forwardRef(() => WebsocketGateway))
-    @Optional()
-    private readonly websocketGateway?: WebsocketGateway,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
@@ -1170,12 +1164,13 @@ export class MessagesService {
       fileSize: number;
     }>;
     workspaceId: string;
-  }): Promise<{ channelId: string; messageId: string }> {
+  }): Promise<{
+    channelId: string;
+    messageId: string;
+    preview: MessageResponse;
+  }> {
     if (!this.imWorkerGrpcClientService) {
       throw new Error('sendFromBot: imWorkerGrpcClientService is not injected');
-    }
-    if (!this.websocketGateway) {
-      throw new Error('sendFromBot: websocketGateway is not injected');
     }
 
     const { botUserId, channelId, content, attachments, workspaceId } = params;
@@ -1196,12 +1191,6 @@ export class MessagesService {
     const message = await this.getMessageWithDetails(result.msgId);
     const [withProps] = await this.mergeProperties([message]);
     const preview = this.truncateForPreview(withProps);
-
-    await this.websocketGateway.sendToChannelMembers(
-      channelId,
-      WS_EVENTS.MESSAGE.NEW,
-      preview,
-    );
 
     // Fire-and-forget post-broadcast task (unread counts, outbox completion)
     if (this.gatewayMQService?.isReady()) {
@@ -1236,6 +1225,11 @@ export class MessagesService {
     // NOTE: intentionally skipping RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED publish
     // — bot-authored messages must not trigger channel-message agent workflows.
 
-    return { channelId, messageId: result.msgId };
+    // NOTE: WS broadcast is intentionally NOT done here to avoid ESM circular
+    // dependency (MessagesService → WebsocketGateway → MessagesModule → cycle).
+    // The caller (BotMessagingController) performs the broadcast using the
+    // returned preview payload.
+
+    return { channelId, messageId: result.msgId, preview };
   }
 }

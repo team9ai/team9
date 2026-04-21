@@ -32,16 +32,47 @@ jest.unstable_mockModule('../../search/search.service.js', () => ({
   SearchService: class SearchService {},
 }));
 
+jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+
+jest.unstable_mockModule('../websocket/events/events.constants.js', () => ({
+  WS_EVENTS: { MESSAGE: { NEW: 'message.new' } },
+}));
+
 const { BotMessagingController } =
   await import('./bot-messaging.controller.js');
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
+
+const PREVIEW_MSG = {
+  id: 'msg-1',
+  channelId: 'dm-ch-1',
+  senderId: 'bot-1',
+  content: 'hi',
+  type: 'text',
+  isPinned: false,
+  isEdited: false,
+  isDeleted: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  parentId: null,
+  rootId: null,
+  clientMsgId: null,
+  sender: null,
+  attachments: [],
+  reactions: [],
+  replyCount: 0,
+  lastRepliers: [],
+  lastReplyAt: null,
+};
 
 describe('BotMessagingController', () => {
   let controller: InstanceType<typeof BotMessagingController>;
   let channelsService: Record<string, MockFn>;
   let messagesService: Record<string, MockFn>;
   let searchService: Record<string, MockFn>;
+  let websocketGateway: Record<string, MockFn>;
 
   beforeEach(() => {
     channelsService = {
@@ -50,9 +81,11 @@ describe('BotMessagingController', () => {
       filterBotUserIds: jest.fn<any>().mockResolvedValue(new Set()),
     };
     messagesService = {
-      sendFromBot: jest
-        .fn<any>()
-        .mockResolvedValue({ channelId: 'dm-ch-1', messageId: 'msg-1' }),
+      sendFromBot: jest.fn<any>().mockResolvedValue({
+        channelId: 'dm-ch-1',
+        messageId: 'msg-1',
+        preview: PREVIEW_MSG,
+      }),
     };
     searchService = {
       searchUsers: jest.fn<any>().mockResolvedValue({
@@ -90,15 +123,19 @@ describe('BotMessagingController', () => {
         hasMore: false,
       }),
     };
+    websocketGateway = {
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+    };
     controller = new BotMessagingController(
       channelsService as any,
       messagesService as any,
       searchService as any,
+      websocketGateway as any,
     );
   });
 
   describe('sendToUser', () => {
-    it('happy path: returns channelId + messageId, calls services in order', async () => {
+    it('happy path: returns channelId + messageId, calls services in order and broadcasts via WS', async () => {
       const res = await controller.sendToUser('bot-1', 'tenant-1', {
         userId: 'user-42',
         content: 'hi',
@@ -121,6 +158,12 @@ describe('BotMessagingController', () => {
         attachments: undefined,
         workspaceId: 'tenant-1',
       });
+      // WS broadcast happens in the controller, after sendFromBot returns preview
+      expect(websocketGateway['sendToChannelMembers']).toHaveBeenCalledWith(
+        'dm-ch-1',
+        'message.new',
+        PREVIEW_MSG,
+      );
       expect(res).toEqual({ channelId: 'dm-ch-1', messageId: 'msg-1' });
     });
 

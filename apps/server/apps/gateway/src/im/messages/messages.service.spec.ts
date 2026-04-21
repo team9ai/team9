@@ -1508,7 +1508,6 @@ describe('MessagesService', () => {
   describe('sendFromBot', () => {
     let botService: InstanceType<typeof MessagesService>;
     let imWorker: { createMessage: jest.Mock<any> };
-    let websocket: { sendToChannelMembers: jest.Mock<any> };
     let mqService: {
       isReady: jest.Mock<any>;
       publishPostBroadcast: jest.Mock<any>;
@@ -1518,6 +1517,7 @@ describe('MessagesService', () => {
     let botChannelSequenceService: { generateChannelSeq: jest.Mock<any> };
     let botMessagePropertiesService: { batchGetByMessageIds: jest.Mock<any> };
     let botLogger: { warn: jest.Mock<any> };
+    let msgResponse: MessageResponse;
 
     beforeEach(() => {
       botDb = createDbMock();
@@ -1534,9 +1534,6 @@ describe('MessagesService', () => {
           clientMsgId: 'c-1',
         }),
       };
-      websocket = {
-        sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
-      };
       mqService = {
         isReady: jest.fn<any>().mockReturnValue(true),
         publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
@@ -1548,7 +1545,6 @@ describe('MessagesService', () => {
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
         imWorker as never,
-        websocket as never,
         mqService as never,
         eventEmitterMock as never,
       );
@@ -1556,7 +1552,7 @@ describe('MessagesService', () => {
       (botService as any).logger = botLogger;
 
       // Stub the helper methods that require DB
-      const msgResponse = makeMessageResponse({
+      msgResponse = makeMessageResponse({
         id: 'msg-1',
         channelId: 'ch-1',
         senderId: 'bot-1',
@@ -1571,7 +1567,7 @@ describe('MessagesService', () => {
       jest.spyOn(botService, 'truncateForPreview').mockReturnValue(msgResponse);
     });
 
-    it('inserts message via gRPC, broadcasts via WS, and returns {channelId, messageId}', async () => {
+    it('inserts message via gRPC, returns {channelId, messageId, preview}', async () => {
       const result = await botService.sendFromBot({
         botUserId: 'bot-1',
         channelId: 'ch-1',
@@ -1579,7 +1575,11 @@ describe('MessagesService', () => {
         workspaceId: 'ws-1',
       });
 
-      expect(result).toEqual({ channelId: 'ch-1', messageId: 'msg-1' });
+      expect(result).toEqual({
+        channelId: 'ch-1',
+        messageId: 'msg-1',
+        preview: msgResponse,
+      });
       expect(imWorker.createMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           channelId: 'ch-1',
@@ -1588,11 +1588,21 @@ describe('MessagesService', () => {
           workspaceId: 'ws-1',
         }),
       );
-      expect(websocket.sendToChannelMembers).toHaveBeenCalledWith(
-        'ch-1',
-        expect.any(String),
-        expect.objectContaining({ id: 'msg-1' }),
-      );
+    });
+
+    it('does NOT call websocketGateway directly (broadcast is caller responsibility)', async () => {
+      // sendFromBot should not have a websocketGateway dep — no property exists
+      expect((botService as any).websocketGateway).toBeUndefined();
+
+      const result = await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      // preview is returned for the caller to broadcast
+      expect(result.preview).toEqual(msgResponse);
     });
 
     it('forwards attachments to the gRPC client', async () => {
@@ -1624,7 +1634,6 @@ describe('MessagesService', () => {
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
         imWorker as never,
-        websocket as never,
         undefined, // no MQ service
         eventEmitterMock as never,
       );
@@ -1676,7 +1685,6 @@ describe('MessagesService', () => {
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
         imWorker as never,
-        websocket as never,
         mqWithWorkspaceEvent as never,
         eventEmitterMock as never,
       );
@@ -1729,7 +1737,7 @@ describe('MessagesService', () => {
           content: 'hi',
           workspaceId: 'ws-1',
         }),
-      ).resolves.toEqual({ channelId: 'ch-1', messageId: 'msg-1' });
+      ).resolves.toMatchObject({ channelId: 'ch-1', messageId: 'msg-1' });
 
       // Give the microtask queue a tick for the .catch() to run
       await Promise.resolve();
@@ -1745,7 +1753,6 @@ describe('MessagesService', () => {
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
         undefined, // no gRPC
-        websocket as never,
       );
 
       await expect(
@@ -1756,25 +1763,6 @@ describe('MessagesService', () => {
           workspaceId: 'ws-1',
         }),
       ).rejects.toThrow('imWorkerGrpcClientService is not injected');
-    });
-
-    it('throws when websocketGateway is not injected', async () => {
-      const serviceNoWs = new MessagesService(
-        botDb as never,
-        botChannelSequenceService as never,
-        botMessagePropertiesService as never,
-        imWorker as never,
-        undefined, // no WS
-      );
-
-      await expect(
-        serviceNoWs.sendFromBot({
-          botUserId: 'bot-1',
-          channelId: 'ch-1',
-          content: 'hi',
-          workspaceId: 'ws-1',
-        }),
-      ).rejects.toThrow('websocketGateway is not injected');
     });
   });
 
