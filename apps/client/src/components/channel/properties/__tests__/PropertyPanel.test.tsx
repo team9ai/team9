@@ -447,3 +447,241 @@ describe("PropertySelector", () => {
     });
   });
 });
+
+// ==================== Task Relation Helpers Tests ====================
+
+import { resolveUniqueKey, hasParentRelationDef } from "../PropertySelector";
+
+describe("resolveUniqueKey", () => {
+  it("returns base key when no conflict", () => {
+    expect(resolveUniqueKey("parentMessage", [])).toBe("parentMessage");
+  });
+
+  it("returns base key when existing keys are different", () => {
+    expect(
+      resolveUniqueKey("parentMessage", [{ key: "other" }, { key: "foo" }]),
+    ).toBe("parentMessage");
+  });
+
+  it("returns base-2 when base key exists", () => {
+    expect(resolveUniqueKey("parentMessage", [{ key: "parentMessage" }])).toBe(
+      "parentMessage-2",
+    );
+  });
+
+  it("skips -2 if it also exists and returns -3", () => {
+    expect(
+      resolveUniqueKey("parentMessage", [
+        { key: "parentMessage" },
+        { key: "parentMessage-2" },
+      ]),
+    ).toBe("parentMessage-3");
+  });
+
+  it("falls back to timestamp suffix after 99 conflicts", () => {
+    const defs = [{ key: "k" }];
+    for (let n = 2; n < 100; n++) defs.push({ key: `k-${n}` });
+    const result = resolveUniqueKey("k", defs);
+    // Should be "k-<timestamp>" — starts with "k-" and suffix is numeric
+    expect(result.startsWith("k-")).toBe(true);
+    expect(Number(result.slice(2))).toBeGreaterThan(0);
+  });
+});
+
+describe("hasParentRelationDef", () => {
+  it("returns false for empty array", () => {
+    expect(hasParentRelationDef([])).toBe(false);
+  });
+
+  it("returns false when no message_ref type exists", () => {
+    expect(hasParentRelationDef([{ valueType: "text", config: {} }])).toBe(
+      false,
+    );
+  });
+
+  it("returns false when message_ref exists but no relationKind", () => {
+    expect(
+      hasParentRelationDef([
+        { valueType: "message_ref", config: { cardinality: "single" } },
+      ]),
+    ).toBe(false);
+  });
+
+  it("returns false when message_ref has relationKind=related", () => {
+    expect(
+      hasParentRelationDef([
+        {
+          valueType: "message_ref",
+          config: { relationKind: "related" },
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it("returns true when message_ref has relationKind=parent", () => {
+    expect(
+      hasParentRelationDef([
+        {
+          valueType: "message_ref",
+          config: { relationKind: "parent" },
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it("handles undefined config gracefully", () => {
+    expect(
+      hasParentRelationDef([{ valueType: "message_ref", config: undefined }]),
+    ).toBe(false);
+  });
+});
+
+// ==================== PropertySelector Task Relation Shortcuts Tests ====================
+
+describe("PropertySelector — task relation shortcuts", () => {
+  const defaultProps = {
+    channelId: "c1",
+    messageId: "msg-1",
+    currentProperties: {},
+    onSetProperty: vi.fn(),
+    open: true,
+    onOpenChange: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = createQueryClient();
+    mockDefinitions.length = 0;
+    Object.keys(mockProperties).forEach((k) => delete mockProperties[k]);
+    // Provide a default success behavior for createMutation.mutate
+    mockCreateDefinition.mutate.mockImplementation(
+      (
+        dto: unknown,
+        opts?: { onSuccess?: (def: PropertyDefinition) => void },
+      ) => {
+        opts?.onSuccess?.(
+          makeDefinition({ id: "new-def", key: (dto as { key: string }).key }),
+        );
+      },
+    );
+  });
+
+  it("shows 任务关系 section with 父任务 and 关联任务 entries", () => {
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    expect(screen.getByText("任务关系")).toBeInTheDocument();
+    expect(screen.getByText("父任务")).toBeInTheDocument();
+    expect(screen.getByText("关联任务")).toBeInTheDocument();
+  });
+
+  it("clicking 父任务 creates definition with expected config", () => {
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getByText("父任务"));
+
+    expect(mockCreateDefinition.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "parentMessage",
+        valueType: "message_ref",
+        config: {
+          scope: "same_channel",
+          cardinality: "single",
+          relationKind: "parent",
+        },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it("clicking 关联任务 creates definition with expected config", () => {
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getByText("关联任务"));
+
+    expect(mockCreateDefinition.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "relatedMessages",
+        valueType: "message_ref",
+        config: {
+          scope: "same_channel",
+          cardinality: "multi",
+          relationKind: "related",
+        },
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it("disables 父任务 when a parent definition already exists", () => {
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-parent",
+        key: "parentMessage",
+        valueType: "message_ref",
+        config: { relationKind: "parent" },
+      }),
+    );
+
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    const btn = screen.getByText("父任务").closest("button");
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("title", "此频道已有父任务属性");
+  });
+
+  it("does not disable 关联任务 when a parent definition already exists", () => {
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-parent",
+        key: "parentMessage",
+        valueType: "message_ref",
+        config: { relationKind: "parent" },
+      }),
+    );
+
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    const btn = screen.getByText("关联任务").closest("button");
+    expect(btn).not.toBeDisabled();
+  });
+
+  it("auto-suffixes key to parentMessage-2 when parentMessage key already used", () => {
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-text",
+        key: "parentMessage",
+        valueType: "text",
+        config: {},
+      }),
+    );
+
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getByText("父任务"));
+
+    expect(mockCreateDefinition.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "parentMessage-2" }),
+      expect.any(Object),
+    );
+  });
+
+  it("auto-suffixes key to relatedMessages-2 when relatedMessages key already used", () => {
+    mockDefinitions.push(
+      makeDefinition({
+        id: "def-existing",
+        key: "relatedMessages",
+        valueType: "text",
+        config: {},
+      }),
+    );
+
+    render(<PropertySelector {...defaultProps} />, { wrapper: Wrapper });
+
+    fireEvent.click(screen.getByText("关联任务"));
+
+    expect(mockCreateDefinition.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "relatedMessages-2" }),
+      expect.any(Object),
+    );
+  });
+});

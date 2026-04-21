@@ -1,0 +1,131 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-21-message-parent-child.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: DB migration + Drizzle schema for im_message_relations",
+      "status": "completed",
+      "description": "**Goal:** Add relation_kind enum + im_message_relations table + indexes + Drizzle relations.\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/im/message-relations.ts\",\"apps/server/libs/database/src/schemas/im/index.ts\",\"apps/server/libs/database/src/schemas/im/relations.ts\",\"apps/server/libs/database/migrations/0043_message_relations.sql\"],\"verifyCommand\":\"pnpm -C apps/server db:migrate\",\"acceptanceCriteria\":[\"enum relation_kind created\",\"im_message_relations table with all columns + FK cascades\",\"unique edge constraint + self-ref check\",\"4 indexes created\",\"migration generated cleanly\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Extend MessageRefConfig + shared types for relation kind",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Add MessageRefConfig and new WS event type definitions in shared package.\n\n```json:metadata\n{\"files\":[\"apps/server/libs/shared/src/types/property.types.ts\",\"apps/server/libs/shared/src/events/domains/property.events.ts\",\"apps/server/libs/shared/src/events/index.ts\",\"apps/server/libs/shared/src/events/event-names.ts\",\"apps/server/libs/shared/src/types/property.types.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server tsc -p libs/shared/tsconfig.json --noEmit && pnpm -C apps/server test --filter=@team9/shared\",\"acceptanceCriteria\":[\"MessageRefConfig exported with scope/cardinality/relationKind\",\"MessagePropertyChangedEvent extended\",\"MessageRelationChangedEvent + MessageRelationsPurgedEvent exported\",\"WS_EVENTS.PROPERTY.RELATION_CHANGED and RELATIONS_PURGED added\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: message-relations.service \u2014 CRUD + scope + cardinality",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** New service owning relation edge CRUD with scope/cardinality/self-ref/target-existence checks.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-relations.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.service.spec.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.errors.ts\",\"apps/server/apps/gateway/src/im/properties/properties.module.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-relations.service.spec.ts --coverage\",\"acceptanceCriteria\":[\"setRelationTargets with diff + txn\",\"scope=same_channel enforced\",\"cardinality=single rejects multi\",\"self-ref rejected\",\"target not found rejected\",\"getOutgoingTargets order preserved\",\"getIncomingSources filters deleted sources\",\"100% coverage\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Cycle detection + depth limit (WITH RECURSIVE)",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** CTE-based cycle check across relation edges AND thread parentId before parent-kind INSERTs.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-relations.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-relations.service.spec.ts\",\"acceptanceCriteria\":[\"direct and indirect cycles rejected\",\"depth>=10 rejected\",\"thread-derived cycles caught\",\"cycle check skipped for relationKind=related\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Effective parent + subtree query",
+      "status": "completed",
+      "blockedBy": [4],
+      "description": "**Goal:** getEffectiveParent (COALESCE + explicitlyCleared) and getSubtree (recursive CTE with hasChildren lookahead).\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-relations.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-relations.service.spec.ts --coverage\",\"acceptanceCriteria\":[\"effectiveParent returns relation > thread > null\",\"explicitlyCleared flag yields null\",\"getSubtree respects maxDepth\",\"hasChildren accurate at leaf\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Route relationKind property writes through relations service",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** message-properties.service delegates relationKind writes to relations.service; keeps jsonb path for legacy.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-properties.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-properties.service.spec.ts --coverage\",\"acceptanceCriteria\":[\"relationKind writes go to relations table\",\"jsonValue=null when relationKind, except explicitlyCleared flag\",\"reads assemble targets from relations\",\"legacy message_ref regression passes\",\"audit log records added/removed\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Enforce at-most-one relationKind=parent definition per channel",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Property-definitions service validates parent uniqueness per channel + default config + immutable relationKind/scope when edges exist.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/property-definitions.service.ts\",\"apps/server/apps/gateway/src/im/properties/property-definitions.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=property-definitions.service.spec.ts\",\"acceptanceCriteria\":[\"second parent def rejected with DEFINITION_CONFLICT\",\"multi related defs allowed\",\"scope defaults any, cardinality defaults multi\",\"cannot change relationKind/scope on def with edges\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: REST endpoints for relation inspection + hierarchy tree",
+      "status": "completed",
+      "blockedBy": [6, 7],
+      "description": "**Goal:** GET /messages/:id/relations and GET /views/:id/tree endpoints wired to service methods.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-properties.controller.ts\",\"apps/server/apps/gateway/src/im/views/views.controller.ts\",\"apps/server/apps/gateway/src/im/views/views.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.controller.spec.ts\",\"apps/server/apps/gateway/src/im/views/views.controller.spec.ts\",\"apps/server/apps/gateway/src/im/views/views.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern='(message-properties.controller|views).spec'\",\"acceptanceCriteria\":[\"GET /relations returns full outgoing+incoming structure\",\"GET /views/:id/tree honors filter/sort/maxDepth/cursor\",\"maxDepth>5 rejected\",\"unauthorized access -> 404\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: WebSocket events + delete cascade purge event",
+      "status": "completed",
+      "blockedBy": [6],
+      "description": "**Goal:** Emit message_relation_changed + message_relations_purged; extend property_changed payload; enforce event order.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.service.ts\",\"apps/server/apps/gateway/src/im/messages/messages.service.ts\",\"apps/server/apps/gateway/src/im/websocket/websocket.gateway.spec.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.service.spec.ts\",\"apps/server/apps/gateway/src/im/messages/messages.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern='(websocket.gateway|message-properties|messages).spec'\",\"acceptanceCriteria\":[\"emitRelationChanged + emitRelationsPurged helpers\",\"relation_changed fires before property_changed\",\"soft-delete captures affectedSourceIds and emits purged event\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Frontend API client + WS listener registration",
+      "status": "completed",
+      "blockedBy": [8, 9],
+      "description": "**Goal:** API client functions, types, React Query hooks, WS listeners, cache invalidation.\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/relations.ts\",\"apps/client/src/services/api.ts\",\"apps/client/src/services/websocket/index.ts\",\"apps/client/src/providers/query-client.ts\",\"apps/client/src/hooks/useMessageRelations.ts\",\"apps/client/src/hooks/useViewTree.ts\",\"apps/client/src/hooks/__tests__/useMessageRelations.test.tsx\",\"apps/client/src/hooks/__tests__/useViewTree.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- useMessageRelations useViewTree\",\"acceptanceCriteria\":[\"getMessageRelations + getViewTree return typed results\",\"WS listeners invalidate relation + inbound + view-tree keys\",\"hook tests pass\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: MessageRefPicker scope + self-exclusion",
+      "status": "completed",
+      "blockedBy": [10],
+      "description": "**Goal:** Picker respects config.scope=same_channel, hides current message, single-cardinality replaces + closes.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/properties/editors/MessageRefPicker.tsx\",\"apps/client/src/components/channel/properties/editors/__tests__/MessageRefPicker.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- MessageRefPicker\",\"acceptanceCriteria\":[\"channelId passed on same_channel scope\",\"current message excluded\",\"single cardinality replaces + closes\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: PropertyPanel shortcut entries for \u7236\u4efb\u52a1 / \u5173\u8054\u4efb\u52a1",
+      "status": "completed",
+      "blockedBy": [10],
+      "description": "**Goal:** Quick-create entries with pre-wired MessageRefConfig for parent + related.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/properties/PropertyPanel.tsx\",\"apps/client/src/components/channel/properties/__tests__/PropertyPanel.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- PropertyPanel\",\"acceptanceCriteria\":[\"clicking \u7236\u4efb\u52a1 creates parent definition\",\"clicking \u5173\u8054\u4efb\u52a1 creates related definition\",\"\u7236\u4efb\u52a1 disabled when already exists\",\"duplicate key auto-suffixed\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: MessageRefChip deleted/forbidden/thread states",
+      "status": "completed",
+      "blockedBy": [10],
+      "description": "**Goal:** Chip variants for deleted, forbidden, and thread-derived parent source.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/properties/MessageRefChip.tsx\",\"apps/client/src/components/channel/properties/__tests__/MessageRefChip.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- MessageRefChip\",\"acceptanceCriteria\":[\"deleted renders strike-through + [\u5df2\u5220\u9664]\",\"forbidden renders [\u65e0\u6743\u9650]\",\"thread source renders \ud83e\uddf5 badge\",\"keyboard navigation works for clickable chips\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: MessageItem chip bar",
+      "status": "completed",
+      "blockedBy": [13, 10],
+      "description": "**Goal:** Below-bubble chip row with parent/children/related/relatedBy, +N overflow popover.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/MessageRelationBar.tsx\",\"apps/client/src/components/channel/MessageItem.tsx\",\"apps/client/src/components/channel/__tests__/MessageRelationBar.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- MessageRelationBar MessageItem\",\"acceptanceCriteria\":[\"four buckets render when present\",\"no render when empty\",\"overflow collapses to +N popover\",\"thread badge on parent chip\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 15: TableView hierarchy mode toggle + toolbar",
+      "status": "completed",
+      "blockedBy": [8, 10],
+      "description": "**Goal:** Toolbar toggle + default-depth selector + expand/collapse-all buttons; server DTO validation.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/views/dto/view-config.dto.ts\",\"apps/server/apps/gateway/src/im/views/views.service.ts\",\"apps/server/apps/gateway/src/im/views/views.service.spec.ts\",\"apps/client/src/components/channel/views/TableView.tsx\",\"apps/client/src/components/channel/views/TableHierarchyToolbar.tsx\",\"apps/client/src/components/channel/views/__tests__/TableHierarchyToolbar.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern='views.service.spec' && pnpm -C apps/client test -- TableHierarchyToolbar\",\"acceptanceCriteria\":[\"hierarchyMode+groupBy mutually exclusive (server reject)\",\"hierarchyDefaultDepth persists\",\"expand/collapse-all fire callbacks\",\"config update invalidates view-tree cache\"]}\n```"
+    },
+    {
+      "id": 16,
+      "subject": "Task 16: TableView rendering \u2014 indent / expand / ancestor-dim",
+      "status": "completed",
+      "blockedBy": [15],
+      "description": "**Goal:** Indented rows, expand arrows, ancestor-dim style, keyboard support, DOM-level collapse.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/views/TableView.tsx\",\"apps/client/src/components/channel/views/TableRow.tsx\",\"apps/client/src/components/channel/views/__tests__/TableHierarchy.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- TableHierarchy\",\"acceptanceCriteria\":[\"indent = depth*16px\",\"expand arrow only when hasChildren\",\"ancestor rows dimmed\",\"keyboard arrow keys toggle\",\"collapsed subtrees removed from DOM\"]}\n```"
+    },
+    {
+      "id": 17,
+      "subject": "Task 17: useTreeLoader hook",
+      "status": "completed",
+      "blockedBy": [16, 10],
+      "description": "**Goal:** Hook for initial fetch, expand, loadMoreRoots, and WS invalidation.\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useTreeLoader.ts\",\"apps/client/src/hooks/__tests__/useTreeLoader.test.tsx\",\"apps/client/src/components/channel/views/TableView.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- useTreeLoader TableView\",\"acceptanceCriteria\":[\"initial fetch with default depth\",\"expand merges one more level\",\"loadMoreRoots appends next page\",\"WS events trigger refetch\"]}\n```"
+    },
+    {
+      "id": 18,
+      "subject": "Task 18: End-to-end manual smoke + regression sweep",
+      "status": "completed",
+      "blockedBy": [17, 14, 12, 11, 9],
+      "description": "**Goal:** Manual smoke checklist pass via pnpm dev.\n\n```json:metadata\n{\"files\":[\"docs/superpowers/plans/2026-04-21-message-parent-child.smoke.md\"],\"verifyCommand\":\"pnpm dev (manual verification)\",\"acceptanceCriteria\":[\"all smoke checklist items pass or documented\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-21T08:00:00Z"
+}

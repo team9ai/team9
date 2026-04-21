@@ -1658,4 +1658,85 @@ describe('WebsocketGateway', () => {
       expect(deps.usersService.setOffline).not.toHaveBeenCalled();
     });
   });
+
+  describe('relation event helpers', () => {
+    it('emitRelationChanged broadcasts via sendToChannelMembers with RELATION_CHANGED event', async () => {
+      const { gateway } = createGateway();
+      const spy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+
+      const payload = {
+        channelId: 'c1',
+        sourceMessageId: 'm1',
+        propertyDefinitionId: 'def-1',
+        propertyKey: 'parentMessage',
+        relationKind: 'parent' as const,
+        action: 'added' as const,
+        addedTargetIds: ['m2'],
+        removedTargetIds: [],
+        currentTargetIds: ['m2'],
+        performedBy: 'u1',
+        timestamp: '2026-04-20T00:00:00.000Z',
+      };
+
+      await gateway.emitRelationChanged(payload);
+
+      expect(spy).toHaveBeenCalledWith(
+        'c1',
+        WS_EVENTS.PROPERTY.RELATION_CHANGED,
+        payload,
+      );
+    });
+
+    it('emitRelationsPurged broadcasts via sendToChannelMembers with RELATIONS_PURGED event and carries affectedSourceIds', async () => {
+      const { gateway } = createGateway();
+      const spy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+
+      const payload = {
+        channelId: 'c1',
+        deletedMessageId: 'del-1',
+        affectedSourceIds: ['src-1', 'src-2'],
+      };
+
+      await gateway.emitRelationsPurged(payload);
+
+      expect(spy).toHaveBeenCalledWith(
+        'c1',
+        WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+        payload,
+      );
+    });
+
+    it('emitRelationsPurged still propagates the full payload to all channel members', async () => {
+      const { gateway, deps, emits } = createGateway();
+      deps.channelMemberCacheService.getMemberIds.mockResolvedValueOnce([
+        'user-1',
+        'user-2',
+      ]);
+
+      const payload = {
+        channelId: 'channel-1',
+        deletedMessageId: 'del-msg',
+        affectedSourceIds: ['src-a'],
+      };
+
+      await gateway.emitRelationsPurged(payload);
+
+      expect(emits).toEqual([
+        {
+          room: 'user:user-1',
+          event: WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+          data: payload,
+        },
+        {
+          room: 'user:user-2',
+          event: WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+          data: payload,
+        },
+      ]);
+    });
+  });
 });

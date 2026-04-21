@@ -22,6 +22,10 @@ jest.unstable_mockModule(
   }),
 );
 
+jest.unstable_mockModule('../../shared/constants/injection-tokens.js', () => ({
+  WEBSOCKET_GATEWAY: Symbol('WEBSOCKET_GATEWAY'),
+}));
+
 const { MessagesService } = await import('./messages.service.js');
 type MessageResponse = import('./messages.service.js').MessageResponse;
 
@@ -40,6 +44,12 @@ function createDbMock() {
   const selectFrom = jest.fn<any>().mockReturnValue(selectQuery);
   selectLeftJoin.mockReturnValue(selectQuery);
 
+  // selectDistinct chain: returns { from: { where: resolvedValue } }
+  const selectDistinctWhere = jest.fn<any>().mockResolvedValue([]);
+  const selectDistinctFrom = jest.fn<any>().mockReturnValue({
+    where: selectDistinctWhere,
+  });
+
   const insertOnConflictDoNothing = jest.fn<any>().mockResolvedValue(undefined);
   const insertOnConflictDoUpdate = jest.fn<any>().mockResolvedValue(undefined);
   const insertValues = jest.fn<any>().mockReturnValue({
@@ -54,6 +64,9 @@ function createDbMock() {
 
   return {
     select: jest.fn<any>().mockReturnValue({ from: selectFrom }),
+    selectDistinct: jest
+      .fn<any>()
+      .mockReturnValue({ from: selectDistinctFrom }),
     insert: jest.fn<any>().mockReturnValue({ values: insertValues }),
     update: jest.fn<any>().mockReturnValue({ set: updateSet }),
     delete: jest.fn<any>().mockReturnValue({ where: deleteWhere }),
@@ -63,6 +76,8 @@ function createDbMock() {
       selectWhere,
       selectLimit,
       selectOrderBy,
+      selectDistinctFrom,
+      selectDistinctWhere,
       insertValues,
       insertOnConflictDoNothing,
       insertOnConflictDoUpdate,
@@ -119,8 +134,12 @@ describe('MessagesService', () => {
   let messagePropertiesService: {
     batchGetByMessageIds: jest.Mock<any>;
   };
+  let mockWsGateway: {
+    emitRelationsPurged: jest.Mock<any>;
+  };
   let logger: {
     warn: jest.Mock<any>;
+    error: jest.Mock<any>;
   };
 
   beforeEach(() => {
@@ -134,13 +153,21 @@ describe('MessagesService', () => {
     messagePropertiesService = {
       batchGetByMessageIds: jest.fn<any>().mockResolvedValue({}),
     };
+    mockWsGateway = {
+      emitRelationsPurged: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    const moduleRef = {
+      get: jest.fn<any>().mockReturnValue(mockWsGateway),
+    };
     service = new MessagesService(
       db as never,
       channelSequenceService as never,
       messagePropertiesService as never,
+      moduleRef as never,
     );
     logger = {
       warn: jest.fn<any>(),
+      error: jest.fn<any>(),
     };
     (service as any).logger = logger;
   });
@@ -1517,6 +1544,7 @@ describe('MessagesService', () => {
     let botChannelSequenceService: { generateChannelSeq: jest.Mock<any> };
     let botMessagePropertiesService: { batchGetByMessageIds: jest.Mock<any> };
     let botLogger: { warn: jest.Mock<any> };
+    let botModuleRef: { get: jest.Mock<any> };
     let msgResponse: MessageResponse;
 
     beforeEach(() => {
@@ -1539,11 +1567,13 @@ describe('MessagesService', () => {
         publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
       };
       eventEmitterMock = { emit: jest.fn<any>() };
+      botModuleRef = { get: jest.fn<any>() };
 
       botService = new MessagesService(
         botDb as never,
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
+        botModuleRef as never,
         imWorker as never,
         mqService as never,
         eventEmitterMock as never,
@@ -1633,6 +1663,7 @@ describe('MessagesService', () => {
         botDb as never,
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
+        botModuleRef as never,
         imWorker as never,
         undefined, // no MQ service
         eventEmitterMock as never,
@@ -1684,6 +1715,7 @@ describe('MessagesService', () => {
         botDb as never,
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
+        botModuleRef as never,
         imWorker as never,
         mqWithWorkspaceEvent as never,
         eventEmitterMock as never,
@@ -1752,6 +1784,7 @@ describe('MessagesService', () => {
         botDb as never,
         botChannelSequenceService as never,
         botMessagePropertiesService as never,
+        botModuleRef as never,
         undefined, // no gRPC
       );
 
@@ -1801,5 +1834,65 @@ describe('MessagesService', () => {
     await expect(
       service.getMessageChannelId('missing-message'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  // ==================== cascade purge on soft delete ====================
+
+  it('emits message_relations_purged with affectedSourceIds when inbound relation edges exist', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+    // selectDistinct returns two source messages that point to the deleted message
+    db.chains.selectDistinctWhere.mockResolvedValueOnce([
+      { sourceMessageId: 'src-a' },
+      { sourceMessageId: 'src-b' },
+    ]);
+    channelSequenceService.generateChannelSeq.mockResolvedValueOnce(300);
+
+    await expect(
+      service.delete('message-1', 'user-1'),
+    ).resolves.toBeUndefined();
+
+    expect(mockWsGateway.emitRelationsPurged).toHaveBeenCalledWith({
+      channelId: 'channel-1',
+      deletedMessageId: 'message-1',
+      affectedSourceIds: ['src-a', 'src-b'],
+    });
+  });
+
+  it('skips emitRelationsPurged when no edges reference the deleted message', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+    // selectDistinct returns empty list — no inbound edges
+    db.chains.selectDistinctWhere.mockResolvedValueOnce([]);
+    channelSequenceService.generateChannelSeq.mockResolvedValueOnce(301);
+
+    await expect(
+      service.delete('message-1', 'user-1'),
+    ).resolves.toBeUndefined();
+
+    expect(mockWsGateway.emitRelationsPurged).not.toHaveBeenCalled();
+  });
+
+  it('logs error but does NOT throw when emitRelationsPurged fails (best-effort)', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+    db.chains.selectDistinctWhere.mockResolvedValueOnce([
+      { sourceMessageId: 'src-a' },
+    ]);
+    channelSequenceService.generateChannelSeq.mockResolvedValueOnce(302);
+    mockWsGateway.emitRelationsPurged.mockRejectedValueOnce(
+      new Error('ws down'),
+    );
+
+    // Should resolve (not reject) — purge emit failure must not roll back the delete
+    await expect(
+      service.delete('message-1', 'user-1'),
+    ).resolves.toBeUndefined();
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('message_relations_purged'),
+      expect.any(Error),
+    );
+    // The soft delete update should still have been called
+    expect(db.chains.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ isDeleted: true }),
+    );
   });
 });

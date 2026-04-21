@@ -81,6 +81,10 @@ export interface MessagePropertyChangedEvent {
     /** Property keys that were removed */
     removed?: string[];
   };
+  /** When the changed property is a relationKind property, this is set so clients skip jsonValue diffing. */
+  relationKind?: 'parent' | 'related';
+  /** True when the user explicitly cleared the property (suppresses thread-parentId fallback). */
+  explicitlyCleared?: boolean;
   /** User ID who performed the change */
   performedBy: string;
 }
@@ -181,4 +185,52 @@ export interface TabDeletedEvent {
   channelId: string;
   /** Deleted tab ID */
   tabId: string;
+}
+
+// ==================== Message Relation Events ====================
+
+/**
+ * Message relation edge changed event
+ *
+ * Broadcast when parent/related edges on a message are added, removed, or replaced.
+ *
+ * @event message_relation_changed
+ * @direction Server -> Channel Members
+ */
+export interface MessageRelationChangedEvent {
+  /** Channel ID */
+  channelId: string;
+  /** Message that owns the outgoing edge */
+  sourceMessageId: string;
+  /** Property definition the edge belongs to */
+  propertyDefinitionId: string;
+  /** Property key (denormalized for client routing) */
+  propertyKey: string;
+  /** 'parent' | 'related' */
+  relationKind: 'parent' | 'related';
+  /** Action taken — `replaced` populates both added and removed. */
+  action: 'added' | 'removed' | 'replaced';
+  addedTargetIds: string[];
+  removedTargetIds: string[];
+  /** Full current target set after the change (clients may use instead of diff). */
+  currentTargetIds: string[];
+  performedBy: string;
+  /** ISO timestamp */
+  timestamp: string;
+}
+
+/**
+ * Message relations purged event
+ *
+ * Broadcast when a message is soft-deleted; clients should invalidate relation caches
+ * that involve the deleted message.
+ *
+ * @event message_relations_purged
+ * @direction Server -> Channel Members
+ */
+export interface MessageRelationsPurgedEvent {
+  channelId: string;
+  deletedMessageId: string;
+  /** Distinct source message ids whose relations pointed at the deleted message. */
+  affectedSourceIds: string[];
 }

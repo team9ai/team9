@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ModuleRef } from '@nestjs/core';
 import { determineMessageType, truncateContent } from './message-utils.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -24,6 +25,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+const { messageRelations } = schema;
 import { UpdateMessageDto } from './dto/index.js';
 import { ChannelSequenceService } from '../shared/channel-sequence.service.js';
 import {
@@ -34,6 +36,8 @@ import { MessagePropertiesService } from '../properties/message-properties.servi
 import { GatewayMQService } from '@team9/rabbitmq';
 import { type PostBroadcastTask } from '@team9/shared';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
 
 export interface MessageSender {
   id: string;
@@ -123,11 +127,17 @@ export class MessagesService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly channelSequenceService: ChannelSequenceService,
     private readonly messagePropertiesService: MessagePropertiesService,
+    private readonly moduleRef: ModuleRef,
     @Optional()
     private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
+
+  /** Lazily resolve WebsocketGateway to avoid ESM circular dependency at import time */
+  private get wsGateway(): WebsocketGateway {
+    return this.moduleRef.get(WEBSOCKET_GATEWAY, { strict: false });
+  }
 
   private mapMessageSender(row: {
     id: string;
@@ -963,6 +973,13 @@ export class MessagesService {
       throw new ForbiddenException('Cannot delete message from another user');
     }
 
+    // Before soft delete: capture source messages whose relation edges point to this message
+    // (so we can emit a purge event after the delete)
+    const affected = await this.db
+      .selectDistinct({ sourceMessageId: messageRelations.sourceMessageId })
+      .from(messageRelations)
+      .where(eq(messageRelations.targetMessageId, messageId));
+
     // Advance seqId so the deletion shows up in incremental sync
     const newSeqId = await this.channelSequenceService.generateChannelSeq(
       message.channelId,
@@ -977,6 +994,22 @@ export class MessagesService {
         updatedAt: new Date(),
       })
       .where(eq(schema.messages.id, messageId));
+
+    // Emit purge event best-effort: if wsGateway throws, the soft delete commit is NOT rolled back
+    if (affected.length > 0) {
+      try {
+        await this.wsGateway.emitRelationsPurged({
+          channelId: message.channelId,
+          deletedMessageId: messageId,
+          affectedSourceIds: affected.map((r) => r.sourceMessageId),
+        });
+      } catch (err) {
+        this.logger.error(
+          `Failed to emit message_relations_purged for deleted message ${messageId}:`,
+          err,
+        );
+      }
+    }
   }
 
   async pinMessage(messageId: string, isPinned: boolean): Promise<void> {
