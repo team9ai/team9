@@ -131,6 +131,40 @@ describe("DmOutboundPolicyBlock", () => {
       ]);
     });
 
+    it("calls onChange with derived userIds when MultiUserPicker onChange fires", () => {
+      const onChange = vi.fn();
+      const onWhitelistUsersChange = vi.fn();
+      render(
+        <DmOutboundPolicyBlock
+          value={{ mode: "whitelist" }}
+          onChange={onChange}
+          whitelistUsers={[]}
+          onWhitelistUsersChange={onWhitelistUsersChange}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("multi-user-picker"));
+      expect(onChange).toHaveBeenCalledWith({
+        mode: "whitelist",
+        userIds: ["u1"],
+      });
+    });
+
+    it("calls onChange with derived userIds even without onWhitelistUsersChange", () => {
+      const onChange = vi.fn();
+      render(
+        <DmOutboundPolicyBlock
+          value={{ mode: "whitelist" }}
+          onChange={onChange}
+          whitelistUsers={[]}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("multi-user-picker"));
+      expect(onChange).toHaveBeenCalledWith({
+        mode: "whitelist",
+        userIds: ["u1"],
+      });
+    });
+
     it("clears whitelist when switching away from whitelist mode", () => {
       const onWhitelistUsersChange = vi.fn();
       const onChange = vi.fn();

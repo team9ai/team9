@@ -1294,6 +1294,28 @@ describe('CommonStaffService', () => {
         );
         expect(messages).toContain('WHITELIST_TOO_LARGE');
       });
+
+      it('DmOutboundPolicyDto rejects whitelist mode with no userIds (WHITELIST_USERIDS_REQUIRED)', async () => {
+        const dto = new DmOutboundPolicyDto();
+        dto.mode = 'whitelist';
+        // userIds is deliberately absent
+
+        const errors = await validate(dto);
+        const messages = errors.flatMap((e) =>
+          Object.values(e.constraints ?? {}),
+        );
+        expect(messages).toContain('WHITELIST_USERIDS_REQUIRED');
+      });
+
+      it('DmOutboundPolicyDto accepts non-whitelist mode with no userIds', async () => {
+        for (const mode of ['owner-only', 'same-tenant', 'anyone'] as const) {
+          const dto = new DmOutboundPolicyDto();
+          dto.mode = mode;
+
+          const errors = await validate(dto);
+          expect(errors).toHaveLength(0);
+        }
+      });
     });
 
     // ── authorization ───────────────────────────────────────────────────────────

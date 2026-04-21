@@ -2,6 +2,7 @@ import {
   Injectable,
   Inject,
   Optional,
+  forwardRef,
   NotFoundException,
   ForbiddenException,
   Logger,
@@ -31,7 +32,7 @@ import {
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
-import { type GatewayMQService } from '@team9/rabbitmq';
+import { GatewayMQService } from '@team9/rabbitmq';
 import { type PostBroadcastTask } from '@team9/shared';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
@@ -127,7 +128,9 @@ export class MessagesService {
     private readonly messagePropertiesService: MessagePropertiesService,
     @Optional()
     private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
-    @Optional() private readonly websocketGateway?: WebsocketGateway,
+    @Inject(forwardRef(() => WebsocketGateway))
+    @Optional()
+    private readonly websocketGateway?: WebsocketGateway,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}

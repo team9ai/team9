@@ -29,8 +29,9 @@ const DM_POLICY_OPTIONS: {
   },
   {
     value: "anyone",
-    label: "Anyone",
-    description: "Anyone on the platform can receive outbound DMs.",
+    label: "Anyone in this tenant",
+    description:
+      "Any user in this workspace, including members the assistant has never interacted with.",
   },
 ];
 
@@ -102,7 +103,13 @@ export function DmOutboundPolicyBlock({
         <div className="ml-7 mt-2">
           <MultiUserPicker
             value={whitelistUsers}
-            onChange={(users) => onWhitelistUsersChange?.(users)}
+            onChange={(users) => {
+              onWhitelistUsersChange?.(users);
+              onChange({
+                mode: "whitelist",
+                userIds: users.map((u) => u.userId),
+              });
+            }}
             disabled={disabled}
           />
         </div>

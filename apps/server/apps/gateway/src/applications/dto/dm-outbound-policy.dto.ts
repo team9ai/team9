@@ -2,8 +2,8 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDefined,
   IsIn,
-  IsOptional,
   IsUUID,
   ValidateIf,
 } from 'class-validator';
@@ -21,10 +21,10 @@ export class DmOutboundPolicyDto {
   mode!: DmOutboundPolicyMode;
 
   @ValidateIf((o: DmOutboundPolicyDto) => o.mode === 'whitelist')
+  @IsDefined({ message: 'WHITELIST_USERIDS_REQUIRED' })
   @IsArray()
   @ArrayMinSize(1, { message: 'WHITELIST_EMPTY' })
   @ArrayMaxSize(50, { message: 'WHITELIST_TOO_LARGE' })
   @IsUUID('all', { each: true })
-  @IsOptional()
   userIds?: string[];
 }
