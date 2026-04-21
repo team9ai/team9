@@ -1,6 +1,6 @@
 {
-  "id": "690b1493-f837-46ec-bb5a-471f80a303a1",
-  "prevId": "984bed22-5920-4441-8ab4-af79bc2c038d",
+  "id": "984bed22-5920-4441-8ab4-af79bc2c038d",
+  "prevId": "cd97f670-fd8f-4bff-8066-dc93ac36b3ad",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -471,18 +471,6 @@
           "notNull": false,
           "default": "'{}'::jsonb"
         },
-        "managed_provider": {
-          "name": "managed_provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "managed_meta": {
-          "name": "managed_meta",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "access_token": {
           "name": "access_token",
           "type": "text",
@@ -577,21 +565,6 @@
           "columns": [
             {
               "expression": "installed_application_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_bots_managed_provider": {
-          "name": "idx_bots_managed_provider",
-          "columns": [
-            {
-              "expression": "managed_provider",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4043,224 +4016,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.tracker_tasks": {
-      "name": "tracker_tasks",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(64)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "task_type": {
-          "name": "task_type",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "task_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "params": {
-          "name": "params",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "result": {
-          "name": "result",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "progress_history": {
-          "name": "progress_history",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "timeout_seconds": {
-          "name": "timeout_seconds",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 86400
-        },
-        "worker_id": {
-          "name": "worker_id",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "original_task_id": {
-          "name": "original_task_id",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retry_count": {
-          "name": "retry_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "timeout_at": {
-          "name": "timeout_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "idx_tasks_task_type": {
-          "name": "idx_tasks_task_type",
-          "columns": [
-            {
-              "expression": "task_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_tasks_status": {
-          "name": "idx_tasks_status",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_tasks_type_status": {
-          "name": "idx_tasks_type_status",
-          "columns": [
-            {
-              "expression": "task_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_tasks_worker_id": {
-          "name": "idx_tasks_worker_id",
-          "columns": [
-            {
-              "expression": "worker_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_tasks_timeout_at": {
-          "name": "idx_tasks_timeout_at",
-          "columns": [
-            {
-              "expression": "timeout_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "idx_tasks_original_task_id": {
-          "name": "idx_tasks_original_task_id",
-          "columns": [
-            {
-              "expression": "original_task_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.agent_task__tasks": {
       "name": "agent_task__tasks",
       "schema": "",
@@ -4328,6 +4083,13 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         },
         "document_id": {
           "name": "document_id",
@@ -4514,8 +4276,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "version": {
-          "name": "version",
+        "task_version": {
+          "name": "task_version",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -4650,7 +4412,7 @@
               "nulls": "last"
             },
             {
-              "expression": "version",
+              "expression": "task_version",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -5952,11 +5714,6 @@
       "name": "tenant_role",
       "schema": "public",
       "values": ["owner", "admin", "member", "guest"]
-    },
-    "public.task_status": {
-      "name": "task_status",
-      "schema": "public",
-      "values": ["pending", "in_progress", "completed", "failed", "timeout"]
     },
     "public.agent_task__schedule_type": {
       "name": "agent_task__schedule_type",
