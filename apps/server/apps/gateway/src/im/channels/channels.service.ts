@@ -254,7 +254,6 @@ export class ChannelsService {
       .select({
         userId: schema.bots.userId,
         ownerId: schema.bots.ownerId,
-        mentorId: schema.bots.mentorId,
         extra: schema.bots.extra,
         tenantId: schema.users.tenantId,
       })
@@ -2022,7 +2021,7 @@ export class ChannelsService {
 /**
  * Compute the default outbound DM policy for a bot based on its shape.
  *
- * Rules (mutually exclusive — commonStaff takes precedence if both are set):
+ * Rules (mutually exclusive — personalStaff takes precedence if both are set):
  *   - personalStaff → owner-only
  *   - commonStaff   → same-tenant
  *   - otherwise     → owner-only (safest default)
