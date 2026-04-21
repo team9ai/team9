@@ -469,6 +469,21 @@ export class WikisService {
     user: ActingUser,
     opts: { path?: string; recursive?: boolean } = {},
   ): Promise<TreeEntryDto[]> {
+    // Defence-in-depth: non-root paths must clear the same traversal checks
+    // as `getPage`/`getRaw`/`commitPage`. Two wrinkles specific to `getTree`:
+    //   - The folder9 tree API accepts a leading `/` as "start from folder
+    //     root" (unlike `getBlob`/`getRaw` which always use a relative path).
+    //     We strip the leading slash for validation so `/docs` validates the
+    //     same as `docs`, preserving existing callers that use the absolute
+    //     form.
+    //   - `/` alone (and `undefined`) mean "list from root" — no validation
+    //     needed, since validateWikiPath rejects empty strings by design.
+    if (opts.path !== undefined && opts.path !== '/') {
+      const toCheck = opts.path.startsWith('/')
+        ? opts.path.slice(1)
+        : opts.path;
+      validateWikiPath(toCheck);
+    }
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
     requirePermission(wiki, user, 'read');
     const token = await this.getFolderToken(

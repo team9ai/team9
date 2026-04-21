@@ -1093,6 +1093,31 @@ describe('WikisService', () => {
       expect(f9.createToken).not.toHaveBeenCalled();
       expect(f9.getTree).not.toHaveBeenCalled();
     });
+
+    it('rejects a traversal path (../escape) before any DB / folder9 work', async () => {
+      // Mirrors the getPage traversal test: validation must run before
+      // getWikiOrThrow so an attacker can't probe for wiki existence via
+      // a malformed path.
+      await expect(
+        svc.getTree('ws-1', 'wiki-1', user, { path: '../escape' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(db.limit).not.toHaveBeenCalled();
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getTree).not.toHaveBeenCalled();
+    });
+
+    it('rejects a traversal path with a leading slash (/../etc) before any DB / folder9 work', async () => {
+      // `getTree` accepts the `/docs` absolute form, but the validator still
+      // sees the stripped tail. A path like `/../etc` strips to `../etc`,
+      // which must be rejected — verifying the "absolute form doesn't
+      // bypass validation" invariant.
+      await expect(
+        svc.getTree('ws-1', 'wiki-1', user, { path: '/../etc' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(db.limit).not.toHaveBeenCalled();
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getTree).not.toHaveBeenCalled();
+    });
   });
 
   // ── getPage ─────────────────────────────────────────────────────────
@@ -1821,6 +1846,13 @@ describe('WikisService', () => {
 
       await svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1', 'off-topic');
 
+      // Mirror approveProposal: rejection is a write operation on main,
+      // so the token MUST carry the 'write' permission (not 'propose' or
+      // 'read'). Asserting here guards against a regression where a refactor
+      // accidentally downgrades the token scope.
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'write' }),
+      );
       expect(f9.rejectProposal).toHaveBeenCalledWith(
         'ws-1',
         'f9-1',
@@ -1843,6 +1875,9 @@ describe('WikisService', () => {
 
       await svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1');
 
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'write' }),
+      );
       expect(f9.rejectProposal).toHaveBeenCalledWith(
         'ws-1',
         'f9-1',
@@ -1878,6 +1913,9 @@ describe('WikisService', () => {
       await expect(
         svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
       ).rejects.toThrow(ConflictException);
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'write' }),
+      );
     });
 
     it('re-throws non-409 folder9 errors unchanged', async () => {
@@ -1893,6 +1931,9 @@ describe('WikisService', () => {
       await expect(
         svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
       ).rejects.toThrow(/boom/);
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'write' }),
+      );
     });
 
     it('re-throws non-409 Folder9ApiError unchanged', async () => {
@@ -1915,6 +1956,9 @@ describe('WikisService', () => {
         caught = e;
       }
       expect(caught).toBe(apiErr);
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'write' }),
+      );
     });
   });
 
