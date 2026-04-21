@@ -1,4 +1,7 @@
 import http from "../http";
+import { API_BASE_URL } from "@/constants/api-base-url";
+import { getAuthToken } from "../auth-session";
+import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import type {
   CommitPageInput,
   CommitPageResponse,
@@ -126,6 +129,36 @@ export const wikisApi = {
       `/v1/wikis/${wikiId}/proposals/${proposalId}/reject`,
       reason ? { reason } : {},
     );
+  },
+
+  /**
+   * Fetch a raw (binary) file from a Wiki and return a same-origin `blob:`
+   * URL suitable for `<img src>` or `background-image: url(...)`.
+   *
+   * The gateway's `/raw` endpoint is JWT-protected, so we can't just hand
+   * the bare URL to the browser for image loading — the browser wouldn't
+   * attach our bearer token. We fetch with the same auth interceptor
+   * headers as the rest of the app, then wrap the bytes in an object URL.
+   *
+   * Callers are responsible for releasing the URL via `URL.revokeObjectURL`
+   * once the image is no longer needed (e.g. on unmount / path change).
+   */
+  getRawObjectUrl: async (wikiId: string, path: string): Promise<string> => {
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
+    const token = getAuthToken();
+    const url = `${API_BASE_URL}/v1/wikis/${wikiId}/raw?path=${encodeURIComponent(
+      path,
+    )}`;
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (workspaceId) headers["X-Tenant-Id"] = workspaceId;
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch wiki raw asset: ${response.status}`);
+    }
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
   },
 };
 

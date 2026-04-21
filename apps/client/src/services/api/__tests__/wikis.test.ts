@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   CommitPageResponse,
   PageDto,
@@ -6,6 +6,7 @@ import type {
   TreeEntryDto,
   WikiDto,
 } from "@/types/wiki";
+import { workspaceActions } from "@/stores/useWorkspaceStore";
 
 const mockHttp = vi.hoisted(() => ({
   get: vi.fn(),
@@ -209,5 +210,74 @@ describe("wikisApi", () => {
       "/v1/wikis/wiki-1/proposals/p-1/reject",
       { reason: "nope" },
     );
+  });
+});
+
+describe("wikisApi.getRawObjectUrl", () => {
+  const originalFetch = globalThis.fetch;
+  const originalCreateObjectURL = URL.createObjectURL;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // jsdom doesn't implement URL.createObjectURL — stub it.
+    URL.createObjectURL = vi.fn(() => "blob:mock");
+    localStorage.clear();
+    workspaceActions.reset();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreateObjectURL;
+    workspaceActions.reset();
+  });
+
+  it("fetches /raw with bearer + X-Tenant-Id headers and returns a blob URL", async () => {
+    localStorage.setItem("auth_token", "tok-1");
+    workspaceActions.setSelectedWorkspaceId("ws-1");
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(["bytes"])),
+    } as unknown as Response);
+    globalThis.fetch = fetchMock;
+
+    const url = await wikisApi.getRawObjectUrl("wiki-1", "assets/cover.png");
+
+    expect(url).toBe("blob:mock");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [calledUrl, init] = fetchMock.mock.calls[0] as [
+      string,
+      { headers: Record<string, string> },
+    ];
+    expect(calledUrl).toContain("/v1/wikis/wiki-1/raw?path=");
+    expect(calledUrl).toContain(encodeURIComponent("assets/cover.png"));
+    expect(init.headers.Authorization).toBe("Bearer tok-1");
+    expect(init.headers["X-Tenant-Id"]).toBe("ws-1");
+  });
+
+  it("omits headers when no token / no workspace are present", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(["x"])),
+    } as unknown as Response);
+    globalThis.fetch = fetchMock;
+
+    await wikisApi.getRawObjectUrl("wiki-1", "cover.png");
+    const [, init] = fetchMock.mock.calls[0] as [
+      string,
+      { headers: Record<string, string> },
+    ];
+    expect(init.headers.Authorization).toBeUndefined();
+    expect(init.headers["X-Tenant-Id"]).toBeUndefined();
+  });
+
+  it("throws when the server returns a non-OK status", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    } as unknown as Response);
+    await expect(
+      wikisApi.getRawObjectUrl("wiki-1", "missing.png"),
+    ).rejects.toThrow(/404/);
   });
 });

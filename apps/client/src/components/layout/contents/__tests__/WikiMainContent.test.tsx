@@ -1,7 +1,19 @@
 import { act, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useWikiStore } from "@/stores/useWikiStore";
 import { WikiMainContent } from "../WikiMainContent";
+
+// Stub WikiPageView so WikiMainContent tests don't accidentally exercise
+// its React Query dependencies. The view's own tests cover its internals.
+vi.mock("@/components/wiki/WikiPageView", () => ({
+  WikiPageView: ({ wikiId, path }: { wikiId: string; path: string }) => (
+    <div
+      data-testid="wiki-page-view-stub"
+      data-wiki-id={wikiId}
+      data-path={path}
+    />
+  ),
+}));
 
 describe("WikiMainContent", () => {
   afterEach(() => {
@@ -16,7 +28,7 @@ describe("WikiMainContent", () => {
     expect(
       screen.getByRole("heading", { name: "Select a Wiki page" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("loading...")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("wiki-page-view-stub")).not.toBeInTheDocument();
   });
 
   it("shows the empty state when a wiki is selected but no page path is set", () => {
@@ -41,7 +53,9 @@ describe("WikiMainContent", () => {
       useWikiStore.getState().setSelectedPage("api/auth.md");
     });
 
-    expect(screen.getByText("loading...")).toBeInTheDocument();
+    const stub = screen.getByTestId("wiki-page-view-stub");
+    expect(stub.dataset.wikiId).toBe("wiki-1");
+    expect(stub.dataset.path).toBe("api/auth.md");
     expect(
       screen.queryByRole("heading", { name: "Select a Wiki page" }),
     ).not.toBeInTheDocument();

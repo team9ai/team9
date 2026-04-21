@@ -113,7 +113,7 @@
     {
       "id": 16,
       "subject": "Task 17: WikiPageView + draft persistence hook",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13, 14],
       "description": "**Goal:** Notion-style page view (cover, overlapping icon, breadcrumb, title, status bar) + useWikiDraft localStorage hook.\n\n**Files:**\n- Create: WikiPageView.tsx, WikiCover.tsx, WikiPageHeader.tsx, WikiStatusBar.tsx\n- Create: hooks/useWikiDraft.ts\n- Also extends gateway with GET /api/wikis/:id/raw endpoint for cover image display\n\n**Verify:** pnpm --filter @team9/client test -- useWikiDraft wiki-page-header\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/WikiPageView.tsx\",\"apps/client/src/components/wiki/WikiCover.tsx\",\"apps/client/src/components/wiki/WikiPageHeader.tsx\",\"apps/client/src/components/wiki/WikiStatusBar.tsx\",\"apps/client/src/hooks/useWikiDraft.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Page view composes cover + header + status + editor slot\",\"Cover shows image or gradient fallback\",\"Header renders icon + breadcrumb + title fallback\",\"Draft debounced 500ms write\",\"Stale-draft alert fires when localStorage newer than server\"]}\n```"
     },
