@@ -73,7 +73,7 @@
     {
       "id": 11,
       "subject": "Task 11: MessageRefPicker scope + self-exclusion",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** Picker respects config.scope=same_channel, hides current message, single-cardinality replaces + closes.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/properties/editors/MessageRefPicker.tsx\",\"apps/client/src/components/channel/properties/editors/__tests__/MessageRefPicker.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- MessageRefPicker\",\"acceptanceCriteria\":[\"channelId passed on same_channel scope\",\"current message excluded\",\"single cardinality replaces + closes\"]}\n```"
     },
