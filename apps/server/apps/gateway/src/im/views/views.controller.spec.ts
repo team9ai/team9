@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-// Set CORS_ORIGIN before any module import — WebsocketGateway reads it at class-definition time
+// Set CORS_ORIGIN before any module import — WebsocketGateway reads it at
+// class-definition time. ES module static imports are hoisted, so we must
+// load ViewsController via dynamic import AFTER setting the env var.
 process.env.CORS_ORIGIN = 'http://localhost';
 
-import { ViewsController } from './views.controller.js';
+const { ViewsController } = await import('./views.controller.js');
 
 describe('ViewsController', () => {
   const channelId = '00000000-0000-0000-0000-000000000001';
