@@ -6,12 +6,9 @@ import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { PlatformLlmService } from './platform-llm.service.js';
 import { BotController } from './bot.controller.js';
-<<<<<<< HEAD
 import { BotChannelsController } from './channels/bot-channels.controller.js';
-=======
 import { BotStaffProfileController } from './staff-profile/bot-staff-profile.controller.js';
 import { BotStaffProfileService } from './staff-profile/bot-staff-profile.service.js';
->>>>>>> 11f3fb75 (feat(bot): register BotStaffProfileController in BotModule)
 import { ChannelsModule } from '../im/channels/channels.module.js';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
 
@@ -29,17 +26,16 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
  */
 @Global()
 @Module({
-<<<<<<< HEAD
   imports: [
     forwardRef(() => ChannelsModule),
     forwardRef(() => WebsocketModule),
     ClawHiveModule,
   ],
-  controllers: [BotController, BotChannelsController],
-=======
-  imports: [forwardRef(() => ChannelsModule), ClawHiveModule],
-  controllers: [BotController, BotStaffProfileController],
->>>>>>> 11f3fb75 (feat(bot): register BotStaffProfileController in BotModule)
+  controllers: [
+    BotController,
+    BotChannelsController,
+    BotStaffProfileController,
+  ],
   providers: [
     BotService,
     BotTokenValidatorService,
