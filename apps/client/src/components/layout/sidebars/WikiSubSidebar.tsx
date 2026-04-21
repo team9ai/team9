@@ -33,7 +33,7 @@ export function WikiSubSidebar() {
         <Button
           size="sm"
           variant="ghost"
-          aria-label={t("wiki")}
+          aria-label={t("createWiki")}
           onClick={() => setShowCreate(true)}
         >
           <Plus size={14} />

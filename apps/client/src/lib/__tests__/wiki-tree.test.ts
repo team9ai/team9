@@ -122,6 +122,27 @@ describe("buildTree", () => {
     expect(result.map((n) => n.name)).toEqual(["a.md"]);
   });
 
+  it("skips entries with an empty-string path", () => {
+    // folder9 should never emit these, but an empty path would otherwise
+    // split to `[""]` and surface as a file with an empty name at the root.
+    const result = buildTree([file(""), file("a.md")]);
+    expect(result.map((n) => n.name)).toEqual(["a.md"]);
+  });
+
+  it("skips entries whose path ends with a slash", () => {
+    // A trailing slash would otherwise create a real dir node containing a
+    // phantom empty-named file — corrupting the tree shape.
+    const result = buildTree([file("api/"), file("a.md")]);
+    expect(result.map((n) => n.name)).toEqual(["a.md"]);
+  });
+
+  it("skips entries with a doubled-slash path", () => {
+    // `api//auth.md` would split to ["api", "", "auth.md"], creating an
+    // intermediate dir with an empty name. Guard defensively instead.
+    const result = buildTree([file("api//auth.md"), file("a.md")]);
+    expect(result.map((n) => n.name)).toEqual(["a.md"]);
+  });
+
   it("handles a mixed realistic payload end-to-end", () => {
     const entries: TreeEntryDto[] = [
       file("index.md"),

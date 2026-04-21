@@ -31,14 +31,22 @@ export function WikiTreeNode({ node, wikiSlug, depth }: WikiTreeNodeProps) {
 
   const handleClick = () => {
     if (node.type === "dir") {
-      wikiActions.toggleDirectory(node.path);
       const indexChild = node.children.find((c) => c.name === "index.md");
       if (indexChild) {
+        // Dir has an index page — expand (idempotent) and navigate. We avoid
+        // `toggleDirectory` here because the splat route's useEffect will
+        // re-expand the dir as an ancestor of the selected page, producing
+        // a one-paint collapse flicker if the dir was already open when
+        // clicked.
+        wikiActions.expandDirectory(node.path);
         void navigate({
           to: "/wiki/$wikiSlug/$",
           params: { wikiSlug, _splat: indexChild.path },
         });
+        return;
       }
+      // No index page — clicking is a pure UI toggle, no nav.
+      wikiActions.toggleDirectory(node.path);
       return;
     }
 

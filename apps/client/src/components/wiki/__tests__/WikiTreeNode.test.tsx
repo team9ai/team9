@@ -108,6 +108,48 @@ describe("WikiTreeNode", () => {
     });
   });
 
+  it("expands (not toggles) a directory with index.md so repeated clicks never collapse it", () => {
+    // Regression guard against the toggle+navigate race: if clicks toggled
+    // the dir, the second click would collapse it after navigating — and the
+    // splat route's auto-expand would then re-open, producing a flicker.
+    // Using `expandDirectory` keeps the dir open across repeated clicks.
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md")])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /api/ });
+
+    fireEvent.click(button);
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+
+    // Second click — if we were using toggleDirectory this would collapse.
+    fireEvent.click(button);
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+  });
+
+  it("uses toggleDirectory for a dir without index.md so clicks can collapse it", () => {
+    // Counter-case to the expand-only path: a plain dir has no reason to
+    // stay sticky, so clicking should flip its state.
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/other.md")])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const button = screen.getByRole("button", { name: /api/ });
+
+    fireEvent.click(button);
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+
+    // Second click collapses because there's no index to justify stickiness.
+    fireEvent.click(button);
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(false);
+  });
+
   it("renders children only when the dir is expanded", () => {
     const node = dirNode("api", [fileNode("api/auth.md")]);
     const { rerender } = render(

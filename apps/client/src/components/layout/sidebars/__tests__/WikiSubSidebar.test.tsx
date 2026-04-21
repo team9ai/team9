@@ -103,12 +103,11 @@ describe("WikiSubSidebar", () => {
       "false",
     );
 
-    // There are two buttons — the "+" has no accessible text, so we find it by
-    // the icon being the only one next to the header label.
-    const buttons = screen.getAllByRole("button");
-    const plusButton = buttons.find((b) => b.querySelector(".lucide-plus"));
-    expect(plusButton).toBeDefined();
-    fireEvent.click(plusButton!);
+    // The "+" button is identified by its accessible aria-label (the en
+    // navigation namespace maps `createWiki` → "Create Wiki"). This keeps
+    // screen readers announcing a distinct name from the "Library" heading.
+    const plusButton = screen.getByRole("button", { name: /create wiki/i });
+    fireEvent.click(plusButton);
 
     expect(screen.getByTestId("create-wiki-dialog")).toHaveAttribute(
       "data-open",
@@ -120,9 +119,8 @@ describe("WikiSubSidebar", () => {
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
     render(<WikiSubSidebar />);
 
-    const buttons = screen.getAllByRole("button");
-    const plusButton = buttons.find((b) => b.querySelector(".lucide-plus"));
-    fireEvent.click(plusButton!);
+    const plusButton = screen.getByRole("button", { name: /create wiki/i });
+    fireEvent.click(plusButton);
     expect(screen.getByTestId("create-wiki-dialog")).toHaveAttribute(
       "data-open",
       "true",

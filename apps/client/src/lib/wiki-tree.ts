@@ -55,6 +55,13 @@ export function buildTree(entries: TreeEntryDto[]): WikiTreeNodeData[] {
 
   for (const entry of entries) {
     if (entry.type !== "file") continue;
+    // Defensive: folder9 should never emit empty / trailing-slash / doubled-
+    // slash paths, but an empty path would split to `[""]` and trip the
+    // file-at-root case with an empty name, while a trailing slash would
+    // create a phantom empty-named file under a real dir. Skip them rather
+    // than produce a corrupt tree.
+    if (!entry.path || entry.path.endsWith("/")) continue;
+    if (entry.path.split("/").some((s) => s === "")) continue;
     if (isDotPath(entry.path)) continue;
 
     const parts = entry.path.split("/");
