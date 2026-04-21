@@ -18,9 +18,9 @@ import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
  *
  * Bot-facing REST endpoints that need ChannelsService / WebsocketGateway
  * live in BotChannelsModule to avoid pulling those imports into this
- * @Global module (doing so created a BotModule → ChannelsModule →
+ * @Global module. Doing so created a BotModule → ChannelsModule →
  * useExisting BotService → BotModule cycle that deadlocked Nest at
- * registerRouter()).
+ * registerRouter().
  *
  * BOT_SERVICE_TOKEN is provided here (instead of in ChannelsModule) so
  * that the token alias to BotService lives alongside the service
