@@ -31,14 +31,14 @@
     {
       "id": 4,
       "subject": "Task 5: Client event types and service helpers",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** Add client constants, payload types, and onRoutineUpdated / onUserUpdated helpers.\n\n**Files:**\n- Modify: apps/client/src/types/ws-events.ts (add constants + event interfaces)\n- Modify: apps/client/src/services/websocket/index.ts (add on/off helpers)\n\n**Acceptance Criteria:**\n- WS_EVENTS.ROUTINE.UPDATED === 'routine:updated' on the client.\n- WS_EVENTS.USER.UPDATED === 'user_updated' on the client.\n- RoutineUpdatedEvent { routineId } and UserUpdatedEvent { userId } exported.\n- wsService.onRoutineUpdated / offRoutineUpdated / onUserUpdated / offUserUpdated compile and route to the correct constants.\n\n**Verify:** pnpm --filter client typecheck\n\n```json:metadata\n{\"files\": [\"apps/client/src/types/ws-events.ts\", \"apps/client/src/services/websocket/index.ts\"], \"verifyCommand\": \"pnpm --filter client typecheck\", \"acceptanceCriteria\": [\"Client event constants added\", \"Payload interfaces exported\", \"on/off helpers implemented\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 6: Client subscription, cache invalidation, and self-sync",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Subscribe to routine:updated and user_updated in useWebSocketEvents; invalidate React Query caches; self-sync app-store when user_updated targets the logged-in user.\n\n**Files:**\n- Modify: apps/client/src/hooks/useWebSocketEvents.ts (register handlers, invalidate, self-sync)\n- Test: apps/client/src/hooks/__tests__/useWebSocketEvents.test.ts\n- Possibly modify: apps/client/src/stores/index.ts (re-export setUser if missing)\n\n**Acceptance Criteria:**\n- routine:updated invalidates ['routines'], ['routine', id], ['routine-triggers', id].\n- user_updated invalidates ['users'] and ['im-users', id].\n- user_updated with userId === currentUser.id triggers app-store refresh (getCurrentUser + setUser).\n- user_updated with a different userId does NOT touch app-store.\n- Smoke-test: AI bot edit of a routine title live-updates the left list; PATCH /users/me updates the user display without reload.\n\n**Verify:** pnpm --filter client test useWebSocketEvents.test\n\n```json:metadata\n{\"files\": [\"apps/client/src/hooks/useWebSocketEvents.ts\", \"apps/client/src/hooks/__tests__/useWebSocketEvents.test.ts\", \"apps/client/src/stores/index.ts\"], \"verifyCommand\": \"pnpm --filter client test useWebSocketEvents.test\", \"acceptanceCriteria\": [\"routine:updated invalidates three query keys\", \"user_updated invalidates two query keys\", \"Self-sync fires for own user\", \"Self-sync skipped for other users\", \"Smoke test passes end-to-end\"]}\n```"
     }

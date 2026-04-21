@@ -45,6 +45,11 @@ COPY apps/server/libs/posthog/package.json ./apps/server/libs/posthog/
 COPY apps/server/libs/observability/package.json ./apps/server/libs/observability/
 COPY apps/server/libs/claw-hive/package.json ./apps/server/libs/claw-hive/
 
+# Client package.json is needed so pnpm sees the eventsource-parser patch target.
+# The client code itself is not built in this image; only its package.json is required
+# to make patchedDependencies in the root package.json resolve.
+COPY apps/client/package.json ./apps/client/
+
 # Copy enterprise package.json files if submodule is present
 COPY enterpris[e]/libs/sso/package.json ./enterprise/libs/sso/
 COPY enterpris[e]/libs/audit/package.json ./enterprise/libs/audit/
@@ -86,10 +91,11 @@ RUN if [ "$EDITION" = "community" ]; then \
 # Reinstall to create symlinks
 RUN pnpm install --ignore-scripts
 
-# Clean tsbuildinfo and build all packages
+# Clean tsbuildinfo and build all packages (exclude @team9/client — only its
+# package.json is present in this image, the client source is not copied).
 RUN find apps/server -name "*.tsbuildinfo" -delete && \
     find enterprise -name "*.tsbuildinfo" -delete 2>/dev/null || true && \
-    pnpm --filter '@team9/*' --filter '!@team9/server' build
+    pnpm --filter '@team9/*' --filter '!@team9/server' --filter '!@team9/client' build
 
 # Use pnpm deploy to create a standalone deployment
 RUN pnpm --filter @team9/gateway deploy --prod /app/deploy

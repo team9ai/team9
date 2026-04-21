@@ -7,6 +7,7 @@ import { EmailModule } from '@team9/email';
 import { env } from '@team9/shared';
 import { InternalAuthController } from './internal-auth.controller.js';
 import { InternalAuthGuard } from './internal-auth.guard.js';
+import { TurnstileService } from './turnstile.service.js';
 
 const accessTokenExpiresIn = env.JWT_EXPIRES_IN as JwtSignOptions['expiresIn'];
 
@@ -27,7 +28,7 @@ const accessTokenExpiresIn = env.JWT_EXPIRES_IN as JwtSignOptions['expiresIn'];
     }),
   ],
   controllers: [AuthController, InternalAuthController],
-  providers: [AuthService, InternalAuthGuard],
+  providers: [AuthService, InternalAuthGuard, TurnstileService],
   exports: [AuthService, SharedAuthModule],
 })
 export class AuthModule {}

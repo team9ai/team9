@@ -14,15 +14,11 @@ import { AuthService } from './auth.service.js';
 import type {
   AuthResponse,
   TokenPair,
-  RegisterResponse,
-  LoginResponse,
   AuthStartResponse,
   DesktopSessionResponse,
   PollLoginResponse,
 } from './auth.service.js';
 import {
-  RegisterDto,
-  LoginDto,
   RefreshTokenDto,
   VerifyEmailDto,
   ResendVerificationDto,
@@ -52,8 +48,11 @@ export class AuthController {
 
   @Post('start')
   @HttpCode(HttpStatus.OK)
-  async authStart(@Body() dto: AuthStartDto): Promise<AuthStartResponse> {
-    return this.authService.authStart(dto);
+  async authStart(
+    @Body() dto: AuthStartDto,
+    @Req() req: Request,
+  ): Promise<AuthStartResponse> {
+    return this.authService.authStart(dto, this.getClientIp(req));
   }
 
   @Post('verify-code')
@@ -78,19 +77,6 @@ export class AuthController {
     @CurrentUser('sub') userId: string,
   ): Promise<{ success: boolean }> {
     return this.authService.completeDesktopSession(dto, userId);
-  }
-
-  // --- Legacy endpoints (kept for backward compatibility) ---
-
-  @Post('register')
-  async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
-    return this.authService.register(dto);
-  }
-
-  @Post('login')
-  @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto): Promise<LoginResponse> {
-    return this.authService.login(dto);
   }
 
   @Get('verify-email')

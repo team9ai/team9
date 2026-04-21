@@ -19,10 +19,12 @@ const neutralPill = cn(
 );
 const accentPill = cn(basePill, "bg-primary/15 text-primary shrink-0");
 // Variable-content pills (roleTitle / ownerName) can shrink to fit and
-// truncate with an ellipsis. min-w-0 is required for `truncate` to take
-// effect inside a flex row.
+// truncate with an ellipsis. Uses inline-block (not inline-flex) so
+// text-overflow: ellipsis actually applies — flex containers aren't block
+// containers, so `truncate` on an inline-flex pill silently fails to clip
+// and the row overflows the sidebar.
 const truncatedPill = cn(
-  basePill,
+  "inline-block align-middle rounded-full px-1.5 py-0.5 text-[10px] leading-none",
   "bg-nav-hover text-nav-foreground-muted min-w-0 truncate",
 );
 

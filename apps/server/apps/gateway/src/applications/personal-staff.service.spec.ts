@@ -28,6 +28,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreatePersonalStaffDto,
   UpdatePersonalStaffDto,
@@ -167,6 +168,7 @@ const makeExistingBot = (overrides: Record<string, unknown> = {}) => ({
       visibility: { allowMention: false, allowDirectMessage: false },
     },
   },
+  managedMeta: { agentId: AGENT_ID },
   isActive: true,
   ...overrides,
 });
@@ -211,8 +213,12 @@ describe('PersonalStaffService', () => {
     deleteAgent: MockFn;
     sendInput: MockFn;
   };
-  let channelsService: { createDirectChannelsBatch: MockFn };
+  let channelsService: {
+    createDirectChannelsBatch: MockFn;
+    createDirectChannel: MockFn;
+  };
   let installedApplicationsService: { findById: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -239,10 +245,19 @@ describe('PersonalStaffService', () => {
 
     channelsService = {
       createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(new Map()),
+      createDirectChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'dm-channel-uuid-1234' }),
     };
 
     installedApplicationsService = {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
+    };
+
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
     };
 
     mockStreamText.mockReset();
@@ -269,6 +284,7 @@ describe('PersonalStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -614,18 +630,17 @@ describe('PersonalStaffService', () => {
       });
 
       it("includes the owner's persisted language + timeZone in team9Context when set", async () => {
-        // Queue two results: (1) findPersonalStaffBot must see no existing
-        // bot, (2) getUserLocale must see the mentor's preferences row.
-        // `mockResolvedValueOnce` values are consumed FIFO before the
-        // sticky `mockResolvedValue([])` default from the describe-level
-        // beforeEach.
-        db.limit.mockResolvedValueOnce([]);
-        db.limit.mockResolvedValueOnce([
-          { language: 'zh-CN', timeZone: 'Asia/Shanghai' },
-        ]);
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
 
         const dto = makeCreateDto();
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(
+          OWNER_ID,
+        );
 
         const call = clawHiveService.sendInput.mock.calls[0];
         const event = call[1] as {
@@ -643,7 +658,7 @@ describe('PersonalStaffService', () => {
       });
 
       it('omits language and timeZone from team9Context when the owner has no preferences set', async () => {
-        // Default db.limit mock returns [] → getUserLocale returns nulls →
+        // Default usersService.getLocalePreferences mock returns { language: null, timeZone: null } →
         // neither key is spread into team9Context.
         const dto = makeCreateDto();
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
@@ -700,6 +715,190 @@ describe('PersonalStaffService', () => {
         expect(clawHiveService.sendInput).not.toHaveBeenCalled();
         expect(result.botId).toBe(BOT_ID);
       });
+    });
+  });
+
+  // ── triggerBootstrapForExistingStaff ─────────────────────────────────────────
+
+  describe('triggerBootstrapForExistingStaff', () => {
+    const DM_CHANNEL_ID = 'dm-channel-uuid-5678';
+
+    beforeEach(() => {
+      channelsService.createDirectChannel.mockResolvedValue({
+        id: DM_CHANNEL_ID,
+      });
+    });
+
+    it('sends team9:bootstrap.start with the expected session id and payload', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
+        BOT_USER_ID,
+        OWNER_ID,
+        TENANT_ID,
+      );
+      expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+        `team9/${TENANT_ID}/${AGENT_ID}/dm/${DM_CHANNEL_ID}`,
+        expect.objectContaining({
+          type: 'team9:bootstrap.start',
+          source: 'team9',
+          payload: expect.objectContaining({
+            mentorId: OWNER_ID,
+            isMentorDm: true,
+            channelId: DM_CHANNEL_ID,
+          }),
+        }),
+        TENANT_ID,
+      );
+    });
+
+    it("injects the owner's locale into team9Context when set", async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+      usersService.getLocalePreferences.mockResolvedValue({
+        language: 'zh-CN',
+        timeZone: 'Asia/Shanghai',
+      });
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(usersService.getLocalePreferences).toHaveBeenCalledWith(OWNER_ID);
+      const call = clawHiveService.sendInput.mock.calls[0];
+      const event = call[1] as {
+        payload: { team9Context: Record<string, unknown> };
+      };
+      expect(event.payload.team9Context).toMatchObject({
+        source: 'team9',
+        scopeType: 'dm',
+        scopeId: DM_CHANNEL_ID,
+        peerUserId: OWNER_ID,
+        isMentorDm: true,
+        language: 'zh-CN',
+        timeZone: 'Asia/Shanghai',
+      });
+    });
+
+    it('logs and skips when no personal staff bot exists', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('logs and skips when the bot is missing managedMeta.agentId', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot({ managedMeta: null })]);
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('logs and skips when DM channel resolution throws', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+      channelsService.createDirectChannel.mockRejectedValueOnce(
+        new Error('DM failure'),
+      );
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('does not throw when sendInput fails (fire-and-forget)', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+      clawHiveService.sendInput.mockRejectedValueOnce(
+        new Error('Hive unreachable'),
+      );
+
+      await expect(
+        service.triggerBootstrapForExistingStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('skips firing when the bot already has bootstrappedAt set (onboarding retry guard)', async () => {
+      db.limit.mockResolvedValueOnce([
+        makeExistingBot({
+          extra: {
+            personalStaff: {
+              persona: 'Friendly helper',
+              bootstrappedAt: '2026-04-20T00:00:00.000Z',
+            },
+          },
+        }),
+      ]);
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('persists bootstrappedAt marker after a successful send', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          extra: expect.objectContaining({
+            personalStaff: expect.objectContaining({
+              bootstrappedAt: expect.any(String),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('does NOT persist the marker if send fails (so retries can still fire)', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+      clawHiveService.sendInput.mockRejectedValueOnce(new Error('Hive down'));
+
+      await service.triggerBootstrapForExistingStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+      );
+
+      // db.update is only called for the marker write; the failure path
+      // must skip it.
+      expect(db.update).not.toHaveBeenCalled();
     });
   });
 
@@ -1194,6 +1393,17 @@ describe('PersonalStaffService', () => {
       expect(result).not.toBeNull();
       expect(result!.botId).toBe(BOT_ID);
       expect(result!.ownerId).toBe(OWNER_ID);
+    });
+
+    it('includes managedMeta.agentId so callers can target the claw-hive session', async () => {
+      db.limit.mockResolvedValueOnce([makeExistingBot()]);
+
+      const result = await service.findPersonalStaffBot(
+        OWNER_ID,
+        INSTALLED_APP_ID,
+      );
+
+      expect(result!.managedMeta).toEqual({ agentId: AGENT_ID });
     });
   });
 });

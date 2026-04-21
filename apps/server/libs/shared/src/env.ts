@@ -220,6 +220,11 @@ export const env = {
     return process.env.GOOGLE_CLIENT_ID;
   },
 
+  // Cloudflare Turnstile (optional in non-production; required in production)
+  get CLOUDFLARE_TURNSTILE_SECRET_KEY(): string | undefined {
+    return process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || undefined;
+  },
+
   // Email (Resend)
   get RESEND_API_KEY() {
     return process.env.RESEND_API_KEY; // Optional - email disabled if not set

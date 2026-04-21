@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Team9",
-        "width": 1360,
-        "height": 850,
+        "width": 1440,
+        "height": 890,
         "minWidth": 375,
         "minHeight": 667,
         "resizable": true,
