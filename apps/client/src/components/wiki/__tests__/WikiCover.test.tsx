@@ -116,4 +116,29 @@ describe("WikiCover", () => {
     // Previous blob URL was revoked.
     expect(revokeSpy).toHaveBeenCalledWith("blob:a");
   });
+
+  it("recovers from a previous failure when coverPath changes to a good one", async () => {
+    // First render: fetch rejects → `failed` becomes true and the gradient
+    // fallback is shown.
+    mockGetRawObjectUrl.mockRejectedValueOnce(new Error("boom"));
+    const { rerender } = render(
+      <WikiCover wikiId="wiki-1" coverPath="bad.jpg" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("wiki-cover-fallback")).toBeInTheDocument();
+    });
+    expect(mockGetRawObjectUrl).toHaveBeenCalledWith("wiki-1", "bad.jpg");
+
+    // Rerender with a new path whose fetch succeeds. The effect must re-run
+    // and reset `failed` back to false so the new cover renders instead of
+    // the component staying stuck on the fallback.
+    mockGetRawObjectUrl.mockResolvedValueOnce("blob:good");
+    rerender(<WikiCover wikiId="wiki-1" coverPath="good.jpg" />);
+
+    await waitFor(() => {
+      const el = screen.getByTestId("wiki-cover-image");
+      expect(el).toHaveStyle("background-image: url(blob:good)");
+    });
+    expect(mockGetRawObjectUrl).toHaveBeenLastCalledWith("wiki-1", "good.jpg");
+  });
 });

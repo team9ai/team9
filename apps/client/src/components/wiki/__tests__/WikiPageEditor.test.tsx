@@ -1427,13 +1427,18 @@ describe("WikiPageEditor", () => {
             { kind: "file", type: "image/png", file },
           ]),
         });
-        // Let the awaited upload promise settle.
-        await Promise.resolve();
-        await Promise.resolve();
       });
 
-      expect(imageUploadHook.upload).toHaveBeenCalledWith(file, "attachments");
+      await vi.waitFor(() => {
+        expect(imageUploadHook.upload).toHaveBeenCalledWith(
+          file,
+          "attachments",
+        );
+      });
       // body update: append `![photo.png](attachments/abc.png)`
+      await vi.waitFor(() => {
+        expect(setDraft).toHaveBeenCalled();
+      });
       const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
       expect(lastCall[0].body).toContain("![photo.png](attachments/abc.png)");
       // server body existed, so new markdown must be appended after it.
@@ -1458,8 +1463,9 @@ describe("WikiPageEditor", () => {
             { kind: "file", type: "image/png", file: makeFile("a.png") },
           ]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
+      });
+      await vi.waitFor(() => {
+        expect(setDraft).toHaveBeenCalled();
       });
       const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
       expect(lastCall[0].body.startsWith("![a.png]")).toBe(true);
@@ -1477,14 +1483,13 @@ describe("WikiPageEditor", () => {
         />,
       );
       const zone = screen.getByTestId("wiki-page-editor-drop-zone");
-      await act(async () => {
-        fireEvent.paste(zone, {
-          clipboardData: clipboardWithItems([
-            { kind: "string", type: "text/plain", file: null },
-          ]),
-        });
-        await Promise.resolve();
+      fireEvent.paste(zone, {
+        clipboardData: clipboardWithItems([
+          { kind: "string", type: "text/plain", file: null },
+        ]),
       });
+      // Non-image items take the synchronous early-exit branch; no async
+      // upload is scheduled, so no flush is needed.
       expect(imageUploadHook.upload).not.toHaveBeenCalled();
       expect(setDraft).not.toHaveBeenCalled();
     });
@@ -1509,10 +1514,10 @@ describe("WikiPageEditor", () => {
             { kind: "file", type: "image/png", file },
           ]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
       });
-      expect(imageUploadHook.upload).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => {
+        expect(imageUploadHook.upload).toHaveBeenCalledTimes(1);
+      });
       expect(imageUploadHook.upload).toHaveBeenCalledWith(file, "attachments");
     });
 
@@ -1528,14 +1533,12 @@ describe("WikiPageEditor", () => {
         />,
       );
       const zone = screen.getByTestId("wiki-page-editor-drop-zone");
-      await act(async () => {
-        fireEvent.paste(zone, {
-          clipboardData: clipboardWithItems([
-            { kind: "file", type: "image/png", file: null },
-          ]),
-        });
-        await Promise.resolve();
+      fireEvent.paste(zone, {
+        clipboardData: clipboardWithItems([
+          { kind: "file", type: "image/png", file: null },
+        ]),
       });
+      // `getAsFile() === null` is guarded inline; no async upload is started.
       expect(imageUploadHook.upload).not.toHaveBeenCalled();
     });
 
@@ -1568,14 +1571,12 @@ describe("WikiPageEditor", () => {
         />,
       );
       const zone = screen.getByTestId("wiki-page-editor-drop-zone");
-      await act(async () => {
-        fireEvent.paste(zone, {
-          clipboardData: clipboardWithItems([
-            { kind: "file", type: "image/png", file: makeFile("x.png") },
-          ]),
-        });
-        await Promise.resolve();
+      fireEvent.paste(zone, {
+        clipboardData: clipboardWithItems([
+          { kind: "file", type: "image/png", file: makeFile("x.png") },
+        ]),
       });
+      // Read-only takes the synchronous early-exit branch in handlePaste.
       expect(imageUploadHook.upload).not.toHaveBeenCalled();
       expect(setDraft).not.toHaveBeenCalled();
     });
@@ -1600,10 +1601,10 @@ describe("WikiPageEditor", () => {
             { kind: "file", type: "image/png", file: makeFile("big.png") },
           ]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
       });
-      expect(alertSpy).toHaveBeenCalledWith("File too large (max 5 MB)");
+      await vi.waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith("File too large (max 5 MB)");
+      });
     });
 
     it("generic upload failure fires a generic 'Upload failed' toast when the error is not an Error instance", async () => {
@@ -1623,10 +1624,10 @@ describe("WikiPageEditor", () => {
             { kind: "file", type: "image/png", file: makeFile("x.png") },
           ]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
       });
-      expect(alertSpy).toHaveBeenCalledWith("Upload failed");
+      await vi.waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledWith("Upload failed");
+      });
     });
 
     it("drop of an image triggers upload and appends markdown", async () => {
@@ -1646,10 +1647,16 @@ describe("WikiPageEditor", () => {
         fireEvent.drop(zone, {
           dataTransfer: dataTransferWithFiles([file]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
       });
-      expect(imageUploadHook.upload).toHaveBeenCalledWith(file, "attachments");
+      await vi.waitFor(() => {
+        expect(imageUploadHook.upload).toHaveBeenCalledWith(
+          file,
+          "attachments",
+        );
+      });
+      await vi.waitFor(() => {
+        expect(setDraft).toHaveBeenCalled();
+      });
       const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
       expect(lastCall[0].body).toContain("![dropped.png](attachments/abc.png)");
     });
@@ -1674,8 +1681,9 @@ describe("WikiPageEditor", () => {
         fireEvent.drop(zone, {
           dataTransfer: dataTransferWithFiles([a, text, b]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
+      });
+      await vi.waitFor(() => {
+        expect(imageUploadHook.upload).toHaveBeenCalledTimes(2);
       });
       const calls = imageUploadHook.upload.mock.calls.map((c) => c[0].name);
       expect(calls).toEqual(["a.png", "b.jpg"]);
@@ -1709,14 +1717,12 @@ describe("WikiPageEditor", () => {
         />,
       );
       const zone = screen.getByTestId("wiki-page-editor-drop-zone");
-      await act(async () => {
-        fireEvent.drop(zone, {
-          dataTransfer: dataTransferWithFiles([
-            makeFile("notes.txt", "text/plain"),
-          ]),
-        });
-        await Promise.resolve();
+      fireEvent.drop(zone, {
+        dataTransfer: dataTransferWithFiles([
+          makeFile("notes.txt", "text/plain"),
+        ]),
       });
+      // Non-image files take the synchronous early-exit branch in handleDrop.
       expect(imageUploadHook.upload).not.toHaveBeenCalled();
     });
 
@@ -1730,12 +1736,10 @@ describe("WikiPageEditor", () => {
         />,
       );
       const zone = screen.getByTestId("wiki-page-editor-drop-zone");
-      await act(async () => {
-        fireEvent.drop(zone, {
-          dataTransfer: dataTransferWithFiles([makeFile("x.png")]),
-        });
-        await Promise.resolve();
+      fireEvent.drop(zone, {
+        dataTransfer: dataTransferWithFiles([makeFile("x.png")]),
       });
+      // Read-only takes the synchronous early-exit branch in handleDrop.
       expect(imageUploadHook.upload).not.toHaveBeenCalled();
     });
 
@@ -1795,20 +1799,37 @@ describe("WikiPageEditor", () => {
             { kind: "file", type: "image/png", file: makeFile("one.png") },
           ]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
       });
+      // Wait for the first paste's body update to settle *and* for React to
+      // commit the render so `latestBodyRef` has been refreshed. We check
+      // for the updated `initialContent` prop on the (mocked) DocumentEditor
+      // — that only updates via `setBody`, which feeds `latestBodyRef`
+      // through the component's sync effect.
+      await vi.waitFor(() => {
+        const last =
+          documentEditorProps.mock.calls[
+            documentEditorProps.mock.calls.length - 1
+          ];
+        expect(last?.[0]?.initialContent).toContain(
+          "![one.png](attachments/first.png)",
+        );
+      });
+
       await act(async () => {
         fireEvent.paste(zone, {
           clipboardData: clipboardWithItems([
             { kind: "file", type: "image/png", file: makeFile("two.png") },
           ]),
         });
-        await Promise.resolve();
-        await Promise.resolve();
+      });
+      await vi.waitFor(() => {
+        expect(imageUploadHook.upload).toHaveBeenCalledTimes(2);
+      });
+      await vi.waitFor(() => {
+        const last = setDraft.mock.calls[setDraft.mock.calls.length - 1];
+        expect(last?.[0]?.body).toContain("![two.png](attachments/second.png)");
       });
 
-      expect(imageUploadHook.upload).toHaveBeenCalledTimes(2);
       const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
       // Both markdown links should be present in the accumulated body.
       expect(lastCall[0].body).toContain("![one.png](attachments/first.png)");
