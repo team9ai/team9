@@ -18,7 +18,11 @@ jest.unstable_mockModule('ai', () => ({
 const { CommonStaffService } = await import('./common-staff.service.js');
 const { StaffService } = await import('./staff.service.js');
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
 
 import { BotService } from '../bot/bot.service.js';
@@ -887,7 +891,13 @@ describe('CommonStaffService', () => {
 
     it('updates bot display name when provided', async () => {
       const dto = makeUpdateDto({ displayName: 'New Name' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotDisplayName).toHaveBeenCalledWith(
         BOT_ID,
@@ -897,14 +907,26 @@ describe('CommonStaffService', () => {
 
     it('does not update display name when not provided', async () => {
       const dto = makeUpdateDto({ displayName: undefined });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotDisplayName).not.toHaveBeenCalled();
     });
 
     it('updates mentor when mentorId is provided', async () => {
       const dto = makeUpdateDto({ mentorId: 'new-mentor-id' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotMentor).toHaveBeenCalledWith(
         BOT_ID,
@@ -918,13 +940,19 @@ describe('CommonStaffService', () => {
 
       const dto = makeUpdateDto({ mentorId: 'non-member-user' });
       await expect(
-        service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto),
+        service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto, OWNER_ID),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('skips mentor validation when mentorId is empty string (clearing mentor)', async () => {
       const dto = makeUpdateDto({ mentorId: '' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       // Mentor cleared — no validation needed, sets to null
       expect(botService.updateBotMentor).toHaveBeenCalledWith(BOT_ID, null);
@@ -932,14 +960,26 @@ describe('CommonStaffService', () => {
 
     it('sets mentor to null when mentorId is empty string', async () => {
       const dto = makeUpdateDto({ mentorId: '' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotMentor).toHaveBeenCalledWith(BOT_ID, null);
     });
 
     it('does not update mentor when mentorId not in dto', async () => {
       const dto: UpdateCommonStaffDto = {};
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotMentor).not.toHaveBeenCalled();
     });
@@ -957,7 +997,13 @@ describe('CommonStaffService', () => {
       botService.getBotById.mockResolvedValueOnce(existingBot); // first call for verification
 
       const dto = makeUpdateDto({ roleTitle: 'New Role' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotExtra).toHaveBeenCalledWith(
         BOT_ID,
@@ -975,7 +1021,13 @@ describe('CommonStaffService', () => {
         displayName: 'New Name',
         model: { provider: 'openrouter', id: 'openai/gpt-4o' },
       });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(clawHiveService.updateAgent).toHaveBeenCalledWith(
         AGENT_ID,
@@ -993,7 +1045,13 @@ describe('CommonStaffService', () => {
         persona: 'New Persona',
         jobDescription: 'New Desc',
       });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       const call = clawHiveService.updateAgent.mock.calls[0][1] as Record<
         string,
@@ -1004,7 +1062,13 @@ describe('CommonStaffService', () => {
 
     it('does not pass common-staff-agent componentConfig to updateAgent', async () => {
       const dto = makeUpdateDto({ displayName: 'New Name' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       const call = clawHiveService.updateAgent.mock.calls[0][1] as Record<
         string,
@@ -1025,6 +1089,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -1040,6 +1105,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1053,6 +1119,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -1068,6 +1135,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1076,7 +1144,13 @@ describe('CommonStaffService', () => {
       const dto = makeUpdateDto({
         avatarUrl: 'https://example.com/new-avatar.png',
       });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1092,7 +1166,13 @@ describe('CommonStaffService', () => {
         const dto = makeUpdateDto({
           dmOutboundPolicy: { mode: 'anyone' },
         });
-        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
 
         expect(botService.updateBotExtra).toHaveBeenCalledWith(
           BOT_ID,
@@ -1102,7 +1182,7 @@ describe('CommonStaffService', () => {
         );
       });
 
-      it('emits structured log when policy is changed (actorUserId = bot.mentorId)', async () => {
+      it('emits structured log when policy is changed (actorUserId = caller, not bot.mentorId fallback)', async () => {
         const MENTOR_ID = 'mentor-uuid-9999';
         const botWithMentor = {
           ...makeBotResult().bot,
@@ -1119,7 +1199,14 @@ describe('CommonStaffService', () => {
         const dto = makeUpdateDto({
           dmOutboundPolicy: { mode: 'owner-only' },
         });
-        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+        // Actor is the mentor — passes auth check directly, no admin lookup needed
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          MENTOR_ID,
+        );
 
         expect(logSpy).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -1152,7 +1239,13 @@ describe('CommonStaffService', () => {
         const dto = makeUpdateDto({
           dmOutboundPolicy: { mode: 'same-tenant' },
         });
-        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
 
         const policyChangedCalls = logSpy.mock.calls.filter(
           (args) =>
@@ -1166,7 +1259,13 @@ describe('CommonStaffService', () => {
 
       it('does NOT update extra.dmOutboundPolicy when field is omitted (partial-update semantics)', async () => {
         const dto = makeUpdateDto({ roleTitle: 'New Role' });
-        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
 
         const call = (botService.updateBotExtra.mock.calls as unknown[][])[0];
         const updatedExtra = call[1] as Record<string, unknown>;
@@ -1181,7 +1280,13 @@ describe('CommonStaffService', () => {
         const dto = makeUpdateDto({
           dmOutboundPolicy: { mode: 'whitelist', userIds },
         });
-        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
 
         expect(botService.updateBotExtra).toHaveBeenCalledWith(
           BOT_ID,
@@ -1207,6 +1312,61 @@ describe('CommonStaffService', () => {
           Object.values(e.constraints ?? {}),
         );
         expect(messages).toContain('WHITELIST_TOO_LARGE');
+      });
+    });
+
+    // ── authorization ───────────────────────────────────────────────────────────
+
+    describe('authorization', () => {
+      const ACTOR_MENTOR_ID = OWNER_ID; // default bot has mentorId = OWNER_ID
+
+      it('updateStaff — mentor can update', async () => {
+        // Actor equals bot.mentorId → no admin lookup required
+        const dto = makeUpdateDto({ displayName: 'By Mentor' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            ACTOR_MENTOR_ID,
+          ),
+        ).resolves.toBeUndefined();
+      });
+
+      it('updateStaff — workspace admin can update', async () => {
+        const ADMIN_USER_ID = 'user-uuid-admin';
+        // Actor is not the mentor, but has admin role → allowed
+        // isWorkspaceAdmin uses db.limit(1); return admin role
+        db.limit.mockResolvedValueOnce([{ role: 'admin' }]);
+
+        const dto = makeUpdateDto({ displayName: 'By Admin' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            ADMIN_USER_ID,
+          ),
+        ).resolves.toBeUndefined();
+      });
+
+      it('updateStaff — non-mentor non-admin is rejected', async () => {
+        const MEMBER_USER_ID = 'user-uuid-member';
+        // Actor is not the mentor and has member role → forbidden
+        db.limit.mockResolvedValueOnce([{ role: 'member' }]);
+
+        const dto = makeUpdateDto({ displayName: 'By Member' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            MEMBER_USER_ID,
+          ),
+        ).rejects.toThrow(ForbiddenException);
       });
     });
   });

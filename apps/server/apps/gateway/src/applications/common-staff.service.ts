@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
@@ -263,13 +264,15 @@ export class CommonStaffService {
    * Steps:
    * 1. Verify installed application is common-staff type
    * 2. Verify bot belongs to this installed application
-   * 3. Update bot + sync to claw-hive via StaffService
+   * 3. Authorize: caller must be bot's mentor OR workspace admin/owner
+   * 4. Update bot + sync to claw-hive via StaffService
    */
   async updateStaff(
     installedApplicationId: string,
     tenantId: string,
     botId: string,
     dto: UpdateCommonStaffDto,
+    actorUserId: string,
   ): Promise<void> {
     // 1. Verify app is common-staff type
     const app = await this.installedApplicationsService.findById(
@@ -310,6 +313,16 @@ export class CommonStaffService {
       throw new BadRequestException(
         `Bot ${botId} does not belong to installed application ${installedApplicationId}`,
       );
+    }
+
+    // 3. Authorize: caller must be the bot's mentor OR a workspace admin/owner
+    if (bot.mentorId !== actorUserId) {
+      const isAdmin = await this.isWorkspaceAdmin(actorUserId, tenantId);
+      if (!isAdmin) {
+        throw new ForbiddenException(
+          'Only the mentor or workspace admin can update this staff',
+        );
+      }
     }
 
     // Validate mentor is a workspace member (only when a non-empty mentorId is provided)
@@ -381,7 +394,7 @@ export class CommonStaffService {
         event: 'bot_dm_outbound_policy_changed',
         botId: bot.botId,
         botUserId: bot.userId,
-        actorUserId: bot.mentorId ?? null,
+        actorUserId,
         from: currentPolicy,
         to: nextPolicy,
         timestamp: new Date().toISOString(),
@@ -446,6 +459,26 @@ export class CommonStaffService {
       agentIdPrefix: 'common-staff',
       botId,
     });
+  }
+
+  /**
+   * Check if a user is a workspace admin or owner.
+   */
+  private async isWorkspaceAdmin(
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const [member] = await this.db
+      .select({ role: schema.tenantMembers.role })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          eq(schema.tenantMembers.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+    return member?.role === 'admin' || member?.role === 'owner';
   }
 
   /**
