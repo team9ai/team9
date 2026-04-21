@@ -92,7 +92,7 @@
     {
       "id": 13,
       "subject": "Task 14: Frontmatter util (client) + shared fixtures",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Browser-side frontmatter util mirroring gateway's, same fixture-based tests.\n\n**Files:**\n- Create: apps/client/src/lib/wiki-frontmatter.ts + test\n\n**Verify:** pnpm --filter @team9/client test -- wiki-frontmatter\n\n```json:metadata\n{\"files\":[\"apps/client/src/lib/wiki-frontmatter.ts\",\"apps/client/src/lib/__tests__/wiki-frontmatter.test.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki-frontmatter\",\"acceptanceCriteria\":[\"parse/serialize mirrors gateway\",\"Round-trip stable\",\"Uses same fixture JSON as gateway\",\"Passes Vitest\"]}\n```"
     },
