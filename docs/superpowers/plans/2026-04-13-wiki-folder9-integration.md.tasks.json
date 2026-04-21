@@ -79,7 +79,7 @@
     {
       "id": 11,
       "subject": "Task 12: i18n + MainSidebar rename + delete old Library",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Rename library nav to wiki across sidebar, unlock list, 12 locales, and DynamicSubSidebar switch. Delete old LibraryMainContent.\n\n**Files:**\n- Modify: apps/client/src/components/layout/MainSidebar.tsx, mainSidebarUnlock.ts, DynamicSubSidebar.tsx\n- Modify: 12 locale files\n- Create: WikiSubSidebar.tsx and WikiMainContent.tsx placeholders\n- Delete: LibraryMainContent.tsx, library route, library tests\n\n**Verify:** pnpm --filter @team9/client test && pnpm --filter @team9/client build\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/layout/MainSidebar.tsx\",\"apps/client/src/components/layout/mainSidebarUnlock.ts\",\"apps/client/src/components/layout/DynamicSubSidebar.tsx\",\"apps/client/src/i18n/locales/\",\"apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test && pnpm --filter @team9/client build\",\"acceptanceCriteria\":[\"MainSidebar shows wiki entry with Library icon\",\"Hidden-nav unlock still works\",\"DynamicSubSidebar routes wiki -> WikiSubSidebar placeholder\",\"All 12 locales updated\",\"Old Library files deleted\",\"Tests + build pass\"]}\n```"
     },
     {
@@ -160,5 +160,5 @@
       "description": "**Goal:** Subscribe to wiki_* events, invalidate React Query cache, clear matching submittedProposals on approve/reject.\n\n**Files:**\n- Create: hooks/useWikiWebSocketSync.ts\n- Modify: WikiMainContent.tsx (mount hook)\n\n**Verify:** pnpm --filter @team9/client test -- useWikiWebSocketSync\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useWikiWebSocketSync.ts\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- WebSocket\",\"acceptanceCriteria\":[\"All 7 wiki_* events subscribed\",\"Correct query invalidations per event\",\"submittedProposals cleared on approve/reject\",\"Unsubscribe on unmount\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-04-13T10:00:00Z"
+  "lastUpdated": "2026-04-21T00:00:00Z"
 }
