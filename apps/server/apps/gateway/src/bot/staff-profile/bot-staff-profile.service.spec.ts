@@ -242,7 +242,17 @@ describe('BotStaffProfileService', () => {
       expect(snap.identity).toEqual({});
     });
 
-    it('falls back to users.display_name when identity.name is absent', async () => {
+    it('does NOT hydrate identity.name from users.display_name', async () => {
+      // Regression: common-staff creation defaults `display_name` to
+      // `roleTitle` when no explicit `dto.displayName` is provided
+      // (see `common-staff.service.ts`). A previous iteration of this
+      // service hydrated `identity.name = display_name` when `identity.name`
+      // was absent, which made the agent-side bootstrap see e.g.
+      // `identity.name = "Lead Qualifier"` for a bot that the mentor
+      // never actually named — short-circuiting the "what is your name?"
+      // question the bootstrap flow exists to collect. `identity` must
+      // reflect only what has been explicitly written via
+      // `UpdateStaffProfile`, never the display-layer fallback.
       db.__state.selectResults.push([
         makeRow({
           extra: { commonStaff: { identity: { favoriteColor: 'red' } } },
@@ -251,7 +261,24 @@ describe('BotStaffProfileService', () => {
       ]);
 
       const snap = await service.getSnapshot(BOT_USER_ID);
-      expect(snap.identity).toEqual({ favoriteColor: 'red', name: 'Morgan' });
+      expect(snap.identity).toEqual({ favoriteColor: 'red' });
+      expect(snap.identity?.['name']).toBeUndefined();
+    });
+
+    it('does NOT hydrate identity.name even when identity is absent entirely', async () => {
+      // This is the exact onboarding scenario: `extra.commonStaff.identity`
+      // is undefined (never set), but `display_name = roleTitle` from the
+      // creation cascade. The snapshot must surface `identity = {}`, not
+      // `{ name: roleTitle }`.
+      db.__state.selectResults.push([
+        makeRow({
+          extra: { commonStaff: { roleTitle: 'Lead Qualifier' } },
+          displayName: 'Lead Qualifier',
+        }),
+      ]);
+
+      const snap = await service.getSnapshot(BOT_USER_ID);
+      expect(snap.identity).toEqual({});
     });
 
     it('uses max(bots.updated_at, users.updated_at) for snapshot.updatedAt', async () => {

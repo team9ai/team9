@@ -232,10 +232,20 @@ export class BotStaffProfileService {
             description: PERSONAL_STAFF_JOB_DESCRIPTION,
           };
 
+    // `identity` is NOT hydrated from `im_users.display_name`. Rationale:
+    // common-staff creation (`common-staff.service.ts`) defaults
+    // `display_name` to `roleTitle` (or `Candidate #N`, or `'New Staff'`)
+    // when no `dto.displayName` is provided — which is the standard
+    // onboarding path. Hydrating `identity.name` from that placeholder
+    // would make the agent-side bootstrap think the mentor already gave
+    // the bot a name (it would see e.g. `identity.name = 'Lead Qualifier'`),
+    // short-circuiting the very "what is your name?" question this
+    // endpoint was built to support. Treat `identity` as strictly what
+    // the mentor / bootstrap has written via `UpdateStaffProfile`; keep
+    // `display_name` as a separate display-layer concern (channel pills,
+    // etc.). See also `resolveNextDisplayName` which writes back to
+    // `display_name` whenever `identityPatch.name` changes.
     const identity: Record<string, unknown> = { ...(kindBlock.identity ?? {}) };
-    if (!('name' in identity) && row.displayName) {
-      identity.name = row.displayName;
-    }
 
     const updatedAt =
       row.botUpdatedAt > row.userUpdatedAt
