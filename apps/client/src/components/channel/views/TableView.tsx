@@ -81,6 +81,8 @@ function CellEditor({
         onChange={handleChange}
         disabled={setProperty.isPending}
         inline
+        channelId={channelId}
+        currentMessageId={messageId}
       />
     </div>
   );

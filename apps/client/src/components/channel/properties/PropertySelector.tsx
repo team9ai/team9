@@ -632,6 +632,8 @@ export function PropertySelector({
                     value={currentProperties[activeDef.key]}
                     onChange={handleValueChange}
                     inline
+                    channelId={channelId}
+                    currentMessageId={messageId}
                   />
                 </div>
               </>

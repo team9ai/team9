@@ -20,6 +20,15 @@ export type PropertyValueType =
   | "image"
   | "tags";
 
+// ==================== MessageRef Config ====================
+
+export interface MessageRefConfig {
+  /** Restrict search to the current channel when set to 'same_channel' */
+  scope?: "same_channel" | "all";
+  /** Whether selection allows a single reference or multiple */
+  cardinality?: "single" | "multi";
+}
+
 // ==================== Select Option ====================
 
 export interface SelectOption {
