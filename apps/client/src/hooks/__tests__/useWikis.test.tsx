@@ -70,12 +70,14 @@ describe("useWikis hooks", () => {
   it("wikiKeys produces the documented shapes", () => {
     expect(wikiKeys.all).toEqual(["wikis"]);
     expect(wikiKeys.detail("wiki-1")).toEqual(["wikis", "wiki-1"]);
+    expect(wikiKeys.trees("wiki-1")).toEqual(["wikis", "wiki-1", "tree"]);
     expect(wikiKeys.tree("wiki-1", "/")).toEqual([
       "wikis",
       "wiki-1",
       "tree",
       "/",
     ]);
+    expect(wikiKeys.pages("wiki-1")).toEqual(["wikis", "wiki-1", "page"]);
     expect(wikiKeys.page("wiki-1", "/x.md")).toEqual([
       "wikis",
       "wiki-1",
@@ -86,6 +88,12 @@ describe("useWikis hooks", () => {
       "wikis",
       "wiki-1",
       "proposals",
+    ]);
+    expect(wikiKeys.proposals("wiki-1", "pending")).toEqual([
+      "wikis",
+      "wiki-1",
+      "proposals",
+      "pending",
     ]);
   });
 

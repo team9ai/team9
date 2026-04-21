@@ -184,11 +184,12 @@ describe("wikisApi", () => {
     });
   });
 
-  it("approveProposal() POSTs to the approve endpoint", async () => {
+  it("approveProposal() POSTs an empty body to the approve endpoint", async () => {
     mockHttp.post.mockResolvedValueOnce({ data: null });
     await wikisApi.approveProposal("wiki-1", "p-1");
     expect(mockHttp.post).toHaveBeenCalledWith(
       "/v1/wikis/wiki-1/proposals/p-1/approve",
+      {},
     );
   });
 

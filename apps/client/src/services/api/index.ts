@@ -281,8 +281,6 @@ import propertiesApi from "./properties";
 import { viewsApi, tabsApi } from "./views";
 import wikisApi from "./wikis";
 
-export { wikisApi } from "./wikis";
-
 export const api = {
   auth: authApi,
   user: userApi,

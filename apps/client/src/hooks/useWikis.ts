@@ -14,9 +14,21 @@ import {
 export const wikiKeys = {
   all: ["wikis"] as const,
   detail: (id: string) => ["wikis", id] as const,
+  /** Prefix for every tree query under a wiki. Use for prefix-based invalidation. */
+  trees: (id: string) => ["wikis", id, "tree"] as const,
   tree: (id: string, path: string) => ["wikis", id, "tree", path] as const,
+  /** Prefix for every page query under a wiki. Use for prefix-based invalidation. */
+  pages: (id: string) => ["wikis", id, "page"] as const,
   page: (id: string, path: string) => ["wikis", id, "page", path] as const,
-  proposals: (id: string) => ["wikis", id, "proposals"] as const,
+  /**
+   * Without `status` → prefix that matches every status variant (for
+   * invalidation). With `status` → concrete key used by the
+   * `useWikiProposals` query.
+   */
+  proposals: (id: string, status?: string) =>
+    status
+      ? (["wikis", id, "proposals", status] as const)
+      : (["wikis", id, "proposals"] as const),
 };
 
 export function useWikis() {

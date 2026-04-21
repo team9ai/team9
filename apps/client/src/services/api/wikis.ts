@@ -114,7 +114,7 @@ export const wikisApi = {
     wikiId: string,
     proposalId: string,
   ): Promise<void> => {
-    await http.post(`/v1/wikis/${wikiId}/proposals/${proposalId}/approve`);
+    await http.post(`/v1/wikis/${wikiId}/proposals/${proposalId}/approve`, {});
   },
 
   rejectProposal: async (

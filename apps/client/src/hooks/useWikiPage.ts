@@ -20,16 +20,17 @@ export function useWikiPage(wikiId: string | null, path: string | null) {
 }
 
 /**
- * Commit a batch of file changes to a Wiki. On success invalidates the tree
- * (so newly created directories/files show up) and every affected page path
- * (so open editors/readers refresh to the committed revision).
+ * Commit a batch of file changes to a Wiki. On success invalidates every
+ * tree query under the wiki (so non-root tree views — e.g. `useWikiTree(id,
+ * "/docs")` — also refresh) and every affected page path (so open
+ * editors/readers refresh to the committed revision).
  */
 export function useCommitWikiPage(wikiId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (dto: CommitPageInput) => wikisApi.commit(wikiId, dto),
     onSuccess: (_res, variables) => {
-      queryClient.invalidateQueries({ queryKey: wikiKeys.tree(wikiId, "/") });
+      queryClient.invalidateQueries({ queryKey: wikiKeys.trees(wikiId) });
       for (const file of variables.files) {
         queryClient.invalidateQueries({
           queryKey: wikiKeys.page(wikiId, file.path),

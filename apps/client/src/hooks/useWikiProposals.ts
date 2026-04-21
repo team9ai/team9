@@ -6,8 +6,9 @@ import { wikiKeys } from "./useWikis";
  * List proposals for a Wiki. The backend treats an omitted `status` query
  * param as "all"; we default to `"pending"` here because the typical UI
  * surface (review queue) only cares about open proposals. Pass a specific
- * status (e.g. `"approved"`, `"rejected"`) or an empty string (which will be
- * sent through as-is via the API layer's status filter) to widen the scope.
+ * status (e.g. `"approved"`, `"rejected"`) to narrow the scope. Prefix-based
+ * invalidation via `wikiKeys.proposals(wikiId)` (no status) still flushes
+ * every cached status variant.
  */
 export function useWikiProposals(
   wikiId: string | null,
@@ -15,7 +16,7 @@ export function useWikiProposals(
 ) {
   return useQuery({
     queryKey: wikiId
-      ? ([...wikiKeys.proposals(wikiId), status] as const)
+      ? wikiKeys.proposals(wikiId, status)
       : (["wikis", "proposals", "disabled"] as const),
     queryFn: () => wikisApi.listProposals(wikiId!, status),
     enabled: !!wikiId,

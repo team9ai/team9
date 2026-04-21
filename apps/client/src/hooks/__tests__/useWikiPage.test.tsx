@@ -119,7 +119,7 @@ describe("useCommitWikiPage", () => {
       ],
     });
     expect(spy).toHaveBeenCalledWith({
-      queryKey: wikiKeys.tree("wiki-1", "/"),
+      queryKey: wikiKeys.trees("wiki-1"),
     });
     expect(spy).toHaveBeenCalledWith({
       queryKey: wikiKeys.page("wiki-1", "/intro.md"),
