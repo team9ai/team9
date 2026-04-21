@@ -22,3 +22,5 @@ import { ChannelsModule } from '../channels/channels.module.js';
   exports: [TabsService, ViewsService],
 })
 export class ViewsModule {}
+// Note: MessageRelationsService is provided and exported by PropertiesModule,
+// which is imported above — no need to re-declare it here.
