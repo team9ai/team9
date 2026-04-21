@@ -1,5 +1,15 @@
 import { QueryClient } from "@tanstack/react-query";
 
+// ==================== Relation Query Keys ====================
+
+export const relationKeys = {
+  all: ["relations"] as const,
+  byMessage: (messageId: string) => ["relations", messageId] as const,
+  inbound: (messageId: string) => ["relations-inbound", messageId] as const,
+  viewTree: (channelId: string, viewId: string) =>
+    ["view-tree", channelId, viewId] as const,
+};
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
