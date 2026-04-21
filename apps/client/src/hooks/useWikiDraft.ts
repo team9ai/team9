@@ -148,7 +148,12 @@ export function useWikiDraft(
       // Server snapshot is newer than (or equal to) draft → discard draft
       // silently. A stale draft would otherwise shadow the freshly-committed
       // content and confuse the user.
-      localStorage.removeItem(key);
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // Browser refused storage access (Safari private mode, extensions) —
+        // tolerate; local state is still cleared below.
+      }
       setDraftState(null);
       setHasStaleAlert(false);
     }
