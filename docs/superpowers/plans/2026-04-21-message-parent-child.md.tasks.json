@@ -10,7 +10,7 @@
     {
       "id": 2,
       "subject": "Task 2: Extend MessageRefConfig + shared types for relation kind",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Add MessageRefConfig and new WS event type definitions in shared package.\n\n```json:metadata\n{\"files\":[\"apps/server/libs/shared/src/types/property.types.ts\",\"apps/server/libs/shared/src/events/domains/property.events.ts\",\"apps/server/libs/shared/src/events/index.ts\",\"apps/server/libs/shared/src/events/event-names.ts\",\"apps/server/libs/shared/src/types/property.types.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server tsc -p libs/shared/tsconfig.json --noEmit && pnpm -C apps/server test --filter=@team9/shared\",\"acceptanceCriteria\":[\"MessageRefConfig exported with scope/cardinality/relationKind\",\"MessagePropertyChangedEvent extended\",\"MessageRelationChangedEvent + MessageRelationsPurgedEvent exported\",\"WS_EVENTS.PROPERTY.RELATION_CHANGED and RELATIONS_PURGED added\"]}\n```"
     },
