@@ -120,7 +120,7 @@
     {
       "id": 17,
       "subject": "Task 18: WikiPageEditor (Lexical wrapper + frontmatter)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [16],
       "description": "**Goal:** Editor combining existing DocumentEditor with frontmatter state + icon/cover popovers + draft hook integration.\n\n**Files:**\n- Create: WikiPageEditor.tsx, IconPickerPopover.tsx, CoverPickerPopover.tsx\n- Create: lib/wiki-permission.ts\n\n**Verify:** pnpm --filter @team9/client test -- WikiPageEditor\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/WikiPageEditor.tsx\",\"apps/client/src/components/wiki/IconPickerPopover.tsx\",\"apps/client/src/components/wiki/CoverPickerPopover.tsx\",\"apps/client/src/lib/wiki-permission.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- WikiPageEditor\",\"acceptanceCriteria\":[\"Wraps DocumentEditor with frontmatter state\",\"Read-only mode for users with read perm\",\"Icon picker updates frontmatter.icon\",\"Every change calls draft.setDraft\",\"Stale alert renders\"]}\n```"
     },
