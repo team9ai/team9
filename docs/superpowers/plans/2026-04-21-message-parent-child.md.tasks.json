@@ -122,7 +122,7 @@
     {
       "id": 18,
       "subject": "Task 18: End-to-end manual smoke + regression sweep",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [17, 14, 12, 11, 9],
       "description": "**Goal:** Manual smoke checklist pass via pnpm dev.\n\n```json:metadata\n{\"files\":[\"docs/superpowers/plans/2026-04-21-message-parent-child.smoke.md\"],\"verifyCommand\":\"pnpm dev (manual verification)\",\"acceptanceCriteria\":[\"all smoke checklist items pass or documented\"]}\n```"
     }
