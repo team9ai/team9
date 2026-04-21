@@ -316,6 +316,76 @@ describe('ViewsService', () => {
     );
   });
 
+  it('rejects create with hierarchyMode=true and groupBy set', async () => {
+    db.__state.selectResults.push([]); // countByChannel → 0
+
+    await expect(
+      service.create(
+        'channel-1',
+        {
+          name: 'Conflict',
+          type: 'table',
+          config: { hierarchyMode: true, groupBy: 'status' },
+        } as any,
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    // No insert should have been attempted
+    expect(db.__queries.insert).toHaveLength(0);
+  });
+
+  it('accepts create with hierarchyMode alone', async () => {
+    db.__state.selectResults.push([]); // countByChannel → 0
+    db.__state.selectResults.push([]); // getMaxOrder → empty
+    db.__state.insertResults.push([
+      view({
+        id: 'view-uuid',
+        order: 0,
+        config: { hierarchyMode: true, hierarchyDefaultDepth: 3 },
+      }),
+    ]);
+
+    const result = await service.create(
+      'channel-1',
+      {
+        name: 'Hierarchy',
+        type: 'table',
+        config: { hierarchyMode: true, hierarchyDefaultDepth: 3 },
+      } as any,
+      'user-1',
+    );
+
+    expect(result.config).toMatchObject({
+      hierarchyMode: true,
+      hierarchyDefaultDepth: 3,
+    });
+  });
+
+  it('accepts create with groupBy alone', async () => {
+    db.__state.selectResults.push([]); // countByChannel → 0
+    db.__state.selectResults.push([]); // getMaxOrder → empty
+    db.__state.insertResults.push([
+      view({
+        id: 'view-uuid',
+        order: 0,
+        config: { groupBy: 'status' },
+      }),
+    ]);
+
+    const result = await service.create(
+      'channel-1',
+      {
+        name: 'Grouped',
+        type: 'table',
+        config: { groupBy: 'status' },
+      } as any,
+      'user-1',
+    );
+
+    expect((result.config as any).groupBy).toBe('status');
+  });
+
   // ==================== update ====================
 
   it('partial update of name, config, order', async () => {
@@ -345,6 +415,42 @@ describe('ViewsService', () => {
     await expect(
       service.update('missing', { name: 'Nope' } as any),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects update with hierarchyMode=true and groupBy set', async () => {
+    db.__state.selectResults.push([view()]); // findByIdOrThrow
+
+    await expect(
+      service.update('view-1', {
+        config: { hierarchyMode: true, groupBy: 'status' },
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(db.__queries.update).toHaveLength(0);
+  });
+
+  it('accepts update with hierarchyMode alone', async () => {
+    db.__state.selectResults.push([view()]); // findByIdOrThrow
+    db.__state.updateResults.push([
+      view({ config: { hierarchyMode: true, hierarchyDefaultDepth: 2 } }),
+    ]);
+
+    const result = await service.update('view-1', {
+      config: { hierarchyMode: true, hierarchyDefaultDepth: 2 },
+    } as any);
+
+    expect((result.config as any).hierarchyMode).toBe(true);
+  });
+
+  it('accepts update with groupBy alone', async () => {
+    db.__state.selectResults.push([view()]); // findByIdOrThrow
+    db.__state.updateResults.push([view({ config: { groupBy: 'status' } })]);
+
+    const result = await service.update('view-1', {
+      config: { groupBy: 'status' },
+    } as any);
+
+    expect((result.config as any).groupBy).toBe('status');
   });
 
   // ==================== delete ====================

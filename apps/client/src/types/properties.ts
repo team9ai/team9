@@ -111,6 +111,10 @@ export interface ViewConfig {
   datePropertyKey?: string;
   defaultCalendarView?: "month" | "week" | "day";
   showRecurring?: boolean;
+  /** Enable hierarchy (parent-child tree) mode in table view */
+  hierarchyMode?: boolean;
+  /** Default expand depth when hierarchy mode is active (0–5, default 3) */
+  hierarchyDefaultDepth?: number;
 }
 
 export interface ChannelView {

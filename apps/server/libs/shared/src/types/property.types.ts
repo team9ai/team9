@@ -205,6 +205,10 @@ export interface ViewConfig {
   defaultCalendarView?: string;
   /** Whether to show recurring events in calendar views */
   showRecurring?: boolean;
+  /** Enable hierarchy (parent-child tree) mode in table view */
+  hierarchyMode?: boolean;
+  /** Default expand depth when hierarchy mode is active (0–5) */
+  hierarchyDefaultDepth?: number;
 }
 
 /**

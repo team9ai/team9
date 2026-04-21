@@ -18,6 +18,7 @@ import { PropertyValue } from "@/components/channel/properties/PropertyValue";
 import { PropertyEditor } from "@/components/channel/properties/PropertyEditor";
 import { AiAutoFillButton } from "@/components/channel/properties/AiAutoFillButton";
 import { ViewConfigPanel } from "./ViewConfigPanel";
+import { TableHierarchyToolbar } from "./TableHierarchyToolbar";
 import { cn } from "@/lib/utils";
 import type {
   ChannelView,
@@ -599,6 +600,39 @@ export function TableView({ channelId, view }: TableViewProps) {
     [updateView, view.id],
   );
 
+  const queryClient = useQueryClient();
+
+  const handleHierarchyChange = useCallback(
+    (
+      patch: Partial<{
+        hierarchyMode: boolean;
+        hierarchyDefaultDepth: number;
+        groupBy: string | undefined;
+      }>,
+    ) => {
+      const newConfig: ViewConfig = { ...view.config, ...patch };
+      // When hierarchyMode is enabled, clear groupBy
+      if (patch.hierarchyMode) {
+        newConfig.groupBy = undefined;
+      }
+      // When groupBy is explicitly set, disable hierarchyMode
+      if (patch.groupBy !== undefined) {
+        newConfig.hierarchyMode = false;
+      }
+      updateView.mutate(
+        { viewId: view.id, data: { config: newConfig } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({
+              queryKey: ["view-tree", channelId],
+            });
+          },
+        },
+      );
+    },
+    [updateView, view, channelId, queryClient],
+  );
+
   const totalColumns = 1 + visibleDefs.length;
 
   return (
@@ -608,6 +642,13 @@ export function TableView({ channelId, view }: TableViewProps) {
         definitions={definitions}
         onUpdateConfig={handleUpdateConfig}
       />
+
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/20">
+        <TableHierarchyToolbar
+          config={view.config}
+          onChange={handleHierarchyChange}
+        />
+      </div>
 
       <div className="flex-1 overflow-auto">
         {isLoading ? (

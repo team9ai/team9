@@ -83,6 +83,12 @@ export class ViewsService {
       );
     }
 
+    if (dto.config?.hierarchyMode && dto.config?.groupBy) {
+      throw new BadRequestException(
+        'hierarchyMode is mutually exclusive with groupBy',
+      );
+    }
+
     const maxOrder = await this.getMaxOrder(channelId);
 
     const config: ViewConfig = dto.config ?? { filters: [], sorts: [] };
@@ -105,6 +111,12 @@ export class ViewsService {
 
   async update(viewId: string, dto: UpdateViewDto): Promise<ChannelView> {
     await this.findByIdOrThrow(viewId);
+
+    if (dto.config?.hierarchyMode && dto.config?.groupBy) {
+      throw new BadRequestException(
+        'hierarchyMode is mutually exclusive with groupBy',
+      );
+    }
 
     const updateSet: Record<string, unknown> = { updatedAt: new Date() };
     if (dto.name !== undefined) updateSet.name = dto.name;
