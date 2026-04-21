@@ -90,6 +90,8 @@ const mockRelationsService = {
   setRelationTargets: jest.fn<any>(),
   getOutgoingTargets: jest.fn<any>(),
   getOutgoingTargetsForMany: jest.fn<any>(),
+  getEffectiveParent: jest.fn<any>(),
+  getIncomingSources: jest.fn<any>(),
 };
 
 jest.unstable_mockModule('./property-definitions.service.js', () => ({
@@ -280,6 +282,8 @@ describe('MessagePropertiesService', () => {
     });
     mockRelationsService.getOutgoingTargets.mockResolvedValue([]);
     mockRelationsService.getOutgoingTargetsForMany.mockResolvedValue(new Map());
+    mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+    mockRelationsService.getIncomingSources.mockResolvedValue([]);
   });
 
   // ==================== getProperties ====================
@@ -1242,6 +1246,239 @@ describe('MessagePropertiesService', () => {
           metadata: expect.objectContaining({ explicitlyCleared: true }),
         }),
       );
+    });
+  });
+
+  // ==================== getRelationsInspection ====================
+
+  describe('getRelationsInspection', () => {
+    it('returns empty result when message does not exist', async () => {
+      // messages select → no row
+      db.__state.selectResults.push([]);
+
+      const result = await service.getRelationsInspection('nonexistent-msg');
+
+      expect(result).toEqual({
+        outgoing: { parent: [], related: [] },
+        incoming: { children: [], relatedBy: [] },
+      });
+    });
+
+    it('returns empty result when channel has no definitions', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions select → empty
+      db.__state.selectResults.push([]);
+
+      const result = await service.getRelationsInspection('msg-1');
+
+      expect(result).toEqual({
+        outgoing: { parent: [], related: [] },
+        incoming: { children: [], relatedBy: [] },
+      });
+    });
+
+    it('walks parent chain to depth N for outgoing parent', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → one parent-kind def
+      db.__state.selectResults.push([
+        { id: 'parent-def', config: { relationKind: 'parent' } },
+      ]);
+
+      // Walk: msg-1 → parent-a (depth 1) → parent-b (depth 2) → null (stop)
+      mockRelationsService.getEffectiveParent
+        .mockResolvedValueOnce({ id: 'parent-a', source: 'relation' })
+        .mockResolvedValueOnce({ id: 'parent-b', source: 'thread' })
+        .mockResolvedValueOnce(null);
+      // No incoming calls (direction=both but kind=parent skips related incoming)
+      mockRelationsService.getIncomingSources.mockResolvedValue([]);
+
+      const result = await service.getRelationsInspection('msg-1', {
+        kind: 'parent',
+        direction: 'outgoing',
+        depth: 2,
+      });
+
+      expect(result.outgoing.parent).toEqual([
+        {
+          messageId: 'parent-a',
+          depth: 1,
+          propertyDefinitionId: 'parent-def',
+          parentSource: 'relation',
+        },
+        {
+          messageId: 'parent-b',
+          depth: 2,
+          propertyDefinitionId: 'parent-def',
+          parentSource: 'thread',
+        },
+      ]);
+      expect(result.outgoing.related).toEqual([]);
+      expect(result.incoming.children).toEqual([]);
+    });
+
+    it('collects incoming children for parent-kind definitions', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → parent def only
+      db.__state.selectResults.push([
+        { id: 'parent-def', config: { relationKind: 'parent' } },
+      ]);
+
+      // No outgoing parent
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      // Incoming children
+      mockRelationsService.getIncomingSources.mockResolvedValue([
+        { sourceMessageId: 'child-1', propertyDefinitionId: 'parent-def' },
+        { sourceMessageId: 'child-2', propertyDefinitionId: 'parent-def' },
+      ]);
+
+      const result = await service.getRelationsInspection('msg-1', {
+        kind: 'parent',
+        direction: 'incoming',
+      });
+
+      expect(result.incoming.children).toEqual([
+        {
+          messageId: 'child-1',
+          depth: 1,
+          propertyDefinitionId: 'parent-def',
+          parentSource: 'relation',
+        },
+        {
+          messageId: 'child-2',
+          depth: 1,
+          propertyDefinitionId: 'parent-def',
+          parentSource: 'relation',
+        },
+      ]);
+      expect(result.outgoing.parent).toEqual([]);
+    });
+
+    it('collects outgoing related targets and incoming relatedBy', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → one related-kind def
+      db.__state.selectResults.push([
+        { id: 'related-def', config: { relationKind: 'related' } },
+      ]);
+
+      // Outgoing targets
+      mockRelationsService.getOutgoingTargets.mockResolvedValue([
+        'target-1',
+        'target-2',
+      ]);
+      // Incoming relatedBy
+      mockRelationsService.getIncomingSources.mockResolvedValue([
+        { sourceMessageId: 'source-1', propertyDefinitionId: 'related-def' },
+      ]);
+
+      const result = await service.getRelationsInspection('msg-1', {
+        kind: 'related',
+        direction: 'both',
+      });
+
+      expect(result.outgoing.related).toEqual([
+        { messageId: 'target-1', propertyDefinitionId: 'related-def' },
+        { messageId: 'target-2', propertyDefinitionId: 'related-def' },
+      ]);
+      expect(result.incoming.relatedBy).toEqual([
+        { messageId: 'source-1', propertyDefinitionId: 'related-def' },
+      ]);
+      expect(result.outgoing.parent).toEqual([]);
+      expect(result.incoming.children).toEqual([]);
+    });
+
+    it('filters by kind=parent (skips related defs)', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → both parent and related defs
+      db.__state.selectResults.push([
+        { id: 'parent-def', config: { relationKind: 'parent' } },
+        { id: 'related-def', config: { relationKind: 'related' } },
+      ]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getIncomingSources.mockResolvedValue([]);
+
+      const result = await service.getRelationsInspection('msg-1', {
+        kind: 'parent',
+        direction: 'both',
+      });
+
+      // getOutgoingTargets should NOT be called (related kind is skipped)
+      expect(mockRelationsService.getOutgoingTargets).not.toHaveBeenCalled();
+      expect(result.outgoing.related).toEqual([]);
+      expect(result.incoming.relatedBy).toEqual([]);
+    });
+
+    it('filters by direction=outgoing (skips incoming lookups)', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([
+        { id: 'parent-def', config: { relationKind: 'parent' } },
+      ]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+
+      const result = await service.getRelationsInspection('msg-1', {
+        kind: 'all',
+        direction: 'outgoing',
+      });
+
+      expect(mockRelationsService.getIncomingSources).not.toHaveBeenCalled();
+      expect(result.incoming.children).toEqual([]);
+      expect(result.incoming.relatedBy).toEqual([]);
+    });
+
+    it('clamps depth to minimum 1', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([
+        { id: 'parent-def', config: { relationKind: 'parent' } },
+      ]);
+
+      // With depth=0 (clamped to 1), getEffectiveParent should still be called once
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getIncomingSources.mockResolvedValue([]);
+
+      await service.getRelationsInspection('msg-1', { depth: 0 });
+
+      // depth clamped to 1, so getEffectiveParent called exactly once
+      expect(mockRelationsService.getEffectiveParent).toHaveBeenCalledTimes(1);
+    });
+
+    it('clamps depth to maximum 10', async () => {
+      // messages select → found
+      db.__state.selectResults.push([{ channelId: 'channel-1' }]);
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([
+        { id: 'parent-def', config: { relationKind: 'parent' } },
+      ]);
+
+      // With depth=100 (clamped to 10), chain has 5 entries then null
+      let callCount = 0;
+      const parentIds = ['p1', 'p2', 'p3', 'p4', 'p5'];
+      mockRelationsService.getEffectiveParent.mockImplementation(async () => {
+        const id = parentIds[callCount];
+        callCount++;
+        return id ? { id, source: 'relation' as const } : null;
+      });
+      mockRelationsService.getIncomingSources.mockResolvedValue([]);
+
+      const result = await service.getRelationsInspection('msg-1', {
+        depth: 100,
+        kind: 'parent',
+        direction: 'outgoing',
+      });
+
+      // Even with depth=100, clamped to 10. Chain stops at 5 entries (returns null).
+      expect(result.outgoing.parent).toHaveLength(5);
+      // Confirm no call was made beyond the chain length
+      expect(mockRelationsService.getEffectiveParent).toHaveBeenCalledTimes(6); // 5 parent + 1 null
     });
   });
 });

@@ -11,8 +11,10 @@ import {
   Inject,
   forwardRef,
   ParseUUIDPipe,
+  ParseIntPipe,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ViewsService } from './views.service.js';
 import { CreateViewDto } from './dto/create-view.dto.js';
@@ -146,6 +148,66 @@ export class ViewsController {
       limit: query.limit,
       cursor: query.cursor,
       group: query.group,
+    });
+  }
+
+  /**
+   * GET /v1/im/channels/:channelId/views/:viewId/tree
+   * Returns a hierarchy tree snapshot for the view.
+   *
+   * Query params:
+   *   maxDepth    – max levels to expand (1–5, default: 3). Rejected > 5.
+   *   expandedIds – comma-separated message IDs for which to eagerly load one extra level.
+   *   cursor      – opaque cursor (message ID) for pagination.
+   *   limit       – page size (1–100, default: 50). Rejected > 100.
+   *   filter      – JSON-encoded ViewFilter[] (optional).
+   *   sort        – JSON-encoded ViewSort[] (optional).
+   */
+  @Get(':viewId/tree')
+  async getTree(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Param('viewId', ParseUUIDPipe) viewId: string,
+    @Query('maxDepth', new ParseIntPipe({ optional: true })) maxDepth = 3,
+    @Query('expandedIds') expandedIdsRaw?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 50,
+    @Query('filter') filterRaw?: string,
+    @Query('sort') sortRaw?: string,
+  ) {
+    if (maxDepth > 5) {
+      throw new BadRequestException('maxDepth must be <= 5');
+    }
+    if (limit > 100) {
+      throw new BadRequestException('limit must be <= 100');
+    }
+
+    let filter: unknown;
+    let sort: unknown;
+    try {
+      if (filterRaw) filter = JSON.parse(filterRaw);
+      if (sortRaw) sort = JSON.parse(sortRaw);
+    } catch {
+      throw new BadRequestException('filter/sort must be valid JSON');
+    }
+
+    await this.channelsService.assertReadAccess(channelId, userId);
+    const view = await this.viewsService.findByIdOrThrow(viewId);
+    if (view.channelId !== channelId) {
+      throw new NotFoundException('View not found');
+    }
+
+    return this.viewsService.getTreeSnapshot({
+      channelId,
+      viewId,
+      maxDepth,
+      limit,
+      cursor: cursor ?? null,
+      expandedIds: expandedIdsRaw
+        ? expandedIdsRaw.split(',').filter(Boolean)
+        : [],
+      filter,
+      sort,
     });
   }
 }

@@ -16,6 +16,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+const { messages, channelPropertyDefinitions } = schema;
 import type {
   NewMessageProperty,
   MessageProperty,
@@ -70,6 +71,177 @@ export class MessagePropertiesService {
       .limit(1);
     if (!msg || msg.isDeleted) throw new NotFoundException('Message not found');
     return msg.channelId;
+  }
+
+  /**
+   * Inspect all relation edges for a given message.
+   * Returns both outgoing (parent chain + related targets) and
+   * incoming (children + relatedBy sources).
+   */
+  async getRelationsInspection(
+    messageId: string,
+    opts: {
+      kind?: 'parent' | 'related' | 'all';
+      direction?: 'outgoing' | 'incoming' | 'both';
+      depth?: number;
+    } = {},
+  ): Promise<{
+    outgoing: {
+      parent: {
+        messageId: string;
+        depth: number;
+        propertyDefinitionId: string;
+        parentSource: 'relation' | 'thread';
+      }[];
+      related: { messageId: string; propertyDefinitionId: string }[];
+    };
+    incoming: {
+      children: {
+        messageId: string;
+        depth: number;
+        propertyDefinitionId: string;
+        parentSource: 'relation' | 'thread';
+      }[];
+      relatedBy: { messageId: string; propertyDefinitionId: string }[];
+    };
+  }> {
+    const kind = opts.kind ?? 'all';
+    const direction = opts.direction ?? 'both';
+    const depth = Math.min(Math.max(opts.depth ?? 1, 1), 10);
+
+    const emptyResult = {
+      outgoing: { parent: [], related: [] },
+      incoming: { children: [], relatedBy: [] },
+    };
+
+    // Look up the message's channel
+    const [msg] = await this.db
+      .select({ channelId: messages.channelId })
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+
+    if (!msg) return emptyResult;
+
+    const result = {
+      outgoing: {
+        parent: [] as {
+          messageId: string;
+          depth: number;
+          propertyDefinitionId: string;
+          parentSource: 'relation' | 'thread';
+        }[],
+        related: [] as { messageId: string; propertyDefinitionId: string }[],
+      },
+      incoming: {
+        children: [] as {
+          messageId: string;
+          depth: number;
+          propertyDefinitionId: string;
+          parentSource: 'relation' | 'thread';
+        }[],
+        relatedBy: [] as { messageId: string; propertyDefinitionId: string }[],
+      },
+    };
+
+    // Fetch all property definitions for this channel
+    const defs = await this.db
+      .select({
+        id: channelPropertyDefinitions.id,
+        config: channelPropertyDefinitions.config,
+      })
+      .from(channelPropertyDefinitions)
+      .where(eq(channelPropertyDefinitions.channelId, msg.channelId));
+
+    const parentDefs = defs.filter(
+      (d) => (d.config as MessageRefConfig | null)?.relationKind === 'parent',
+    );
+    const relatedDefs = defs.filter(
+      (d) => (d.config as MessageRefConfig | null)?.relationKind === 'related',
+    );
+
+    // Outgoing parent: follow parent chain up to `depth` levels
+    if (
+      (kind === 'parent' || kind === 'all') &&
+      (direction === 'outgoing' || direction === 'both')
+    ) {
+      for (const def of parentDefs) {
+        let cur: string | null = messageId;
+        let d = 1;
+        while (cur && d <= depth) {
+          const eff = await this.relationsService.getEffectiveParent(
+            cur,
+            def.id,
+          );
+          if (!eff) break;
+          result.outgoing.parent.push({
+            messageId: eff.id,
+            depth: d,
+            propertyDefinitionId: def.id,
+            parentSource: eff.source,
+          });
+          cur = eff.id;
+          d++;
+        }
+      }
+    }
+
+    // Outgoing related targets
+    if (
+      (kind === 'related' || kind === 'all') &&
+      (direction === 'outgoing' || direction === 'both')
+    ) {
+      for (const def of relatedDefs) {
+        const targets = await this.relationsService.getOutgoingTargets(
+          messageId,
+          def.id,
+        );
+        for (const t of targets) {
+          result.outgoing.related.push({
+            messageId: t,
+            propertyDefinitionId: def.id,
+          });
+        }
+      }
+    }
+
+    // Incoming children (messages that point to messageId as parent)
+    if (
+      (kind === 'parent' || kind === 'all') &&
+      (direction === 'incoming' || direction === 'both')
+    ) {
+      const sources = await this.relationsService.getIncomingSources(
+        messageId,
+        'parent',
+      );
+      for (const s of sources) {
+        result.incoming.children.push({
+          messageId: s.sourceMessageId,
+          depth: 1,
+          propertyDefinitionId: s.propertyDefinitionId,
+          parentSource: 'relation',
+        });
+      }
+    }
+
+    // Incoming relatedBy (messages that point to messageId as related)
+    if (
+      (kind === 'related' || kind === 'all') &&
+      (direction === 'incoming' || direction === 'both')
+    ) {
+      const sources = await this.relationsService.getIncomingSources(
+        messageId,
+        'related',
+      );
+      for (const s of sources) {
+        result.incoming.relatedBy.push({
+          messageId: s.sourceMessageId,
+          propertyDefinitionId: s.propertyDefinitionId,
+        });
+      }
+    }
+
+    return result;
   }
 
   /**
