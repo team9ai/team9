@@ -538,11 +538,22 @@ export class OnboardingService {
     );
 
     if (existingBot) {
+      // The personal-staff auto-install handler pre-created this bot with
+      // `agenticBootstrap: false` at workspace-creation time, deliberately
+      // deferring the greeting until the wizard has collected the final
+      // name/persona/locale. Now that updateStaff has persisted those, fire
+      // bootstrap so the agent's first greeting uses the chosen identity in
+      // the user's language.
       await this.personalStaffService.updateStaff(app.id, workspaceId, userId, {
         displayName: main.name || onboardingMainAgentName(lang),
         persona: main.description,
         model: DEFAULT_STAFF_MODEL,
       });
+      await this.personalStaffService.triggerBootstrapForExistingStaff(
+        app.id,
+        workspaceId,
+        userId,
+      );
       return;
     }
 

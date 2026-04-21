@@ -118,6 +118,7 @@ describe('OnboardingService — provisionRoutines', () => {
     findPersonalStaffBot: MockFn;
     createStaff: MockFn;
     updateStaff: MockFn;
+    triggerBootstrapForExistingStaff: MockFn;
   };
   let commonStaffService: {
     createStaff: MockFn;
@@ -158,6 +159,9 @@ describe('OnboardingService — provisionRoutines', () => {
       }),
       createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
       updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      triggerBootstrapForExistingStaff: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
 
     commonStaffService = {
@@ -205,7 +209,9 @@ describe('OnboardingService — provisionRoutines', () => {
     // 2. update to provisioning
     enqueue([{ ...record, status: 'provisioning' }]);
     // 3. provisionChannels — no DB calls (no channel drafts in fixture)
-    // 4. provisionPersonalStaff — uses service mocks only (no DB calls)
+    // 4. provisionPersonalStaff — uses service mocks only (no DB calls
+    //    directly; findPersonalStaffBot / updateStaff / triggerBootstrap
+    //    are all mocked at the service boundary)
     // 5. provisionCommonStaff — returns early when agents.children is empty
     //    (findByApplicationId is a service mock; the DB bots query never runs
     //    because the early-return guard `if (children.length === 0) return` fires)
@@ -431,6 +437,9 @@ describe('OnboardingService — getState', () => {
         findPersonalStaffBot: jest.fn<any>().mockResolvedValue(null),
         createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
         updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+        triggerBootstrapForExistingStaff: jest
+          .fn<any>()
+          .mockResolvedValue(undefined),
       },
       {
         createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
@@ -516,6 +525,7 @@ describe('OnboardingService — provisionCommonStaff', () => {
     findPersonalStaffBot: MockFn;
     createStaff: MockFn;
     updateStaff: MockFn;
+    triggerBootstrapForExistingStaff: MockFn;
   };
   let commonStaffService: { createStaff: MockFn };
   let routinesService: { create: MockFn };
@@ -556,6 +566,9 @@ describe('OnboardingService — provisionCommonStaff', () => {
       }),
       createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
       updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      triggerBootstrapForExistingStaff: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
 
     commonStaffService = {
@@ -716,6 +729,7 @@ describe('OnboardingService — persistPreferences (no selectedTaskTitles)', () 
     findPersonalStaffBot: MockFn;
     createStaff: MockFn;
     updateStaff: MockFn;
+    triggerBootstrapForExistingStaff: MockFn;
   };
   let commonStaffService: { createStaff: MockFn };
   let channelsService: Record<string, MockFn>;
@@ -743,6 +757,9 @@ describe('OnboardingService — persistPreferences (no selectedTaskTitles)', () 
       }),
       createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
       updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      triggerBootstrapForExistingStaff: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
     commonStaffService = {
       createStaff: jest.fn<any>().mockResolvedValue(undefined),
@@ -825,6 +842,7 @@ describe('OnboardingService — pipeline ordering', () => {
     findPersonalStaffBot: MockFn;
     createStaff: MockFn;
     updateStaff: MockFn;
+    triggerBootstrapForExistingStaff: MockFn;
   };
   let commonStaffService: { createStaff: MockFn };
   let channelsService: Record<string, MockFn>;
@@ -861,6 +879,11 @@ describe('OnboardingService — pipeline ordering', () => {
       updateStaff: jest.fn<any>().mockImplementation(async () => {
         callOrder.push('provisionPersonalStaff:updateStaff');
       }),
+      triggerBootstrapForExistingStaff: jest
+        .fn<any>()
+        .mockImplementation(async () => {
+          callOrder.push('provisionPersonalStaff:triggerBootstrap');
+        }),
     };
     commonStaffService = {
       createStaff: jest.fn<any>().mockImplementation(async () => {
@@ -927,5 +950,84 @@ describe('OnboardingService — pipeline ordering', () => {
       'provisionPersonalStaff:findBot',
     );
     expect(personalStaffIdx).toBeLessThan(routineIdx);
+  });
+
+  it('fires triggerBootstrap AFTER updateStaff for an existing personal-staff bot', async () => {
+    // Regression for personal-staff onboarding greeting bug: the handler
+    // pre-creates the bot with bootstrap=false during workspace creation,
+    // so the wizard flow must trigger bootstrap itself — AFTER updateStaff
+    // persists the wizard-chosen name/persona — otherwise the bot either
+    // never greets or greets with stale default identity.
+    const record = makeOnboardingRecord({
+      stepData: {
+        tasks: {
+          generatedTasks: [GENERATED_TASK_1],
+          selectedTaskIds: ['task-1'],
+          customTask: null,
+        },
+        agents: {
+          main: { name: 'Secretary', description: 'Helps' },
+          children: [],
+        },
+        channels: { channelDrafts: [] },
+        role: { selectedRoleLabel: 'Lawyer', selectedRoleSlug: 'lawyer' },
+      },
+    });
+
+    enqueue([record]);
+    enqueue([{ ...record, status: 'provisioning' }]);
+    // common-staff app not found
+    enqueue([]); // routine idempotency
+    enqueue([{ settings: {} }]);
+    enqueue([]);
+    enqueue([{ ...record, status: 'provisioned' }]);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    const updateIdx = callOrder.indexOf('provisionPersonalStaff:updateStaff');
+    const bootstrapIdx = callOrder.indexOf(
+      'provisionPersonalStaff:triggerBootstrap',
+    );
+    expect(updateIdx).toBeGreaterThanOrEqual(0);
+    expect(bootstrapIdx).toBeGreaterThan(updateIdx);
+    expect(
+      personalStaffService.triggerBootstrapForExistingStaff,
+    ).toHaveBeenCalledWith(APP_ID, WORKSPACE_ID, USER_ID);
+  });
+
+  it('does NOT fire triggerBootstrap when creating a fresh personal-staff (no existingBot)', async () => {
+    // If no bot pre-exists (edge case: handler never ran), the create path
+    // already passes agenticBootstrap=true — no second trigger needed.
+    personalStaffService.findPersonalStaffBot.mockResolvedValueOnce(null);
+
+    const record = makeOnboardingRecord({
+      stepData: {
+        tasks: {
+          generatedTasks: [GENERATED_TASK_1],
+          selectedTaskIds: ['task-1'],
+          customTask: null,
+        },
+        agents: {
+          main: { name: 'Secretary', description: 'Helps' },
+          children: [],
+        },
+        channels: { channelDrafts: [] },
+        role: { selectedRoleLabel: 'Lawyer', selectedRoleSlug: 'lawyer' },
+      },
+    });
+
+    enqueue([record]);
+    enqueue([{ ...record, status: 'provisioning' }]);
+    enqueue([]);
+    enqueue([{ settings: {} }]);
+    enqueue([]);
+    enqueue([{ ...record, status: 'provisioned' }]);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    expect(personalStaffService.createStaff).toHaveBeenCalled();
+    expect(
+      personalStaffService.triggerBootstrapForExistingStaff,
+    ).not.toHaveBeenCalled();
   });
 });
