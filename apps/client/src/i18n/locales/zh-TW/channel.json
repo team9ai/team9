@@ -1,4 +1,7 @@
 {
+  "table": {
+    "openInChat": "打開訊息"
+  },
   "createChannel": "建立頻道",
   "createChannelDescription": "頻道是團隊溝通的地方。最好圍繞一個主題建立頻道，例如 #專案-火星。",
   "channelName": "頻道名稱",
