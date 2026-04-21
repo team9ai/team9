@@ -66,7 +66,7 @@
     {
       "id": 10,
       "subject": "Task 10: Frontend API client + WS listener registration",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9],
       "description": "**Goal:** API client functions, types, React Query hooks, WS listeners, cache invalidation.\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/relations.ts\",\"apps/client/src/services/api.ts\",\"apps/client/src/services/websocket/index.ts\",\"apps/client/src/providers/query-client.ts\",\"apps/client/src/hooks/useMessageRelations.ts\",\"apps/client/src/hooks/useViewTree.ts\",\"apps/client/src/hooks/__tests__/useMessageRelations.test.tsx\",\"apps/client/src/hooks/__tests__/useViewTree.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- useMessageRelations useViewTree\",\"acceptanceCriteria\":[\"getMessageRelations + getViewTree return typed results\",\"WS listeners invalidate relation + inbound + view-tree keys\",\"hook tests pass\"]}\n```"
     },
