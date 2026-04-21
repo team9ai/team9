@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -68,6 +69,19 @@ export class WikisController {
       throw new ForbiddenException('Workspace context required');
     }
     return workspaceId;
+  }
+
+  /**
+   * Guard `?path=` on page/raw lookups: if the client omits the query param
+   * entirely, Nest hands us `undefined` and the folder9 call eventually
+   * responds 400 with a less-friendly message. Validate here so the user gets
+   * a clean 400 before any token-mint / downstream request is issued.
+   */
+  private requirePathQuery(path: string | undefined): string {
+    if (!path || typeof path !== 'string' || path.trim().length === 0) {
+      throw new BadRequestException('path query parameter is required');
+    }
+    return path;
   }
 
   /**
@@ -157,11 +171,12 @@ export class WikisController {
     @CurrentTenantId() workspaceId: string | undefined,
     @CurrentUser('sub') userId: string,
     @Param('wikiId', ParseUUIDPipe) wikiId: string,
-    @Query('path') path: string,
+    @Query('path') path?: string,
   ) {
     const ws = this.requireWorkspaceId(workspaceId);
+    const safePath = this.requirePathQuery(path);
     const user = await this.actingUser(userId);
-    return this.wikis.getPage(ws, wikiId, user, path);
+    return this.wikis.getPage(ws, wikiId, user, safePath);
   }
 
   /**
@@ -175,11 +190,12 @@ export class WikisController {
     @CurrentTenantId() workspaceId: string | undefined,
     @CurrentUser('sub') userId: string,
     @Param('wikiId', ParseUUIDPipe) wikiId: string,
-    @Query('path') path: string,
+    @Query('path') path?: string,
   ): Promise<StreamableFile> {
     const ws = this.requireWorkspaceId(workspaceId);
+    const safePath = this.requirePathQuery(path);
     const user = await this.actingUser(userId);
-    const bytes = await this.wikis.getRaw(ws, wikiId, user, path);
+    const bytes = await this.wikis.getRaw(ws, wikiId, user, safePath);
     return new StreamableFile(Buffer.from(bytes));
   }
 

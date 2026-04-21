@@ -1,6 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import 'reflect-metadata';
-import { ForbiddenException, StreamableFile } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  StreamableFile,
+} from '@nestjs/common';
 import {
   PATH_METADATA,
   METHOD_METADATA,
@@ -294,9 +298,37 @@ describe('WikisController', () => {
         lastCommit: null,
       });
     });
+
+    it('throws BadRequestException when ?path= is omitted', async () => {
+      await expect(
+        controller.getPage(WS_ID, USER_ID, WIKI_ID, undefined),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.getPage).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when ?path= is whitespace only', async () => {
+      await expect(
+        controller.getPage(WS_ID, USER_ID, WIKI_ID, '   '),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.getPage).not.toHaveBeenCalled();
+    });
   });
 
   describe('getRaw', () => {
+    it('throws BadRequestException when ?path= is omitted', async () => {
+      await expect(
+        controller.getRaw(WS_ID, USER_ID, WIKI_ID, undefined),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.getRaw).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when ?path= is whitespace only', async () => {
+      await expect(
+        controller.getRaw(WS_ID, USER_ID, WIKI_ID, '   '),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.getRaw).not.toHaveBeenCalled();
+    });
+
     it('wraps the raw bytes in a StreamableFile', async () => {
       const bytes = new Uint8Array([9, 8, 7]).buffer;
       wikis.getRaw.mockResolvedValueOnce(bytes);
