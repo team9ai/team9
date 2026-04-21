@@ -571,8 +571,10 @@ export class MessagePropertiesService {
       }
     }
 
-    // Phase 1: Resolve all definitions outside the transaction
+    // Phase 1: Resolve all definitions outside the transaction.
     // (findOrCreate may create definitions, which is a separate concern)
+    // relationKind properties are routed to setRelationKindProperty immediately —
+    // they manage their own transaction, audit, and WS events.
     const resolvedDefinitions: {
       key: string;
       value: unknown;
@@ -591,12 +593,36 @@ export class MessagePropertiesService {
         effectiveUserId,
         allowCreate,
       );
+
+      // Route relationKind properties through the dedicated handler which
+      // enforces scope, cycle detection, cardinality, and emits the correct WS events.
+      const relConfig =
+        definition.valueType === 'message_ref'
+          ? (definition.config as MessageRefConfig | null)
+          : null;
+      if (relConfig?.relationKind) {
+        await this.setRelationKindProperty({
+          message,
+          definition: {
+            id: definition.id,
+            key: definition.key,
+            config: relConfig,
+          },
+          value,
+          userId: effectiveUserId,
+        });
+        continue; // skip jsonValue write and batch audit for this property
+      }
+
       const mappedValues = this.validateAndMapValue(
         definition.valueType,
         value,
       );
       resolvedDefinitions.push({ key, value, definition, mappedValues });
     }
+
+    // If all properties were relationKind, there is nothing left to write.
+    if (resolvedDefinitions.length === 0) return;
 
     // Phase 2: Perform all message property writes atomically in a transaction
     // Collect audit entries to write after the transaction commits
@@ -693,17 +719,20 @@ export class MessagePropertiesService {
       }
     }
 
-    // Single WebSocket broadcast for the entire batch
-    await this.wsGateway.sendToChannelMembers(
-      message.channelId,
-      WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
-      {
-        channelId: message.channelId,
-        messageId,
-        properties: { set: setMap, removed: [] },
-        performedBy: effectiveUserId,
-      },
-    );
+    // Single WebSocket broadcast for non-relationKind properties in the batch.
+    // (relationKind properties already emit their own targeted events via setRelationKindProperty)
+    if (Object.keys(setMap).length > 0) {
+      await this.wsGateway.sendToChannelMembers(
+        message.channelId,
+        WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
+        {
+          channelId: message.channelId,
+          messageId,
+          properties: { set: setMap, removed: [] },
+          performedBy: effectiveUserId,
+        },
+      );
+    }
   }
 
   // ==================== RelationKind routing ====================

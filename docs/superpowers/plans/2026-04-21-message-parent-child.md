@@ -1381,8 +1381,8 @@ git commit -m "feat(gateway): validate relationKind definitions (one-parent-per-
 
 **Goal:** Expose two new HTTP endpoints:
 
-- `GET /channels/:channelId/messages/:messageId/relations`
-- `GET /channels/:channelId/views/:viewId/tree`
+- `GET /im/messages/:messageId/properties/relations`
+- `GET /im/channels/:channelId/views/:viewId/tree`
 
 **Files:**
 

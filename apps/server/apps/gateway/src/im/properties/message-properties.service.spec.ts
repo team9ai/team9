@@ -644,6 +644,244 @@ describe('MessagePropertiesService', () => {
     );
   });
 
+  // ==================== batchSet relationKind routing ====================
+
+  describe('batchSet relationKind routing', () => {
+    it('routes relationKind property through setRelationKindProperty (not jsonValue)', async () => {
+      // Arrange: getValidatedMessage
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([{ type: 'public', propertySettings: {} }]);
+
+      // findOrCreate returns a relationKind definition
+      mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
+        defRow({
+          id: 'def-rel',
+          key: 'parent',
+          valueType: 'message_ref',
+          config: {
+            scope: 'same_channel',
+            cardinality: 'single',
+            relationKind: 'parent',
+          },
+        }),
+      );
+
+      // setRelationKindProperty opens its own transaction internally:
+      // findExisting (no row) + insert sentinel
+      db.__state.selectResults.push([]); // sentinel lookup inside tx
+      db.__state.insertResults.push([]); // sentinel insert inside tx
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['target-1'],
+        removedTargetIds: [],
+        currentTargetIds: ['target-1'],
+      });
+
+      await service.batchSet(
+        'msg-1',
+        [{ key: 'parent', value: 'target-1' }],
+        'user-1',
+      );
+
+      // setRelationTargets must have been called (relation routing happened)
+      expect(mockRelationsService.setRelationTargets).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceMessageId: 'msg-1',
+          targetMessageIds: ['target-1'],
+        }),
+        expect.anything(),
+      );
+
+      // No direct jsonValue INSERT from the generic batchSet code path
+      // (the only insert is the sentinel insert inside setRelationKindProperty)
+      // We verify by checking that all inserts came from the relation handler transaction,
+      // NOT from the outer batchSet transaction (batchSet.transaction was NOT called
+      // because resolvedDefinitions was empty after routing the relation).
+      expect(db.transaction).toHaveBeenCalledTimes(1); // only setRelationKindProperty's tx
+    });
+
+    it('routes relationKind property AND writes text property in the same call', async () => {
+      // Arrange: getValidatedMessage
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([{ type: 'public', propertySettings: {} }]);
+
+      // findOrCreate: first a relationKind def, then a text def
+      mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
+        defRow({
+          id: 'def-rel',
+          key: 'parent',
+          valueType: 'message_ref',
+          config: {
+            scope: 'same_channel',
+            cardinality: 'single',
+            relationKind: 'parent',
+          },
+        }),
+      );
+      mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
+        defRow({ id: 'def-txt', key: 'status', valueType: 'text' }),
+      );
+
+      // setRelationKindProperty's internal tx: sentinel lookup + insert
+      db.__state.selectResults.push([]); // sentinel lookup inside relation tx
+      db.__state.insertResults.push([]); // sentinel insert inside relation tx
+
+      // batchSet's outer tx for the text property: findExisting + insert
+      db.__state.selectResults.push([]); // findExisting for 'status'
+      db.__state.insertResults.push([]); // insert for 'status'
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['target-1'],
+        removedTargetIds: [],
+        currentTargetIds: ['target-1'],
+      });
+
+      await service.batchSet(
+        'msg-1',
+        [
+          { key: 'parent', value: 'target-1' },
+          { key: 'status', value: 'active' },
+        ],
+        'user-1',
+      );
+
+      // relationsService called for the relationKind property
+      expect(mockRelationsService.setRelationTargets).toHaveBeenCalledTimes(1);
+
+      // batchSet's transaction ran for the text property
+      // setRelationKindProperty also ran its own transaction → total 2
+      expect(db.transaction).toHaveBeenCalledTimes(2);
+
+      // Audit: 1 from setRelationKindProperty + 1 from batchSet for text property
+      expect(mockAuditService.log).toHaveBeenCalledTimes(2);
+
+      // WS: emitRelationChanged from setRelationKindProperty + sendToChannelMembers from batchSet
+      expect(mockWsGateway.emitRelationChanged).toHaveBeenCalledTimes(1);
+      expect(mockWsGateway.sendToChannelMembers).toHaveBeenCalledTimes(2); // 1 from relation handler + 1 batch broadcast
+
+      // The batch broadcast should only include the text property, not the relation
+      const batchBroadcastCall =
+        mockWsGateway.sendToChannelMembers.mock.calls.find((c) => {
+          const payload = c[2] as Record<string, unknown>;
+          const props = payload.properties as { set: Record<string, unknown> };
+          return 'status' in props.set;
+        });
+      expect(batchBroadcastCall).toBeDefined();
+      const batchPayload = batchBroadcastCall![2] as Record<string, unknown>;
+      const batchSet = (
+        batchPayload.properties as { set: Record<string, unknown> }
+      ).set;
+      expect(batchSet).not.toHaveProperty('parent');
+      expect(batchSet).toHaveProperty('status', 'active');
+    });
+
+    it('all-relationKind batchSet: no outer batchSet transaction, no batch WS broadcast', async () => {
+      // Arrange: getValidatedMessage
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([{ type: 'public', propertySettings: {} }]);
+
+      // Two relationKind defs
+      mockPropertyDefsService.findOrCreate
+        .mockResolvedValueOnce(
+          defRow({
+            id: 'def-rel-1',
+            key: 'parent',
+            valueType: 'message_ref',
+            config: {
+              scope: 'same_channel',
+              cardinality: 'single',
+              relationKind: 'parent',
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          defRow({
+            id: 'def-rel-2',
+            key: 'related-to',
+            valueType: 'message_ref',
+            config: {
+              scope: 'same_channel',
+              cardinality: 'multi',
+              relationKind: 'related',
+            },
+          }),
+        );
+
+      // Each setRelationKindProperty call gets its own tx with sentinel lookup+insert
+      db.__state.selectResults.push([]); // sentinel for def-rel-1
+      db.__state.insertResults.push([]);
+      db.__state.selectResults.push([]); // sentinel for def-rel-2
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets
+        .mockResolvedValueOnce({
+          addedTargetIds: ['t1'],
+          removedTargetIds: [],
+          currentTargetIds: ['t1'],
+        })
+        .mockResolvedValueOnce({
+          addedTargetIds: ['t2', 't3'],
+          removedTargetIds: [],
+          currentTargetIds: ['t2', 't3'],
+        });
+
+      await service.batchSet(
+        'msg-1',
+        [
+          { key: 'parent', value: 'target-1' },
+          { key: 'related-to', value: ['target-2', 'target-3'] },
+        ],
+        'user-1',
+      );
+
+      // Two relation transactions (one per property)
+      expect(db.transaction).toHaveBeenCalledTimes(2);
+      // Two audit log calls (one from each setRelationKindProperty)
+      expect(mockAuditService.log).toHaveBeenCalledTimes(2);
+      // sendToChannelMembers called twice (once per setRelationKindProperty), NOT an extra batch broadcast
+      expect(mockWsGateway.sendToChannelMembers).toHaveBeenCalledTimes(2);
+      // Both calls carry the relationKind marker (not a generic setMap broadcast)
+      for (const call of mockWsGateway.sendToChannelMembers.mock.calls) {
+        const payload = call[2] as Record<string, unknown>;
+        expect(payload).toHaveProperty('relationKind');
+      }
+    });
+
+    it('cycle detection still runs via batchSet on relationKind property', async () => {
+      // Arrange: getValidatedMessage
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([{ type: 'public', propertySettings: {} }]);
+
+      mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
+        defRow({
+          id: 'def-rel',
+          key: 'parent',
+          valueType: 'message_ref',
+          config: {
+            scope: 'same_channel',
+            cardinality: 'single',
+            relationKind: 'parent',
+          },
+        }),
+      );
+
+      // setRelationTargets throws cycle error (simulating cycle detection)
+      const cycleError = new BadRequestException('RELATION_CYCLE_DETECTED');
+      mockRelationsService.setRelationTargets.mockRejectedValue(cycleError);
+
+      await expect(
+        service.batchSet(
+          'msg-1',
+          [{ key: 'parent', value: 'ancestor-msg' }],
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      // No DB writes happened for the relation (it threw)
+      expect(mockAuditService.log).not.toHaveBeenCalled();
+    });
+  });
+
   // ==================== getValidatedMessage ====================
 
   it('getValidatedMessage() throws NotFoundException when message not found', async () => {
