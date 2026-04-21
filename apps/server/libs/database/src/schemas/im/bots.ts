@@ -27,14 +27,22 @@ export interface BotCapabilities {
 
 export interface BotExtra {
   openclaw?: {
-    agentId?: string; // OpenClaw agent ID; absent means default agent
-    workspace?: string; // OpenClaw workspace name; absent means "default"
+    agentId?: string;
+    workspace?: string;
   };
   commonStaff?: {
     roleTitle?: string;
     persona?: string;
     jobDescription?: string;
     model?: { provider: string; id: string };
+    /**
+     * Free-form identity facts surfaced to the agent via
+     * `StaffProfileSnapshot.identity`. Shallow-merged by the
+     * `bot-staff-profile` PATCH endpoint's `identityPatch` field.
+     * `name` (if present) is mirrored to `im_users.display_name` in
+     * the same transaction to keep display parity.
+     */
+    identity?: Record<string, unknown>;
   };
   personalStaff?: {
     persona?: string;
@@ -43,14 +51,9 @@ export interface BotExtra {
       allowMention?: boolean;
       allowDirectMessage?: boolean;
     };
-    /**
-     * ISO-8601 timestamp of the first successful
-     * `team9:bootstrap.start` dispatch. Set after the onboarding wizard
-     * fires the agentic greeting so that onboarding retries (e.g. after a
-     * downstream `provisionCommonStaff` failure) do not re-fire and
-     * duplicate the greeting. Absent means bootstrap has not yet run.
-     */
     bootstrappedAt?: string;
+    /** See commonStaff.identity. Role/jobDescription are system-fixed for personal staff. */
+    identity?: Record<string, unknown>;
   };
 }
 
