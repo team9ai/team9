@@ -172,6 +172,7 @@ export interface CommonStaffBotInfo {
   mentorId: string | null;
   mentorDisplayName: string | null;
   mentorAvatarUrl: string | null;
+  dmOutboundPolicy?: DmOutboundPolicy;
   isActive: boolean;
   createdAt: string;
   managedMeta: { agentId: string } | null;
@@ -191,6 +192,7 @@ export interface PersonalStaffListBotInfo {
     allowMention: boolean;
     allowDirectMessage: boolean;
   };
+  dmOutboundPolicy?: DmOutboundPolicy;
   isActive: boolean;
   createdAt: string;
   managedMeta: { agentId: string } | null;

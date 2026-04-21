@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useCurrentUser } from "@/hooks/useAuth";
 import {
   Camera,
   Check,
@@ -44,8 +45,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { DmOutboundPolicyBlock } from "@/components/ai-staff/DmOutboundPolicyBlock";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
+import type { DmOutboundPolicy } from "@/types/bot-dm-policy";
+import type { UserOption } from "@/components/ai-staff/MultiUserPicker";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
 import { formatDateTime } from "@/lib/date-format";
@@ -98,6 +102,19 @@ export function PersonalStaffDetailSection({
   const [pendingVisibilityField, setPendingVisibilityField] = useState<
     "allowMention" | "allowDirectMessage" | null
   >(null);
+
+  const { data: currentUser } = useCurrentUser();
+
+  // DM outbound policy state
+  const effectiveDmPolicy: DmOutboundPolicy = bot.dmOutboundPolicy ?? {
+    mode: "owner-only",
+  };
+  const [dmPolicyWhitelistUsers, setDmPolicyWhitelistUsers] = useState<
+    UserOption[]
+  >([]);
+
+  // Current user is the owner of their personal staff — they are always the "mentor"
+  const isOwner = !!currentUser && bot.ownerId === currentUser.id;
 
   const displayName = bot.displayName || "Personal Assistant";
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -259,6 +276,10 @@ export function PersonalStaffDetailSection({
   const handleCancelVisibility = () => {
     setVisibilityDialogOpen(false);
     setPendingVisibilityField(null);
+  };
+
+  const handleDmPolicyChange = (next: DmOutboundPolicy) => {
+    updateMutation.mutate({ dmOutboundPolicy: next });
   };
 
   return (
@@ -660,6 +681,18 @@ export function PersonalStaffDetailSection({
               onCheckedChange={(checked) =>
                 handleVisibilityToggle("allowDirectMessage", checked)
               }
+            />
+          </div>
+
+          {/* DM Outbound Policy */}
+          <div className="border-t pt-4">
+            <DmOutboundPolicyBlock
+              value={effectiveDmPolicy}
+              onChange={handleDmPolicyChange}
+              hideOwnerOnly={false}
+              disabled={!isOwner || updateMutation.isPending}
+              whitelistUsers={dmPolicyWhitelistUsers}
+              onWhitelistUsersChange={setDmPolicyWhitelistUsers}
             />
           </div>
         </CardContent>
