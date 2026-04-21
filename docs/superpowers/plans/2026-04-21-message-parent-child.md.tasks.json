@@ -38,7 +38,7 @@
     {
       "id": 6,
       "subject": "Task 6: Route relationKind property writes through relations service",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** message-properties.service delegates relationKind writes to relations.service; keeps jsonb path for legacy.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-properties.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-properties.service.spec.ts --coverage\",\"acceptanceCriteria\":[\"relationKind writes go to relations table\",\"jsonValue=null when relationKind, except explicitlyCleared flag\",\"reads assemble targets from relations\",\"legacy message_ref regression passes\",\"audit log records added/removed\"]}\n```"
     },
