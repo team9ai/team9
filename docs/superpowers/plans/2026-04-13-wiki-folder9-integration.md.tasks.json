@@ -65,7 +65,7 @@
     {
       "id": 9,
       "subject": "Task 10: Workspace creation seed hook + backfill script",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Goal:** Auto-seed public Wiki on workspace creation; idempotent backfill for existing workspaces.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/workspace/workspace.service.ts + spec\n- Modify: apps/server/apps/gateway/src/workspace/workspace.module.ts\n- Create: apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts + spec\n\n**Verify:** pnpm --filter @team9/server test -- workspace.service backfill-public-wiki --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/workspace/workspace.service.ts\",\"apps/server/apps/gateway/src/workspace/workspace.module.ts\",\"apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- workspace.service backfill-public-wiki --coverage\",\"acceptanceCriteria\":[\"WorkspaceService.create calls wikisService.createWiki after owner membership\",\"Failed seed does not fail workspace creation\",\"Backfill script is idempotent\",\"Existing workspace.service.spec updated\"]}\n```"
     },

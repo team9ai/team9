@@ -2661,20 +2661,20 @@ git commit -m "feat(wiki): register WikisModule in gateway"
 
 **Acceptance Criteria:**
 
-- [ ] `WorkspaceService.create` calls `wikisService.createWiki(ws.id, { id: ownerId, isAgent: false }, { name: 'public', slug: 'public' })` after the workspace row + owner membership are committed
-- [ ] If the Wiki creation fails, workspace creation still succeeds (errors logged only)
-- [ ] Backfill script iterates every workspace, skips those with an existing `public` Wiki, creates one using the workspace's owner as `createdBy`
-- [ ] Backfill is idempotent (running twice is safe)
-- [ ] Backfill is runnable: `pnpm --filter @team9/server exec tsx apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts`
-- [ ] Existing `workspace.service.spec.ts` updated to mock the new dependency and assert the seed is called
+- [x] `WorkspaceService.create` calls `wikisService.createWiki(ws.id, { id: ownerId, isAgent: false }, { name: 'public', slug: 'public' })` after the workspace row + owner membership are committed
+- [x] If the Wiki creation fails, workspace creation still succeeds (errors logged only)
+- [x] Backfill script iterates every workspace, skips those with an existing `public` Wiki, creates one using the workspace's owner as `createdBy`
+- [x] Backfill is idempotent (running twice is safe)
+- [x] Backfill is runnable: `pnpm --filter @team9/gateway exec tsx apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts`
+- [x] Existing `workspace.service.spec.ts` updated to mock the new dependency and assert the seed is called
 
 **Steps:**
 
-- [ ] **Step 1: Modify WorkspaceModule**
+- [x] **Step 1: Modify WorkspaceModule**
 
 Add `WikisModule` to `imports` in `workspace.module.ts` (use `forwardRef` if circular deps appear).
 
-- [ ] **Step 2: Modify `WorkspaceService.create`**
+- [x] **Step 2: Modify `WorkspaceService.create`**
 
 Inject `WikisService` in the constructor; after the owner membership step (line ~985 in `workspace.service.ts`), add:
 
@@ -2693,11 +2693,11 @@ try {
 }
 ```
 
-- [ ] **Step 3: Update workspace.service.spec.ts**
+- [x] **Step 3: Update workspace.service.spec.ts**
 
 Add a `WikisService` mock to the test module. Assert `wikisService.createWiki` is called once with the expected args after a successful workspace create. Add a test that the workspace is still created when `wikisService.createWiki` rejects.
 
-- [ ] **Step 4: Write the backfill script**
+- [x] **Step 4: Write the backfill script**
 
 Create `apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts`:
 
@@ -2775,11 +2775,11 @@ main().catch((err) => {
 });
 ```
 
-- [ ] **Step 5: Test the backfill script**
+- [x] **Step 5: Test the backfill script**
 
 Write `backfill-public-wiki.spec.ts` that mocks the NestJS context + service + db and asserts idempotency (running twice only creates once).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/server/apps/gateway/src/workspace apps/server/apps/gateway/src/wikis/scripts
