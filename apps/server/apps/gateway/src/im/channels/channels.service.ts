@@ -20,7 +20,11 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type { ChannelSnapshot, BotExtra } from '@team9/database/schemas';
+import type {
+  ChannelSnapshot,
+  BotExtra,
+  DmOutboundPolicy,
+} from '@team9/database/schemas';
 import {
   CreateChannelDto,
   UpdateChannelDto,
@@ -227,6 +231,61 @@ export class ChannelsService {
           'This is a private assistant and is not open for @mentions.',
         );
       }
+    }
+  }
+
+  /**
+   * Assert that a bot is allowed to initiate a DM to a target user.
+   *
+   * Checks (in order):
+   *   1. Self-DM guard
+   *   2. Bot row must exist
+   *   3. Target user row must exist
+   *   4. Target must not itself be a bot
+   *   5. Target must be in the same tenant as the bot
+   *   6. Outbound DM policy (explicit or derived from bot shape) must allow the target
+   */
+  async assertBotCanDm(botUserId: string, targetUserId: string): Promise<void> {
+    if (botUserId === targetUserId) {
+      throw new BadRequestException('SELF_DM');
+    }
+
+    const [bot] = await this.db
+      .select({
+        userId: schema.bots.userId,
+        ownerId: schema.bots.ownerId,
+        mentorId: schema.bots.mentorId,
+        extra: schema.bots.extra,
+        tenantId: schema.users.tenantId,
+      })
+      .from(schema.bots)
+      .innerJoin(schema.users, eq(schema.users.id, schema.bots.userId))
+      .where(eq(schema.bots.userId, botUserId))
+      .limit(1);
+
+    if (!bot) throw new NotFoundException('BOT_NOT_FOUND');
+
+    const [target] = await this.db
+      .select({
+        id: schema.users.id,
+        tenantId: schema.users.tenantId,
+        isBot: sql<boolean>`EXISTS (SELECT 1 FROM ${schema.bots} WHERE ${schema.bots.userId} = ${schema.users.id})`,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, targetUserId))
+      .limit(1);
+
+    if (!target) throw new NotFoundException('USER_NOT_FOUND');
+    if (target.isBot) throw new ForbiddenException('DM_NOT_ALLOWED');
+    if (target.tenantId !== bot.tenantId) {
+      throw new BadRequestException('CROSS_TENANT');
+    }
+
+    const extra = bot.extra ?? {};
+    const policy = extra.dmOutboundPolicy ?? defaultDmOutboundPolicy(extra);
+
+    if (!isTargetAllowed(policy, { ownerId: bot.ownerId }, target.id)) {
+      throw new ForbiddenException('DM_NOT_ALLOWED');
     }
   }
 
@@ -1957,5 +2016,43 @@ export class ChannelsService {
     }
 
     return channelIds.length;
+  }
+}
+
+/**
+ * Compute the default outbound DM policy for a bot based on its shape.
+ *
+ * Rules (mutually exclusive — commonStaff takes precedence if both are set):
+ *   - personalStaff → owner-only
+ *   - commonStaff   → same-tenant
+ *   - otherwise     → owner-only (safest default)
+ */
+export function defaultDmOutboundPolicy(extra: BotExtra): DmOutboundPolicy {
+  if (extra.personalStaff) return { mode: 'owner-only' };
+  if (extra.commonStaff) return { mode: 'same-tenant' };
+  return { mode: 'owner-only' };
+}
+
+/**
+ * Evaluate whether `targetId` is permitted under the given outbound DM policy.
+ *
+ * @param policy   - The resolved DmOutboundPolicy (explicit or derived).
+ * @param bot      - Minimal bot context: just `ownerId`.
+ * @param targetId - The target user's ID.
+ */
+export function isTargetAllowed(
+  policy: DmOutboundPolicy,
+  bot: { ownerId: string | null },
+  targetId: string,
+): boolean {
+  switch (policy.mode) {
+    case 'owner-only':
+      return bot.ownerId === targetId;
+    case 'same-tenant':
+      return true;
+    case 'whitelist':
+      return (policy.userIds ?? []).includes(targetId);
+    case 'anyone':
+      return true;
   }
 }
