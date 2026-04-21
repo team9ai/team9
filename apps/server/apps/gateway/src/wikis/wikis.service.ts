@@ -15,6 +15,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { Folder9ClientService } from './folder9-client.service.js';
 import type { CreateWikiDto } from './dto/create-wiki.dto.js';
 import type { UpdateWikiDto } from './dto/update-wiki.dto.js';
@@ -45,6 +46,21 @@ import {
 export interface ActingUser {
   id: string;
   isAgent: boolean;
+}
+
+/**
+ * Narrow contract the service needs from the websocket gateway — mirrored
+ * from {@link Folder9WebhookController} so the Symbol-based provider
+ * injection stays decoupled from the full {@link WebsocketGateway} surface
+ * and lets the spec pass a plain mock. Re-declaring the shape locally keeps
+ * the wiki module import graph loop-free.
+ */
+interface BroadcastingGateway {
+  broadcastToWorkspace(
+    workspaceId: string,
+    event: string,
+    data: unknown,
+  ): Promise<void>;
 }
 
 type WikiRow = typeof schema.workspaceWikis.$inferSelect;
@@ -164,7 +180,34 @@ export class WikisService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly folder9: Folder9ClientService,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly ws: BroadcastingGateway,
   ) {}
+
+  /**
+   * Fire-and-log helper for workspace-scoped broadcasts. Broadcasting is a
+   * best-effort side effect — a WebSocket hiccup must NEVER turn a committed
+   * DB mutation into a 5xx — so we await the call (matching the webhook
+   * controller's style) but catch-and-warn instead of letting the error
+   * propagate. The folder9-webhook path intentionally lets errors bubble
+   * because *it* is the broadcast-only endpoint; for mutations the trade-off
+   * flips.
+   */
+  private async safeBroadcast(
+    workspaceId: string,
+    event: string,
+    data: unknown,
+  ): Promise<void> {
+    try {
+      await this.ws.broadcastToWorkspace(workspaceId, event, data);
+    } catch (err) {
+      this.logger.warn(
+        `${event} broadcast failed for workspace ${workspaceId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
 
   /**
    * List all non-archived Wikis for a workspace. Sorted by `created_at DESC`
@@ -283,7 +326,15 @@ export class WikisService {
           createdBy: user.id,
         })
         .returning();
-      return toDto(inserted[0]);
+      const dtoRow = toDto(inserted[0]);
+      // Broadcast AFTER the row is durably persisted so subscribers cannot
+      // see a wiki that failed to commit. Shape mirrors the folder9-rebroadcast
+      // events (`{ wikiId }`) — the client invalidates `wikiKeys.all` on
+      // receipt, which re-fetches the list so no additional payload is needed.
+      await this.safeBroadcast(workspaceId, 'wiki_created', {
+        wikiId: dtoRow.id,
+      });
+      return dtoRow;
     } catch (err) {
       // Compensation: best-effort delete of the orphan folder9 folder. The
       // original error is always re-thrown so the caller sees the real cause.
@@ -363,6 +414,11 @@ export class WikisService {
       );
     }
 
+    // Broadcast AFTER DB + folder9 mirror both succeeded. A failure above
+    // already throws and never reaches this line, so subscribers only ever
+    // see updates for wikis that are actually updated.
+    await this.safeBroadcast(workspaceId, 'wiki_updated', { wikiId });
+
     return toDto(updated[0]);
   }
 
@@ -383,6 +439,9 @@ export class WikisService {
       .update(schema.workspaceWikis)
       .set({ archivedAt: new Date() })
       .where(eq(schema.workspaceWikis.id, wikiId));
+    // Broadcast AFTER the archive succeeds — the client hook flips the wiki
+    // out of the active list on receipt.
+    await this.safeBroadcast(workspaceId, 'wiki_archived', { wikiId });
   }
 
   // ────────────────────────────────────────────────────────────────────

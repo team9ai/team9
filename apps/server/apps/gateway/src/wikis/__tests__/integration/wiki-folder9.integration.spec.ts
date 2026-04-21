@@ -164,7 +164,13 @@ maybeDescribe('WikisModule integration — real folder9', () => {
   beforeEach(() => {
     db = makeChainMock();
     f9 = new Folder9ClientService();
-    svc = new WikisService(db as never, f9);
+    // Integration test doesn't exercise WebSocket broadcasting; a stub that
+    // resolves to `undefined` keeps the WikisService constructor happy while
+    // leaving broadcast failures invisible to the suite.
+    const wsStub = {
+      broadcastToWorkspace: async () => undefined,
+    };
+    svc = new WikisService(db as never, f9, wsStub);
   });
 
   afterAll(async () => {

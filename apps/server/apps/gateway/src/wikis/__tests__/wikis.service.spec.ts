@@ -17,6 +17,7 @@ import { DATABASE_CONNECTION } from '@team9/database';
 import { WikisService } from '../wikis.service.js';
 import { Folder9ClientService } from '../folder9-client.service.js';
 import { Folder9ApiError } from '../types/folder9.types.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -53,6 +54,20 @@ function mockDb() {
   chain.returning.mockResolvedValue([]);
   chain.orderBy.mockResolvedValue([]);
   return chain;
+}
+
+/**
+ * Mock implementation of {@link BroadcastingGateway} — the narrow WS surface
+ * `WikisService` depends on. Provided via the {@link WEBSOCKET_GATEWAY}
+ * Symbol token so the service's Nest DI resolves it the same way production
+ * wiring does.
+ */
+function mockWs() {
+  return {
+    broadcastToWorkspace: jest
+      .fn<(ws: string, event: string, data: unknown) => Promise<void>>()
+      .mockResolvedValue(undefined),
+  };
 }
 
 function mockFolder9() {
@@ -149,15 +164,18 @@ describe('WikisService', () => {
   let svc: WikisService;
   let db: ReturnType<typeof mockDb>;
   let f9: ReturnType<typeof mockFolder9>;
+  let ws: ReturnType<typeof mockWs>;
 
   beforeEach(async () => {
     db = mockDb();
     f9 = mockFolder9();
+    ws = mockWs();
     const moduleRef = await Test.createTestingModule({
       providers: [
         WikisService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: Folder9ClientService, useValue: f9 },
+        { provide: WEBSOCKET_GATEWAY, useValue: ws },
       ],
     }).compile();
     svc = moduleRef.get(WikisService);
@@ -387,6 +405,103 @@ describe('WikisService', () => {
       );
 
       errorSpy.mockRestore();
+    });
+
+    it('broadcasts wiki_created to the workspace on success', async () => {
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([makeWikiRow()]);
+
+      await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'public' },
+      );
+
+      expect(ws.broadcastToWorkspace).toHaveBeenCalledWith(
+        'ws-1',
+        'wiki_created',
+        { wikiId: 'wiki-1' },
+      );
+      expect(ws.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT broadcast wiki_created when slug is duplicate', async () => {
+      db.limit.mockResolvedValueOnce([{ id: 'existing-wiki' }]);
+      await expect(
+        svc.createWiki(
+          'ws-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'public', slug: 'public' },
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast wiki_created when DB insert fails (rollback path)', async () => {
+      f9.createFolder.mockResolvedValue(
+        makeFolder9Response({ id: 'f9-ghost' }) as never,
+      );
+      f9.deleteFolder.mockResolvedValue(undefined as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockRejectedValueOnce(new Error('db down'));
+
+      await expect(
+        svc.createWiki('ws-1', { id: 'user-1', isAgent: false }, { name: 'x' }),
+      ).rejects.toThrow(/db down/);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast wiki_created when agent caller is rejected', async () => {
+      await expect(
+        svc.createWiki('ws-1', { id: 'agent-1', isAgent: true }, { name: 'x' }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('swallows broadcast errors and still returns the created wiki', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([makeWikiRow()]);
+      ws.broadcastToWorkspace.mockRejectedValueOnce(new Error('ws down'));
+
+      const result = await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'public' },
+      );
+      // Mutation must succeed even if the broadcast blew up.
+      expect(result.id).toBe('wiki-1');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('wiki_created broadcast failed'),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('logs a string fallback when the broadcast rejects with a non-Error', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([makeWikiRow()]);
+      ws.broadcastToWorkspace.mockImplementationOnce(() =>
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+        Promise.reject('plain string failure'),
+      );
+
+      await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'public' },
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('plain string failure'),
+      );
+      warnSpy.mockRestore();
     });
   });
 
@@ -661,6 +776,81 @@ describe('WikisService', () => {
         ),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('broadcasts wiki_updated to the workspace on success', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      f9.updateFolder.mockResolvedValue(undefined as never);
+
+      await svc.updateWikiSettings(
+        'ws-1',
+        'wiki-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'Renamed' },
+      );
+
+      expect(ws.broadcastToWorkspace).toHaveBeenCalledWith(
+        'ws-1',
+        'wiki_updated',
+        { wikiId: 'wiki-1' },
+      );
+      expect(ws.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT broadcast wiki_updated when permission check fails', async () => {
+      const row = makeWikiRow({ humanPermission: 'read' });
+      db.limit.mockResolvedValueOnce([row]);
+
+      await expect(
+        svc.updateWikiSettings(
+          'ws-1',
+          'wiki-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'x' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast wiki_updated when slug check conflicts', async () => {
+      const row = makeWikiRow({ slug: 'old' });
+      db.limit.mockResolvedValueOnce([row]);
+      db.limit.mockResolvedValueOnce([{ id: 'other-wiki' }]);
+
+      await expect(
+        svc.updateWikiSettings(
+          'ws-1',
+          'wiki-1',
+          { id: 'user-1', isAgent: false },
+          { slug: 'taken' },
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('swallows broadcast errors and still returns the updated wiki', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      f9.updateFolder.mockResolvedValue(undefined as never);
+      ws.broadcastToWorkspace.mockRejectedValueOnce(new Error('ws down'));
+
+      const result = await svc.updateWikiSettings(
+        'ws-1',
+        'wiki-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'Renamed' },
+      );
+      expect(result.name).toBe('Renamed');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('wiki_updated broadcast failed'),
+      );
+      warnSpy.mockRestore();
+    });
   });
 
   // ── archiveWiki ─────────────────────────────────────────────────────
@@ -696,6 +886,58 @@ describe('WikisService', () => {
       await expect(
         svc.archiveWiki('ws-1', 'missing', { id: 'user-1', isAgent: false }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('broadcasts wiki_archived to the workspace on success', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+
+      await svc.archiveWiki('ws-1', 'wiki-1', {
+        id: 'user-1',
+        isAgent: false,
+      });
+
+      expect(ws.broadcastToWorkspace).toHaveBeenCalledWith(
+        'ws-1',
+        'wiki_archived',
+        { wikiId: 'wiki-1' },
+      );
+      expect(ws.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT broadcast wiki_archived when permission check fails', async () => {
+      const row = makeWikiRow({ humanPermission: 'propose' });
+      db.limit.mockResolvedValueOnce([row]);
+
+      await expect(
+        svc.archiveWiki('ws-1', 'wiki-1', { id: 'user-1', isAgent: false }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast wiki_archived when wiki not found', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      await expect(
+        svc.archiveWiki('ws-1', 'missing', { id: 'user-1', isAgent: false }),
+      ).rejects.toThrow(NotFoundException);
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('swallows broadcast errors and still completes the archive', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      ws.broadcastToWorkspace.mockRejectedValueOnce(new Error('ws down'));
+
+      await expect(
+        svc.archiveWiki('ws-1', 'wiki-1', { id: 'user-1', isAgent: false }),
+      ).resolves.toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('wiki_archived broadcast failed'),
+      );
+      warnSpy.mockRestore();
     });
   });
 
