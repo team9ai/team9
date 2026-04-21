@@ -148,7 +148,7 @@
     {
       "id": 21,
       "subject": "Task 22: Image paste/drop upload",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [17],
       "description": "**Goal:** Paste or drop image -> upload as separate commit to attachments/{uuid}.{ext} -> insert markdown image.\n\n**Files:**\n- Create: hooks/useWikiImageUpload.ts\n- Modify: WikiPageEditor.tsx (paste/drop handlers)\n\n**Verify:** pnpm --filter @team9/client test -- useWikiImageUpload\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useWikiImageUpload.ts\",\"apps/client/src/components/wiki/WikiPageEditor.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- upload\",\"acceptanceCriteria\":[\"Paste/drop triggers upload\",\"5MB size limit\",\"Separate commit from page edit\",\"Path attachments/{uuid}.{ext}\",\"Markdown image inserted\",\"Error toast on failure\"]}\n```"
     },
