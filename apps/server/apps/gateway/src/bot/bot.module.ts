@@ -6,9 +6,7 @@ import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { PlatformLlmService } from './platform-llm.service.js';
 import { BotController } from './bot.controller.js';
-import { BotChannelsController } from './channels/bot-channels.controller.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
-import { WebsocketModule } from '../im/websocket/websocket.module.js';
 
 /**
  * BotModule provides bot account management and token authentication.
@@ -17,19 +15,16 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
  * injected anywhere — particularly in AuthGuard (for bot token auth)
  * and WorkspaceService (to add bots to new workspaces).
  *
- * WebsocketModule is imported explicitly so BotChannelsController's
- * WebsocketGateway injection is declared in the module graph (NestJS
- * convention), even though it currently resolves transitively via
- * ChannelsModule → WebsocketModule.
+ * Bot-facing REST endpoints that need ChannelsService / WebsocketGateway
+ * live in BotChannelsModule to avoid pulling those imports into this
+ * @Global module (doing so created a BotModule → ChannelsModule →
+ * useExisting BotService → BotModule cycle that deadlocked Nest at
+ * registerRouter()).
  */
 @Global()
 @Module({
-  imports: [
-    forwardRef(() => ChannelsModule),
-    forwardRef(() => WebsocketModule),
-    ClawHiveModule,
-  ],
-  controllers: [BotController, BotChannelsController],
+  imports: [forwardRef(() => ChannelsModule), ClawHiveModule],
+  controllers: [BotController],
   providers: [
     BotService,
     BotTokenValidatorService,
