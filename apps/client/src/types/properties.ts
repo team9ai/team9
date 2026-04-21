@@ -27,6 +27,8 @@ export interface MessageRefConfig {
   scope?: "same_channel" | "all";
   /** Whether selection allows a single reference or multiple */
   cardinality?: "single" | "multi";
+  /** Semantic relation kind for task-relationship shortcuts */
+  relationKind?: "parent" | "related";
 }
 
 // ==================== Select Option ====================
