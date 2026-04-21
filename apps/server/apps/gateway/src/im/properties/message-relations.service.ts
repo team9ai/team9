@@ -347,10 +347,15 @@ export class MessageRelationsService {
           ON rel.source_message_id = child.id
          AND rel.relation_kind = 'parent'
          AND rel.property_definition_id = ${parentDefinitionId}::uuid
+        LEFT JOIN im_message_properties cleared
+          ON cleared.message_id = child.id
+         AND cleared.property_definition_id = ${parentDefinitionId}::uuid
         WHERE child.channel_id = ${channelId}::uuid
           AND child.is_deleted = false
           -- Probe one level beyond maxDepth to determine hasChildren
           AND tree.depth < ${maxDepth + 1}
+          -- §4.1: explicitlyCleared=true forces null parent even with a thread reply
+          AND (cleared.json_value IS NULL OR COALESCE(cleared.json_value->>'explicitlyCleared', 'false') <> 'true')
       )
       SELECT id, parent_id, parent_source, depth FROM tree
     `)) as unknown as Array<{

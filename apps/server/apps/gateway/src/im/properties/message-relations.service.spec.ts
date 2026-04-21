@@ -1176,6 +1176,65 @@ describe('MessageRelationsService', () => {
         hasChildren: false,
       });
     });
+
+    it('CTE SQL includes explicitlyCleared filter in recursive step (§4.1)', async () => {
+      // Capture the SQL object passed to db.execute so we can assert the
+      // explicitlyCleared guard is present in the recursive step. The mock
+      // sql tag (see dbModule above) produces { sql: joinedTemplateStrings, op: 'sql' }
+      // so q.sql holds the raw template literal text.
+      let capturedSql = '';
+      db.execute = jest.fn().mockImplementation((q: any) => {
+        capturedSql = typeof q?.sql === 'string' ? q.sql : '';
+        return Promise.resolve([]);
+      });
+
+      await service.getSubtree({
+        channelId: 'c1',
+        rootIds: ['r1'],
+        maxDepth: 2,
+        parentDefinitionId: 'd1',
+      });
+
+      // The recursive step must LEFT JOIN im_message_properties aliased as "cleared"
+      // and filter out rows where explicitlyCleared is 'true'.
+      // This prevents cleared children from appearing as descendants of their
+      // thread parent when getTreeSnapshot composes roots + subtree results.
+      expect(capturedSql).toMatch(/im_message_properties\s+cleared/);
+      expect(capturedSql).toMatch(/explicitlyCleared/);
+      expect(capturedSql).toMatch(/<>\s*'true'/);
+    });
+
+    it('excludes explicitlyCleared descendants from subtree (post-filter result matches)', async () => {
+      // Scenario per spec §4.1:
+      //   A (root, depth 0)
+      //   B (thread reply of A, explicitlyCleared=true for the parent prop)
+      //   C (thread reply of B)
+      //
+      // The CTE filters B out because its cleared.json_value->>'explicitlyCleared'
+      // equals 'true'. Since B is absent, C (B's child) is also unreachable.
+      // The mock simulates the DB returning only A — emulating the post-filter result.
+      db.__state.executeResults.push([
+        { id: 'A', parent_id: null, parent_source: null, depth: 0 },
+        // B and C are absent — filtered out by the explicitlyCleared guard in the CTE
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['A'],
+        maxDepth: 3,
+        parentDefinitionId: 'def-parent',
+      });
+
+      // Only A should be in the result; B and C are excluded
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        messageId: 'A',
+        depth: 0,
+        effectiveParentId: null,
+        parentSource: null,
+        hasChildren: false,
+      });
+    });
   });
 });
 
