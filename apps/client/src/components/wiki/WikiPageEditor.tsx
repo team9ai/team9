@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { useWikiDraft } from "@/hooks/useWikiDraft";
 import { useWikiImageUpload } from "@/hooks/useWikiImageUpload";
@@ -8,6 +9,7 @@ import { useCommitWikiPage } from "@/hooks/useWikiPage";
 import { resolveClientPermission } from "@/lib/wiki-permission";
 import { serializeFrontmatter } from "@/lib/wiki-frontmatter";
 import { getHttpErrorStatus } from "@/lib/http-error";
+import i18n from "@/i18n";
 import { wikiActions } from "@/stores/useWikiStore";
 import { IconPickerPopover } from "./IconPickerPopover";
 import { CoverPickerPopover } from "./CoverPickerPopover";
@@ -17,6 +19,28 @@ import {
   type SubmitForReviewInput,
 } from "./SubmitForReviewDialog";
 import type { PageDto, WikiDto } from "@/types/wiki";
+
+/**
+ * Translate a commit-mutation error into a user-facing message. 409 means
+ * the server's copy moved under us; 403 means the permission check failed
+ * server-side (shouldn't happen for write/propose users but we defend in
+ * depth). Anything else is a generic failure.
+ *
+ * Uses the shared `i18n.t` accessor (rather than the hook's bound `t`) so
+ * the helper can stay a plain function outside the component closure — the
+ * wiki namespace is eagerly registered in `@/i18n`, so `t` is safe to call
+ * at module scope. Matches the `CreateWikiDialog` pattern for consistency.
+ */
+function saveErrorMessage(error: unknown): string {
+  const status = getHttpErrorStatus(error);
+  if (status === 409) {
+    return i18n.t("wiki:editor.errors.saveConflict");
+  }
+  if (status === 403) {
+    return i18n.t("wiki:editor.errors.saveForbidden");
+  }
+  return i18n.t("wiki:editor.errors.saveFailed");
+}
 
 export interface WikiPageEditorProps {
   wikiId: string;
@@ -56,6 +80,7 @@ export function WikiPageEditor({
   serverPage,
   wiki,
 }: WikiPageEditorProps) {
+  const { t } = useTranslation("wiki");
   const { data: currentUser } = useCurrentUser();
   const perm = resolveClientPermission(wiki, currentUser ?? null);
   const readOnly = perm === "read";
@@ -210,7 +235,9 @@ export function WikiPageEditor({
           : `${markdown}\n`;
         handleBodyChange(newBody);
       } catch (err) {
-        notify(err instanceof Error ? err.message : "Upload failed");
+        notify(
+          err instanceof Error ? err.message : t("editor.notifyUploadFailed"),
+        );
       }
     },
     // `handleBodyChange` is a stable-enough reference (it reads the latest
@@ -272,21 +299,6 @@ export function WikiPageEditor({
     window.alert(message);
   }
 
-  // Translate a commit-mutation error into a user-facing message. 409 means
-  // the server's copy moved under us; 403 means the permission check failed
-  // server-side (shouldn't happen for write/propose users but we defend in
-  // depth). Anything else is a generic failure.
-  function saveErrorMessage(error: unknown): string {
-    const status = getHttpErrorStatus(error);
-    if (status === 409) {
-      return "Save failed: the page has changed on the server. Reload and reapply your edits.";
-    }
-    if (status === 403) {
-      return "Save failed: you don't have permission to update this page.";
-    }
-    return "Save failed. Please try again.";
-  }
-
   // Perform the actual commit. `reviewInput` is present only for review-
   // mode submissions (the dialog collects it first). We serialize the
   // current frontmatter + body back into a markdown source the server
@@ -307,19 +319,19 @@ export function WikiPageEditor({
           // reviewer feedback without losing their edits.
           wikiActions.setSubmittedProposal(wikiId, path, result.proposal.id);
           setReviewDialogOpen(false);
-          notify("Submitted for review");
+          notify(t("editor.notifySubmitted"));
           return;
         }
         // Auto mode: draft is now part of the server copy.
         clearDraft();
         setReviewDialogOpen(false);
-        notify("Saved");
+        notify(t("editor.notifySaved"));
       } catch (error) {
         // Keep the dialog open so the user can retry without re-typing.
         notify(saveErrorMessage(error));
       }
     },
-    [body, frontmatter, path, wikiId, commit, clearDraft],
+    [body, frontmatter, path, wikiId, commit, clearDraft, t],
   );
 
   // Top-level save trigger. Routes through the dialog when the Wiki is in
@@ -400,12 +412,10 @@ export function WikiPageEditor({
             size={14}
             className="mt-0.5 shrink-0 text-yellow-600"
           />
-          <div className="flex-1">
-            You have unsaved local changes. Viewing your draft.
-          </div>
+          <div className="flex-1">{t("editor.staleAlert")}</div>
           <button
             type="button"
-            aria-label="Dismiss stale draft warning"
+            aria-label={t("editor.staleDismissAria")}
             onClick={dismissStaleAlert}
             data-testid="wiki-page-stale-alert-dismiss"
             className="text-muted-foreground hover:text-foreground"

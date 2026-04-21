@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useWikiPage } from "@/hooks/useWikiPage";
 import { useWikis } from "@/hooks/useWikis";
 import { useSubmittedProposal } from "@/stores/useWikiStore";
@@ -36,6 +37,7 @@ export interface WikiPageViewProps {
  * entry.
  */
 export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
+  const { t } = useTranslation("wiki");
   const navigate = useNavigate();
   const { data: page, isLoading: pageLoading } = useWikiPage(wikiId, path);
   const { data: wikis, isLoading: wikisLoading } = useWikis();
@@ -45,7 +47,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   if (pageLoading || wikisLoading || !page || !wiki) {
     return (
       <div data-testid="wiki-page-loading" className="p-8">
-        Loading…
+        {t("page.loading")}
       </div>
     );
   }

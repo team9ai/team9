@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 interface WikiStatusBarProps {
   /**
    * ISO timestamp of the last successful save, or `null` before any save
@@ -34,6 +36,7 @@ export function WikiStatusBar({
   canSave,
   onSave,
 }: WikiStatusBarProps) {
+  const { t } = useTranslation("wiki");
   const disabled = !canSave || isSaving || !isDirty;
 
   return (
@@ -41,16 +44,18 @@ export function WikiStatusBar({
       <div className="flex items-center gap-2">
         {isDirty ? (
           <span data-testid="wiki-status-unsaved" className="text-orange-500">
-            ● Unsaved changes
+            ● {t("status.unsaved")}
           </span>
         ) : (
           <span data-testid="wiki-status-synced" className="text-green-500">
-            ● Synced
+            ● {t("status.synced")}
           </span>
         )}
         {lastSavedAt && (
           <span data-testid="wiki-status-last-saved">
-            · last saved {new Date(lastSavedAt).toLocaleTimeString()}
+            {t("status.lastSaved", {
+              time: new Date(lastSavedAt).toLocaleTimeString(),
+            })}
           </span>
         )}
       </div>
@@ -60,7 +65,7 @@ export function WikiStatusBar({
         disabled={disabled}
         className="px-3 py-1 rounded bg-primary text-primary-foreground disabled:opacity-50 text-xs"
       >
-        {isSaving ? "Saving…" : "Save"}
+        {isSaving ? t("status.saving") : t("status.save")}
       </button>
     </div>
   );
