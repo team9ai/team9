@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Popover,
   PopoverTrigger,
@@ -37,6 +38,7 @@ export function IconPickerPopover({
   onChange,
   disabled = false,
 }: IconPickerPopoverProps) {
+  const { t } = useTranslation("wiki");
   const [open, setOpen] = useState(false);
 
   const handleSelect = (emoji: string) => {
@@ -49,7 +51,7 @@ export function IconPickerPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Choose page icon"
+          aria-label={t("iconPicker.ariaLabel")}
           data-testid="wiki-icon-picker-trigger"
           disabled={disabled}
           className={cn(

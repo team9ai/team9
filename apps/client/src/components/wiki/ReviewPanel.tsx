@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { useWikiProposals } from "@/hooks/useWikiProposals";
+import i18n from "@/i18n";
 import type { ProposalDto, ProposalStatus, WikiDto } from "@/types/wiki";
 
 export interface ReviewPanelProps {
@@ -15,7 +17,10 @@ const STATUS_VARIANT: Record<ProposalStatus, "default" | "secondary"> = {
 };
 
 function formatAuthor(proposal: ProposalDto): string {
-  const kind = proposal.authorType === "agent" ? "Agent" : "User";
+  const kind =
+    proposal.authorType === "agent"
+      ? i18n.t("wiki:review.authorAgent")
+      : i18n.t("wiki:review.authorUser");
   return `${kind} ${proposal.authorId}`;
 }
 
@@ -30,6 +35,7 @@ function formatAuthor(proposal: ProposalDto): string {
  * sees an empty review queue rather than a permission error.
  */
 export function ReviewPanel({ wiki }: ReviewPanelProps) {
+  const { t } = useTranslation("wiki");
   const { data: proposals, isLoading, isError } = useWikiProposals(wiki.id);
 
   return (
@@ -38,9 +44,11 @@ export function ReviewPanel({ wiki }: ReviewPanelProps) {
       data-testid="wiki-review-panel"
     >
       <header className="px-6 pt-6 pb-4 border-b border-border">
-        <h1 className="text-lg font-semibold">Review – {wiki.name}</h1>
+        <h1 className="text-lg font-semibold">
+          {t("review.heading", { name: wiki.name })}
+        </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          Pending proposals awaiting review.
+          {t("review.description")}
         </p>
       </header>
 
@@ -50,7 +58,7 @@ export function ReviewPanel({ wiki }: ReviewPanelProps) {
             className="px-6 py-4 text-xs text-muted-foreground"
             data-testid="wiki-review-panel-loading"
           >
-            Loading…
+            {t("review.loading")}
           </p>
         )}
 
@@ -60,7 +68,7 @@ export function ReviewPanel({ wiki }: ReviewPanelProps) {
             role="alert"
             data-testid="wiki-review-panel-error"
           >
-            Failed to load proposals.
+            {t("review.loadFailed")}
           </p>
         )}
 
@@ -69,7 +77,7 @@ export function ReviewPanel({ wiki }: ReviewPanelProps) {
             className="px-6 py-4 text-xs text-muted-foreground"
             data-testid="wiki-review-panel-empty"
           >
-            No pending proposals.
+            {t("review.empty")}
           </p>
         )}
 
@@ -91,7 +99,7 @@ export function ReviewPanel({ wiki }: ReviewPanelProps) {
                 >
                   <div className="flex items-center gap-2">
                     <span className="flex-1 truncate text-sm font-medium">
-                      {proposal.title || "Untitled proposal"}
+                      {proposal.title || t("review.untitledProposal")}
                     </span>
                     <Badge
                       variant={STATUS_VARIANT[proposal.status]}

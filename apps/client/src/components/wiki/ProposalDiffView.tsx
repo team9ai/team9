@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { diffLines, type Change } from "diff";
 import { ArrowLeft, Check, Loader2, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -11,6 +12,7 @@ import {
   useRejectProposal,
   useWikiProposals,
 } from "@/hooks/useWikiProposals";
+import i18n from "@/i18n";
 import { getHttpErrorStatus } from "@/lib/http-error";
 import { resolveClientPermission } from "@/lib/wiki-permission";
 import type { ProposalDiffEntry, ProposalDto, WikiDto } from "@/types/wiki";
@@ -66,6 +68,7 @@ export function flattenDiff(changes: Change[]): DiffLine[] {
  * renders a unified diff via the `diff` package.
  */
 export function FileDiff({ entry }: { entry: ProposalDiffEntry }) {
+  const { t } = useTranslation("wiki");
   const rows = useMemo<DiffLine[]>(() => {
     if (entry.Status === "added") {
       return entry.NewContent
@@ -106,7 +109,7 @@ export function FileDiff({ entry }: { entry: ProposalDiffEntry }) {
             className="block px-3 py-2 text-muted-foreground italic"
             data-testid={`proposal-diff-file-empty-${entry.Path}`}
           >
-            (no content)
+            {t("proposalDiff.fileEmpty")}
           </span>
         )}
         {rows.map((row, idx) => (
@@ -138,23 +141,23 @@ function notify(message: string) {
 function approveErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 409) {
-    return "Conflict — merge aborted";
+    return i18n.t("wiki:proposalDiff.errors.approveConflict");
   }
   if (status === 403) {
-    return "You don't have permission to approve this proposal.";
+    return i18n.t("wiki:proposalDiff.errors.approveForbidden");
   }
-  return "Approve failed. Please try again.";
+  return i18n.t("wiki:proposalDiff.errors.approveFailed");
 }
 
 function rejectErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 409) {
-    return "Conflict — merge aborted";
+    return i18n.t("wiki:proposalDiff.errors.rejectConflict");
   }
   if (status === 403) {
-    return "You don't have permission to reject this proposal.";
+    return i18n.t("wiki:proposalDiff.errors.rejectForbidden");
   }
-  return "Reject failed. Please try again.";
+  return i18n.t("wiki:proposalDiff.errors.rejectFailed");
 }
 
 /**
@@ -168,6 +171,7 @@ function rejectErrorMessage(error: unknown): string {
  * lands on a freshly-pruned queue.
  */
 export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
+  const { t } = useTranslation("wiki");
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
   const perm = resolveClientPermission(wiki, currentUser ?? null);
@@ -241,7 +245,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
           data-testid="proposal-diff-back"
         >
           <ArrowLeft size={12} aria-hidden />
-          Back to review queue
+          {t("proposalDiff.back")}
         </button>
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
@@ -249,7 +253,8 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
               className="text-lg font-semibold truncate"
               data-testid="proposal-diff-title"
             >
-              {proposal?.title || `Proposal ${proposalId}`}
+              {proposal?.title ||
+                t("proposalDiff.proposalFallbackTitle", { id: proposalId })}
             </h1>
             {proposal?.description ? (
               <p
@@ -268,7 +273,9 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
                   {proposal.status}
                 </Badge>
                 <span>
-                  {proposal.authorType === "agent" ? "Agent" : "User"}{" "}
+                  {proposal.authorType === "agent"
+                    ? t("proposalDiff.authorAgent")
+                    : t("proposalDiff.authorUser")}{" "}
                   {proposal.authorId}
                 </span>
                 <span aria-hidden>·</span>
@@ -291,7 +298,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
                 data-testid="proposal-diff-reject-toggle"
               >
                 <X size={14} className="mr-1" aria-hidden />
-                Reject
+                {t("proposalDiff.reject")}
               </Button>
               <Button
                 type="button"
@@ -309,7 +316,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
                 ) : (
                   <Check size={14} className="mr-1" aria-hidden />
                 )}
-                Approve
+                {t("proposalDiff.approve")}
               </Button>
             </div>
           )}
@@ -324,7 +331,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
               htmlFor="proposal-diff-reject-reason"
               className="block text-xs font-medium"
             >
-              Reason (optional)
+              {t("proposalDiff.rejectReasonLabel")}
             </label>
             <textarea
               id="proposal-diff-reject-reason"
@@ -332,7 +339,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
               onChange={(e) => setRejectReason(e.target.value)}
               rows={3}
               className="w-full resize-y rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Let the author know why this proposal is being rejected."
+              placeholder={t("proposalDiff.rejectReasonPlaceholder")}
               data-testid="proposal-diff-reject-reason"
             />
             <div className="flex items-center justify-end gap-2">
@@ -347,7 +354,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
                 disabled={reject.isPending}
                 data-testid="proposal-diff-reject-cancel"
               >
-                Cancel
+                {t("proposalDiff.rejectCancel")}
               </Button>
               <Button
                 type="button"
@@ -364,7 +371,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
                     aria-hidden
                   />
                 ) : null}
-                Confirm reject
+                {t("proposalDiff.rejectConfirm")}
               </Button>
             </div>
           </div>
@@ -377,7 +384,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
             className="text-xs text-muted-foreground"
             data-testid="proposal-diff-loading"
           >
-            Loading diff…
+            {t("proposalDiff.diffLoading")}
           </p>
         )}
 
@@ -387,7 +394,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
             role="alert"
             data-testid="proposal-diff-error"
           >
-            Failed to load diff.
+            {t("proposalDiff.diffLoadFailed")}
           </p>
         )}
 
@@ -396,7 +403,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
             className="text-xs text-muted-foreground"
             data-testid="proposal-diff-empty"
           >
-            This proposal contains no file changes.
+            {t("proposalDiff.diffEmpty")}
           </p>
         )}
 

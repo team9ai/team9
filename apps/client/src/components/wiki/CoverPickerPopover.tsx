@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ImageIcon, Trash2 } from "lucide-react";
 import {
   Popover,
@@ -47,6 +48,7 @@ export function CoverPickerPopover({
   onChange,
   disabled = false,
 }: CoverPickerPopoverProps) {
+  const { t } = useTranslation("wiki");
   const [open, setOpen] = useState(false);
   const [draftPath, setDraftPath] = useState(value ?? "");
 
@@ -75,7 +77,11 @@ export function CoverPickerPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={hasCover ? "Change page cover" : "Add page cover"}
+          aria-label={
+            hasCover
+              ? t("coverPicker.changeTriggerAria")
+              : t("coverPicker.addTriggerAria")
+          }
           data-testid="wiki-cover-picker-trigger"
           disabled={disabled}
           className={cn(
@@ -85,7 +91,11 @@ export function CoverPickerPopover({
           )}
         >
           <ImageIcon size={14} />
-          <span>{hasCover ? "Change cover" : "Add cover"}</span>
+          <span>
+            {hasCover
+              ? t("coverPicker.changeCover")
+              : t("coverPicker.addCover")}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={8} className="w-80">
@@ -95,17 +105,17 @@ export function CoverPickerPopover({
               htmlFor="wiki-cover-path-input"
               className="text-xs font-medium text-muted-foreground"
             >
-              Cover image path
+              {t("coverPicker.pathLabel")}
             </label>
             <Input
               id="wiki-cover-path-input"
               data-testid="wiki-cover-path-input"
-              placeholder="attachments/cover.jpg"
+              placeholder={t("coverPicker.pathPlaceholder")}
               value={draftPath}
               onChange={(e) => setDraftPath(e.target.value)}
             />
             <p className="text-[11px] text-muted-foreground">
-              Paste a folder9 path. Uploads arrive in a future release.
+              {t("coverPicker.pathHelp")}
             </p>
           </div>
           <div className="flex items-center justify-between">
@@ -117,7 +127,7 @@ export function CoverPickerPopover({
                 onClick={handleRemove}
                 data-testid="wiki-cover-remove"
               >
-                <Trash2 size={14} className="mr-1" /> Remove
+                <Trash2 size={14} className="mr-1" /> {t("coverPicker.remove")}
               </Button>
             ) : (
               <span />
@@ -128,7 +138,7 @@ export function CoverPickerPopover({
               onClick={handleApply}
               data-testid="wiki-cover-apply"
             >
-              Apply
+              {t("coverPicker.apply")}
             </Button>
           </div>
         </div>
