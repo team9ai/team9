@@ -196,7 +196,7 @@ PATCH  /v1/im/messages/:messageId/properties
 ### New endpoint: relation inspection
 
 ```
-GET /im/messages/:messageId/properties/relations
+GET /v1/im/messages/:messageId/properties/relations
   ?kind=parent|related|all          (default 'all')
   &direction=outgoing|incoming|both (default 'both')
   &depth=<1..10>                    (default 1; applies only to parent kind)
@@ -217,7 +217,7 @@ Response:
 ### New endpoint: hierarchy tree for table view
 
 ```
-GET /im/channels/:channelId/views/:viewId/tree
+GET /v1/im/channels/:channelId/views/:viewId/tree
   ?filter=<json>        (reuses existing view filter DTO)
   &sort=<json>
   &maxDepth=<0..5>      (default 3)

@@ -182,6 +182,25 @@ export class ViewsController {
       throw new BadRequestException('limit must be <= 100');
     }
 
+    const UUID_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    const expandedIds = expandedIdsRaw
+      ? expandedIdsRaw.split(',').filter(Boolean)
+      : [];
+
+    for (const id of expandedIds) {
+      if (!UUID_RE.test(id)) {
+        throw new BadRequestException(
+          `Invalid expandedIds entry: "${id}" is not a valid UUID`,
+        );
+      }
+    }
+
+    if (cursor && !UUID_RE.test(cursor)) {
+      throw new BadRequestException('Invalid cursor: must be a valid UUID');
+    }
+
     let filter: unknown;
     let sort: unknown;
     try {
@@ -203,9 +222,7 @@ export class ViewsController {
       maxDepth,
       limit,
       cursor: cursor ?? null,
-      expandedIds: expandedIdsRaw
-        ? expandedIdsRaw.split(',').filter(Boolean)
-        : [],
+      expandedIds,
       filter,
       sort,
     });

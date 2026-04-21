@@ -38,7 +38,7 @@ export function MessageRefPicker({
     () => (definition.config ?? {}) as Partial<MessageRefConfig>,
     [definition.config],
   );
-  const cardinality = cfg.cardinality ?? "single";
+  const cardinality = cfg.cardinality ?? "multi";
   const scopeChannelId =
     cfg.scope === "same_channel"
       ? (channelId ?? definition.channelId)
@@ -122,12 +122,11 @@ export function MessageRefPicker({
         setSearchQuery("");
         setShowDropdown(false);
       } else {
+        // Multi: keep dropdown open so the user can select additional messages
         const next = [...selectedIds, msg.id];
         onChange(next);
         setSelectedPreviews((prev) => ({ ...prev, [msg.id]: preview }));
-        setSearchQuery("");
-        // Keep dropdown open for multi-select; re-trigger with same query
-        setShowDropdown(false);
+        // Do NOT clear the query or close the dropdown; let the user keep selecting
       }
     },
     [cardinality, onChange, selectedIds, getPreview],

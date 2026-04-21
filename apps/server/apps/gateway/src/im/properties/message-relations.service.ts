@@ -377,16 +377,28 @@ export class MessageRelationsService {
         FROM tree
         JOIN im_messages child
           ON (
-            -- Thread children: child.parent_id points to tree.id
-            child.parent_id = tree.id
-            OR
-            -- Relation children: child has a parent-relation pointing to tree.id
+            -- Relation children: child has an explicit parent-relation pointing to tree.id.
+            -- This takes priority over the thread link when both apply.
             child.id IN (
               SELECT source_message_id
               FROM im_message_relations
               WHERE target_message_id = tree.id
                 AND relation_kind = 'parent'
                 AND property_definition_id = ${parentDefinitionId}::uuid
+            )
+            OR
+            -- Thread children: child.parent_id points to tree.id,
+            -- BUT only when the child has NO explicit parent-relation for this definition
+            -- (prevents double-counting when a thread reply also has an explicit override).
+            (
+              child.parent_id = tree.id
+              AND NOT EXISTS (
+                SELECT 1
+                FROM im_message_relations
+                WHERE source_message_id = child.id
+                  AND relation_kind = 'parent'
+                  AND property_definition_id = ${parentDefinitionId}::uuid
+              )
             )
           )
         LEFT JOIN im_message_relations rel

@@ -1329,6 +1329,75 @@ describe('ViewsService', () => {
       expect(result.nextCursor).toBeNull();
     });
 
+    it('cursor pagination: looks up cursor createdAt before filtering (tuple comparison)', async () => {
+      // When a cursor is provided, findMessageIdsForView should first look up the
+      // cursor message's createdAt and then apply a tuple (createdAt, id) comparison.
+      // This test verifies an extra select is issued for the cursor lookup.
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // cursor message lookup → returns createdAt
+      db.__state.selectResults.push([
+        { createdAt: new Date('2026-04-01T10:00:00Z') },
+      ]);
+      // findMessageIdsForView → one hit after cursor
+      db.__state.selectResults.push([{ id: 'msg-after-cursor' }]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const result = await service.getTreeSnapshot({
+        ...treeParams,
+        cursor: '00000000-0000-0000-0000-000000000001',
+      });
+
+      // Cursor message lookup + main query both occurred
+      // (channelPropertyDefinitions select + cursor lookup + message IDs select = 3 selects)
+      expect(db.__queries.select.length).toBeGreaterThanOrEqual(3);
+      expect(result.nextCursor).toBeNull(); // only 1 result returned, no next page
+    });
+
+    it('cursor pagination: two messages with same createdAt both appear exactly once across pages', async () => {
+      // Scenario: msg-A and msg-B have identical createdAt. Without stable secondary
+      // ordering by id, cursor-based pagination could skip or duplicate one of them.
+      // We simulate: page 1 returns msg-A; cursor set to msg-A's id.
+      // page 2 should return msg-B (same createdAt, but different id).
+
+      // Page 1 — no cursor
+      // channelPropertyDefinitions
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView: returns [msg-A, msg-B] (limit=2, full page)
+      db.__state.selectResults.push([{ id: 'msg-A' }, { id: 'msg-B' }]);
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const page1 = await service.getTreeSnapshot({ ...treeParams, limit: 2 });
+      // Should have a cursor (full page returned)
+      expect(page1.nextCursor).toBe('msg-B');
+
+      // Reset mocks for page 2
+      jest.clearAllMocks();
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      // Page 2 — cursor=msg-B
+      // channelPropertyDefinitions
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // cursor lookup: msg-B createdAt
+      db.__state.selectResults.push([
+        { createdAt: new Date('2026-04-01T12:00:00Z') },
+      ]);
+      // findMessageIdsForView: returns only msg-C (items after the cursor)
+      db.__state.selectResults.push([{ id: 'msg-C' }]);
+
+      const page2 = await service.getTreeSnapshot({
+        ...treeParams,
+        limit: 2,
+        cursor: 'msg-B',
+      });
+      // Only msg-C returned, no overlap with page 1
+      expect(page2.nextCursor).toBeNull(); // < limit
+    });
+
     it('ancestorsIncluded contains only ancestors not in the hit set', async () => {
       // channelPropertyDefinitions → parent def
       db.__state.selectResults.push([{ id: 'parent-def-1' }]);

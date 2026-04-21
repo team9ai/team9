@@ -501,4 +501,40 @@ describe("useTreeLoader", () => {
 
     expect(refetch).not.toHaveBeenCalled();
   });
+
+  it("re-subscribes WS events when viewId changes", async () => {
+    // When viewId changes, the useEffect must re-run so it captures the
+    // updated refetch reference (which is now keyed to the new viewId query).
+    const refetchV1 = vi.fn().mockResolvedValue(undefined);
+    const refetchV2 = vi.fn().mockResolvedValue(undefined);
+
+    mockUseViewTree.mockReturnValue(makeQueryResult({ refetch: refetchV1 }));
+
+    const { rerender } = renderHook(
+      (props: { viewId: string }) =>
+        useTreeLoader({
+          channelId: "chan-1",
+          viewId: props.viewId,
+          defaultDepth: 3,
+        }),
+      {
+        wrapper: createWrapper(queryClient),
+        initialProps: { viewId: "view-1" },
+      },
+    );
+
+    // Switch to a different view
+    mockUseViewTree.mockReturnValue(makeQueryResult({ refetch: refetchV2 }));
+
+    act(() => {
+      rerender({ viewId: "view-2" });
+    });
+
+    // Emitting after view change should call refetchV2, not refetchV1
+    act(() => {
+      mockWsService._emit("relationChanged", { channelId: "chan-1" });
+    });
+
+    await waitFor(() => expect(refetchV2).toHaveBeenCalledTimes(1));
+  });
 });

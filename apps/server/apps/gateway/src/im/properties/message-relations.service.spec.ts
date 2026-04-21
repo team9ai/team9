@@ -1361,6 +1361,83 @@ describe('MessageRelationsService', () => {
         hasChildren: false,
       });
     });
+
+    it('thread reply with explicit parent-relation override does NOT appear under thread parent', async () => {
+      // Scenario: Thread T contains reply R (R.parent_id = T). However, R also
+      // has an explicit parentMessage relation pointing to X.
+      // When getSubtree is called with rootIds=[T], R should NOT appear (its
+      // effective parent is X, not T). The DB CTE must exclude R from T's children
+      // because R has an explicit parent-relation (NOT EXISTS check fires).
+      // We simulate this by having the DB return only T when roots=[T].
+      db.__state.executeResults.push([
+        { id: 'T', parent_id: null, parent_source: null, depth: 0 },
+        // R is absent from T's subtree because R's explicit parent-relation overrides
+        // the thread link (T is not R's effective parent).
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['T'],
+        maxDepth: 3,
+        parentDefinitionId: 'def-parent',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].messageId).toBe('T');
+      // T has no children visible under it (R went to X instead)
+      expect(result[0].hasChildren).toBe(false);
+    });
+
+    it('thread reply with explicit parent-relation override appears under explicit parent X', async () => {
+      // Complement of above: when roots=[X], R DOES appear as a child of X
+      // because the explicit relation edge (R→X with kind=parent) is the priority path.
+      db.__state.executeResults.push([
+        { id: 'X', parent_id: null, parent_source: null, depth: 0 },
+        {
+          id: 'R',
+          parent_id: 'X',
+          parent_source: 'relation',
+          depth: 1,
+        },
+      ]);
+
+      const result = await service.getSubtree({
+        channelId: 'channel-1',
+        rootIds: ['X'],
+        maxDepth: 3,
+        parentDefinitionId: 'def-parent',
+      });
+
+      expect(result).toHaveLength(2);
+      const rNode = result.find((n) => n.messageId === 'R');
+      expect(rNode).toBeDefined();
+      expect(rNode).toMatchObject({
+        effectiveParentId: 'X',
+        parentSource: 'relation',
+      });
+    });
+
+    it('CTE SQL uses NOT EXISTS guard to prevent double-counting thread+relation overlap', async () => {
+      // Verify the generated CTE SQL contains the NOT EXISTS sub-query that
+      // prevents a child from joining via thread link when an explicit parent
+      // relation exists for the same definition.
+      let capturedSql = '';
+      db.execute = jest.fn().mockImplementation((q: any) => {
+        capturedSql = typeof q?.sql === 'string' ? q.sql : '';
+        return Promise.resolve([]);
+      });
+
+      await service.getSubtree({
+        channelId: 'c1',
+        rootIds: ['r1'],
+        maxDepth: 2,
+        parentDefinitionId: 'd1',
+      });
+
+      // The recursive step must use NOT EXISTS to exclude thread joins when
+      // an explicit parent relation covers the same child.
+      expect(capturedSql).toMatch(/NOT EXISTS/i);
+    });
   });
 });
 

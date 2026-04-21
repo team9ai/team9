@@ -4,6 +4,10 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+
+// Set CORS_ORIGIN before any module import — WebsocketGateway reads it at class-definition time
+process.env.CORS_ORIGIN = 'http://localhost';
+
 import { ViewsController } from './views.controller.js';
 
 describe('ViewsController', () => {
@@ -170,21 +174,38 @@ describe('ViewsController', () => {
     });
 
     it('splits comma-separated expandedIds', async () => {
-      await controller.getTree(userId, channelId, viewId, 3, 'id-1,id-2,id-3');
+      const uuid1 = '00000000-0000-0000-0000-000000000011';
+      const uuid2 = '00000000-0000-0000-0000-000000000022';
+      const uuid3 = '00000000-0000-0000-0000-000000000033';
+      await controller.getTree(
+        userId,
+        channelId,
+        viewId,
+        3,
+        `${uuid1},${uuid2},${uuid3}`,
+      );
 
       expect(mockViewsService.getTreeSnapshot).toHaveBeenCalledWith(
         expect.objectContaining({
-          expandedIds: ['id-1', 'id-2', 'id-3'],
+          expandedIds: [uuid1, uuid2, uuid3],
         }),
       );
     });
 
     it('filters out empty strings from expandedIds', async () => {
-      await controller.getTree(userId, channelId, viewId, 3, 'id-1,,id-2');
+      const uuid1 = '00000000-0000-0000-0000-000000000011';
+      const uuid2 = '00000000-0000-0000-0000-000000000022';
+      await controller.getTree(
+        userId,
+        channelId,
+        viewId,
+        3,
+        `${uuid1},,${uuid2}`,
+      );
 
       expect(mockViewsService.getTreeSnapshot).toHaveBeenCalledWith(
         expect.objectContaining({
-          expandedIds: ['id-1', 'id-2'],
+          expandedIds: [uuid1, uuid2],
         }),
       );
     });
@@ -214,18 +235,19 @@ describe('ViewsController', () => {
     });
 
     it('passes cursor to getTreeSnapshot', async () => {
+      const validCursor = '00000000-0000-0000-0000-000000000099';
       await controller.getTree(
         userId,
         channelId,
         viewId,
         3,
         undefined,
-        'some-cursor-id',
+        validCursor,
       );
 
       expect(mockViewsService.getTreeSnapshot).toHaveBeenCalledWith(
         expect.objectContaining({
-          cursor: 'some-cursor-id',
+          cursor: validCursor,
         }),
       );
     });
@@ -236,6 +258,51 @@ describe('ViewsController', () => {
       expect(mockViewsService.getTreeSnapshot).toHaveBeenCalledWith(
         expect.objectContaining({
           cursor: null,
+        }),
+      );
+    });
+
+    it('rejects non-UUID expandedIds entry with BadRequestException', async () => {
+      await expect(
+        controller.getTree(userId, channelId, viewId, 3, 'not-a-uuid'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockViewsService.getTreeSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('rejects non-UUID cursor with BadRequestException', async () => {
+      await expect(
+        controller.getTree(
+          userId,
+          channelId,
+          viewId,
+          3,
+          undefined,
+          'not-a-uuid-cursor',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockViewsService.getTreeSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('accepts valid UUID expandedIds', async () => {
+      const validUuid = '00000000-0000-0000-0000-000000000099';
+      await expect(
+        controller.getTree(userId, channelId, viewId, 3, validUuid),
+      ).resolves.not.toThrow();
+      expect(mockViewsService.getTreeSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expandedIds: [validUuid],
+        }),
+      );
+    });
+
+    it('accepts valid UUID cursor', async () => {
+      const validUuid = '00000000-0000-0000-0000-000000000099';
+      await expect(
+        controller.getTree(userId, channelId, viewId, 3, undefined, validUuid),
+      ).resolves.not.toThrow();
+      expect(mockViewsService.getTreeSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cursor: validUuid,
         }),
       );
     });

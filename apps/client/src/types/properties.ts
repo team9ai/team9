@@ -23,8 +23,8 @@ export type PropertyValueType =
 // ==================== MessageRef Config ====================
 
 export interface MessageRefConfig {
-  /** Restrict search to the current channel when set to 'same_channel' */
-  scope?: "same_channel" | "all";
+  /** Restrict search to the current channel when set to 'same_channel'; 'any' allows cross-channel (server default) */
+  scope?: "same_channel" | "any";
   /** Whether selection allows a single reference or multiple */
   cardinality?: "single" | "multi";
   /** Semantic relation kind for task-relationship shortcuts */

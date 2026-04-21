@@ -404,9 +404,9 @@ describe("MessageRefPicker", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  // ── default cardinality (single when config absent) ──────────────────────
+  // ── default cardinality (multi when config absent) ──────────────────────
 
-  it("defaults to single cardinality when config is empty", async () => {
+  it("defaults to multi cardinality when config is empty (legacy compat)", async () => {
     mockSearchMessages.mockResolvedValue(makeSearchResult("m2", "result"));
     const onChange = vi.fn();
 
@@ -424,8 +424,42 @@ describe("MessageRefPicker", () => {
 
     fireEvent.click(screen.getByText("result"));
 
-    // Default is single → scalar call
-    expect(onChange).toHaveBeenCalledWith("m2");
+    // Default is multi → array call
+    expect(onChange).toHaveBeenCalledWith(["m2"]);
+  });
+
+  it("multi cardinality keeps dropdown open after selection", async () => {
+    mockSearchMessages.mockResolvedValue(
+      makeMultiSearchResult([
+        { id: "b", content: "b message" },
+        { id: "c", content: "c message" },
+      ]),
+    );
+    const onChange = vi.fn();
+
+    render(
+      <MessageRefPicker
+        definition={makeDefinition({ cardinality: "multi" })}
+        value={["a"]}
+        onChange={onChange}
+        currentMessageId="m1"
+      />,
+    );
+
+    await typeAndSearch("search");
+
+    await waitFor(() =>
+      expect(screen.getByText("b message")).toBeInTheDocument(),
+    );
+
+    // Select first item
+    fireEvent.click(screen.getByText("b message"));
+
+    // Dropdown should still be open (c message still visible)
+    // The combobox should still be present and aria-expanded should remain true
+    const combobox = screen.getByRole("combobox");
+    expect(combobox).toBeInTheDocument();
+    expect(combobox).toHaveAttribute("aria-expanded", "true");
   });
 
   // ── no search when query empty ────────────────────────────────────────────
