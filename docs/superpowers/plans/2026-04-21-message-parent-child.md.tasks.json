@@ -45,7 +45,7 @@
     {
       "id": 7,
       "subject": "Task 7: Enforce at-most-one relationKind=parent definition per channel",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Property-definitions service validates parent uniqueness per channel + default config + immutable relationKind/scope when edges exist.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/property-definitions.service.ts\",\"apps/server/apps/gateway/src/im/properties/property-definitions.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=property-definitions.service.spec.ts\",\"acceptanceCriteria\":[\"second parent def rejected with DEFINITION_CONFLICT\",\"multi related defs allowed\",\"scope defaults any, cardinality defaults multi\",\"cannot change relationKind/scope on def with edges\"]}\n```"
     },
