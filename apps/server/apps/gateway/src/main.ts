@@ -12,6 +12,24 @@ import { runMigrations, runSeed } from '@team9/database';
 
 const logger = new Logger('Bootstrap');
 
+// Heartbeat so we can tell the difference between "process hung" and
+// "process crashed silently" in Railway logs. Interval is unref'd so it
+// does not keep the event loop alive on its own.
+const __heartbeat = setInterval(() => {
+  // eslint-disable-next-line no-console
+  console.log(`[HEARTBEAT] pid=${process.pid} uptime=${process.uptime().toFixed(1)}s`);
+}, 2000);
+__heartbeat.unref?.();
+
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[DEBUG/UNCAUGHT]', err);
+});
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.error('[DEBUG/UNHANDLED]', reason);
+});
+
 /**
  * Bootstrap the gateway application.
  *
