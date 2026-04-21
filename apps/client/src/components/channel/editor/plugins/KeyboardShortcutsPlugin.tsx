@@ -10,6 +10,10 @@ import { CodeNode } from "@lexical/code";
 import { $getNearestNodeOfType } from "@lexical/utils";
 import { hasContent } from "../utils/exportContent";
 import { submitEditorContent } from "../utils/submitEditorContent";
+import {
+  isImeCompositionEvent,
+  useIsComposingRef,
+} from "./CompositionStatePlugin";
 
 interface KeyboardShortcutsPluginProps {
   onSubmit: (content: string) => Promise<void>;
@@ -29,6 +33,7 @@ export function KeyboardShortcutsPlugin({
   clearOnSubmit = true,
 }: KeyboardShortcutsPluginProps) {
   const [editor] = useLexicalComposerContext();
+  const isComposingRef = useIsComposingRef();
 
   const handleSubmit = useCallback(() => {
     if (disabled) return false;
@@ -56,6 +61,13 @@ export function KeyboardShortcutsPlugin({
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event: KeyboardEvent | null) => {
+        // Don't send while the user is committing/composing with an IME.
+        // Matters especially on macOS WKWebView where compositionend fires
+        // before this keydown (see CompositionStatePlugin for details).
+        if (isImeCompositionEvent(event, isComposingRef)) {
+          return false;
+        }
+
         if (event?.shiftKey || event?.ctrlKey) {
           // Let default behavior handle Shift+Enter / Ctrl+Enter (line break)
           return false;
@@ -81,7 +93,7 @@ export function KeyboardShortcutsPlugin({
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor, handleSubmit]);
+  }, [editor, handleSubmit, isComposingRef]);
 
   return null;
 }

@@ -1,6 +1,14 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
+  PanelRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +42,7 @@ import type { TreeNode } from "@/types/relations";
 export interface TableViewProps {
   channelId: string;
   view: ChannelView;
+  onJumpToMessage?: (messageId: string) => void;
 }
 
 // ==================== Tree walking utility ====================
@@ -135,13 +144,16 @@ function TableRow({
   channelId,
   currentUserId,
   columnWidths,
+  onJumpToMessage,
 }: {
   message: ViewMessageItem;
   visibleDefs: PropertyDefinition[];
   channelId: string;
   currentUserId: string | undefined;
   columnWidths: Record<string, number>;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
+  const { t } = useTranslation("channel");
   const [editingCell, setEditingCell] = useState<string | null>(null);
 
   const contentPreview = useMemo(() => {
@@ -159,7 +171,24 @@ function TableRow({
           maxWidth: columnWidths["__content"] ?? 320,
         }}
       >
-        <span className="line-clamp-2">{contentPreview || "..."}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="line-clamp-2 flex-1">{contentPreview || "..."}</span>
+          {onJumpToMessage && (
+            <button
+              type="button"
+              aria-label={t("table.openInChat")}
+              title={t("table.openInChat")}
+              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-1.5 py-0.5 bg-background"
+              onClick={(e) => {
+                e.stopPropagation();
+                onJumpToMessage(message.id);
+              }}
+            >
+              <PanelRight className="h-3 w-3" />
+              <span>OPEN</span>
+            </button>
+          )}
+        </div>
       </td>
 
       {visibleDefs.map((def) => {
@@ -247,6 +276,7 @@ function HierarchyTableRow({
   isExpanded,
   onExpand,
   onCollapse,
+  onJumpToMessage,
 }: {
   node: TreeNode;
   visibleDefs: PropertyDefinition[];
@@ -257,6 +287,7 @@ function HierarchyTableRow({
   isExpanded: boolean;
   onExpand: (id: string) => void;
   onCollapse: (id: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const indentPx = node.depth * 16 + 8;
@@ -292,28 +323,45 @@ function HierarchyTableRow({
           maxWidth: columnWidths["__content"] ?? 320,
         }}
       >
-        <span className="inline-flex items-center gap-1 w-full">
-          {node.hasChildren ? (
+        <div className="flex items-center justify-between gap-2 w-full">
+          <span className="inline-flex items-center gap-1 flex-1 min-w-0">
+            {node.hasChildren ? (
+              <button
+                aria-label={isExpanded ? "collapse" : "expand"}
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors w-4 text-center"
+                onClick={() => {
+                  if (isExpanded) {
+                    onCollapse(node.messageId);
+                  } else {
+                    onExpand(node.messageId);
+                  }
+                }}
+              >
+                {isExpanded ? "▾" : "▸"}
+              </button>
+            ) : (
+              <span className="inline-block w-4 flex-shrink-0" />
+            )}
+            <span className="line-clamp-2 text-xs text-muted-foreground">
+              {node.messageId}
+            </span>
+          </span>
+          {onJumpToMessage && (
             <button
-              aria-label={isExpanded ? "collapse" : "expand"}
-              className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors w-4 text-center"
-              onClick={() => {
-                if (isExpanded) {
-                  onCollapse(node.messageId);
-                } else {
-                  onExpand(node.messageId);
-                }
+              type="button"
+              aria-label="open in chat"
+              title="open in chat"
+              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-1.5 py-0.5 bg-background"
+              onClick={(e) => {
+                e.stopPropagation();
+                onJumpToMessage(node.messageId);
               }}
             >
-              {isExpanded ? "▾" : "▸"}
+              <PanelRight className="h-3 w-3" />
+              <span>OPEN</span>
             </button>
-          ) : (
-            <span className="inline-block w-4 flex-shrink-0" />
           )}
-          <span className="line-clamp-2 text-xs text-muted-foreground">
-            {node.messageId}
-          </span>
-        </span>
+        </div>
       </td>
 
       {visibleDefs.map((def) => {
@@ -560,7 +608,11 @@ function ColumnHeader({
 
 // ==================== Main TableView ====================
 
-export function TableView({ channelId, view }: TableViewProps) {
+export function TableView({
+  channelId,
+  view,
+  onJumpToMessage,
+}: TableViewProps) {
   const { data: definitions = [] } = usePropertyDefinitions(channelId);
   const hierarchyMode = !!view.config.hierarchyMode;
 
@@ -908,6 +960,7 @@ export function TableView({ channelId, view }: TableViewProps) {
                       isExpanded={tree.expandedSet.has(node.messageId)}
                       onExpand={tree.expand}
                       onCollapse={tree.collapse}
+                      onJumpToMessage={onJumpToMessage}
                     />
                   ))
                 : messages.map((msg) => (
@@ -918,6 +971,7 @@ export function TableView({ channelId, view }: TableViewProps) {
                       channelId={channelId}
                       currentUserId={currentUser?.id}
                       columnWidths={effectiveWidths}
+                      onJumpToMessage={onJumpToMessage}
                     />
                   ))}
               <NewMessageRow channelId={channelId} colSpan={totalColumns} />

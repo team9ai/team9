@@ -23,6 +23,8 @@ function createDbMock() {
     'insert',
     'values',
     'returning',
+    'onConflictDoNothing',
+    'onConflictDoUpdate',
     'update',
     'set',
     'delete',
@@ -1029,5 +1031,314 @@ describe('OnboardingService — pipeline ordering', () => {
     expect(
       personalStaffService.triggerBootstrapForExistingStaff,
     ).not.toHaveBeenCalled();
+  });
+});
+
+// ── createRecord race safety ─────────────────────────────────────────────────
+
+describe('OnboardingService — createRecord race safety', () => {
+  let service: any;
+  let db: any;
+  let enqueue: any;
+
+  beforeEach(() => {
+    const mock = createDbMock();
+    db = mock.db;
+    enqueue = mock.enqueue;
+
+    service = new OnboardingService(
+      db,
+      {
+        findByNameAndTenant: jest.fn<any>().mockResolvedValue(null),
+        create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
+      },
+      {
+        findByApplicationId: jest.fn<any>().mockResolvedValue(null),
+        install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
+      },
+      {
+        findPersonalStaffBot: jest.fn<any>().mockResolvedValue(null),
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
+        updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      },
+      {
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
+      },
+      {
+        create: jest.fn<any>().mockResolvedValue({ id: 'routine-id' }),
+      },
+    );
+  });
+
+  const OWNER_MEMBERSHIP = {
+    tenantId: WORKSPACE_ID,
+    role: 'owner',
+    joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+  };
+
+  it('uses ON CONFLICT DO NOTHING so concurrent inserts do not throw on the unique index', async () => {
+    const inserted = makeOnboardingRecord({
+      status: 'in_progress',
+      currentStep: 1,
+      stepData: {},
+    });
+    enqueue([]); // getState.findRecord — nothing yet
+    enqueue([OWNER_MEMBERSHIP]); // shouldSelfHealMissingRecord
+    enqueue([inserted]); // insert().onConflictDoNothing().returning()
+
+    await expect(service.getState(WORKSPACE_ID, USER_ID)).resolves.toEqual(
+      inserted,
+    );
+    expect(db.onConflictDoNothing).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to findRecord when INSERT returns empty (the conflicting writer won)', async () => {
+    const winner = makeOnboardingRecord({
+      status: 'in_progress',
+      currentStep: 4,
+    });
+    enqueue([]); // getState.findRecord
+    enqueue([OWNER_MEMBERSHIP]); // memberships
+    enqueue([]); // INSERT … ON CONFLICT DO NOTHING → no row (duplicate)
+    enqueue([winner]); // fallback findRecord
+
+    await expect(service.getState(WORKSPACE_ID, USER_ID)).resolves.toEqual(
+      winner,
+    );
+  });
+
+  it('throws when INSERT returns empty AND the fallback findRecord also misses', async () => {
+    enqueue([]); // getState.findRecord
+    enqueue([OWNER_MEMBERSHIP]); // memberships
+    enqueue([]); // INSERT → empty (duplicate)
+    enqueue([]); // fallback findRecord → still missing
+
+    await expect(service.getState(WORKSPACE_ID, USER_ID)).rejects.toThrow(
+      /Failed to create workspace onboarding/,
+    );
+  });
+});
+
+// ── complete() concurrency guard ─────────────────────────────────────────────
+
+describe('OnboardingService — complete() concurrency guard', () => {
+  let service: any;
+  let db: any;
+  let enqueue: any;
+
+  beforeEach(() => {
+    const mock = createDbMock();
+    db = mock.db;
+    enqueue = mock.enqueue;
+
+    service = new OnboardingService(
+      db,
+      {
+        findByNameAndTenant: jest.fn<any>().mockResolvedValue(null),
+        create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
+      },
+      {
+        findByApplicationId: jest.fn<any>().mockResolvedValue({
+          id: APP_ID,
+          applicationId: 'personal-staff',
+          tenantId: WORKSPACE_ID,
+        }),
+        install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
+      },
+      {
+        findPersonalStaffBot: jest.fn<any>().mockResolvedValue({
+          botId: BOT_ID,
+          userId: 'bot-user-uuid',
+          displayName: 'Secretary',
+          avatarUrl: null,
+          ownerId: USER_ID,
+          mentorId: null,
+          extra: null,
+          isActive: true,
+        }),
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
+        updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      },
+      {
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
+      },
+      {
+        create: jest.fn<any>().mockResolvedValue({ id: 'routine-id' }),
+      },
+    );
+  });
+
+  it('short-circuits when status is already provisioned (no CAS UPDATE, no provisioning side effects)', async () => {
+    const record = makeOnboardingRecord({ status: 'provisioned' });
+    enqueue([record]); // requireRecord
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).resolves.toEqual(record);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects when status is skipped', async () => {
+    const record = makeOnboardingRecord({ status: 'skipped' });
+    enqueue([record]);
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toThrow(/Skipped onboarding cannot be provisioned/);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects with "already in progress" when the CAS UPDATE loses to a concurrent caller that is still provisioning', async () => {
+    const record = makeOnboardingRecord({ status: 'completed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows (status no longer in completed|failed)
+    enqueue([{ ...record, status: 'provisioning' }]); // re-read
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toThrow(/provisioning is already in progress/);
+  });
+
+  it('returns the winning row when the CAS UPDATE loses but the race winner has already finished provisioning', async () => {
+    const record = makeOnboardingRecord({ status: 'completed' });
+    const winner = { ...record, status: 'provisioned' };
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([winner]); // re-read: winner completed
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).resolves.toEqual(winner);
+  });
+
+  it('rejects with "must be completed" when the row was rolled back to a non-terminal status', async () => {
+    const record = makeOnboardingRecord({ status: 'completed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([{ ...record, status: 'in_progress' }]); // re-read: rolled back
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toThrow(/must be completed before provisioning/);
+  });
+
+  it('rejects with "must be completed" when the re-read returns null (record deleted mid-race)', async () => {
+    const record = makeOnboardingRecord({ status: 'failed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([]); // re-read → missing
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toThrow(/must be completed before provisioning/);
+  });
+
+  it('rejects with 409 "please retry" when the re-read observes completed/failed (race winner finished and row is claimable again)', async () => {
+    const record = makeOnboardingRecord({ status: 'completed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([{ ...record, status: 'failed' }]); // winner finished with failure
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringMatching(/state changed during provisioning/i),
+    });
+  });
+
+  it('rejects with 409 "please retry" when the re-read observes completed (winner rolled row back to completed)', async () => {
+    const record = makeOnboardingRecord({ status: 'failed' });
+    enqueue([record]); // requireRecord
+    enqueue([]); // CAS update → zero rows
+    enqueue([{ ...record, status: 'completed' }]); // another writer rewound state
+
+    await expect(
+      service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('increments version via sql expression when claiming provisioning status', async () => {
+    // Use the pipeline helper with a failed-status record so that the CAS
+    // claim is the first UPDATE on db.set — we then inspect its arguments.
+    const record = makeOnboardingRecord({ status: 'failed' });
+    // requireRecord
+    enqueue([record]);
+    // CAS update returning → claimed row
+    enqueue([{ ...record, status: 'provisioning' }]);
+    // provisionChannels: no drafts in fixture → no DB
+    // provisionPersonalStaff: service mocks only
+    // provisionCommonStaff: empty children → early return
+    // provisionRoutines: one idempotency check
+    enqueue([]);
+    // persistPreferences: select tenant
+    enqueue([{ settings: {} }]);
+    // persistPreferences: update tenant
+    enqueue([]);
+    // final update to provisioned
+    enqueue([{ ...record, status: 'provisioned' }]);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    // The first db.set call is the CAS claim; verify it asks for status +
+    // version + updatedAt so a regression that drops the version bump fails
+    // this test.
+    const claimArgs = db.set.mock.calls[0][0];
+    expect(claimArgs).toHaveProperty('status', 'provisioning');
+    expect(claimArgs).toHaveProperty('version');
+    expect(claimArgs).toHaveProperty('updatedAt');
+    // Guard against a regression that reads stale `record.version` client-side
+    // and writes a plain number — the CAS must bump via a server-side SQL
+    // expression so two racing workers cannot both land version = N+1.
+    expect(typeof claimArgs.version).not.toBe('number');
+  });
+});
+
+// ── updateState version monotonicity ─────────────────────────────────────────
+
+describe('OnboardingService — updateState version bump', () => {
+  let service: any;
+  let db: any;
+  let enqueue: any;
+
+  beforeEach(() => {
+    const mock = createDbMock();
+    db = mock.db;
+    enqueue = mock.enqueue;
+
+    service = new OnboardingService(
+      db,
+      {
+        findByNameAndTenant: jest.fn<any>().mockResolvedValue(null),
+        create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
+      },
+      {
+        findByApplicationId: jest.fn<any>().mockResolvedValue(null),
+        install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
+      },
+      {
+        findPersonalStaffBot: jest.fn<any>().mockResolvedValue(null),
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
+        updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      },
+      {
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
+      },
+      {
+        create: jest.fn<any>().mockResolvedValue({ id: 'routine-id' }),
+      },
+    );
+  });
+
+  it('bumps version via sql expression on every updateState write so the column is monotone across all state transitions, not just CAS claims', async () => {
+    const record = makeOnboardingRecord({ status: 'in_progress' });
+    enqueue([record]); // requireRecord
+    enqueue([{ ...record, currentStep: 2 }]); // update returning
+
+    await service.updateState(WORKSPACE_ID, USER_ID, { currentStep: 2 });
+
+    const setArgs = db.set.mock.calls[0][0];
+    expect(setArgs).toHaveProperty('version');
+    expect(typeof setArgs.version).not.toBe('number');
   });
 });

@@ -210,10 +210,17 @@ export class ChannelsController {
   @Post(':id/members')
   async addMember(
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
     @Param('id', ParseUUIDPipe) channelId: string,
     @Body() dto: AddMemberDto,
   ): Promise<{ success: boolean }> {
-    const role = await this.channelsService.getMemberRole(channelId, userId);
+    // Use derivation-aware role lookup so a mentor of the channel owner bot
+    // can add members even without direct membership (spec §6.2 #3).
+    const role = await this.channelsService.getEffectiveRole(
+      channelId,
+      userId,
+      tenantId,
+    );
     if (!role) {
       throw new ForbiddenException('Access denied');
     }
