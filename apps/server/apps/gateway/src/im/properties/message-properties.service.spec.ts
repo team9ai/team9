@@ -89,6 +89,7 @@ const mockWsGateway = {
 const mockRelationsService = {
   setRelationTargets: jest.fn<any>(),
   getOutgoingTargets: jest.fn<any>(),
+  getOutgoingTargetsForMany: jest.fn<any>(),
 };
 
 jest.unstable_mockModule('./property-definitions.service.js', () => ({
@@ -278,6 +279,7 @@ describe('MessagePropertiesService', () => {
       currentTargetIds: [],
     });
     mockRelationsService.getOutgoingTargets.mockResolvedValue([]);
+    mockRelationsService.getOutgoingTargetsForMany.mockResolvedValue(new Map());
   });
 
   // ==================== getProperties ====================
@@ -838,20 +840,23 @@ describe('MessagePropertiesService', () => {
 
       await service.setProperty('msg-1', 'def-rel', 'target-1', 'user-1');
 
-      expect(mockRelationsService.setRelationTargets).toHaveBeenCalledWith({
-        sourceMessageId: 'msg-1',
-        targetMessageIds: ['target-1'],
-        definition: {
-          id: 'def-rel',
-          channelId: 'channel-1',
-          config: {
-            scope: 'same_channel',
-            cardinality: 'single',
-            relationKind: 'parent',
+      expect(mockRelationsService.setRelationTargets).toHaveBeenCalledWith(
+        {
+          sourceMessageId: 'msg-1',
+          targetMessageIds: ['target-1'],
+          definition: {
+            id: 'def-rel',
+            channelId: 'channel-1',
+            config: {
+              scope: 'same_channel',
+              cardinality: 'single',
+              relationKind: 'parent',
+            },
           },
+          actorId: 'user-1',
         },
-        actorId: 'user-1',
-      });
+        db, // outer tx passed through
+      );
     });
 
     it('sets explicitlyCleared=true on jsonValue when value is null', async () => {
@@ -1104,6 +1109,109 @@ describe('MessagePropertiesService', () => {
       );
     });
 
+    it('wraps setRelationTargets + sentinel upsert in a single outer transaction (atomicity)', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      // Inside tx: findExisting (no row)
+      db.__state.selectResults.push([]);
+      // Inside tx: insert sentinel
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['target-1'],
+        removedTargetIds: [],
+        currentTargetIds: ['target-1'],
+      });
+
+      const txSpy = jest.spyOn(db, 'transaction');
+
+      await service.setProperty('msg-1', 'def-rel', 'target-1', 'user-1');
+
+      // Exactly one outer transaction wraps both the relation write and sentinel upsert
+      expect(txSpy).toHaveBeenCalledTimes(1);
+      // setRelationTargets received the outer tx (= db in mock)
+      expect(mockRelationsService.setRelationTargets).toHaveBeenCalledWith(
+        expect.anything(),
+        db,
+      );
+    });
+
+    it('batchGetByMessageIds uses getOutgoingTargetsForMany (single batch call, not N+1)', async () => {
+      // Two relation-kind property rows for two different messages
+      db.__state.selectResults.push([
+        {
+          ...propRow({
+            messageId: 'msg-1',
+            propertyDefinitionId: 'def-rel',
+            jsonValue: null,
+          }),
+        },
+        {
+          ...propRow({
+            id: 'prop-2',
+            messageId: 'msg-2',
+            propertyDefinitionId: 'def-rel',
+            jsonValue: null,
+          }),
+        },
+      ]);
+      db.__state.selectResults.push([
+        relKindDefRow({
+          config: {
+            scope: 'same_channel',
+            cardinality: 'multi',
+            relationKind: 'parent',
+          },
+        }),
+      ]);
+
+      mockRelationsService.getOutgoingTargetsForMany.mockResolvedValue(
+        new Map([
+          ['msg-1', ['target-a']],
+          ['msg-2', ['target-b', 'target-c']],
+        ]),
+      );
+
+      const result = await service.batchGetByMessageIds(['msg-1', 'msg-2']);
+
+      // One batch call, not two individual calls
+      expect(
+        mockRelationsService.getOutgoingTargetsForMany,
+      ).toHaveBeenCalledTimes(1);
+      expect(mockRelationsService.getOutgoingTargets).not.toHaveBeenCalled();
+      expect(result['msg-1']['parent']).toEqual(['target-a']);
+      expect(result['msg-2']['parent']).toEqual(['target-b', 'target-c']);
+    });
+
+    it('batchGetByMessageIds handles explicitlyCleared sentinel in batch path', async () => {
+      db.__state.selectResults.push([
+        propRow({
+          messageId: 'msg-1',
+          propertyDefinitionId: 'def-rel',
+          jsonValue: { explicitlyCleared: true },
+        }),
+      ]);
+      db.__state.selectResults.push([relKindDefRow()]);
+
+      mockRelationsService.getOutgoingTargetsForMany.mockResolvedValue(
+        new Map([['msg-1', []]]),
+      );
+
+      const result = await service.batchGetByMessageIds(['msg-1']);
+
+      // explicitlyCleared=true → single cardinality → null (batch result not used for cleared rows)
+      expect(result['msg-1']['parent']).toBeNull();
+      // getOutgoingTargetsForMany is still called (prefetch is eager); result just ignored for cleared rows
+      expect(
+        mockRelationsService.getOutgoingTargetsForMany,
+      ).toHaveBeenCalledTimes(1);
+    });
+
     it('removeProperty for relationKind triggers relation removal + explicitlyCleared', async () => {
       db.__state.selectResults.push([messageRow()]);
       db.__state.selectResults.push([
@@ -1127,6 +1235,7 @@ describe('MessagePropertiesService', () => {
 
       expect(mockRelationsService.setRelationTargets).toHaveBeenCalledWith(
         expect.objectContaining({ targetMessageIds: [] }),
+        db, // outer tx passed through
       );
       expect(mockAuditService.log).toHaveBeenCalledWith(
         expect.objectContaining({

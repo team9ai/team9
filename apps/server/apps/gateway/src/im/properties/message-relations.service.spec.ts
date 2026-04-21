@@ -537,6 +537,56 @@ describe('MessageRelationsService', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // setRelationTargets — existingTx variant
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('setRelationTargets — existingTx', () => {
+    it('when given existingTx, uses it instead of opening a new transaction', async () => {
+      const outerDb = mockDb();
+      // seed the outerDb (used as outerTx) with the same sequence of results
+      outerDb.__state.selectResults.push([sourceRow()]);
+      outerDb.__state.selectResults.push([targetRow({ id: 'target-1' })]);
+      outerDb.__state.selectResults.push([]); // existing edges
+      outerDb.__state.insertResults.push([]); // insert
+
+      const txSpy = jest.spyOn(db, 'transaction');
+
+      await service.setRelationTargets(
+        {
+          sourceMessageId: 'msg-src',
+          targetMessageIds: ['target-1'],
+          definition: makeDefinition() as any,
+          actorId: 'user-1',
+        },
+        outerDb as any,
+      );
+
+      // Should NOT have opened a new transaction on the service's own db
+      expect(txSpy).not.toHaveBeenCalled();
+      // Should have used outerDb's insert
+      expect(outerDb.__queries.insert).toHaveLength(1);
+    });
+
+    it('without existingTx, opens its own transaction as before', async () => {
+      db.__state.selectResults.push([sourceRow()]);
+      db.__state.selectResults.push([targetRow({ id: 'target-1' })]);
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      const txSpy = jest.spyOn(db, 'transaction');
+
+      await service.setRelationTargets({
+        sourceMessageId: 'msg-src',
+        targetMessageIds: ['target-1'],
+        definition: makeDefinition() as any,
+        actorId: 'user-1',
+      });
+
+      expect(txSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // getOutgoingTargets
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -560,6 +610,82 @@ describe('MessageRelationsService', () => {
       const result = await service.getOutgoingTargets('src-1', 'def-1');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // getOutgoingTargetsForMany
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('getOutgoingTargetsForMany', () => {
+    it('returns empty map when sourceMessageIds is empty (no DB query)', async () => {
+      const result = await service.getOutgoingTargetsForMany([], 'def-1');
+
+      expect(result.size).toBe(0);
+      expect(db.__queries.select).toHaveLength(0);
+    });
+
+    it('returns map keyed by sourceMessageId with ordered targetIds', async () => {
+      db.__state.selectResults.push([
+        { sourceMessageId: 'src-1', targetMessageId: 'target-a' },
+        { sourceMessageId: 'src-1', targetMessageId: 'target-b' },
+        { sourceMessageId: 'src-2', targetMessageId: 'target-c' },
+      ]);
+
+      const result = await service.getOutgoingTargetsForMany(
+        ['src-1', 'src-2'],
+        'def-1',
+      );
+
+      expect(result.get('src-1')).toEqual(['target-a', 'target-b']);
+      expect(result.get('src-2')).toEqual(['target-c']);
+    });
+
+    it('initialises keys for source IDs with no edges (empty arrays)', async () => {
+      // src-2 has no edges — DB returns only src-1 rows
+      db.__state.selectResults.push([
+        { sourceMessageId: 'src-1', targetMessageId: 'target-a' },
+      ]);
+
+      const result = await service.getOutgoingTargetsForMany(
+        ['src-1', 'src-2'],
+        'def-1',
+      );
+
+      expect(result.has('src-1')).toBe(true);
+      expect(result.get('src-1')).toEqual(['target-a']);
+      expect(result.has('src-2')).toBe(true);
+      expect(result.get('src-2')).toEqual([]);
+    });
+
+    it('preserves createdAt order (orderBy was called)', async () => {
+      db.__state.selectResults.push([
+        { sourceMessageId: 'src-1', targetMessageId: 'earlier' },
+        { sourceMessageId: 'src-1', targetMessageId: 'later' },
+      ]);
+
+      const result = await service.getOutgoingTargetsForMany(
+        ['src-1'],
+        'def-1',
+      );
+
+      expect(result.get('src-1')).toEqual(['earlier', 'later']);
+      expect(db.__queries.select[0].orderBy).toHaveBeenCalled();
+    });
+
+    it('issues exactly one DB query for multiple source IDs', async () => {
+      db.__state.selectResults.push([
+        { sourceMessageId: 'src-1', targetMessageId: 't1' },
+        { sourceMessageId: 'src-2', targetMessageId: 't2' },
+        { sourceMessageId: 'src-3', targetMessageId: 't3' },
+      ]);
+
+      await service.getOutgoingTargetsForMany(
+        ['src-1', 'src-2', 'src-3'],
+        'def-1',
+      );
+
+      expect(db.__queries.select).toHaveLength(1);
     });
   });
 

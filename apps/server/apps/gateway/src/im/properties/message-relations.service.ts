@@ -69,8 +69,9 @@ export class MessageRelationsService {
 
   async setRelationTargets(
     params: SetRelationTargetsParams,
+    existingTx?: PostgresJsDatabase<typeof schema>,
   ): Promise<SetRelationTargetsResult> {
-    const { sourceMessageId, targetMessageIds, definition, actorId } = params;
+    const { sourceMessageId, targetMessageIds, definition } = params;
     const { config } = definition;
 
     // Dedupe inputs
@@ -94,98 +95,110 @@ export class MessageRelationsService {
       );
     }
 
-    return this.db.transaction(async (tx) => {
-      // Load source message for channelId + tenantId
-      const [source] = await tx
-        .select({
-          channelId: messages.channelId,
-          tenantId: messages.tenantId,
-        })
+    const run = (tx: PostgresJsDatabase<typeof schema>) =>
+      this._setRelationTargetsTx(tx, params, desired);
+
+    return existingTx ? run(existingTx) : this.db.transaction(run);
+  }
+
+  private async _setRelationTargetsTx(
+    tx: PostgresJsDatabase<typeof schema>,
+    params: SetRelationTargetsParams,
+    desired: string[],
+  ): Promise<SetRelationTargetsResult> {
+    const { sourceMessageId, definition, actorId } = params;
+    const { config } = definition;
+
+    // Load source message for channelId + tenantId
+    const [source] = await tx
+      .select({
+        channelId: messages.channelId,
+        tenantId: messages.tenantId,
+      })
+      .from(messages)
+      .where(eq(messages.id, sourceMessageId))
+      .limit(1);
+
+    if (!source) {
+      throw new RelationSourceNotFoundError(sourceMessageId);
+    }
+
+    // Validate targets exist and satisfy scope
+    if (desired.length > 0) {
+      const targetRows = await tx
+        .select({ id: messages.id, channelId: messages.channelId })
         .from(messages)
-        .where(eq(messages.id, sourceMessageId))
-        .limit(1);
+        .where(inArray(messages.id, desired));
 
-      if (!source) {
-        throw new RelationSourceNotFoundError(sourceMessageId);
-      }
-
-      // Validate targets exist and satisfy scope
-      if (desired.length > 0) {
-        const targetRows = await tx
-          .select({ id: messages.id, channelId: messages.channelId })
-          .from(messages)
-          .where(inArray(messages.id, desired));
-
-        const foundIds = new Set(targetRows.map((t) => t.id));
-        for (const id of desired) {
-          if (!foundIds.has(id)) {
-            throw new RelationTargetNotFoundError(id);
-          }
-        }
-
-        if (config.scope === 'same_channel') {
-          for (const t of targetRows) {
-            if (t.channelId !== source.channelId) {
-              throw new RelationError('SCOPE_VIOLATION');
-            }
-          }
+      const foundIds = new Set(targetRows.map((t) => t.id));
+      for (const id of desired) {
+        if (!foundIds.has(id)) {
+          throw new RelationTargetNotFoundError(id);
         }
       }
 
-      // Load existing edges
-      const existing = await tx
-        .select({ targetMessageId: messageRelations.targetMessageId })
-        .from(messageRelations)
+      if (config.scope === 'same_channel') {
+        for (const t of targetRows) {
+          if (t.channelId !== source.channelId) {
+            throw new RelationError('SCOPE_VIOLATION');
+          }
+        }
+      }
+    }
+
+    // Load existing edges
+    const existing = await tx
+      .select({ targetMessageId: messageRelations.targetMessageId })
+      .from(messageRelations)
+      .where(
+        and(
+          eq(messageRelations.sourceMessageId, sourceMessageId),
+          eq(messageRelations.propertyDefinitionId, definition.id),
+        ),
+      );
+
+    const existingSet = new Set(existing.map((e) => e.targetMessageId));
+    const desiredSet = new Set(desired);
+
+    const toAdd = desired.filter((id) => !existingSet.has(id));
+    const toRemove = [...existingSet].filter((id) => !desiredSet.has(id));
+
+    // Cycle detection: run AFTER scope validation, BEFORE INSERT
+    if (config.relationKind === 'parent' && toAdd.length > 0) {
+      await this.assertNoCycle(tx, sourceMessageId, toAdd, 'parent');
+    }
+
+    if (toRemove.length > 0) {
+      await tx
+        .delete(messageRelations)
         .where(
           and(
             eq(messageRelations.sourceMessageId, sourceMessageId),
             eq(messageRelations.propertyDefinitionId, definition.id),
+            inArray(messageRelations.targetMessageId, toRemove),
           ),
         );
+    }
 
-      const existingSet = new Set(existing.map((e) => e.targetMessageId));
-      const desiredSet = new Set(desired);
+    if (toAdd.length > 0) {
+      await tx.insert(messageRelations).values(
+        toAdd.map((targetId) => ({
+          tenantId: source.tenantId,
+          channelId: source.channelId,
+          sourceMessageId,
+          targetMessageId: targetId,
+          propertyDefinitionId: definition.id,
+          relationKind: config.relationKind!,
+          createdBy: actorId,
+        })),
+      );
+    }
 
-      const toAdd = desired.filter((id) => !existingSet.has(id));
-      const toRemove = [...existingSet].filter((id) => !desiredSet.has(id));
-
-      // Cycle detection: run AFTER scope validation, BEFORE INSERT
-      if (config.relationKind === 'parent' && toAdd.length > 0) {
-        await this.assertNoCycle(tx, sourceMessageId, toAdd, 'parent');
-      }
-
-      if (toRemove.length > 0) {
-        await tx
-          .delete(messageRelations)
-          .where(
-            and(
-              eq(messageRelations.sourceMessageId, sourceMessageId),
-              eq(messageRelations.propertyDefinitionId, definition.id),
-              inArray(messageRelations.targetMessageId, toRemove),
-            ),
-          );
-      }
-
-      if (toAdd.length > 0) {
-        await tx.insert(messageRelations).values(
-          toAdd.map((targetId) => ({
-            tenantId: source.tenantId,
-            channelId: source.channelId,
-            sourceMessageId,
-            targetMessageId: targetId,
-            propertyDefinitionId: definition.id,
-            relationKind: config.relationKind!,
-            createdBy: actorId,
-          })),
-        );
-      }
-
-      return {
-        addedTargetIds: toAdd,
-        removedTargetIds: toRemove,
-        currentTargetIds: desired,
-      };
-    });
+    return {
+      addedTargetIds: toAdd,
+      removedTargetIds: toRemove,
+      currentTargetIds: desired,
+    };
   }
 
   async getOutgoingTargets(
@@ -204,6 +217,39 @@ export class MessageRelationsService {
       .orderBy(messageRelations.createdAt);
 
     return rows.map((r) => r.targetMessageId);
+  }
+
+  /**
+   * Batch-load outgoing targets for multiple source messages with a single DB query.
+   * Returns a Map keyed by sourceMessageId; each value is an ordered array of targetMessageIds.
+   */
+  async getOutgoingTargetsForMany(
+    sourceMessageIds: string[],
+    propertyDefinitionId: string,
+  ): Promise<Map<string, string[]>> {
+    if (sourceMessageIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select({
+        sourceMessageId: messageRelations.sourceMessageId,
+        targetMessageId: messageRelations.targetMessageId,
+      })
+      .from(messageRelations)
+      .where(
+        and(
+          inArray(messageRelations.sourceMessageId, sourceMessageIds),
+          eq(messageRelations.propertyDefinitionId, propertyDefinitionId),
+        ),
+      )
+      .orderBy(messageRelations.createdAt);
+
+    const map = new Map<string, string[]>();
+    for (const id of sourceMessageIds) map.set(id, []);
+    for (const r of rows) {
+      const arr = map.get(r.sourceMessageId);
+      if (arr) arr.push(r.targetMessageId);
+    }
+    return map;
   }
 
   async getIncomingSources(

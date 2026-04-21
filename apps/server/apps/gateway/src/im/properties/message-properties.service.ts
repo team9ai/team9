@@ -133,6 +133,30 @@ export class MessagePropertiesService {
         )
       : definitions;
 
+    // Pre-fetch all relation targets in batch, grouped by definition, to avoid N+1 queries.
+    // For each visible relationKind definition, issue one query covering all source message IDs.
+    const relationTargetMaps = new Map<string, Map<string, string[]>>();
+    for (const [defId, def] of visibleDefs) {
+      const cfg =
+        def.valueType === 'message_ref'
+          ? (def.config as MessageRefConfig | null)
+          : null;
+      if (!cfg?.relationKind) continue;
+
+      // Collect source message IDs that have a property row for this definition
+      const sourceIds = rows
+        .filter((r) => r.propertyDefinitionId === defId)
+        .map((r) => r.messageId);
+
+      if (sourceIds.length > 0) {
+        const map = await this.relationsService.getOutgoingTargetsForMany(
+          sourceIds,
+          defId,
+        );
+        relationTargetMaps.set(defId, map);
+      }
+    }
+
     const result: Record<string, Record<string, unknown>> = {};
     for (const row of rows) {
       const def = visibleDefs.get(row.propertyDefinitionId);
@@ -141,11 +165,27 @@ export class MessagePropertiesService {
       if (!result[row.messageId]) {
         result[row.messageId] = {};
       }
-      result[row.messageId][def.key] = await this.extractValueWithRelations(
-        row.messageId,
-        row,
-        def,
-      );
+
+      const cfg =
+        def.valueType === 'message_ref'
+          ? (def.config as MessageRefConfig | null)
+          : null;
+
+      if (cfg?.relationKind) {
+        // Check for explicit clear sentinel
+        const cleared = row.jsonValue as { explicitlyCleared?: boolean } | null;
+        if (cleared?.explicitlyCleared === true) {
+          result[row.messageId][def.key] =
+            cfg.cardinality === 'single' ? null : [];
+        } else {
+          const targets =
+            relationTargetMaps.get(def.id)?.get(row.messageId) ?? [];
+          result[row.messageId][def.key] =
+            cfg.cardinality === 'single' ? (targets[0] ?? null) : targets;
+        }
+      } else {
+        result[row.messageId][def.key] = this.extractValue(row, def.valueType);
+      }
     }
     return result;
   }
@@ -511,54 +551,73 @@ export class MessagePropertiesService {
     const { message, definition, value, userId } = params;
     const config = definition.config;
 
-    const explicitClear = value == null;
+    const explicitClear = value === null || value === undefined;
     const targetIds: string[] = explicitClear
       ? []
       : Array.isArray(value)
         ? (value as string[])
         : [value as string];
 
-    const diff = await this.relationsService.setRelationTargets({
-      sourceMessageId: message.id,
-      targetMessageIds: targetIds,
-      definition: {
-        id: definition.id,
-        channelId: message.channelId,
-        config,
-      },
-      actorId: userId,
+    // Wrap setRelationTargets + sentinel upsert in a single outer transaction (spec §2.5)
+    const diff = await this.db.transaction(async (tx) => {
+      const d = await this.relationsService.setRelationTargets(
+        {
+          sourceMessageId: message.id,
+          targetMessageIds: targetIds,
+          definition: {
+            id: definition.id,
+            channelId: message.channelId,
+            config,
+          },
+          actorId: userId,
+        },
+        tx,
+      );
+
+      // Upsert sentinel row: null means "managed by relations", { explicitlyCleared:true } means "cleared"
+      const jsonValue = explicitClear ? { explicitlyCleared: true } : null;
+      const now = new Date();
+
+      const existing = await tx
+        .select()
+        .from(schema.messageProperties)
+        .where(
+          and(
+            eq(schema.messageProperties.messageId, message.id),
+            eq(schema.messageProperties.propertyDefinitionId, definition.id),
+          ),
+        )
+        .limit(1)
+        .then((rows) => rows[0] ?? null);
+
+      if (existing) {
+        await tx
+          .update(schema.messageProperties)
+          .set({ jsonValue, updatedBy: userId, updatedAt: now })
+          .where(eq(schema.messageProperties.id, existing.id));
+      } else {
+        await tx.insert(schema.messageProperties).values({
+          id: uuidv7(),
+          messageId: message.id,
+          propertyDefinitionId: definition.id,
+          textValue: null,
+          numberValue: null,
+          booleanValue: null,
+          dateValue: null,
+          jsonValue,
+          fileKey: null,
+          fileMetadata: null,
+          createdBy: userId,
+          updatedBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      return d;
     });
 
-    // Upsert sentinel row: null means "managed by relations", { explicitlyCleared:true } means "cleared"
-    const jsonValue = explicitClear ? { explicitlyCleared: true } : null;
-    const now = new Date();
-
-    const existing = await this.findExisting(message.id, definition.id);
-    if (existing) {
-      await this.db
-        .update(schema.messageProperties)
-        .set({ jsonValue, updatedBy: userId, updatedAt: now })
-        .where(eq(schema.messageProperties.id, existing.id));
-    } else {
-      await this.db.insert(schema.messageProperties).values({
-        id: uuidv7(),
-        messageId: message.id,
-        propertyDefinitionId: definition.id,
-        textValue: null,
-        numberValue: null,
-        booleanValue: null,
-        dateValue: null,
-        jsonValue,
-        fileKey: null,
-        fileMetadata: null,
-        createdBy: userId,
-        updatedBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    // Audit log with diff details
+    // Audit log after txn commits — best effort, consistent with existing pattern
     await this.auditService.log({
       channelId: message.channelId,
       entityType: 'message',
@@ -589,27 +648,23 @@ export class MessagePropertiesService {
     row: MessageProperty,
     def: PropertyDefinitionRow,
   ): Promise<unknown> {
-    const relationKind =
+    const cfg =
       def.valueType === 'message_ref'
-        ? (def.config as MessageRefConfig | null)?.relationKind
-        : undefined;
+        ? (def.config as MessageRefConfig | null)
+        : null;
 
-    if (relationKind) {
+    if (cfg?.relationKind) {
       // Check for explicit clear sentinel
       const cleared = row.jsonValue as { explicitlyCleared?: boolean } | null;
       if (cleared?.explicitlyCleared === true) {
-        return (def.config as MessageRefConfig).cardinality === 'single'
-          ? null
-          : [];
+        return cfg.cardinality === 'single' ? null : [];
       }
       // Assemble from relations table
       const targets = await this.relationsService.getOutgoingTargets(
         messageId,
         def.id,
       );
-      return (def.config as MessageRefConfig).cardinality === 'single'
-        ? (targets[0] ?? null)
-        : targets;
+      return cfg.cardinality === 'single' ? (targets[0] ?? null) : targets;
     }
 
     return this.extractValue(row, def.valueType);
