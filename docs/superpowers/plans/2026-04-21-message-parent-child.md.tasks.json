@@ -87,7 +87,7 @@
     {
       "id": 13,
       "subject": "Task 13: MessageRefChip deleted/forbidden/thread states",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** Chip variants for deleted, forbidden, and thread-derived parent source.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/properties/MessageRefChip.tsx\",\"apps/client/src/components/channel/properties/__tests__/MessageRefChip.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- MessageRefChip\",\"acceptanceCriteria\":[\"deleted renders strike-through + [\u5df2\u5220\u9664]\",\"forbidden renders [\u65e0\u6743\u9650]\",\"thread source renders \ud83e\uddf5 badge\",\"keyboard navigation works for clickable chips\"]}\n```"
     },
