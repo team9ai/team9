@@ -72,7 +72,7 @@
     {
       "id": 10,
       "subject": "Task 11: Integration test against real folder9",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9],
       "description": "**Goal:** Thin E2E test using docker-compose folder9 + real postgres.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/__tests__/integration/wiki-folder9.integration.spec.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/integration/docker-compose.yml\n\n**Verify:** INTEGRATION=1 pnpm --filter @team9/server test -- wiki-folder9.integration\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/__tests__/integration/\"],\"verifyCommand\":\"INTEGRATION=1 pnpm --filter @team9/server test -- wiki-folder9.integration\",\"acceptanceCriteria\":[\"Docker-compose starts folder9 + postgres\",\"Create Wiki -> folder exists\",\"Commit auto -> getPage returns content\",\"Commit review -> proposal created -> approve -> content reflects\",\"Tagged, skipped in normal test run\"]}\n```"
     },
