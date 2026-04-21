@@ -369,6 +369,80 @@ describe("WikiListItem", () => {
     expect(archiveMutateAsync).toHaveBeenCalledWith("wiki-1");
   });
 
+  it("after archiving, if this wiki is currently selected, navigates to /wiki", async () => {
+    archiveMutateAsync.mockResolvedValueOnce(undefined);
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    // Mimic the user being at /wiki/<this-wiki-slug>/...
+    act(() => {
+      useWikiStore.getState().setSelectedWiki("wiki-1");
+    });
+    render(<WikiListItem wiki={wiki} />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-kebab-wiki-1"));
+    });
+    const archiveItem = await screen.findByTestId(
+      "wiki-list-item-archive-wiki-1",
+    );
+    await act(async () => {
+      fireEvent.click(archiveItem);
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId("wiki-list-item-archive-confirm-button-wiki-1"),
+      );
+    });
+    expect(archiveMutateAsync).toHaveBeenCalledWith("wiki-1");
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/wiki" });
+  });
+
+  it("after archiving, if a DIFFERENT wiki is selected, does NOT navigate", async () => {
+    archiveMutateAsync.mockResolvedValueOnce(undefined);
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    act(() => {
+      useWikiStore.getState().setSelectedWiki("some-other-wiki");
+    });
+    render(<WikiListItem wiki={wiki} />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-kebab-wiki-1"));
+    });
+    const archiveItem = await screen.findByTestId(
+      "wiki-list-item-archive-wiki-1",
+    );
+    await act(async () => {
+      fireEvent.click(archiveItem);
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId("wiki-list-item-archive-confirm-button-wiki-1"),
+      );
+    });
+    expect(archiveMutateAsync).toHaveBeenCalledWith("wiki-1");
+    // Viewer was on a different wiki → URL doesn't need to change.
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("after archiving, if no wiki is selected, does NOT navigate", async () => {
+    archiveMutateAsync.mockResolvedValueOnce(undefined);
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    // selectedWikiId remains null (default / reset in beforeEach).
+    render(<WikiListItem wiki={wiki} />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-kebab-wiki-1"));
+    });
+    const archiveItem = await screen.findByTestId(
+      "wiki-list-item-archive-wiki-1",
+    );
+    await act(async () => {
+      fireEvent.click(archiveItem);
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId("wiki-list-item-archive-confirm-button-wiki-1"),
+      );
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it("cancelling Archive does not fire the mutation", async () => {
     mockUseWikiTree.mockReturnValue({ data: undefined });
     render(<WikiListItem wiki={wiki} />);

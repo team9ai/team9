@@ -43,7 +43,13 @@ export interface WikiSettingsDialogProps {
   wiki: WikiDto | null;
 }
 
-const SLUG_PATTERN = /^[a-z0-9-]+$/;
+// Keep in lock-step with the gateway `UpdateWikiDto` regex: the slug must
+// START with `[a-z0-9]` (no leading dash). The client used to accept a
+// leading dash and round-trip to a 400 from the server; we reject it here
+// instead so the user gets an inline error.
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+// Server enforces `@Length(1, 100)` on slug.
+const SLUG_MAX_LENGTH = 100;
 
 const PERMISSION_LEVELS: WikiPermissionLevel[] = ["read", "propose", "write"];
 
@@ -151,9 +157,15 @@ export function WikiSettingsDialog({
       setValidationError("Slug is required.");
       return;
     }
+    if (trimmedSlug.length > SLUG_MAX_LENGTH) {
+      setValidationError(
+        `Slug must be ${SLUG_MAX_LENGTH} characters or fewer.`,
+      );
+      return;
+    }
     if (!SLUG_PATTERN.test(trimmedSlug)) {
       setValidationError(
-        "Slug must contain only lowercase letters, numbers, and dashes.",
+        "Slug must start with a lowercase letter or number and contain only lowercase letters, numbers, and dashes.",
       );
       return;
     }
@@ -270,7 +282,8 @@ export function WikiSettingsDialog({
                   disabled={disabled}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Lowercase letters, numbers, and dashes.
+                  Lowercase letters, numbers, and dashes. Must start with a
+                  letter or number.
                 </p>
               </div>
             </section>

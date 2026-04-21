@@ -280,6 +280,36 @@ describe("WikiSettingsDialog", () => {
     expect(updateMutateAsync).not.toHaveBeenCalled();
   });
 
+  it("rejects a slug that starts with a dash (matches the server regex)", async () => {
+    renderDialog();
+    fireEvent.change(screen.getByTestId("wiki-settings-slug-input"), {
+      target: { value: "-foo" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-settings-save"));
+    });
+    expect(
+      screen.getByTestId("wiki-settings-validation-error"),
+    ).toHaveTextContent(/start with a lowercase letter or number/i);
+    expect(updateMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("rejects a slug longer than 100 characters (matches server @Length(1,100))", async () => {
+    renderDialog();
+    // 101 chars, all valid per the regex — length is the only issue.
+    const oversized = "a" + "b".repeat(100);
+    fireEvent.change(screen.getByTestId("wiki-settings-slug-input"), {
+      target: { value: oversized },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-settings-save"));
+    });
+    expect(
+      screen.getByTestId("wiki-settings-validation-error"),
+    ).toHaveTextContent(/100 characters or fewer/i);
+    expect(updateMutateAsync).not.toHaveBeenCalled();
+  });
+
   it("surfaces a 409 server error as an inline banner", async () => {
     updateMutateAsync.mockRejectedValueOnce(
       Object.assign(new Error("slug taken"), {

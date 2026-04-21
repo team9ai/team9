@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockMutateAsync = vi.hoisted(() =>
   vi.fn<
-    (input: { name: string; slug?: string }) => Promise<{
+    (input: { name: string; slug?: string; icon?: string }) => Promise<{
       id: string;
       slug: string;
     }>
@@ -177,6 +177,42 @@ describe("CreateWikiDialog", () => {
     expect(mockMutateAsync).not.toHaveBeenCalled();
   });
 
+  it("rejects a slug that starts with a dash (matches the server regex)", async () => {
+    renderDialog();
+    fireEvent.change(screen.getByTestId("create-wiki-name-input"), {
+      target: { value: "Valid Name" },
+    });
+    fireEvent.change(screen.getByTestId("create-wiki-slug-input"), {
+      target: { value: "-foo" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-wiki-submit"));
+    });
+    expect(
+      screen.getByTestId("create-wiki-validation-error"),
+    ).toHaveTextContent(/start with a lowercase letter or number/i);
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("rejects a slug longer than 100 characters (matches server @Length(1,100))", async () => {
+    renderDialog();
+    fireEvent.change(screen.getByTestId("create-wiki-name-input"), {
+      target: { value: "Valid Name" },
+    });
+    // 101 chars, all valid per the regex.
+    const oversized = "a" + "b".repeat(100);
+    fireEvent.change(screen.getByTestId("create-wiki-slug-input"), {
+      target: { value: oversized },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-wiki-submit"));
+    });
+    expect(
+      screen.getByTestId("create-wiki-validation-error"),
+    ).toHaveTextContent(/100 characters or fewer/i);
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+  });
+
   it("submits to useCreateWiki, closes on success, and navigates to the new wiki", async () => {
     mockMutateAsync.mockResolvedValueOnce({
       id: "wiki-1",
@@ -194,6 +230,7 @@ describe("CreateWikiDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       name: "Team Handbook",
       slug: "team-handbook",
+      icon: undefined,
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(mockNavigate).toHaveBeenCalledWith({
@@ -218,7 +255,49 @@ describe("CreateWikiDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       name: "Derived",
       slug: undefined,
+      icon: undefined,
     });
+  });
+
+  it("sends `icon` in the payload when the user picked one", async () => {
+    mockMutateAsync.mockResolvedValueOnce({
+      id: "wiki-icon",
+      slug: "team-handbook",
+    });
+    renderDialog();
+    fireEvent.change(screen.getByTestId("create-wiki-name-input"), {
+      target: { value: "Team Handbook" },
+    });
+    // Mock picker forwards the fixed 📚 emoji on click.
+    fireEvent.click(screen.getByTestId("mock-icon-picker"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-wiki-submit"));
+    });
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      name: "Team Handbook",
+      slug: "team-handbook",
+      icon: "📚",
+    });
+  });
+
+  it("omits `icon` from the payload when the user did not pick one", async () => {
+    mockMutateAsync.mockResolvedValueOnce({
+      id: "wiki-no-icon",
+      slug: "plain",
+    });
+    renderDialog();
+    fireEvent.change(screen.getByTestId("create-wiki-name-input"), {
+      target: { value: "Plain" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-wiki-submit"));
+    });
+    // When no icon selection is made, the mutation payload explicitly
+    // carries `icon: undefined` so the property is visible but harmless
+    // when JSON-serialised (JSON.stringify drops it) — matches the
+    // `slug: undefined` behaviour for an untouched slug.
+    const call = mockMutateAsync.mock.calls[0]?.[0];
+    expect(call?.icon).toBeUndefined();
   });
 
   it("surfaces a 409 error inline when the slug is already taken", async () => {

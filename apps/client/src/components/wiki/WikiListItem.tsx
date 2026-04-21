@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   ChevronDown,
@@ -8,7 +9,11 @@ import {
   Settings,
 } from "lucide-react";
 import { useWikiTree } from "@/hooks/useWikiTree";
-import { useExpandedDirectories, wikiActions } from "@/stores/useWikiStore";
+import {
+  useExpandedDirectories,
+  useSelectedWikiId,
+  wikiActions,
+} from "@/stores/useWikiStore";
 import { buildTree } from "@/lib/wiki-tree";
 import { WikiTreeNode } from "./WikiTreeNode";
 import { WikiSettingsDialog } from "./WikiSettingsDialog";
@@ -78,14 +83,27 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
   const archiveWiki = useArchiveWiki();
   const isArchiving = archiveWiki.isPending;
 
+  const navigate = useNavigate();
+  const selectedWikiId = useSelectedWikiId();
+
   // Note: a second invocation while the first is still pending is
   // prevented by the confirm button's `disabled` attribute (the button is
   // the sole entry point). That keeps the function body focused on the
   // happy / error paths.
+  //
+  // On success, if this row represents the *currently-selected* wiki, we
+  // push the user back to the empty `/wiki` state — the route they're on
+  // (`/wiki/<slug>/...`) is about to 404 because the wiki list no longer
+  // includes this one. `WikiSettingsDialog` does the same thing after its
+  // own archive flow; we mirror that behaviour here so archiving from the
+  // kebab is equally safe regardless of which entry point the user picked.
   const handleArchiveConfirm = async () => {
     try {
       await archiveWiki.mutateAsync(wiki.id);
       setShowArchiveConfirm(false);
+      if (selectedWikiId === wiki.id) {
+        navigate({ to: "/wiki" });
+      }
     } catch (error) {
       setShowArchiveConfirm(false);
       window.alert(archiveErrorMessage(error));

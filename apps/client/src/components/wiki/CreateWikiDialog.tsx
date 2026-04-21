@@ -20,7 +20,15 @@ export interface CreateWikiDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const SLUG_PATTERN = /^[a-z0-9-]+$/;
+// Mirrors the gateway's `CreateWikiDto` / `UpdateWikiDto` regex exactly:
+// the slug must START with `[a-z0-9]` (no leading dash) and may only contain
+// lowercase letters, numbers, and dashes thereafter. Keeping the regex in
+// lock-step with the server avoids the client cheerfully accepting a slug
+// that the server will reject.
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+// Server enforces `@Length(1, 100)` on slug — cap the client-side length so
+// we surface the error inline rather than round-tripping to the gateway.
+const SLUG_MAX_LENGTH = 100;
 
 /**
  * Normalize a free-text name into a URL-safe slug. Keeps the algorithm tiny
@@ -120,25 +128,36 @@ export function CreateWikiDialog({
     }
 
     // Slug may be empty — the server will default it from the name. If the
-    // user typed something, it MUST match the gateway's pattern.
+    // user typed something, it MUST match the gateway's pattern and length.
     const trimmedSlug = slug.trim();
-    if (trimmedSlug.length > 0 && !SLUG_PATTERN.test(trimmedSlug)) {
-      setValidationError(
-        "Slug must contain only lowercase letters, numbers, and dashes.",
-      );
-      return;
+    if (trimmedSlug.length > 0) {
+      if (trimmedSlug.length > SLUG_MAX_LENGTH) {
+        setValidationError(
+          `Slug must be ${SLUG_MAX_LENGTH} characters or fewer.`,
+        );
+        return;
+      }
+      if (!SLUG_PATTERN.test(trimmedSlug)) {
+        setValidationError(
+          "Slug must start with a lowercase letter or number and contain only lowercase letters, numbers, and dashes.",
+        );
+        return;
+      }
     }
 
     setValidationError(null);
     setServerError(null);
 
     try {
-      // `icon` is not a server-accepted field on CreateWikiDto today —
-      // keep it client-only. If/when the gateway learns about it we can
-      // fold it into the payload here.
+      // `icon` rides alongside `name` and `slug` when the user picked one;
+      // if they didn't, we omit the field so the server's default-null path
+      // is exercised rather than sending an explicit empty string (which
+      // the DTO accepts via `@Length(0, 8)` but isn't the intent here).
+      const trimmedIcon = icon?.trim() ?? "";
       const created = await createWiki.mutateAsync({
         name: trimmedName,
         slug: trimmedSlug.length > 0 ? trimmedSlug : undefined,
+        icon: trimmedIcon.length > 0 ? trimmedIcon : undefined,
       });
       onOpenChange(false);
       navigate({ to: "/wiki/$wikiSlug", params: { wikiSlug: created.slug } });
@@ -205,8 +224,8 @@ export function CreateWikiDialog({
               disabled={isSubmitting}
             />
             <p className="text-xs text-muted-foreground">
-              Lowercase letters, numbers, and dashes. Auto-derived from the name
-              until you edit it.
+              Lowercase letters, numbers, and dashes. Must start with a letter
+              or number. Auto-derived from the name until you edit it.
             </p>
           </div>
           {validationError && (
