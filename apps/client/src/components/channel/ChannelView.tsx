@@ -311,7 +311,7 @@ export function ChannelView({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
-  const [threadPanelWidth, setThreadPanelWidth] = useState(640);
+  const [threadPanelWidth, setThreadPanelWidth] = useState(600);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
