@@ -2001,6 +2001,20 @@ export class ChannelsService {
   }
 
   /**
+   * Given a list of userIds, return the subset that are bot users
+   * (i.e., appear in im_bots.userId). Used by bot-scoped user search to
+   * filter bots out of results.
+   */
+  async filterBotUserIds(userIds: string[]): Promise<Set<string>> {
+    if (userIds.length === 0) return new Set();
+    const rows = await this.db
+      .select({ userId: schema.bots.userId })
+      .from(schema.bots)
+      .where(inArray(schema.bots.userId, userIds));
+    return new Set(rows.map((r) => r.userId));
+  }
+
+  /**
    * Delete all DM channels that a user participates in.
    * Used during bot cleanup to remove orphaned direct channels.
    */

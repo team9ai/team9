@@ -2802,4 +2802,48 @@ describe('ChannelsService', () => {
       ).toBe(true);
     });
   });
+
+  // ── filterBotUserIds ─────────────────────────────────────────────
+
+  describe('filterBotUserIds', () => {
+    it('returns an empty Set when given an empty array (no DB query)', async () => {
+      const result = await service.filterBotUserIds([]);
+      expect(result).toEqual(new Set());
+      // No DB call should occur for an empty input
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('returns a Set containing only the userIds that appear in im_bots', async () => {
+      // Simulate: two of the three supplied IDs are bots
+      db.where.mockResolvedValueOnce([
+        { userId: 'bot-1' },
+        { userId: 'bot-2' },
+      ] as any);
+
+      const result = await service.filterBotUserIds([
+        'bot-1',
+        'human-1',
+        'bot-2',
+      ]);
+
+      expect(result).toEqual(new Set(['bot-1', 'bot-2']));
+      expect(db.select).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns an empty Set when none of the supplied userIds are bots', async () => {
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.filterBotUserIds(['human-1', 'human-2']);
+
+      expect(result).toEqual(new Set());
+    });
+
+    it('handles a single userId that is a bot', async () => {
+      db.where.mockResolvedValueOnce([{ userId: 'bot-only' }] as any);
+
+      const result = await service.filterBotUserIds(['bot-only']);
+
+      expect(result).toEqual(new Set(['bot-only']));
+    });
+  });
 });
