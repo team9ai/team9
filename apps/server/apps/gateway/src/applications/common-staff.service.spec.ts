@@ -1352,6 +1352,24 @@ describe('CommonStaffService', () => {
         ).resolves.toBeUndefined();
       });
 
+      it('updateStaff — workspace owner can update', async () => {
+        const OWNER_USER_ID = 'user-uuid-owner';
+        // Actor is not the mentor, but has owner role → allowed
+        // isWorkspaceAdmin uses db.limit(1); return owner role
+        db.limit.mockResolvedValueOnce([{ role: 'owner' }]);
+
+        const dto = makeUpdateDto({ displayName: 'By Owner' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            OWNER_USER_ID,
+          ),
+        ).resolves.toBeUndefined();
+      });
+
       it('updateStaff — non-mentor non-admin is rejected', async () => {
         const MEMBER_USER_ID = 'user-uuid-member';
         // Actor is not the mentor and has member role → forbidden

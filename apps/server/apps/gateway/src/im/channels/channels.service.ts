@@ -2087,5 +2087,11 @@ export function isTargetAllowed(
       return (policy.userIds ?? []).includes(targetId);
     case 'anyone':
       return true;
+    default: {
+      // Unknown mode in DB jsonb — should never happen unless manually edited.
+      // Fail loudly so ops can detect and correct.
+      const unknownMode: string = (policy as { mode: string }).mode;
+      throw new Error(`INVALID_DM_POLICY_MODE: ${unknownMode}`);
+    }
   }
 }
