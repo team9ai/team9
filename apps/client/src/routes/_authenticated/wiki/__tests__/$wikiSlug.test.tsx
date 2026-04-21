@@ -1,4 +1,5 @@
 import { render, waitFor } from "@testing-library/react";
+import type { JSX } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUseParams = vi.hoisted(() => vi.fn());

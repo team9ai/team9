@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import type { JSX } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", () => ({
