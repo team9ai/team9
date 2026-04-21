@@ -27,7 +27,12 @@ export class CommitFileDto {
 
 export class CommitPageDto {
   @IsString()
-  @MaxLength(500)
+  // 4000 chars: folder9's de facto commit-message ceiling and roughly
+  // git's own practical cap. 500 was too tight once review mode started
+  // concatenating a proposal title + description body into `message`, and
+  // image-upload commits on the shape `Upload <filename>` can easily
+  // overflow with long filenames.
+  @MaxLength(4000)
   message!: string;
 
   @IsArray()
