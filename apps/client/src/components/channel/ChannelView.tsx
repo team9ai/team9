@@ -23,6 +23,7 @@ import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
 import { useChannelTabs } from "@/hooks/useChannelTabs";
 import { useChannelViews } from "@/hooks/useChannelViews";
+import { useMessageJump } from "@/hooks/useMessageJump";
 import { TableView } from "./views/TableView";
 import { BoardView } from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
@@ -330,6 +331,14 @@ export function ChannelView({
   );
   const [activeTabId, setActiveTabId] = useState<string>("");
 
+  // Message jump: click OPEN on a table-view row to switch to messages tab and
+  // scroll+highlight the target message. seq forces remount on repeat jumps.
+  const {
+    jumpToMessage,
+    highlightId: jumpHighlightId,
+    seq: jumpSeq,
+  } = useMessageJump(channelTabs, setActiveTabId);
+
   // Auto-select the first tab (messages) when tabs load, or reset on channel change
   useEffect(() => {
     if (channelTabs.length > 0) {
@@ -551,7 +560,13 @@ export function ChannelView({
             }
             switch (view.type) {
               case "table":
-                return <TableView channelId={channelId} view={view} />;
+                return (
+                  <TableView
+                    channelId={channelId}
+                    view={view}
+                    onJumpToMessage={jumpToMessage}
+                  />
+                );
               case "board":
                 return <BoardView channelId={channelId} view={view} />;
               case "calendar":
@@ -594,7 +609,8 @@ export function ChannelView({
             }}
             hasNewer={hasPreviousPage}
             isLoadingNewer={isFetchingPreviousPage}
-            highlightMessageId={initialMessageId}
+            highlightMessageId={jumpHighlightId ?? initialMessageId}
+            highlightSeq={jumpSeq}
             readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
             members={members}
