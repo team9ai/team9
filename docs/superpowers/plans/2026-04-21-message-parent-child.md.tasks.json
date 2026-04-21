@@ -94,7 +94,7 @@
     {
       "id": 14,
       "subject": "Task 14: MessageItem chip bar",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13, 10],
       "description": "**Goal:** Below-bubble chip row with parent/children/related/relatedBy, +N overflow popover.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/MessageRelationBar.tsx\",\"apps/client/src/components/channel/MessageItem.tsx\",\"apps/client/src/components/channel/__tests__/MessageRelationBar.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- MessageRelationBar MessageItem\",\"acceptanceCriteria\":[\"four buckets render when present\",\"no render when empty\",\"overflow collapses to +N popover\",\"thread badge on parent chip\"]}\n```"
     },
