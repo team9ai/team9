@@ -7,6 +7,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -161,15 +162,32 @@ function isPgUniqueViolation(err: unknown): boolean {
 export class ChannelsService {
   private readonly logger = new Logger(ChannelsService.name);
 
+  private botServiceRef: IBotService | undefined;
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
     private readonly tabsService: TabsService,
-    @Inject(BOT_SERVICE_TOKEN)
-    private readonly botService: IBotService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  // BotService is looked up lazily via ModuleRef instead of injected in the
+  // constructor. BotService.constructor itself depends on ChannelsService
+  // (by design, for the mentor-cascade lookups it does), so taking BotService
+  // as a constructor dep here would close a direct DI cycle that deadlocks
+  // Nest at `registerRouter()` — the gateway container stays alive but never
+  // finishes init. ModuleRef.get defers the lookup until the first call,
+  // after both services are fully constructed, with no correctness loss.
+  private get botService(): IBotService {
+    if (!this.botServiceRef) {
+      this.botServiceRef = this.moduleRef.get<IBotService>(BOT_SERVICE_TOKEN, {
+        strict: false,
+      });
+    }
+    return this.botServiceRef;
+  }
 
   /**
    * Check if a target user is a personal staff bot with restricted DM access.

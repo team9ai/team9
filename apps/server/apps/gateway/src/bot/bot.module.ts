@@ -6,9 +6,8 @@ import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { PlatformLlmService } from './platform-llm.service.js';
 import { BotController } from './bot.controller.js';
-import { BotChannelsController } from './channels/bot-channels.controller.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
-import { WebsocketModule } from '../im/websocket/websocket.module.js';
+import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
 
 /**
  * BotModule provides bot account management and token authentication.
@@ -17,19 +16,23 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
  * injected anywhere — particularly in AuthGuard (for bot token auth)
  * and WorkspaceService (to add bots to new workspaces).
  *
- * WebsocketModule is imported explicitly so BotChannelsController's
- * WebsocketGateway injection is declared in the module graph (NestJS
- * convention), even though it currently resolves transitively via
- * ChannelsModule → WebsocketModule.
+ * Bot-facing REST endpoints that need ChannelsService / WebsocketGateway
+ * live in BotChannelsModule to avoid pulling those imports into this
+ * @Global module. Doing so created a BotModule → ChannelsModule →
+ * useExisting BotService → BotModule cycle that deadlocked Nest at
+ * registerRouter().
+ *
+ * BOT_SERVICE_TOKEN is provided here (instead of in ChannelsModule) so
+ * that the token alias to BotService lives alongside the service
+ * itself. ChannelsService resolves it lazily via ModuleRef, which
+ * avoids a construction-time DI cycle (BotService.ctor depends on
+ * ChannelsService, so ChannelsService cannot take BotService as a
+ * constructor arg).
  */
 @Global()
 @Module({
-  imports: [
-    forwardRef(() => ChannelsModule),
-    forwardRef(() => WebsocketModule),
-    ClawHiveModule,
-  ],
-  controllers: [BotController, BotChannelsController],
+  imports: [forwardRef(() => ChannelsModule), ClawHiveModule],
+  controllers: [BotController],
   providers: [
     BotService,
     BotTokenValidatorService,
@@ -39,12 +42,17 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
       provide: BOT_TOKEN_VALIDATOR,
       useExisting: BotTokenValidatorService,
     },
+    {
+      provide: BOT_SERVICE_TOKEN,
+      useExisting: BotService,
+    },
   ],
   exports: [
     BotService,
     BotAuthCacheService,
     PlatformLlmService,
     BOT_TOKEN_VALIDATOR,
+    BOT_SERVICE_TOKEN,
   ],
 })
 export class BotModule {}
