@@ -164,6 +164,19 @@ vi.mock("@/hooks/useWikiPage", () => ({
   }),
 }));
 
+// Image upload hook — we only care about the contract the editor calls.
+// The hook's own coverage is owned by `useWikiImageUpload.test.ts`.
+const imageUploadHook = vi.hoisted(() => ({
+  upload: vi.fn<(file: File, basePath: string) => Promise<string>>(),
+  uploading: false,
+}));
+vi.mock("@/hooks/useWikiImageUpload", () => ({
+  useWikiImageUpload: () => ({
+    upload: imageUploadHook.upload,
+    uploading: imageUploadHook.uploading,
+  }),
+}));
+
 // Wiki store action spy — we never touch the real store from these tests.
 const setSubmittedProposalSpy = vi.hoisted(() => vi.fn());
 vi.mock("@/stores/useWikiStore", () => ({
@@ -274,6 +287,9 @@ beforeEach(() => {
     proposal: null,
   });
   commitHook.isPending = false;
+  imageUploadHook.upload.mockReset();
+  imageUploadHook.upload.mockResolvedValue("attachments/mock-uuid.png");
+  imageUploadHook.uploading = false;
   documentEditorMounts.count = 0;
   documentEditorUnmounts.count = 0;
   currentUserMock.data = {
@@ -1345,6 +1361,457 @@ describe("WikiPageEditor", () => {
       );
       // No lastSavedAt chip should render.
       expect(screen.queryByTestId("wiki-status-last-saved")).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Image paste / drop upload (Task 22)
+  // ---------------------------------------------------------------------
+  describe("image paste / drop upload", () => {
+    let alertSpy: ReturnType<typeof vi.spyOn>;
+
+    /** Build a minimal `File` that passes an MIME-type check. */
+    function makeFile(name: string, type = "image/png", size = 16): File {
+      return new File([new Uint8Array(size)], name, { type });
+    }
+
+    /**
+     * Construct a `DataTransferItemList`-like payload that
+     * `React.ClipboardEvent` is happy to forward. React's synthetic clipboard
+     * event preserves the native `clipboardData`, so we hand it a mock object
+     * rather than try to construct a real `ClipboardEvent` (jsdom doesn't
+     * expose the constructor in a stable way).
+     */
+    function clipboardWithItems(
+      items: Array<{ kind: string; type: string; file: File | null }>,
+    ) {
+      return {
+        items: items.map((it) => ({
+          kind: it.kind,
+          type: it.type,
+          getAsFile: () => it.file,
+        })),
+      };
+    }
+
+    function dataTransferWithFiles(files: File[]) {
+      return { files, items: [] };
+    }
+
+    beforeEach(() => {
+      alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+      alertSpy.mockClear();
+      // Default: upload hook succeeds with a deterministic path.
+      imageUploadHook.upload.mockReset();
+      imageUploadHook.upload.mockResolvedValue("attachments/abc.png");
+    });
+
+    it("paste of an image triggers upload and appends markdown to the body", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      const file = makeFile("photo.png");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file },
+          ]),
+        });
+        // Let the awaited upload promise settle.
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(imageUploadHook.upload).toHaveBeenCalledWith(file, "attachments");
+      // body update: append `![photo.png](attachments/abc.png)`
+      const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
+      expect(lastCall[0].body).toContain("![photo.png](attachments/abc.png)");
+      // server body existed, so new markdown must be appended after it.
+      expect(lastCall[0].body.startsWith("server body")).toBe(true);
+    });
+
+    it("paste into an empty body writes the markdown directly (no leading newlines)", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={{ ...basePage, content: "" }}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: makeFile("a.png") },
+          ]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
+      expect(lastCall[0].body.startsWith("![a.png]")).toBe(true);
+    });
+
+    it("paste of a non-image is ignored (no upload, no body change)", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "string", type: "text/plain", file: null },
+          ]),
+        });
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+      expect(setDraft).not.toHaveBeenCalled();
+    });
+
+    it("paste of a mixed clipboard (text + image) picks up only the image", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      const file = makeFile("mixed.png");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "string", type: "text/plain", file: null },
+            { kind: "file", type: "image/png", file },
+          ]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).toHaveBeenCalledTimes(1);
+      expect(imageUploadHook.upload).toHaveBeenCalledWith(file, "attachments");
+    });
+
+    it("paste when getAsFile returns null does not call upload", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: null },
+          ]),
+        });
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+    });
+
+    it("paste with no clipboardData items is a no-op", async () => {
+      draftHook.state = makeDraftState();
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, { clipboardData: { items: [] } });
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+    });
+
+    it("paste is ignored when read-only", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, humanPermission: "read" }}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: makeFile("x.png") },
+          ]),
+        });
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+      expect(setDraft).not.toHaveBeenCalled();
+    });
+
+    it("oversize paste shows the 'File too large' alert via rejected upload", async () => {
+      imageUploadHook.upload.mockRejectedValue(
+        new Error("File too large (max 5 MB)"),
+      );
+      draftHook.state = makeDraftState();
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: makeFile("big.png") },
+          ]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(alertSpy).toHaveBeenCalledWith("File too large (max 5 MB)");
+    });
+
+    it("generic upload failure fires a generic 'Upload failed' toast when the error is not an Error instance", async () => {
+      imageUploadHook.upload.mockRejectedValue("boom");
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: makeFile("x.png") },
+          ]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(alertSpy).toHaveBeenCalledWith("Upload failed");
+    });
+
+    it("drop of an image triggers upload and appends markdown", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      const file = makeFile("dropped.png");
+      await act(async () => {
+        fireEvent.drop(zone, {
+          dataTransfer: dataTransferWithFiles([file]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).toHaveBeenCalledWith(file, "attachments");
+      const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
+      expect(lastCall[0].body).toContain("![dropped.png](attachments/abc.png)");
+    });
+
+    it("drop of multiple images uploads each; non-images in the same drop are skipped", async () => {
+      imageUploadHook.upload.mockImplementation(
+        async (f: File) => `attachments/${f.name}-uuid.bin`,
+      );
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      const a = makeFile("a.png", "image/png");
+      const b = makeFile("b.jpg", "image/jpeg");
+      const text = makeFile("notes.txt", "text/plain");
+      await act(async () => {
+        fireEvent.drop(zone, {
+          dataTransfer: dataTransferWithFiles([a, text, b]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      const calls = imageUploadHook.upload.mock.calls.map((c) => c[0].name);
+      expect(calls).toEqual(["a.png", "b.jpg"]);
+    });
+
+    it("drop with no files is a no-op", async () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.drop(zone, {
+          dataTransfer: dataTransferWithFiles([]),
+        });
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+    });
+
+    it("drop of only non-image files does not upload", async () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.drop(zone, {
+          dataTransfer: dataTransferWithFiles([
+            makeFile("notes.txt", "text/plain"),
+          ]),
+        });
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+    });
+
+    it("drop is ignored when read-only", async () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, humanPermission: "read" }}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      await act(async () => {
+        fireEvent.drop(zone, {
+          dataTransfer: dataTransferWithFiles([makeFile("x.png")]),
+        });
+        await Promise.resolve();
+      });
+      expect(imageUploadHook.upload).not.toHaveBeenCalled();
+    });
+
+    it("dragover preventDefault is called so the zone is a valid drop target", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      // The synthetic event's .defaultPrevented tracks our preventDefault()
+      const event = new Event("dragover", { bubbles: true, cancelable: true });
+      const prevented = !zone.dispatchEvent(event);
+      // React re-dispatches via synthetic events; our handler calls
+      // preventDefault() which sets defaultPrevented. The raw dispatchEvent
+      // returns `false` when default is prevented.
+      expect(prevented || event.defaultPrevented).toBe(true);
+    });
+
+    it("dragover is a no-op when read-only (no preventDefault)", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, humanPermission: "read" }}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      const event = new Event("dragover", { bubbles: true, cancelable: true });
+      zone.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it("sequential pastes accumulate markdown in the body", async () => {
+      const setDraft = vi.fn();
+      draftHook.state = makeDraftState({ setDraft });
+      imageUploadHook.upload
+        .mockResolvedValueOnce("attachments/first.png")
+        .mockResolvedValueOnce("attachments/second.png");
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: makeFile("one.png") },
+          ]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file: makeFile("two.png") },
+          ]),
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(imageUploadHook.upload).toHaveBeenCalledTimes(2);
+      const lastCall = setDraft.mock.calls[setDraft.mock.calls.length - 1];
+      // Both markdown links should be present in the accumulated body.
+      expect(lastCall[0].body).toContain("![one.png](attachments/first.png)");
+      expect(lastCall[0].body).toContain("![two.png](attachments/second.png)");
     });
   });
 });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { useWikiDraft } from "@/hooks/useWikiDraft";
+import { useWikiImageUpload } from "@/hooks/useWikiImageUpload";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useCommitWikiPage } from "@/hooks/useWikiPage";
 import { resolveClientPermission } from "@/lib/wiki-permission";
@@ -173,6 +174,88 @@ export function WikiPageEditor({
     handleFrontmatterChange({ ...frontmatter, cover });
   };
 
+  // --- Image paste / drop upload (Task 22) -------------------------------
+  //
+  // We attach paste + drop handlers to a wrapper `<div>` around the
+  // `DocumentEditor`. React synthetic events bubble through Lexical's own
+  // internal handling well enough for the common case: native paste/drop
+  // events on the contenteditable root are dispatched to the React tree, and
+  // we preventDefault()-gate so Lexical never sees the image payload itself.
+  //
+  // MVP deviation from the plan: the resulting markdown is appended to the
+  // END of the body, not inserted at the cursor. The plan calls out cursor-
+  // position insertion via Lexical's imperative API; that requires plumbing
+  // a ref through `DocumentEditor` which is outside this task's scope. End-
+  // append is still dirty-flag-correct and round-trips through the usual
+  // save flow, so the committed page always gets the image reference.
+
+  const imageUpload = useWikiImageUpload(wikiId);
+
+  // Latest-body ref so the async upload completion can compose the new body
+  // on top of whatever the user has typed since we started the upload
+  // (handlePaste captures `body` at the moment of paste; we want the latest).
+  const latestBodyRef = useRef(body);
+  useEffect(() => {
+    latestBodyRef.current = body;
+  }, [body]);
+
+  const handleImageUpload = useCallback(
+    async (file: File) => {
+      try {
+        const path = await imageUpload.upload(file, "attachments");
+        const markdown = `![${file.name}](${path})`;
+        const current = latestBodyRef.current;
+        const newBody = current
+          ? `${current}\n\n${markdown}\n`
+          : `${markdown}\n`;
+        handleBodyChange(newBody);
+      } catch (err) {
+        notify(err instanceof Error ? err.message : "Upload failed");
+      }
+    },
+    // `handleBodyChange` is a stable-enough reference (it reads the latest
+    // frontmatter from closure, which is fine for our usage). We intentionally
+    // omit it from deps to keep the callback identity stable across renders;
+    // the functional path via `latestBodyRef` is the source of truth for
+    // body composition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [imageUpload],
+  );
+
+  function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {
+    if (readOnly) return;
+    const items = e.clipboardData?.items;
+    if (!items || items.length === 0) return;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) void handleImageUpload(file);
+      }
+    }
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    if (readOnly) return;
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    const imageFiles = Array.from(files).filter((f) =>
+      f.type.startsWith("image/"),
+    );
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+    for (const file of imageFiles) {
+      void handleImageUpload(file);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    if (readOnly) return;
+    // Required to make the element a valid drop target in HTML5.
+    e.preventDefault();
+  }
+
   // --- Save flow ---------------------------------------------------------
 
   const commit = useCommitWikiPage(wikiId);
@@ -332,7 +415,13 @@ export function WikiPageEditor({
         </div>
       )}
 
-      <div className="flex-1 px-12 pb-8 min-h-0">
+      <div
+        className="flex-1 px-12 pb-8 min-h-0"
+        data-testid="wiki-page-editor-drop-zone"
+        onPaste={handlePaste}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
         <DocumentEditor
           key={editorKey}
           initialContent={body}
