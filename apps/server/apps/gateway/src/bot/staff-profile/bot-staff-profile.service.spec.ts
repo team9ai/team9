@@ -376,9 +376,10 @@ describe('BotStaffProfileService', () => {
       const botsSet = db.__queries.update[0].set.mock.calls[0][0];
       expect(botsSet.extra.commonStaff.identity).toEqual({ name: 'Alice' });
       expect(botsSet.updatedAt).toBeInstanceOf(Date);
-      // Second update targets users and sets displayName
+      // Second update targets users and sets displayName + updatedAt
       const usersSet = db.__queries.update[1].set.mock.calls[0][0];
       expect(usersSet.displayName).toBe('Alice');
+      expect(usersSet.updatedAt).toBeInstanceOf(Date);
     });
 
     it('clears display_name to null when identityPatch.name is an empty string', async () => {
@@ -402,6 +403,7 @@ describe('BotStaffProfileService', () => {
       expect(db.__queries.update).toHaveLength(2);
       const usersSet = db.__queries.update[1].set.mock.calls[0][0];
       expect(usersSet.displayName).toBeNull();
+      expect(usersSet.updatedAt).toBeInstanceOf(Date);
     });
 
     it('clears display_name to null when identityPatch.name is explicitly null', async () => {
@@ -425,6 +427,7 @@ describe('BotStaffProfileService', () => {
       expect(db.__queries.update).toHaveLength(2);
       const usersSet = db.__queries.update[1].set.mock.calls[0][0];
       expect(usersSet.displayName).toBeNull();
+      expect(usersSet.updatedAt).toBeInstanceOf(Date);
       // Name key should be deleted from identity
       const botsSet = db.__queries.update[0].set.mock.calls[0][0];
       expect('name' in botsSet.extra.commonStaff.identity).toBe(false);
@@ -657,6 +660,31 @@ describe('BotStaffProfileService', () => {
       expect(db.transaction).toHaveBeenCalledTimes(1);
       // Verify both updates were issued inside the single transaction call
       expect(db.__queries.update).toHaveLength(2);
+    });
+
+    it('bumps users.updatedAt when display_name is synced alongside bots.updatedAt', async () => {
+      db.__state.selectResults.push([
+        makeRow({ extra: { commonStaff: { identity: {} } } }),
+      ]);
+      db.__state.selectResults.push([
+        makeRow({
+          extra: { commonStaff: { identity: { name: 'Morgan' } } },
+        }),
+      ]);
+
+      const before = Date.now();
+      await service.updateSnapshot(BOT_USER_ID, {
+        identityPatch: { name: 'Morgan' },
+      });
+      const after = Date.now();
+
+      expect(db.__queries.update).toHaveLength(2);
+      const usersSet = db.__queries.update[1].set.mock.calls[0][0];
+      expect(usersSet.displayName).toBe('Morgan');
+      expect(usersSet.updatedAt).toBeInstanceOf(Date);
+      const bumped = (usersSet.updatedAt as Date).getTime();
+      expect(bumped).toBeGreaterThanOrEqual(before);
+      expect(bumped).toBeLessThanOrEqual(after);
     });
 
     it('calls getSnapshot again to return the post-update snapshot (not computed optimistically)', async () => {

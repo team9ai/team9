@@ -17,13 +17,20 @@ import {
 } from '../../applications/personal-staff.constants.js';
 
 /**
- * Snapshot of a staff bot's identity, role, persona and mentor assignment —
- * the single JSON shape that the agent-side `Team9StaffProfileComponent`
- * consumes via `GET /api/v1/bot/staff/profile`.
+ * ⚠️  TYPE DRIFT GUARD ⚠️
  *
- * Mirrors `StaffProfileSnapshot` in `@team9claw/claw-hive-types`; redefined
- * locally because that package is not published to the team9 platform
- * monorepo. Keep the shape in sync.
+ * This is a LOCAL MIRROR of the canonical type defined in
+ * `team9-agent-pi/packages/claw-hive-types/src/components.ts` (field `StaffProfileSnapshot`).
+ *
+ * team9 intentionally does NOT depend on `@team9claw/claw-hive-types` — the
+ * two repos have independent release cycles. When the canonical type changes,
+ * this mirror MUST be updated in lockstep (both here AND in the agent runtime).
+ *
+ * If this drifts: GET /api/v1/bot/staff/profile will return a shape the agent
+ * runtime cannot parse, breaking every staff bot session.
+ *
+ * TODO: extract into a shared `@team9/shared-staff-types` (or similar) package
+ * that both repos consume, to eliminate this hand-sync risk.
  */
 export interface StaffProfileSnapshot {
   agentId: string;
@@ -42,10 +49,21 @@ export interface StaffProfileSnapshot {
 }
 
 /**
- * PATCH payload accepted by `updateSnapshot`. Mirrors
- * `UpdateStaffProfileArgs` in `@team9claw/claw-hive-types` (without the
- * `ComponentConfig` base) — redefined locally for the same reason as
- * `StaffProfileSnapshot`. Keep in sync.
+ * ⚠️  TYPE DRIFT GUARD ⚠️
+ *
+ * This is a LOCAL MIRROR of the canonical type defined in
+ * `team9-agent-pi/packages/claw-hive-types/src/components.ts` (field `UpdateStaffProfileArgs`,
+ * lines 146-156), without the `ComponentConfig` base.
+ *
+ * team9 intentionally does NOT depend on `@team9claw/claw-hive-types` — the
+ * two repos have independent release cycles. When the canonical type changes,
+ * this mirror MUST be updated in lockstep (both here AND in the agent runtime).
+ *
+ * If this drifts: PATCH /api/v1/bot/staff/profile will silently ignore or
+ * misinterpret fields sent by the agent runtime, breaking staff bot updates.
+ *
+ * TODO: extract into a shared `@team9/shared-staff-types` (or similar) package
+ * that both repos consume, to eliminate this hand-sync risk.
  */
 export interface UpdateStaffProfileArgs {
   identityPatch?: Record<string, unknown>;
@@ -154,7 +172,7 @@ export class BotStaffProfileService {
       if (nextDisplayName !== undefined) {
         await tx
           .update(schema.users)
-          .set({ displayName: nextDisplayName })
+          .set({ displayName: nextDisplayName, updatedAt: new Date() })
           .where(eq(schema.users.id, botUserId));
       }
     });
