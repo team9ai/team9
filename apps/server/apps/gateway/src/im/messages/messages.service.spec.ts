@@ -12,6 +12,15 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 jest.unstable_mockModule('../properties/message-properties.service.js', () => ({
   MessagePropertiesService: class MessagePropertiesService {},
 }));
+jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+jest.unstable_mockModule(
+  '../services/im-worker-grpc-client.service.js',
+  () => ({
+    ImWorkerGrpcClientService: class ImWorkerGrpcClientService {},
+  }),
+);
 
 jest.unstable_mockModule('../../shared/constants/injection-tokens.js', () => ({
   WEBSOCKET_GATEWAY: Symbol('WEBSOCKET_GATEWAY'),
@@ -1520,6 +1529,273 @@ describe('MessagesService', () => {
       ],
       hasOlder: true,
       hasNewer: true,
+    });
+  });
+
+  describe('sendFromBot', () => {
+    let botService: InstanceType<typeof MessagesService>;
+    let imWorker: { createMessage: jest.Mock<any> };
+    let mqService: {
+      isReady: jest.Mock<any>;
+      publishPostBroadcast: jest.Mock<any>;
+    };
+    let eventEmitterMock: { emit: jest.Mock<any> };
+    let botDb: ReturnType<typeof createDbMock>;
+    let botChannelSequenceService: { generateChannelSeq: jest.Mock<any> };
+    let botMessagePropertiesService: { batchGetByMessageIds: jest.Mock<any> };
+    let botLogger: { warn: jest.Mock<any> };
+    let botModuleRef: { get: jest.Mock<any> };
+    let msgResponse: MessageResponse;
+
+    beforeEach(() => {
+      botDb = createDbMock();
+      botChannelSequenceService = {
+        generateChannelSeq: jest.fn<any>().mockResolvedValue(1),
+      };
+      botMessagePropertiesService = {
+        batchGetByMessageIds: jest.fn<any>().mockResolvedValue({}),
+      };
+      imWorker = {
+        createMessage: jest.fn<any>().mockResolvedValue({
+          msgId: 'msg-1',
+          seqId: '1',
+          clientMsgId: 'c-1',
+        }),
+      };
+      mqService = {
+        isReady: jest.fn<any>().mockReturnValue(true),
+        publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+      };
+      eventEmitterMock = { emit: jest.fn<any>() };
+      botModuleRef = { get: jest.fn<any>() };
+
+      botService = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        imWorker as never,
+        mqService as never,
+        eventEmitterMock as never,
+      );
+      botLogger = { warn: jest.fn<any>() };
+      (botService as any).logger = botLogger;
+
+      // Stub the helper methods that require DB
+      msgResponse = makeMessageResponse({
+        id: 'msg-1',
+        channelId: 'ch-1',
+        senderId: 'bot-1',
+        content: 'hello bot',
+      });
+      jest
+        .spyOn(botService, 'getMessageWithDetails')
+        .mockResolvedValue(msgResponse);
+      jest
+        .spyOn(botService, 'mergeProperties')
+        .mockResolvedValue([msgResponse]);
+      jest.spyOn(botService, 'truncateForPreview').mockReturnValue(msgResponse);
+    });
+
+    it('inserts message via gRPC, returns {channelId, messageId, preview}', async () => {
+      const result = await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      expect(result).toEqual({
+        channelId: 'ch-1',
+        messageId: 'msg-1',
+        preview: msgResponse,
+      });
+      expect(imWorker.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'ch-1',
+          senderId: 'bot-1',
+          content: 'hello bot',
+          workspaceId: 'ws-1',
+        }),
+      );
+    });
+
+    it('does NOT call websocketGateway directly (broadcast is caller responsibility)', async () => {
+      // sendFromBot should not have a websocketGateway dep — no property exists
+      expect((botService as any).websocketGateway).toBeUndefined();
+
+      const result = await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      // preview is returned for the caller to broadcast
+      expect(result.preview).toEqual(msgResponse);
+    });
+
+    it('forwards attachments to the gRPC client', async () => {
+      const attachments = [
+        {
+          fileKey: 'file-key-1',
+          fileName: 'photo.png',
+          mimeType: 'image/png',
+          fileSize: 1024,
+        },
+      ];
+
+      await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'see attachment',
+        attachments,
+        workspaceId: 'ws-1',
+      });
+
+      expect(imWorker.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ attachments }),
+      );
+    });
+
+    it('skips post-broadcast publish when gatewayMQService is absent', async () => {
+      const serviceWithoutMQ = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        imWorker as never,
+        undefined, // no MQ service
+        eventEmitterMock as never,
+      );
+      jest
+        .spyOn(serviceWithoutMQ, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse({ id: 'msg-1' }));
+      jest
+        .spyOn(serviceWithoutMQ, 'mergeProperties')
+        .mockResolvedValue([makeMessageResponse({ id: 'msg-1' })]);
+      jest
+        .spyOn(serviceWithoutMQ, 'truncateForPreview')
+        .mockReturnValue(makeMessageResponse({ id: 'msg-1' }));
+
+      await serviceWithoutMQ.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hi',
+        workspaceId: 'ws-1',
+      });
+
+      expect(mqService.publishPostBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('skips post-broadcast publish when gatewayMQService.isReady() returns false', async () => {
+      mqService.isReady.mockReturnValue(false);
+
+      await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hi',
+        workspaceId: 'ws-1',
+      });
+
+      expect(mqService.publishPostBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('does NOT publish channel-message trigger (RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED)', async () => {
+      // The publishWorkspaceEvent is the method used for MESSAGE_CREATED routing key.
+      // Since GatewayMQService is passed in as a plain mock without publishWorkspaceEvent,
+      // we verify it is never called — confirming the method is absent from sendFromBot.
+      const mqWithWorkspaceEvent = {
+        isReady: jest.fn<any>().mockReturnValue(true),
+        publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+        publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
+      };
+
+      const serviceWithMQ = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        imWorker as never,
+        mqWithWorkspaceEvent as never,
+        eventEmitterMock as never,
+      );
+      jest
+        .spyOn(serviceWithMQ, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse({ id: 'msg-1' }));
+      jest
+        .spyOn(serviceWithMQ, 'mergeProperties')
+        .mockResolvedValue([makeMessageResponse({ id: 'msg-1' })]);
+      jest
+        .spyOn(serviceWithMQ, 'truncateForPreview')
+        .mockReturnValue(makeMessageResponse({ id: 'msg-1' }));
+
+      await serviceWithMQ.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hi',
+        workspaceId: 'ws-1',
+      });
+
+      expect(mqWithWorkspaceEvent.publishWorkspaceEvent).not.toHaveBeenCalled();
+    });
+
+    it('emits message.created event for search indexing', async () => {
+      await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        'message.created',
+        expect.objectContaining({
+          message: expect.objectContaining({ id: 'msg-1' }),
+          channel: { id: 'ch-1' },
+          sender: { id: 'bot-1' },
+        }),
+      );
+    });
+
+    it('fires post-broadcast publish and catches errors without propagating', async () => {
+      mqService.publishPostBroadcast.mockRejectedValue(new Error('MQ down'));
+
+      // Should not throw
+      await expect(
+        botService.sendFromBot({
+          botUserId: 'bot-1',
+          channelId: 'ch-1',
+          content: 'hi',
+          workspaceId: 'ws-1',
+        }),
+      ).resolves.toMatchObject({ channelId: 'ch-1', messageId: 'msg-1' });
+
+      // Give the microtask queue a tick for the .catch() to run
+      await Promise.resolve();
+
+      expect(botLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('sendFromBot post-broadcast publish failed'),
+      );
+    });
+
+    it('throws when imWorkerGrpcClientService is not injected', async () => {
+      const serviceNoGrpc = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        undefined, // no gRPC
+      );
+
+      await expect(
+        serviceNoGrpc.sendFromBot({
+          botUserId: 'bot-1',
+          channelId: 'ch-1',
+          content: 'hi',
+          workspaceId: 'ws-1',
+        }),
+      ).rejects.toThrow('imWorkerGrpcClientService is not injected');
     });
   });
 

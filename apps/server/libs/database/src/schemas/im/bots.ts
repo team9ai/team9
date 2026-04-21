@@ -25,6 +25,18 @@ export interface BotCapabilities {
   [key: string]: unknown;
 }
 
+export type DmOutboundPolicyMode =
+  | 'owner-only'
+  | 'same-tenant'
+  | 'whitelist'
+  | 'anyone';
+
+export interface DmOutboundPolicy {
+  mode: DmOutboundPolicyMode;
+  /** Required iff `mode === 'whitelist'`. Max 50 entries (enforced at DTO layer). */
+  userIds?: string[];
+}
+
 export interface BotExtra {
   openclaw?: {
     agentId?: string; // OpenClaw agent ID; absent means default agent
@@ -62,6 +74,8 @@ export interface BotExtra {
     /** See commonStaff.identity. Role/jobDescription are system-fixed for personal staff. */
     identity?: Record<string, unknown>;
   };
+  /** Outbound DM policy. Absent ⇒ gateway computes default from bot shape. */
+  dmOutboundPolicy?: DmOutboundPolicy;
 }
 
 export interface ManagedMeta {
