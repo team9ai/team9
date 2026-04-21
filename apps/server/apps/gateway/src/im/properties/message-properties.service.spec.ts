@@ -84,6 +84,7 @@ const mockAuditService = {
 
 const mockWsGateway = {
   sendToChannelMembers: jest.fn<any>(),
+  emitRelationChanged: jest.fn<any>(),
 };
 
 const mockRelationsService = {
@@ -275,6 +276,7 @@ describe('MessagePropertiesService', () => {
     jest.clearAllMocks();
     mockAuditService.log.mockResolvedValue(undefined);
     mockWsGateway.sendToChannelMembers.mockResolvedValue(undefined);
+    mockWsGateway.emitRelationChanged.mockResolvedValue(undefined);
     mockRelationsService.setRelationTargets.mockResolvedValue({
       addedTargetIds: [],
       removedTargetIds: [],
@@ -1246,6 +1248,207 @@ describe('MessagePropertiesService', () => {
           metadata: expect.objectContaining({ explicitlyCleared: true }),
         }),
       );
+    });
+
+    // ==================== WS event order: relation_changed before property_changed ====================
+
+    it('emits message_relation_changed BEFORE message_property_changed for relationKind property', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      const order: string[] = [];
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['target-1'],
+        removedTargetIds: [],
+        currentTargetIds: ['target-1'],
+      });
+      mockWsGateway.emitRelationChanged.mockImplementation(async () => {
+        order.push('relation');
+      });
+      mockWsGateway.sendToChannelMembers.mockImplementation(async () => {
+        order.push('property');
+      });
+
+      await service.setProperty('msg-1', 'def-rel', 'target-1', 'user-1');
+
+      expect(order).toEqual(['relation', 'property']);
+    });
+
+    it('action=added when only new edges are added', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['target-1'],
+        removedTargetIds: [],
+        currentTargetIds: ['target-1'],
+      });
+
+      await service.setProperty('msg-1', 'def-rel', 'target-1', 'user-1');
+
+      expect(mockWsGateway.emitRelationChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'added' }),
+      );
+    });
+
+    it('action=removed when only existing edges are removed', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: [],
+        removedTargetIds: ['old-target'],
+        currentTargetIds: [],
+      });
+
+      await service.setProperty('msg-1', 'def-rel', null, 'user-1');
+
+      expect(mockWsGateway.emitRelationChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'removed' }),
+      );
+    });
+
+    it('action=replaced when both added and removed are non-empty', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['new-target'],
+        removedTargetIds: ['old-target'],
+        currentTargetIds: ['new-target'],
+      });
+
+      await service.setProperty('msg-1', 'def-rel', 'new-target', 'user-1');
+
+      expect(mockWsGateway.emitRelationChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'replaced' }),
+      );
+    });
+
+    it('emitRelationChanged receives the correct payload shape', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['t1'],
+        removedTargetIds: [],
+        currentTargetIds: ['t1'],
+      });
+
+      await service.setProperty('msg-1', 'def-rel', 't1', 'user-1');
+
+      expect(mockWsGateway.emitRelationChanged).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'channel-1',
+          sourceMessageId: 'msg-1',
+          propertyDefinitionId: 'def-rel',
+          propertyKey: 'parent',
+          relationKind: 'parent',
+          action: 'added',
+          addedTargetIds: ['t1'],
+          removedTargetIds: [],
+          currentTargetIds: ['t1'],
+          performedBy: 'user-1',
+        }),
+      );
+      // timestamp should be an ISO string
+      const call = mockWsGateway.emitRelationChanged.mock.calls[0][0] as {
+        timestamp: string;
+      };
+      expect(typeof call.timestamp).toBe('string');
+      expect(new Date(call.timestamp).toISOString()).toBe(call.timestamp);
+    });
+
+    it('explicit clear adds explicitlyCleared:true to property_changed event payload', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: [],
+        removedTargetIds: ['old-target'],
+        currentTargetIds: [],
+      });
+
+      await service.setProperty('msg-1', 'def-rel', null, 'user-1');
+
+      expect(mockWsGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS_MOCK.PROPERTY.MESSAGE_CHANGED,
+        expect.objectContaining({
+          relationKind: 'parent',
+          explicitlyCleared: true,
+        }),
+      );
+    });
+
+    it('property_changed event does NOT include target ids for relationKind', async () => {
+      db.__state.selectResults.push([messageRow()]);
+      db.__state.selectResults.push([
+        { type: 'public', propertySettings: null },
+      ]);
+      mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+        relKindDefRow(),
+      );
+      db.__state.selectResults.push([]);
+      db.__state.insertResults.push([]);
+
+      mockRelationsService.setRelationTargets.mockResolvedValue({
+        addedTargetIds: ['t1'],
+        removedTargetIds: [],
+        currentTargetIds: ['t1'],
+      });
+
+      await service.setProperty('msg-1', 'def-rel', 't1', 'user-1');
+
+      const call = mockWsGateway.sendToChannelMembers.mock.calls[0];
+      const payload = call[2] as Record<string, unknown>;
+      const setPayload = (
+        payload.properties as { set: Record<string, unknown> }
+      ).set;
+      // Property value is null (no target ids in the property event)
+      expect(setPayload['parent']).toBeNull();
     });
   });
 

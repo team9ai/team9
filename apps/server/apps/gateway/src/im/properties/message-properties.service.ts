@@ -809,6 +809,44 @@ export class MessagePropertiesService {
         ...(explicitClear ? { explicitlyCleared: true } : {}),
       },
     });
+
+    // Determine the action type for the relation-changed event
+    const action: 'added' | 'removed' | 'replaced' =
+      diff.removedTargetIds.length > 0 && diff.addedTargetIds.length > 0
+        ? 'replaced'
+        : diff.addedTargetIds.length > 0
+          ? 'added'
+          : 'removed';
+
+    // Emit message_relation_changed BEFORE message_property_changed (order guarantee)
+    await this.wsGateway.emitRelationChanged({
+      channelId: message.channelId,
+      sourceMessageId: message.id,
+      propertyDefinitionId: definition.id,
+      propertyKey: definition.key,
+      relationKind: config.relationKind!,
+      action,
+      addedTargetIds: diff.addedTargetIds,
+      removedTargetIds: diff.removedTargetIds,
+      currentTargetIds: diff.currentTargetIds,
+      performedBy: userId,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Emit the legacy message_property_changed event with relationKind marker
+    // Clients should NOT use the value (no target ids here) — they read from the relation event
+    await this.wsGateway.sendToChannelMembers(
+      message.channelId,
+      WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
+      {
+        channelId: message.channelId,
+        messageId: message.id,
+        properties: { set: { [definition.key]: null }, removed: [] },
+        relationKind: config.relationKind,
+        ...(explicitClear ? { explicitlyCleared: true } : {}),
+        performedBy: userId,
+      },
+    );
   }
 
   /**
