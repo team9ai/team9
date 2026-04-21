@@ -12,6 +12,7 @@ const dbModule = {
     col,
     vals,
   })),
+  desc: jest.fn((col: unknown) => ({ op: 'desc', col })),
 };
 
 const schemaModule = {
@@ -41,8 +42,12 @@ jest.unstable_mockModule('@team9/shared', () => ({}));
 
 const { MessageRelationsService } =
   await import('./message-relations.service.js');
-const { RelationError, RelationTargetNotFoundError, RELATION_ERROR_CODES } =
-  await import('./message-relations.errors.js');
+const {
+  RelationError,
+  RelationSourceNotFoundError,
+  RelationTargetNotFoundError,
+  RELATION_ERROR_CODES,
+} = await import('./message-relations.errors.js');
 
 // ─── Fluent-chain mock helpers ────────────────────────────────────────────────
 
@@ -214,7 +219,7 @@ describe('MessageRelationsService', () => {
       });
     });
 
-    it('throws RelationTargetNotFoundError when source message missing', async () => {
+    it('throws RelationSourceNotFoundError when source message missing', async () => {
       // source not found
       db.__state.selectResults.push([]);
 
@@ -226,6 +231,23 @@ describe('MessageRelationsService', () => {
           actorId: 'user-1',
         }),
       ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        (() => {
+          db.__state.selectResults.push([]);
+          return service.setRelationTargets({
+            sourceMessageId: 'missing-src',
+            targetMessageIds: ['target-1'],
+            definition: makeDefinition() as any,
+            actorId: 'user-1',
+          });
+        })(),
+      ).rejects.toMatchObject({
+        response: {
+          code: RELATION_ERROR_CODES.TARGET_NOT_FOUND,
+          message: expect.stringContaining('Source message missing-src'),
+        },
+      });
     });
 
     it('throws RelationTargetNotFoundError when one target missing', async () => {
@@ -446,25 +468,50 @@ describe('MessageRelationsService', () => {
       expect(db.__queries.insert).toHaveLength(1);
     });
 
-    it('skips insert when relationKind is undefined on config (legacy path)', async () => {
+    it('throws DEFINITION_CONFLICT when relationKind is undefined and targets are provided', async () => {
+      // Must throw before entering the transaction — no DB calls needed
+      await expect(
+        service.setRelationTargets({
+          sourceMessageId: 'msg-src',
+          targetMessageIds: ['target-1'],
+          definition: makeDefinition({
+            config: {
+              scope: 'any',
+              cardinality: 'multi' /* no relationKind */,
+            },
+          }) as any,
+          actorId: 'user-1',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: RELATION_ERROR_CODES.DEFINITION_CONFLICT },
+      });
+
+      // No transaction or DB queries should have been made
+      expect(db.transaction).not.toHaveBeenCalled();
+    });
+
+    it('succeeds when relationKind is undefined but targetMessageIds is empty (deletion no-op)', async () => {
+      // source found
       db.__state.selectResults.push([sourceRow()]);
-      db.__state.selectResults.push([targetRow({ id: 'target-1' })]);
-      // existing: empty
-      db.__state.selectResults.push([]);
-      // no insert call expected
+      // existing: has target-1 to remove
+      db.__state.selectResults.push([{ targetMessageId: 'target-1' }]);
+      // delete
+      db.__state.deleteResults.push([]);
 
       const result = await service.setRelationTargets({
         sourceMessageId: 'msg-src',
-        targetMessageIds: ['target-1'],
+        targetMessageIds: [],
         definition: makeDefinition({
           config: { scope: 'any', cardinality: 'multi' /* no relationKind */ },
         }) as any,
         actorId: 'user-1',
       });
 
-      expect(result.addedTargetIds).toEqual(['target-1']);
-      // insert is skipped because config.relationKind is undefined
+      // Deletion still works — no insert needed, no relationKind check triggered
+      expect(result.addedTargetIds).toEqual([]);
+      expect(result.removedTargetIds).toEqual(['target-1']);
       expect(db.__queries.insert).toHaveLength(0);
+      expect(db.__queries.delete).toHaveLength(1);
     });
   });
 
@@ -500,7 +547,7 @@ describe('MessageRelationsService', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('getIncomingSources', () => {
-    it('filters by relationKind', async () => {
+    it('filters by relationKind and returns matching rows', async () => {
       db.__state.selectResults.push([
         { sourceMessageId: 'src-1', propertyDefinitionId: 'def-1' },
       ]);
@@ -540,6 +587,88 @@ describe('MessageRelationsService', () => {
         propertyDefinitionId: 'def-2',
       });
     });
+
+    it('orders results desc by createdAt (later createdAt appears first)', async () => {
+      // The mock returns whatever we seed — we seed in desc order to match
+      // what the real DB would return with orderBy(desc(createdAt)).
+      // We assert that orderBy was called and that the result preserves the
+      // order returned by the DB (which in production is driven by desc()).
+      const newerRow = {
+        sourceMessageId: 'src-newer',
+        propertyDefinitionId: 'def-1',
+      };
+      const olderRow = {
+        sourceMessageId: 'src-older',
+        propertyDefinitionId: 'def-2',
+      };
+
+      // Seed: newer first (as the real DB would return with DESC)
+      db.__state.selectResults.push([newerRow, olderRow]);
+
+      const result = await service.getIncomingSources('target-1', 'parent');
+
+      // Verify orderBy was invoked (i.e., the chain call reaches orderBy)
+      expect(db.__queries.select[0].orderBy).toHaveBeenCalled();
+
+      // Verify desc() was called with the createdAt column
+      const { desc: descMock } = dbModule as any;
+      expect(descMock).toHaveBeenCalledWith(
+        schemaModule.messageRelations.createdAt,
+      );
+
+      // Result preserves DB order: newer first
+      expect(result[0].sourceMessageId).toBe('src-newer');
+      expect(result[1].sourceMessageId).toBe('src-older');
+    });
+
+    it('seed-based: returns only rows matching the requested relationKind', async () => {
+      // Simulate a DB that already filters by relationKind at the query level.
+      // Two separate calls with different kinds return distinct rows.
+
+      // First call: 'parent' kind → returns parent sources only
+      db.__state.selectResults.push([
+        { sourceMessageId: 'src-parent-1', propertyDefinitionId: 'def-p' },
+        { sourceMessageId: 'src-parent-2', propertyDefinitionId: 'def-p' },
+      ]);
+      // Second call: 'related' kind → returns related sources only
+      db.__state.selectResults.push([
+        { sourceMessageId: 'src-related-1', propertyDefinitionId: 'def-r' },
+      ]);
+
+      const parentSources = await service.getIncomingSources(
+        'target-x',
+        'parent',
+      );
+      const relatedSources = await service.getIncomingSources(
+        'target-x',
+        'related',
+      );
+
+      // Each call returns distinct rows — the DB mock routes them independently
+      expect(parentSources).toHaveLength(2);
+      expect(
+        parentSources.every((s) => s.propertyDefinitionId === 'def-p'),
+      ).toBe(true);
+
+      expect(relatedSources).toHaveLength(1);
+      expect(relatedSources[0].sourceMessageId).toBe('src-related-1');
+
+      // Both calls used innerJoin (for isDeleted filtering)
+      expect(db.__queries.select[0].innerJoin).toHaveBeenCalled();
+      expect(db.__queries.select[1].innerJoin).toHaveBeenCalled();
+
+      // desc() was called twice (once per query)
+      const { desc: descMock } = dbModule as any;
+      expect(descMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns empty array when no matching sources', async () => {
+      db.__state.selectResults.push([]);
+
+      const result = await service.getIncomingSources('target-1', 'parent');
+
+      expect(result).toEqual([]);
+    });
   });
 });
 
@@ -576,5 +705,18 @@ describe('RelationTargetNotFoundError', () => {
       RELATION_ERROR_CODES.TARGET_NOT_FOUND,
     );
     expect((err.getResponse() as any).message).toContain('msg-abc');
+    expect((err.getResponse() as any).message).toContain('Target');
+  });
+});
+
+describe('RelationSourceNotFoundError', () => {
+  it('is a NotFoundException with TARGET_NOT_FOUND code and source-specific message', () => {
+    const err = new RelationSourceNotFoundError('src-xyz');
+    expect(err).toBeInstanceOf(NotFoundException);
+    expect((err.getResponse() as any).code).toBe(
+      RELATION_ERROR_CODES.TARGET_NOT_FOUND,
+    );
+    expect((err.getResponse() as any).message).toContain('src-xyz');
+    expect((err.getResponse() as any).message).toContain('Source message');
   });
 });

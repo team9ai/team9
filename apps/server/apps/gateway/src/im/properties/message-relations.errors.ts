@@ -32,3 +32,12 @@ export class RelationTargetNotFoundError extends NotFoundException {
     });
   }
 }
+
+export class RelationSourceNotFoundError extends NotFoundException {
+  constructor(messageId: string) {
+    super({
+      code: RELATION_ERROR_CODES.TARGET_NOT_FOUND, // same code — caller-semantic
+      message: `Source message ${messageId} not found or not accessible`,
+    });
+  }
+}

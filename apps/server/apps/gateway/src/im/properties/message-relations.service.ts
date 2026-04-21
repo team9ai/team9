@@ -4,12 +4,14 @@ import {
   eq,
   and,
   inArray,
+  desc,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { MessageRefConfig } from '@team9/shared';
 import {
   RelationError,
+  RelationSourceNotFoundError,
   RelationTargetNotFoundError,
 } from './message-relations.errors.js';
 
@@ -63,6 +65,14 @@ export class MessageRelationsService {
       throw new RelationError('CARDINALITY_EXCEEDED');
     }
 
+    // relationKind is required when inserting relations — fail loudly if missing
+    if (desired.length > 0 && !config.relationKind) {
+      throw new RelationError(
+        'DEFINITION_CONFLICT',
+        'MessageRelationsService.setRelationTargets called without config.relationKind',
+      );
+    }
+
     return this.db.transaction(async (tx) => {
       // Load source message for channelId + tenantId
       const [source] = await tx
@@ -75,7 +85,7 @@ export class MessageRelationsService {
         .limit(1);
 
       if (!source) {
-        throw new RelationTargetNotFoundError(sourceMessageId);
+        throw new RelationSourceNotFoundError(sourceMessageId);
       }
 
       // Validate targets exist and satisfy scope
@@ -130,7 +140,7 @@ export class MessageRelationsService {
           );
       }
 
-      if (toAdd.length > 0 && config.relationKind) {
+      if (toAdd.length > 0) {
         await tx.insert(messageRelations).values(
           toAdd.map((targetId) => ({
             tenantId: source.tenantId,
@@ -188,7 +198,7 @@ export class MessageRelationsService {
           eq(messages.isDeleted, false),
         ),
       )
-      .orderBy(messageRelations.createdAt);
+      .orderBy(desc(messageRelations.createdAt));
 
     return rows;
   }
