@@ -261,6 +261,7 @@ describe('CommonStaffService', () => {
   let channelsService: { createDirectChannel: MockFn };
   let installedApplicationsService: { findById: MockFn };
   let usersService: { getLocalePreferences: MockFn };
+  let staffService: { createBotWithAgent: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -333,6 +334,13 @@ describe('CommonStaffService', () => {
     }).compile();
 
     service = module.get<CommonStaffService>(CommonStaffService);
+    const injectedStaffService = module.get<StaffService>(StaffService);
+    staffService = {
+      createBotWithAgent: jest.spyOn(
+        injectedStaffService,
+        'createBotWithAgent',
+      ),
+    };
   });
 
   // ── createStaff ──────────────────────────────────────────────────────────────
@@ -376,6 +384,16 @@ describe('CommonStaffService', () => {
       });
       await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
+      // Verify roleTitle flows through to staffService.createBotWithAgent
+      expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          botExtra: expect.objectContaining({
+            commonStaff: expect.objectContaining({ roleTitle: 'Dev' }),
+          }),
+        }),
+      );
+
+      // Also verify it reaches botService.updateBotExtra
       expect(botService.updateBotExtra).toHaveBeenCalledWith(
         BOT_ID,
         expect.objectContaining({
