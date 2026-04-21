@@ -127,7 +127,7 @@
     {
       "id": 18,
       "subject": "Task 19: Save flow (auto + review + proposal banner)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [17],
       "description": "**Goal:** Wire Save button, handle auto vs review mode, show pending-proposal banner, toast error paths.\n\n**Files:**\n- Create: SubmitForReviewDialog.tsx, WikiProposalBanner.tsx\n- Modify: WikiPageEditor.tsx, WikiPageView.tsx, stores/wiki.ts (submittedProposals map)\n\n**Verify:** pnpm --filter @team9/client test -- WikiPageEditor.save\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/SubmitForReviewDialog.tsx\",\"apps/client/src/components/wiki/WikiProposalBanner.tsx\",\"apps/client/src/components/wiki/WikiPageEditor.tsx\",\"apps/client/src/stores/wiki.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Cmd+S triggers save\",\"Auto mode: direct commit, clears draft\",\"Review mode: dialog -> commit with propose -> banner\",\"Banner links to proposal\",\"409/403 toasted\",\"Draft not cleared in review mode\"]}\n```"
     },
@@ -160,5 +160,5 @@
       "description": "**Goal:** Subscribe to wiki_* events, invalidate React Query cache, clear matching submittedProposals on approve/reject.\n\n**Files:**\n- Create: hooks/useWikiWebSocketSync.ts\n- Modify: WikiMainContent.tsx (mount hook)\n\n**Verify:** pnpm --filter @team9/client test -- useWikiWebSocketSync\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useWikiWebSocketSync.ts\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- WebSocket\",\"acceptanceCriteria\":[\"All 7 wiki_* events subscribed\",\"Correct query invalidations per event\",\"submittedProposals cleared on approve/reject\",\"Unsubscribe on unmount\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-04-21T00:00:00Z"
+  "lastUpdated": "2026-04-22T00:00:00Z"
 }

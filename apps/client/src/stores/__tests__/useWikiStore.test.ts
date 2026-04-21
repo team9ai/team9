@@ -1,9 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  submittedProposalKey,
   useExpandedDirectories,
   useSelectedPagePath,
   useSelectedWikiId,
+  useSubmittedProposal,
   useWikiStore,
   wikiActions,
 } from "../useWikiStore";
@@ -18,6 +20,7 @@ describe("useWikiStore", () => {
     expect(state.selectedWikiId).toBeNull();
     expect(state.selectedPagePath).toBeNull();
     expect(state.expandedDirectories).toEqual(new Set());
+    expect(state.submittedProposals).toEqual({});
   });
 
   it("setSelectedWiki updates the id", () => {
@@ -104,12 +107,133 @@ describe("useWikiStore", () => {
     useWikiStore.getState().setSelectedWiki("wiki-1");
     useWikiStore.getState().setSelectedPage("/intro.md");
     useWikiStore.getState().toggleDirectory("/docs");
+    useWikiStore
+      .getState()
+      .setSubmittedProposal("wiki-1", "index.md", "prop-1");
     useWikiStore.getState().reset();
 
     const state = useWikiStore.getState();
     expect(state.selectedWikiId).toBeNull();
     expect(state.selectedPagePath).toBeNull();
     expect(state.expandedDirectories).toEqual(new Set());
+    expect(state.submittedProposals).toEqual({});
+  });
+
+  describe("submittedProposals", () => {
+    it("submittedProposalKey composes a deterministic key", () => {
+      expect(submittedProposalKey("wiki-1", "docs/intro.md")).toBe(
+        "wiki-1:docs/intro.md",
+      );
+    });
+
+    it("setSubmittedProposal records a proposal id under the composite key", () => {
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      expect(
+        useWikiStore.getState().submittedProposals["wiki-1:index.md"],
+      ).toBe("prop-1");
+    });
+
+    it("setSubmittedProposal replaces an existing proposal id for the same page", () => {
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-2");
+      expect(
+        useWikiStore.getState().submittedProposals["wiki-1:index.md"],
+      ).toBe("prop-2");
+    });
+
+    it("setSubmittedProposal is a reference no-op when the same id is set twice", () => {
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      const before = useWikiStore.getState().submittedProposals;
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      const after = useWikiStore.getState().submittedProposals;
+      expect(after).toBe(before);
+    });
+
+    it("setSubmittedProposal with null removes the entry", () => {
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      useWikiStore.getState().setSubmittedProposal("wiki-1", "index.md", null);
+      expect(
+        "wiki-1:index.md" in useWikiStore.getState().submittedProposals,
+      ).toBe(false);
+    });
+
+    it("setSubmittedProposal(null) on a missing key is a reference no-op", () => {
+      const before = useWikiStore.getState().submittedProposals;
+      useWikiStore.getState().setSubmittedProposal("wiki-1", "index.md", null);
+      const after = useWikiStore.getState().submittedProposals;
+      expect(after).toBe(before);
+    });
+
+    it("setSubmittedProposal isolates entries across wikis and paths", () => {
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "index.md", "prop-a");
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-2", "index.md", "prop-b");
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "docs/other.md", "prop-c");
+      expect(useWikiStore.getState().submittedProposals).toEqual({
+        "wiki-1:index.md": "prop-a",
+        "wiki-2:index.md": "prop-b",
+        "wiki-1:docs/other.md": "prop-c",
+      });
+    });
+
+    it("useSubmittedProposal selector returns the proposal id for a given page", () => {
+      const { result } = renderHook(() =>
+        useSubmittedProposal("wiki-1", "index.md"),
+      );
+      expect(result.current).toBeNull();
+
+      act(() => {
+        useWikiStore
+          .getState()
+          .setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      });
+      expect(result.current).toBe("prop-1");
+
+      act(() => {
+        useWikiStore
+          .getState()
+          .setSubmittedProposal("wiki-1", "index.md", null);
+      });
+      expect(result.current).toBeNull();
+    });
+
+    it("useSubmittedProposal is scoped — an unrelated page's entry is invisible", () => {
+      useWikiStore
+        .getState()
+        .setSubmittedProposal("wiki-1", "other.md", "prop-1");
+      const { result } = renderHook(() =>
+        useSubmittedProposal("wiki-1", "index.md"),
+      );
+      expect(result.current).toBeNull();
+    });
+
+    it("wikiActions.setSubmittedProposal proxies to the store", () => {
+      wikiActions.setSubmittedProposal("wiki-1", "index.md", "prop-1");
+      expect(
+        useWikiStore.getState().submittedProposals["wiki-1:index.md"],
+      ).toBe("prop-1");
+      wikiActions.setSubmittedProposal("wiki-1", "index.md", null);
+      expect(
+        "wiki-1:index.md" in useWikiStore.getState().submittedProposals,
+      ).toBe(false);
+    });
   });
 
   it("selector hooks subscribe to the right slices", () => {

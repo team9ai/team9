@@ -1,11 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { useWikiDraft } from "@/hooks/useWikiDraft";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useCommitWikiPage } from "@/hooks/useWikiPage";
 import { resolveClientPermission } from "@/lib/wiki-permission";
+import { serializeFrontmatter } from "@/lib/wiki-frontmatter";
+import { getHttpErrorStatus } from "@/lib/http-error";
+import { wikiActions } from "@/stores/useWikiStore";
 import { IconPickerPopover } from "./IconPickerPopover";
 import { CoverPickerPopover } from "./CoverPickerPopover";
+import { WikiStatusBar } from "./WikiStatusBar";
+import {
+  SubmitForReviewDialog,
+  type SubmitForReviewInput,
+} from "./SubmitForReviewDialog";
 import type { PageDto, WikiDto } from "@/types/wiki";
 
 export interface WikiPageEditorProps {
@@ -32,11 +41,13 @@ export interface WikiPageEditorProps {
  *  - Surface the stale-alert banner when the hook reports a newer local
  *    draft than the server copy (the hook only raises this on mount /
  *    key change — we trust it to clear the flag once the user decides).
- *
- * The Save flow is intentionally *not* wired here. `WikiPageView` owns
- * the status bar slot and Task 19 is where the commit mutation lands —
- * it will thread a save() through to this component (or move this
- * component's state up, depending on the cleanest Task-19 shape).
+ *  - Drive the commit mutation. Auto-mode commits inline; review-mode
+ *    opens `SubmitForReviewDialog` first. On success, clear the draft
+ *    (auto) or record the proposal id (review). On failure, surface an
+ *    actionable message via `alert()` (the project's current
+ *    notification convention — see `HomeMainContent.tsx`).
+ *  - Listen for Cmd/Ctrl+S while the editor is mounted and trigger the
+ *    save flow exactly like clicking the Save button would.
  */
 export function WikiPageEditor({
   wikiId,
@@ -47,13 +58,20 @@ export function WikiPageEditor({
   const { data: currentUser } = useCurrentUser();
   const perm = resolveClientPermission(wiki, currentUser ?? null);
   const readOnly = perm === "read";
+  const isReview = wiki.approvalMode === "review";
 
-  const { draft, setDraft, isDirty, hasStaleAlert, dismissStaleAlert } =
-    useWikiDraft(wikiId, path, {
-      body: serverPage.content,
-      frontmatter: serverPage.frontmatter,
-      lastCommitTime: serverPage.lastCommit?.timestamp ?? null,
-    });
+  const {
+    draft,
+    setDraft,
+    clearDraft,
+    isDirty,
+    hasStaleAlert,
+    dismissStaleAlert,
+  } = useWikiDraft(wikiId, path, {
+    body: serverPage.content,
+    frontmatter: serverPage.frontmatter,
+    lastCommitTime: serverPage.lastCommit?.timestamp ?? null,
+  });
 
   // Seed from draft when present (useWikiDraft has already decided the
   // draft is worth keeping), else from the server page.
@@ -155,11 +173,117 @@ export function WikiPageEditor({
     handleFrontmatterChange({ ...frontmatter, cover });
   };
 
+  // --- Save flow ---------------------------------------------------------
+
+  const commit = useCommitWikiPage(wikiId);
+  const [isReviewDialogOpen, setReviewDialogOpen] = useState(false);
+
+  const canSave = !readOnly;
+
+  // Notify the user via the project's current toast surface — plain
+  // window.alert (see HomeMainContent.tsx, members.tsx). This is a React
+  // component so we only ever execute in a browser environment; no SSR
+  // guard needed. When/if a real toast component lands, swap the two call
+  // sites inside runCommit one-for-one.
+  function notify(message: string) {
+    window.alert(message);
+  }
+
+  // Translate a commit-mutation error into a user-facing message. 409 means
+  // the server's copy moved under us; 403 means the permission check failed
+  // server-side (shouldn't happen for write/propose users but we defend in
+  // depth). Anything else is a generic failure.
+  function saveErrorMessage(error: unknown): string {
+    const status = getHttpErrorStatus(error);
+    if (status === 409) {
+      return "Save failed: the page has changed on the server. Reload and reapply your edits.";
+    }
+    if (status === 403) {
+      return "Save failed: you don't have permission to update this page.";
+    }
+    return "Save failed. Please try again.";
+  }
+
+  // Perform the actual commit. `reviewInput` is present only for review-
+  // mode submissions (the dialog collects it first). We serialize the
+  // current frontmatter + body back into a markdown source the server
+  // understands.
+  const runCommit = useCallback(
+    async (reviewInput?: SubmitForReviewInput) => {
+      const propose = !!reviewInput;
+      const content = serializeFrontmatter({ frontmatter, body });
+      const message = reviewInput?.title.trim() || `Update ${path}`;
+      try {
+        const result = await commit.mutateAsync({
+          message,
+          files: [{ path, content, action: "update" }],
+          propose,
+        });
+        if (result.proposal) {
+          // Review mode: keep the draft so the user can iterate on
+          // reviewer feedback without losing their edits.
+          wikiActions.setSubmittedProposal(wikiId, path, result.proposal.id);
+          setReviewDialogOpen(false);
+          notify("Submitted for review");
+          return;
+        }
+        // Auto mode: draft is now part of the server copy.
+        clearDraft();
+        setReviewDialogOpen(false);
+        notify("Saved");
+      } catch (error) {
+        // Keep the dialog open so the user can retry without re-typing.
+        notify(saveErrorMessage(error));
+      }
+    },
+    [body, frontmatter, path, wikiId, commit, clearDraft],
+  );
+
+  // Top-level save trigger. Routes through the dialog when the Wiki is in
+  // review mode and the user hasn't supplied proposal metadata yet.
+  const handleSave = useCallback(
+    (reviewInput?: SubmitForReviewInput) => {
+      if (!canSave) return;
+      if (commit.isPending) return;
+      if (!reviewInput && !isDirty) return;
+      if (isReview && !reviewInput) {
+        setReviewDialogOpen(true);
+        return;
+      }
+      void runCommit(reviewInput);
+    },
+    [canSave, commit.isPending, isDirty, isReview, runCommit],
+  );
+
+  // Cmd+S / Ctrl+S shortcut. Mirrors the Save button's behaviour so power
+  // users never have to reach for the mouse. We stop the browser's default
+  // "save page as…" dialog regardless of dirty state so a clean doc doesn't
+  // suddenly offer a download; only *triggering* the save is gated.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const isSaveShortcut =
+        (e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S");
+      if (!isSaveShortcut) return;
+      e.preventDefault();
+      handleSave();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleSave]);
+
   return (
     <div
       data-testid="wiki-page-editor"
       className="flex-1 flex flex-col min-h-0"
     >
+      <WikiStatusBar
+        lastSavedAt={serverPage.lastCommit?.timestamp ?? null}
+        isDirty={isDirty}
+        isSaving={commit.isPending}
+        canSave={canSave}
+        onSave={() => handleSave()}
+      />
+
       <div
         className="flex items-center gap-2 px-12 py-2"
         data-testid="wiki-page-editor-controls"
@@ -216,6 +340,13 @@ export function WikiPageEditor({
           readOnly={readOnly}
         />
       </div>
+
+      <SubmitForReviewDialog
+        open={isReviewDialogOpen}
+        onOpenChange={setReviewDialogOpen}
+        onSubmit={(input) => handleSave(input)}
+        isSubmitting={commit.isPending}
+      />
     </div>
   );
 }

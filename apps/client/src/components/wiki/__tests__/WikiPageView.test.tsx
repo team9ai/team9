@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageDto, WikiDto } from "@/types/wiki";
 
 const mockUseWikiPage = vi.hoisted(() => vi.fn());
 const mockUseWikis = vi.hoisted(() => vi.fn());
+const mockUseSubmittedProposal = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiPage", () => ({
   useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
@@ -11,6 +13,15 @@ vi.mock("@/hooks/useWikiPage", () => ({
 
 vi.mock("@/hooks/useWikis", () => ({
   useWikis: (...args: unknown[]) => mockUseWikis(...args),
+}));
+
+vi.mock("@/stores/useWikiStore", () => ({
+  useSubmittedProposal: (...args: unknown[]) =>
+    mockUseSubmittedProposal(...args),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mockNavigate,
 }));
 
 // Child components are covered by their own tests; stub them here so we
@@ -44,6 +55,25 @@ vi.mock("../WikiPageEditor", () => ({
   ),
 }));
 
+vi.mock("../WikiProposalBanner", () => ({
+  WikiProposalBanner: ({
+    proposalId,
+    onView,
+  }: {
+    proposalId: string;
+    onView: (id: string) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="banner-stub"
+      data-proposal-id={proposalId}
+      onClick={() => onView(proposalId)}
+    >
+      banner
+    </button>
+  ),
+}));
+
 import { WikiPageView } from "../WikiPageView";
 
 const wiki: WikiDto = {
@@ -70,6 +100,9 @@ const page: PageDto = {
 beforeEach(() => {
   mockUseWikiPage.mockReset();
   mockUseWikis.mockReset();
+  mockUseSubmittedProposal.mockReset();
+  mockUseSubmittedProposal.mockReturnValue(null);
+  mockNavigate.mockReset();
 });
 
 describe("WikiPageView", () => {
@@ -142,5 +175,49 @@ describe("WikiPageView", () => {
     mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
     expect(screen.getByTestId("cover-stub").dataset.coverPath).toBe("");
+  });
+
+  it("does not render the proposal banner when no proposal is pending", () => {
+    mockUseWikiPage.mockReturnValue({ data: page, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    mockUseSubmittedProposal.mockReturnValue(null);
+    render(<WikiPageView wikiId="wiki-1" path="index.md" />);
+    expect(screen.queryByTestId("banner-stub")).toBeNull();
+  });
+
+  it("renders the proposal banner when a proposal id is recorded for this page", () => {
+    mockUseWikiPage.mockReturnValue({ data: page, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    mockUseSubmittedProposal.mockReturnValue("prop-42");
+    render(<WikiPageView wikiId="wiki-1" path="index.md" />);
+    const banner = screen.getByTestId("banner-stub");
+    expect(banner).toBeInTheDocument();
+    expect(banner.dataset.proposalId).toBe("prop-42");
+  });
+
+  it("queries useSubmittedProposal with the page-specific (wikiId, path)", () => {
+    mockUseWikiPage.mockReturnValue({ data: page, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    mockUseSubmittedProposal.mockReturnValue(null);
+    render(<WikiPageView wikiId="wiki-1" path="docs/intro.md" />);
+    expect(mockUseSubmittedProposal).toHaveBeenCalledWith(
+      "wiki-1",
+      "docs/intro.md",
+    );
+  });
+
+  it("banner onView navigates to the review route with wikiSlug and proposalId", () => {
+    mockUseWikiPage.mockReturnValue({ data: page, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    mockUseSubmittedProposal.mockReturnValue("prop-42");
+    render(<WikiPageView wikiId="wiki-1" path="index.md" />);
+    fireEvent.click(screen.getByTestId("banner-stub"));
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const arg = mockNavigate.mock.calls[0][0] as {
+      to: string;
+      params: { wikiSlug: string; proposalId: string };
+    };
+    expect(arg.to).toBe("/wiki/$wikiSlug/review/$proposalId");
+    expect(arg.params).toEqual({ wikiSlug: "handbook", proposalId: "prop-42" });
   });
 });

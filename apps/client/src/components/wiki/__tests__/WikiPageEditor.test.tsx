@@ -145,6 +145,76 @@ vi.mock("@/hooks/useAuth", () => ({
   useCurrentUser: () => ({ data: currentUserMock.data }),
 }));
 
+// Commit mutation — lets each test stub the mutateAsync resolution or
+// rejection plus the pending flag surfaced to the status bar.
+const commitHook = vi.hoisted(() => ({
+  mutateAsync:
+    vi.fn<
+      (
+        input: unknown,
+      ) => Promise<{ commit: { sha: string }; proposal: { id: string } | null }>
+    >(),
+  isPending: false,
+}));
+
+vi.mock("@/hooks/useWikiPage", () => ({
+  useCommitWikiPage: () => ({
+    mutateAsync: commitHook.mutateAsync,
+    isPending: commitHook.isPending,
+  }),
+}));
+
+// Wiki store action spy — we never touch the real store from these tests.
+const setSubmittedProposalSpy = vi.hoisted(() => vi.fn());
+vi.mock("@/stores/useWikiStore", () => ({
+  wikiActions: {
+    setSubmittedProposal: (...args: unknown[]) =>
+      setSubmittedProposalSpy(...args),
+  },
+}));
+
+// SubmitForReviewDialog — minimal stub that exposes the controlled props
+// + fires a deterministic input when the test clicks `submit`. Keeps the
+// file focused on the editor's own save flow.
+const submitForReviewProps = vi.hoisted(() =>
+  vi.fn<(props: Record<string, unknown>) => void>(),
+);
+
+vi.mock("../SubmitForReviewDialog", () => ({
+  SubmitForReviewDialog: (props: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onSubmit: (input: { title: string; description?: string }) => void;
+    isSubmitting?: boolean;
+  }) => {
+    submitForReviewProps(props);
+    if (!props.open) return null;
+    return (
+      <div data-testid="mock-review-dialog">
+        <button
+          type="button"
+          data-testid="mock-review-submit"
+          onClick={() =>
+            props.onSubmit({
+              title: "Fix typo",
+              description: "misspelled",
+            })
+          }
+        >
+          submit
+        </button>
+        <button
+          type="button"
+          data-testid="mock-review-cancel"
+          onClick={() => props.onOpenChange(false)}
+        >
+          cancel
+        </button>
+      </div>
+    );
+  },
+}));
+
 // --- SUT -----------------------------------------------------------------
 
 import { WikiPageEditor } from "../WikiPageEditor";
@@ -196,6 +266,14 @@ beforeEach(() => {
   documentEditorProps.mockReset();
   iconPickerProps.mockReset();
   coverPickerProps.mockReset();
+  submitForReviewProps.mockReset();
+  setSubmittedProposalSpy.mockReset();
+  commitHook.mutateAsync.mockReset();
+  commitHook.mutateAsync.mockResolvedValue({
+    commit: { sha: "new-sha" },
+    proposal: null,
+  });
+  commitHook.isPending = false;
   documentEditorMounts.count = 0;
   documentEditorUnmounts.count = 0;
   currentUserMock.data = {
@@ -825,5 +903,448 @@ describe("WikiPageEditor", () => {
     const onChange = lastIconCall[0].onChange as (icon: string) => void;
     onChange("🎨");
     expect(setDraft).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------
+  // Save flow (Task 19)
+  // ---------------------------------------------------------------------
+  describe("save flow", () => {
+    let alertSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // The real implementation calls window.alert for success/failure.
+      // Replace it with a clean spy each test so call history doesn't leak
+      // across tests. `vi.spyOn` is idempotent on an already-spied method
+      // but we call `mockClear` for safety.
+      alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+      alertSpy.mockClear();
+    });
+
+    it("disables the Save button when not dirty, enables when dirty", () => {
+      draftHook.state = makeDraftState({ isDirty: false });
+      const { rerender } = render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+      draftHook.state = makeDraftState({ isDirty: true });
+      rerender(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    });
+
+    it("disables the Save button when the user is read-only", () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, humanPermission: "read" }}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    it("disables the Save button while a commit is pending", () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      commitHook.isPending = true;
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    });
+
+    it("auto mode: commits with propose:false, clears the draft, and toasts", async () => {
+      const clearDraft = vi.fn();
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        clearDraft,
+        draft: {
+          body: "draft body",
+          frontmatter: { icon: "🚀", title: "Home" },
+        },
+      });
+      commitHook.mutateAsync.mockResolvedValue({
+        commit: { sha: "new-sha" },
+        proposal: null,
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      expect(commitHook.mutateAsync).toHaveBeenCalledTimes(1);
+      const dto = commitHook.mutateAsync.mock.calls[0][0] as {
+        message: string;
+        files: Array<{ path: string; content: string; action: string }>;
+        propose: boolean;
+      };
+      expect(dto.propose).toBe(false);
+      expect(dto.files).toHaveLength(1);
+      expect(dto.files[0]).toMatchObject({
+        path: "index.md",
+        action: "update",
+      });
+      // Serialized markdown: frontmatter fence → yaml → body.
+      expect(dto.files[0].content).toContain("---");
+      expect(dto.files[0].content).toContain("icon:");
+      expect(dto.files[0].content).toContain("\uD83D\uDE80");
+      expect(dto.files[0].content).toContain("draft body");
+      expect(clearDraft).toHaveBeenCalledTimes(1);
+      expect(setSubmittedProposalSpy).not.toHaveBeenCalled();
+    });
+
+    it("review mode: opens the dialog instead of committing immediately", async () => {
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        draft: {
+          body: "draft body",
+          frontmatter: basePage.frontmatter,
+        },
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, approvalMode: "review" }}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      expect(commitHook.mutateAsync).not.toHaveBeenCalled();
+      expect(screen.getByTestId("mock-review-dialog")).toBeInTheDocument();
+    });
+
+    it("review mode: dialog submit → commits with propose:true, records proposal, keeps draft", async () => {
+      const clearDraft = vi.fn();
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        clearDraft,
+        draft: {
+          body: "draft body",
+          frontmatter: basePage.frontmatter,
+        },
+      });
+      commitHook.mutateAsync.mockResolvedValue({
+        commit: { sha: "new-sha" },
+        proposal: { id: "prop-42" },
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, approvalMode: "review" }}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("mock-review-submit"));
+      });
+      expect(commitHook.mutateAsync).toHaveBeenCalledTimes(1);
+      const dto = commitHook.mutateAsync.mock.calls[0][0] as {
+        message: string;
+        propose: boolean;
+      };
+      expect(dto.propose).toBe(true);
+      expect(dto.message).toBe("Fix typo");
+      expect(setSubmittedProposalSpy).toHaveBeenCalledWith(
+        "wiki-1",
+        "index.md",
+        "prop-42",
+      );
+      // Draft must NOT be cleared on the review-mode success path.
+      expect(clearDraft).not.toHaveBeenCalled();
+    });
+
+    it("review mode: falls back to a default message when the dialog title is empty", async () => {
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        draft: { body: "draft body", frontmatter: basePage.frontmatter },
+      });
+      commitHook.mutateAsync.mockResolvedValue({
+        commit: { sha: "new-sha" },
+        proposal: { id: "prop-42" },
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, approvalMode: "review" }}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      // Read the props the dialog was handed; invoke onSubmit directly with
+      // a whitespace-only title to exercise the fallback commit message.
+      const lastCall =
+        submitForReviewProps.mock.calls[
+          submitForReviewProps.mock.calls.length - 1
+        ];
+      const onSubmit = lastCall[0].onSubmit as (input: {
+        title: string;
+        description?: string;
+      }) => void;
+      await act(async () => {
+        onSubmit({ title: "   " });
+      });
+      const dto = commitHook.mutateAsync.mock.calls[0][0] as {
+        message: string;
+      };
+      expect(dto.message).toBe("Update index.md");
+    });
+
+    it("Cmd+S triggers save when dirty (auto mode)", async () => {
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        draft: { body: "draft body", frontmatter: basePage.frontmatter },
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "s", metaKey: true });
+      });
+      expect(commitHook.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("Ctrl+S (uppercase S) also triggers save", async () => {
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        draft: { body: "draft body", frontmatter: basePage.frontmatter },
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "S", ctrlKey: true });
+      });
+      expect(commitHook.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("Cmd+S is a no-op when not dirty", async () => {
+      draftHook.state = makeDraftState({ isDirty: false });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "s", metaKey: true });
+      });
+      expect(commitHook.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("Cmd+S is a no-op while a commit is already pending", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      commitHook.isPending = true;
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "s", metaKey: true });
+      });
+      expect(commitHook.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("Cmd+S does nothing when the user is read-only", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, humanPermission: "read" }}
+        />,
+      );
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "s", metaKey: true });
+      });
+      expect(commitHook.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("non-save key presses do not trigger save", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "a", metaKey: true });
+      });
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "s" });
+      });
+      expect(commitHook.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("removes the keydown listener on unmount", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      const { unmount } = render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      unmount();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: "s", metaKey: true });
+      });
+      expect(commitHook.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("409 error surfaces a conflict-specific alert", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      const err = Object.assign(new Error("conflict"), { status: 409 });
+      commitHook.mutateAsync.mockReset();
+      commitHook.mutateAsync.mockRejectedValue(err);
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+      expect(alertSpy.mock.calls[0][0]).toMatch(/changed on the server/i);
+    });
+
+    it("403 error surfaces a permission-specific alert", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      const err = Object.assign(new Error("forbidden"), { status: 403 });
+      commitHook.mutateAsync.mockReset();
+      commitHook.mutateAsync.mockRejectedValue(err);
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      expect(alertSpy.mock.calls[0][0]).toMatch(/don't have permission/i);
+    });
+
+    it("generic error surfaces a generic alert", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      const err = Object.assign(new Error("boom"), { status: 500 });
+      commitHook.mutateAsync.mockReset();
+      commitHook.mutateAsync.mockRejectedValue(err);
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      expect(alertSpy.mock.calls[0][0]).toBe("Save failed. Please try again.");
+    });
+
+    it("error without a status still produces the generic alert", async () => {
+      draftHook.state = makeDraftState({ isDirty: true });
+      commitHook.mutateAsync.mockReset();
+      commitHook.mutateAsync.mockRejectedValue(new Error("network"));
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      expect(alertSpy.mock.calls[0][0]).toBe("Save failed. Please try again.");
+    });
+
+    it("status bar last-saved reflects serverPage.lastCommit.timestamp", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      expect(screen.getByTestId("wiki-status-last-saved")).toBeInTheDocument();
+    });
+
+    it("passes null lastSavedAt when serverPage has no lastCommit", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={{ ...basePage, lastCommit: null }}
+          wiki={baseWiki}
+        />,
+      );
+      // No lastSavedAt chip should render.
+      expect(screen.queryByTestId("wiki-status-last-saved")).toBeNull();
+    });
   });
 });
