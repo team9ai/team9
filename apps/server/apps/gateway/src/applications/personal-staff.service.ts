@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import {
   Injectable,
   Inject,
@@ -382,6 +383,11 @@ export class PersonalStaffService {
       allowDirectMessage: false,
     };
 
+    // dm outbound policy: partial-update semantics — undefined means no change
+    const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
+    const nextPolicy = dto.dmOutboundPolicy;
+    let policyChanged = false;
+
     const updatedExtra: BotExtra = {
       ...existingExtra,
       personalStaff: {
@@ -397,7 +403,16 @@ export class PersonalStaffService {
             }
           : {}),
       },
+      ...(nextPolicy !== undefined
+        ? {
+            dmOutboundPolicy: nextPolicy,
+          }
+        : {}),
     };
+
+    if (nextPolicy !== undefined) {
+      policyChanged = !isDeepStrictEqual(currentPolicy, nextPolicy);
+    }
 
     await this.staffService.updateBotAndAgent({
       agentIdPrefix: 'personal-staff',
@@ -410,6 +425,18 @@ export class PersonalStaffService {
       botExtra: updatedExtra,
       currentMentorId: ownerId, // Mentor is always the owner
     });
+
+    if (policyChanged) {
+      this.logger.log({
+        event: 'bot_dm_outbound_policy_changed',
+        botId: bot.botId,
+        botUserId: bot.userId,
+        actorUserId: ownerId,
+        from: currentPolicy,
+        to: nextPolicy,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return this.getStaff(installedApplicationId, tenantId, ownerId);
   }

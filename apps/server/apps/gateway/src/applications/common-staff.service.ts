@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import {
   Injectable,
   Inject,
@@ -334,6 +335,12 @@ export class CommonStaffService {
     // 3. Build merged BotExtra and delegate to StaffService
     const existingExtra = (bot.extra as BotExtra) ?? {};
     const existingCommonStaff = existingExtra.commonStaff ?? {};
+
+    // dm outbound policy: partial-update semantics — undefined means no change
+    const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
+    const nextPolicy = dto.dmOutboundPolicy;
+    let policyChanged = false;
+
     const updatedExtra: BotExtra = {
       ...existingExtra,
       commonStaff: {
@@ -345,7 +352,16 @@ export class CommonStaffService {
           : {}),
         ...(dto.model !== undefined ? { model: dto.model } : {}),
       },
+      ...(nextPolicy !== undefined
+        ? {
+            dmOutboundPolicy: nextPolicy,
+          }
+        : {}),
     };
+
+    if (nextPolicy !== undefined) {
+      policyChanged = !isDeepStrictEqual(currentPolicy, nextPolicy);
+    }
 
     await this.staffService.updateBotAndAgent({
       agentIdPrefix: 'common-staff',
@@ -359,6 +375,18 @@ export class CommonStaffService {
       botExtra: updatedExtra,
       currentMentorId: bot.mentorId ?? null,
     });
+
+    if (policyChanged) {
+      this.logger.log({
+        event: 'bot_dm_outbound_policy_changed',
+        botId: bot.botId,
+        botUserId: bot.userId,
+        actorUserId: bot.mentorId ?? null,
+        from: currentPolicy,
+        to: nextPolicy,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**

@@ -35,6 +35,8 @@ import type {
   GenerateAvatarDto,
   GenerateCandidatesDto,
 } from './dto/generate-persona.dto.js';
+import { DmOutboundPolicyDto } from './dto/dm-outbound-policy.dto.js';
+import { validate } from 'class-validator';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1081,6 +1083,131 @@ describe('CommonStaffService', () => {
           avatarUrl: 'https://example.com/new-avatar.png',
         }),
       );
+    });
+
+    // ── dmOutboundPolicy ────────────────────────────────────────────────────────
+
+    describe('dmOutboundPolicy', () => {
+      it('persists a new policy into extra.dmOutboundPolicy', async () => {
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'anyone' },
+        });
+        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+        expect(botService.updateBotExtra).toHaveBeenCalledWith(
+          BOT_ID,
+          expect.objectContaining({
+            dmOutboundPolicy: { mode: 'anyone' },
+          }),
+        );
+      });
+
+      it('emits structured log when policy is changed (actorUserId = bot.mentorId)', async () => {
+        const MENTOR_ID = 'mentor-uuid-9999';
+        const botWithMentor = {
+          ...makeBotResult().bot,
+          mentorId: MENTOR_ID,
+          extra: null,
+        };
+        botService.getBotById.mockResolvedValueOnce(botWithMentor);
+
+        const logSpy = jest.spyOn(
+          service['logger'] as unknown as { log: (...args: unknown[]) => void },
+          'log',
+        );
+
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'owner-only' },
+        });
+        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+        expect(logSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'bot_dm_outbound_policy_changed',
+            botId: BOT_ID,
+            botUserId: BOT_USER_ID,
+            actorUserId: MENTOR_ID,
+            from: null,
+            to: { mode: 'owner-only' },
+          }),
+        );
+      });
+
+      it('does NOT emit log when policy is deep-equal to existing', async () => {
+        const existingPolicy = { mode: 'same-tenant' as const };
+        const botWithPolicy = {
+          ...makeBotResult().bot,
+          extra: {
+            commonStaff: { roleTitle: 'Dev' },
+            dmOutboundPolicy: existingPolicy,
+          },
+        };
+        botService.getBotById.mockResolvedValueOnce(botWithPolicy);
+
+        const logSpy = jest.spyOn(
+          service['logger'] as unknown as { log: (...args: unknown[]) => void },
+          'log',
+        );
+
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'same-tenant' },
+        });
+        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+        const policyChangedCalls = logSpy.mock.calls.filter(
+          (args) =>
+            typeof args[0] === 'object' &&
+            args[0] !== null &&
+            (args[0] as Record<string, unknown>).event ===
+              'bot_dm_outbound_policy_changed',
+        );
+        expect(policyChangedCalls).toHaveLength(0);
+      });
+
+      it('does NOT update extra.dmOutboundPolicy when field is omitted (partial-update semantics)', async () => {
+        const dto = makeUpdateDto({ roleTitle: 'New Role' });
+        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+        const call = (botService.updateBotExtra.mock.calls as unknown[][])[0];
+        const updatedExtra = call[1] as Record<string, unknown>;
+        expect(updatedExtra).not.toHaveProperty('dmOutboundPolicy');
+      });
+
+      it('persists whitelist policy with userIds', async () => {
+        const userIds = [
+          '00000000-0000-0000-0000-000000000001',
+          '00000000-0000-0000-0000-000000000002',
+        ];
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'whitelist', userIds },
+        });
+        await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+        expect(botService.updateBotExtra).toHaveBeenCalledWith(
+          BOT_ID,
+          expect.objectContaining({
+            dmOutboundPolicy: { mode: 'whitelist', userIds },
+          }),
+        );
+      });
+
+      // ── shared DTO validation (one test covers both services) ─────────────────
+
+      it('DmOutboundPolicyDto rejects whitelist with 51 userIds (WHITELIST_TOO_LARGE)', async () => {
+        const dto = new DmOutboundPolicyDto();
+        dto.mode = 'whitelist';
+        dto.userIds = Array.from(
+          { length: 51 },
+          (_, i) =>
+            `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`,
+        );
+
+        const errors = await validate(dto);
+        const messages = errors.flatMap((e) =>
+          Object.values(e.constraints ?? {}),
+        );
+        expect(messages).toContain('WHITELIST_TOO_LARGE');
+      });
     });
   });
 
