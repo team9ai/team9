@@ -81,12 +81,10 @@ describe('BotStaffProfileController', () => {
     });
 
     it('throws ForbiddenException with correct message when header is missing', async () => {
-      await expect(controller.get(BOT_USER_ID, undefined)).rejects.toThrow(
-        ForbiddenException,
-      );
       await expect(
         controller.get(BOT_USER_ID, undefined),
       ).rejects.toMatchObject({
+        name: 'ForbiddenException',
         message: 'X-Team9-Bot-User-Id does not match authenticated bot',
       });
     });
@@ -94,19 +92,15 @@ describe('BotStaffProfileController', () => {
     it('throws ForbiddenException with correct message when header does not match sub', async () => {
       await expect(
         controller.get(BOT_USER_ID, 'different-user-id'),
-      ).rejects.toThrow(ForbiddenException);
-      await expect(
-        controller.get(BOT_USER_ID, 'different-user-id'),
       ).rejects.toMatchObject({
+        name: 'ForbiddenException',
         message: 'X-Team9-Bot-User-Id does not match authenticated bot',
       });
     });
 
     it('throws ForbiddenException when header is empty string', async () => {
-      await expect(controller.get(BOT_USER_ID, '')).rejects.toThrow(
-        ForbiddenException,
-      );
       await expect(controller.get(BOT_USER_ID, '')).rejects.toMatchObject({
+        name: 'ForbiddenException',
         message: 'X-Team9-Bot-User-Id does not match authenticated bot',
       });
     });
@@ -140,10 +134,8 @@ describe('BotStaffProfileController', () => {
 
       await expect(
         controller.patch(BOT_USER_ID, undefined, dto),
-      ).rejects.toThrow(ForbiddenException);
-      await expect(
-        controller.patch(BOT_USER_ID, undefined, dto),
       ).rejects.toMatchObject({
+        name: 'ForbiddenException',
         message: 'X-Team9-Bot-User-Id does not match authenticated bot',
       });
     });
@@ -153,10 +145,8 @@ describe('BotStaffProfileController', () => {
 
       await expect(
         controller.patch(BOT_USER_ID, 'wrong-user-id', dto),
-      ).rejects.toThrow(ForbiddenException);
-      await expect(
-        controller.patch(BOT_USER_ID, 'wrong-user-id', dto),
       ).rejects.toMatchObject({
+        name: 'ForbiddenException',
         message: 'X-Team9-Bot-User-Id does not match authenticated bot',
       });
     });
