@@ -111,6 +111,7 @@ export class AppModule implements OnModuleInit, NestModule {
   }
 
   async onModuleInit() {
+    this.logger.log('[DEBUG/APP] onModuleInit enter');
     // Load configurations from database on startup
     try {
       await this.configService.loadConfigs();
@@ -120,5 +121,6 @@ export class AppModule implements OnModuleInit, NestModule {
         'Failed to load database configurations, using environment variables only',
       );
     }
+    this.logger.log('[DEBUG/APP] onModuleInit exit');
   }
 }

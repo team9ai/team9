@@ -22,22 +22,37 @@ export class SocketRedisAdapterService
   constructor(private readonly redisService: RedisService) {}
 
   async onModuleInit() {
+    this.logger.log('[DEBUG/SR] onModuleInit enter');
     try {
       const baseClient = this.redisService.getClient();
+      this.logger.log(
+        `[DEBUG/SR] baseClient.status=${(baseClient as unknown as { status?: string }).status}`,
+      );
 
       this.pubClient = baseClient.duplicate();
       this.subClient = baseClient.duplicate();
+      this.logger.log(
+        `[DEBUG/SR] duplicated pub.status=${(this.pubClient as unknown as { status?: string }).status} sub.status=${(this.subClient as unknown as { status?: string }).status}`,
+      );
 
+      this.logger.log('[DEBUG/SR] awaiting ready on pub+sub');
       await Promise.all([
         new Promise<void>((resolve, reject) => {
-          this.pubClient!.once('ready', resolve);
+          this.pubClient!.once('ready', () => {
+            this.logger.log('[DEBUG/SR] pub ready');
+            resolve();
+          });
           this.pubClient!.once('error', reject);
         }),
         new Promise<void>((resolve, reject) => {
-          this.subClient!.once('ready', resolve);
+          this.subClient!.once('ready', () => {
+            this.logger.log('[DEBUG/SR] sub ready');
+            resolve();
+          });
           this.subClient!.once('error', reject);
         }),
       ]);
+      this.logger.log('[DEBUG/SR] both ready, constructing adapter');
 
       this.adapterInstance = createAdapter(this.pubClient, this.subClient, {
         key: SOCKET_REDIS_KEY_PREFIX,

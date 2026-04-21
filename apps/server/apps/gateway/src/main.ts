@@ -34,7 +34,9 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
+  logger.log('[DEBUG/MAIN] calling NestFactory.create');
   const app = await NestFactory.create(AppModule);
+  logger.log('[DEBUG/MAIN] NestFactory.create returned');
 
   // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
   app.use(json({ limit: '1mb' }));

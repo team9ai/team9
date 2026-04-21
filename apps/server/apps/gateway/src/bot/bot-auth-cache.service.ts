@@ -148,9 +148,13 @@ export class BotAuthCacheService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly redis: RedisService) {}
 
   async onModuleInit(): Promise<void> {
+    this.logger.log('[DEBUG/BA] onModuleInit enter');
     let createdSubscriber: BotAuthSubscriber | null = null;
     try {
       createdSubscriber = this.redis.createSubscriber() as BotAuthSubscriber;
+      this.logger.log(
+        `[DEBUG/BA] subscriber created status=${(createdSubscriber as unknown as { status?: string }).status}`,
+      );
       createdSubscriber.on(
         'message',
         (channel: string, message: string): void => {
@@ -177,7 +181,9 @@ export class BotAuthCacheService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn('Bot auth invalidate subscriber ended — disabling L1');
         this.disableL1();
       });
+      this.logger.log('[DEBUG/BA] calling subscribe');
       await createdSubscriber.subscribe(BOT_AUTH_INVALIDATE_CHANNEL);
+      this.logger.log('[DEBUG/BA] subscribed');
       // ONLY wire the `'ready'` handler AFTER the initial subscribe has
       // succeeded. ioredis auto-restores subscriptions on reconnect, so
       // a successfully-subscribed channel survives a disconnect. But if
