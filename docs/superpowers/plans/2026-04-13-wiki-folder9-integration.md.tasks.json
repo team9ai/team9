@@ -106,7 +106,7 @@
     {
       "id": 15,
       "subject": "Task 16: WikiSubSidebar (list + tree)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [12],
       "description": "**Goal:** Real sub-sidebar with wikis list, per-wiki expandable tree derived from flat folder9 response, click-to-navigate.\n\n**Files:**\n- Modify: apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx\n- Create: WikiListItem.tsx, WikiTreeNode.tsx, lib/wiki-tree.ts\n- Create tests\n\n**Verify:** pnpm --filter @team9/client test -- wiki-tree wiki-sub-sidebar\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx\",\"apps/client/src/components/wiki/WikiListItem.tsx\",\"apps/client/src/components/wiki/WikiTreeNode.tsx\",\"apps/client/src/lib/wiki-tree.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Header with wiki title + plus button\",\"Lazy-loaded recursive tree\",\"Dot-prefixed paths filtered\",\"Click file -> navigate\",\"Click dir -> toggle + nav to index.md if present\",\"Active page highlighted\"]}\n```"
     },
