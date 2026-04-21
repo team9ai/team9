@@ -8,11 +8,11 @@ import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
 import { OnboardingService } from './onboarding.service.js';
 import { BillingHubService } from '../billing-hub/billing-hub.service.js';
+import { WikisService } from '../wikis/wikis.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { PosthogService } from '@team9/posthog';
-import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -90,6 +90,9 @@ describe('WorkspaceService', () => {
     createStarterRecord: MockFn;
     createSkippedRecord: MockFn;
   };
+  let wikisService: {
+    createWiki: MockFn;
+  };
   beforeEach(async () => {
     db = mockDb();
     botService = {
@@ -137,6 +140,14 @@ describe('WorkspaceService', () => {
       createStarterRecord: jest.fn<any>().mockResolvedValue(undefined),
       createSkippedRecord: jest.fn<any>().mockResolvedValue(undefined),
     };
+    wikisService = {
+      createWiki: jest.fn<any>().mockResolvedValue({
+        id: 'wiki-uuid',
+        workspaceId: 'ws-uuid',
+        name: 'public',
+        slug: 'public',
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -175,6 +186,7 @@ describe('WorkspaceService', () => {
             grantCredits: jest.fn<any>().mockResolvedValue(undefined),
           },
         },
+        { provide: WikisService, useValue: wikisService },
       ],
     }).compile();
 
@@ -388,6 +400,53 @@ describe('WorkspaceService', () => {
           ownerId: 'owner-1',
         }),
       ).rejects.toThrow('Domain already in use');
+    });
+
+    // ── default public Wiki seed ─────────────────────────────────────
+    it('should seed a default public wiki with the owner as creator', async () => {
+      await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
+
+      expect(wikisService.createWiki).toHaveBeenCalledTimes(1);
+      expect(wikisService.createWiki).toHaveBeenCalledWith(
+        'ws-uuid',
+        { id: 'owner-1', isAgent: false },
+        { name: 'public', slug: 'public' },
+      );
+    });
+
+    it('should still return the workspace when wiki seeding fails', async () => {
+      wikisService.createWiki.mockRejectedValueOnce(
+        new Error('folder9 unreachable'),
+      );
+
+      const result = await service.create({
+        name: 'Test Workspace',
+        ownerId: 'owner-1',
+      });
+
+      expect(result).toEqual(WORKSPACE_ROW);
+      expect(wikisService.createWiki).toHaveBeenCalledTimes(1);
+    });
+
+    it('should seed the public wiki after owner membership is established', async () => {
+      const callOrder: string[] = [];
+      (service.addMember as MockFn).mockImplementation((() => {
+        callOrder.push('add-owner');
+        return Promise.resolve(undefined);
+      }) as any);
+      wikisService.createWiki.mockImplementation((() => {
+        callOrder.push('seed-wiki');
+        return Promise.resolve({});
+      }) as any);
+
+      await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
+
+      expect(callOrder[0]).toBe('add-owner');
+      expect(callOrder).toContain('seed-wiki');
+      // seed-wiki must come after add-owner
+      expect(callOrder.indexOf('seed-wiki')).toBeGreaterThan(
+        callOrder.indexOf('add-owner'),
+      );
     });
   });
 

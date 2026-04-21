@@ -37,6 +37,7 @@ import { InstalledApplicationsService } from '../applications/installed-applicat
 import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
 import { OnboardingService } from './onboarding.service.js';
+import { WikisService } from '../wikis/wikis.service.js';
 
 const MAX_WORKSPACES_PER_USER = 3;
 const MAX_MEMBERS_PER_WORKSPACE = 1000;
@@ -158,6 +159,7 @@ export class WorkspaceService {
     private readonly onboardingService: OnboardingService,
     private readonly posthogService: PosthogService,
     private readonly billingHubService: BillingHubService,
+    private readonly wikisService: WikisService,
   ) {}
 
   private getErrorMessage(error: unknown): string {
@@ -1024,6 +1026,25 @@ export class WorkspaceService {
     } catch (error) {
       await this.safeDeleteWorkspace(workspace.id);
       throw error;
+    }
+
+    // Seed default public Wiki — don't fail workspace creation if this fails.
+    // `workspace_wikis` is the authoritative allow-list, so we must go through
+    // WikisService.createWiki (which inserts the row) rather than calling
+    // Folder9ClientService directly.
+    try {
+      await this.wikisService.createWiki(
+        workspace.id,
+        { id: data.ownerId, isAgent: false },
+        { name: 'public', slug: 'public' },
+      );
+      this.logger.log(
+        `Seeded default public wiki for workspace ${workspace.id}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to seed default public wiki for workspace ${workspace.id}: ${this.getErrorMessage(error)}`,
+      );
     }
 
     // Add system bot to workspace if enabled
