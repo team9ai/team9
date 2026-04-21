@@ -242,10 +242,18 @@ export class ChannelsService {
    *   2. Bot row must exist
    *   3. Target user row must exist
    *   4. Target must not itself be a bot
-   *   5. Target must be in the same tenant as the bot
+   *   5. Target must be a member of the bot's tenant (cross-tenant guard)
    *   6. Outbound DM policy (explicit or derived from bot shape) must allow the target
+   *
+   * @param botUserId   - The authenticated bot's user ID.
+   * @param targetUserId - The user the bot wishes to DM.
+   * @param botTenantId  - The tenant ID from the authenticated request (JWT claim).
    */
-  async assertBotCanDm(botUserId: string, targetUserId: string): Promise<void> {
+  async assertBotCanDm(
+    botUserId: string,
+    targetUserId: string,
+    botTenantId: string,
+  ): Promise<void> {
     if (botUserId === targetUserId) {
       throw new BadRequestException('SELF_DM');
     }
@@ -273,8 +281,24 @@ export class ChannelsService {
 
     if (!target) throw new NotFoundException('USER_NOT_FOUND');
     if (target.isBot) throw new ForbiddenException('DM_NOT_ALLOWED');
-    // NOTE: cross-tenant guard omitted — im_users does not carry tenantId;
-    // tenant scoping is enforced at channel creation time via createDirectChannel.
+
+    // Cross-tenant guard: target must be an active member of the bot's tenant.
+    // im_users has no tenantId column; membership is tracked in tenant_members.
+    const [membership] = await this.db
+      .select({ userId: schema.tenantMembers.userId })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, botTenantId),
+          eq(schema.tenantMembers.userId, target.id),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      )
+      .limit(1);
+
+    if (!membership) {
+      throw new BadRequestException('CROSS_TENANT');
+    }
 
     const extra = bot.extra ?? {};
     const policy = extra.dmOutboundPolicy ?? defaultDmOutboundPolicy(extra);

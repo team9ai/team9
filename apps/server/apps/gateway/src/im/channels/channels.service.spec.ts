@@ -2467,8 +2467,13 @@ describe('ChannelsService', () => {
   // ── assertBotCanDm ────────────────────────────────────────────────────
 
   describe('assertBotCanDm', () => {
-    // Helpers to set up the two sequential db.limit mock resolutions
-    // used by assertBotCanDm: first the bot+user JOIN, then the target user row.
+    // Helpers to set up the sequential db.limit mock resolutions used by
+    // assertBotCanDm:
+    //   1st call → bot row
+    //   2nd call → target user row
+    //   3rd call → tenant_members membership row
+
+    const BOT_TENANT_ID = 'tenant-abc';
 
     function mockBotRow(
       override: Partial<{
@@ -2500,13 +2505,23 @@ describe('ChannelsService', () => {
       };
     }
 
+    /** Stub the tenant_members lookup to return a matching membership row. */
+    function stubMembershipFound(userId = 'user-2') {
+      db.limit.mockResolvedValueOnce([{ userId }] as any);
+    }
+
+    /** Stub the tenant_members lookup to return an empty result (cross-tenant). */
+    function stubMembershipNotFound() {
+      db.limit.mockResolvedValueOnce([] as any);
+    }
+
     it('throws BadRequestException(SELF_DM) when botUserId === targetUserId', async () => {
-      await expect(service.assertBotCanDm('bot-1', 'bot-1')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.assertBotCanDm('bot-1', 'bot-1', BOT_TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
 
       await expect(
-        service.assertBotCanDm('bot-1', 'bot-1'),
+        service.assertBotCanDm('bot-1', 'bot-1', BOT_TENANT_ID),
       ).rejects.toMatchObject({ message: 'SELF_DM' });
 
       // Self-DM guard must short-circuit before any DB calls
@@ -2518,13 +2533,13 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([] as any);
 
       await expect(
-        service.assertBotCanDm('bot-missing', 'user-2'),
+        service.assertBotCanDm('bot-missing', 'user-2', BOT_TENANT_ID),
       ).rejects.toThrow(NotFoundException);
 
       await expect(
         (async () => {
           db.limit.mockResolvedValueOnce([] as any);
-          await service.assertBotCanDm('bot-missing', 'user-2');
+          await service.assertBotCanDm('bot-missing', 'user-2', BOT_TENANT_ID);
         })(),
       ).rejects.toMatchObject({ message: 'BOT_NOT_FOUND' });
     });
@@ -2534,14 +2549,14 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([] as any);
 
       await expect(
-        service.assertBotCanDm('bot-1', 'user-missing'),
+        service.assertBotCanDm('bot-1', 'user-missing', BOT_TENANT_ID),
       ).rejects.toThrow(NotFoundException);
 
       db.limit.mockResolvedValueOnce([mockBotRow()] as any);
       db.limit.mockResolvedValueOnce([] as any);
 
       await expect(
-        service.assertBotCanDm('bot-1', 'user-missing'),
+        service.assertBotCanDm('bot-1', 'user-missing', BOT_TENANT_ID),
       ).rejects.toMatchObject({ message: 'USER_NOT_FOUND' });
     });
 
@@ -2550,15 +2565,33 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([mockTargetRow({ isBot: true })] as any);
 
       await expect(
-        service.assertBotCanDm('bot-1', 'another-bot'),
+        service.assertBotCanDm('bot-1', 'another-bot', BOT_TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
 
       db.limit.mockResolvedValueOnce([mockBotRow()] as any);
       db.limit.mockResolvedValueOnce([mockTargetRow({ isBot: true })] as any);
 
       await expect(
-        service.assertBotCanDm('bot-1', 'another-bot'),
+        service.assertBotCanDm('bot-1', 'another-bot', BOT_TENANT_ID),
       ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
+    });
+
+    it('throws BadRequestException(CROSS_TENANT) when target is not a tenant member', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'user-2' })] as any);
+      stubMembershipNotFound();
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-2', BOT_TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'user-2' })] as any);
+      stubMembershipNotFound();
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-2', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'CROSS_TENANT' });
     });
 
     it('default policy: personalStaff bot → owner-only, allows the owner', async () => {
@@ -2567,9 +2600,10 @@ describe('ChannelsService', () => {
         mockBotRow({ ownerId: 'owner-1', extra }),
       ] as any);
       db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'owner-1' })] as any);
+      stubMembershipFound('owner-1');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'owner-1'),
+        service.assertBotCanDm('bot-1', 'owner-1', BOT_TENANT_ID),
       ).resolves.toBeUndefined();
     });
 
@@ -2581,9 +2615,10 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'user-other' }),
       ] as any);
+      stubMembershipFound('user-other');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'user-other'),
+        service.assertBotCanDm('bot-1', 'user-other', BOT_TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
 
       db.limit.mockResolvedValueOnce([
@@ -2592,13 +2627,14 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'user-other' }),
       ] as any);
+      stubMembershipFound('user-other');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'user-other'),
+        service.assertBotCanDm('bot-1', 'user-other', BOT_TENANT_ID),
       ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
     });
 
-    it('default policy: commonStaff bot → same-tenant, allows any non-bot user', async () => {
+    it('default policy: commonStaff bot → same-tenant, allows any non-bot tenant member', async () => {
       const extra: BotExtra = { commonStaff: {} };
       db.limit.mockResolvedValueOnce([
         mockBotRow({ ownerId: null, extra }),
@@ -2606,9 +2642,10 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'user-any' }),
       ] as any);
+      stubMembershipFound('user-any');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'user-any'),
+        service.assertBotCanDm('bot-1', 'user-any', BOT_TENANT_ID),
       ).resolves.toBeUndefined();
     });
 
@@ -2620,9 +2657,10 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'random-user' }),
       ] as any);
+      stubMembershipFound('random-user');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'random-user'),
+        service.assertBotCanDm('bot-1', 'random-user', BOT_TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -2637,9 +2675,10 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'allowed-1' }),
       ] as any);
+      stubMembershipFound('allowed-1');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'allowed-1'),
+        service.assertBotCanDm('bot-1', 'allowed-1', BOT_TENANT_ID),
       ).resolves.toBeUndefined();
     });
 
@@ -2651,9 +2690,10 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'not-listed' }),
       ] as any);
+      stubMembershipFound('not-listed');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'not-listed'),
+        service.assertBotCanDm('bot-1', 'not-listed', BOT_TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -2665,9 +2705,10 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         mockTargetRow({ id: 'any-user' }),
       ] as any);
+      stubMembershipFound('any-user');
 
       await expect(
-        service.assertBotCanDm('bot-1', 'any-user'),
+        service.assertBotCanDm('bot-1', 'any-user', BOT_TENANT_ID),
       ).resolves.toBeUndefined();
     });
   });

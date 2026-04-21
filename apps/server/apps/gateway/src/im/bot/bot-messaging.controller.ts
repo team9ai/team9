@@ -1,4 +1,10 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
 import { ChannelsService } from '../channels/channels.service.js';
@@ -25,7 +31,14 @@ export class BotMessagingController {
     // TODO(rate-limit): per-bot token bucket — owner-only default blocks the
     // biggest abuse surface for now; revisit in a follow-up spec.
 
-    await this.channelsService.assertBotCanDm(botUserId, dto.userId);
+    // An authenticated bot request MUST carry a tenant context — the JWT is
+    // always scoped to a tenant. Bail out early if the claim is absent so that
+    // downstream logic never operates with an empty-string tenantId.
+    if (!tenantId) {
+      throw new BadRequestException('Bot token missing tenant context');
+    }
+
+    await this.channelsService.assertBotCanDm(botUserId, dto.userId, tenantId);
 
     const channel = await this.channelsService.createDirectChannel(
       botUserId,
@@ -38,7 +51,7 @@ export class BotMessagingController {
       channelId: channel.id,
       content: dto.content,
       attachments: dto.attachments,
-      workspaceId: tenantId ?? '',
+      workspaceId: tenantId,
     });
 
     return { channelId: result.channelId, messageId: result.messageId };
