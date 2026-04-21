@@ -59,7 +59,7 @@
     {
       "id": 9,
       "subject": "Task 9: WebSocket events + delete cascade purge event",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Emit message_relation_changed + message_relations_purged; extend property_changed payload; enforce event order.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.service.ts\",\"apps/server/apps/gateway/src/im/messages/messages.service.ts\",\"apps/server/apps/gateway/src/im/websocket/websocket.gateway.spec.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.service.spec.ts\",\"apps/server/apps/gateway/src/im/messages/messages.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern='(websocket.gateway|message-properties|messages).spec'\",\"acceptanceCriteria\":[\"emitRelationChanged + emitRelationsPurged helpers\",\"relation_changed fires before property_changed\",\"soft-delete captures affectedSourceIds and emits purged event\"]}\n```"
     },
