@@ -31,7 +31,7 @@
     {
       "id": 5,
       "subject": "Task 5: Effective parent + subtree query",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** getEffectiveParent (COALESCE + explicitlyCleared) and getSubtree (recursive CTE with hasChildren lookahead).\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-relations.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-relations.service.spec.ts --coverage\",\"acceptanceCriteria\":[\"effectiveParent returns relation > thread > null\",\"explicitlyCleared flag yields null\",\"getSubtree respects maxDepth\",\"hasChildren accurate at leaf\"]}\n```"
     },
