@@ -5,6 +5,7 @@ import {
   and,
   inArray,
   desc,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -128,6 +129,11 @@ export class MessageRelationsService {
       const toAdd = desired.filter((id) => !existingSet.has(id));
       const toRemove = [...existingSet].filter((id) => !desiredSet.has(id));
 
+      // Cycle detection: run AFTER scope validation, BEFORE INSERT
+      if (config.relationKind === 'parent' && toAdd.length > 0) {
+        await this.assertNoCycle(tx, sourceMessageId, toAdd, 'parent');
+      }
+
       if (toRemove.length > 0) {
         await tx
           .delete(messageRelations)
@@ -201,5 +207,62 @@ export class MessageRelationsService {
       .orderBy(desc(messageRelations.createdAt));
 
     return rows;
+  }
+
+  /**
+   * Walk the effective-parent chain of `targetId` using a WITH RECURSIVE CTE
+   * that follows both im_message_relations (parent-kind edges) and
+   * im_messages.parent_id (thread-derived parent links).
+   *
+   * Throws CYCLE_DETECTED if `sourceMessageId` appears in the ancestor chain.
+   * Throws DEPTH_EXCEEDED if the chain reaches depth 10 before terminating.
+   *
+   * Only runs for `relationKind === 'parent'`; silently returns for other kinds.
+   */
+  private async assertNoCycle(
+    tx: PostgresJsDatabase<typeof schema>,
+    sourceMessageId: string,
+    newTargetIds: string[],
+    relationKind: 'parent' | 'related',
+  ): Promise<void> {
+    /* istanbul ignore next — defensive guard; call site already enforces parent kind */
+    if (relationKind !== 'parent') return;
+
+    for (const targetId of newTargetIds) {
+      /* istanbul ignore next — setRelationTargets rejects self-ref before this point */
+      if (targetId === sourceMessageId) continue;
+
+      const rows = (await tx.execute(sql`
+        WITH RECURSIVE ancestors(m, depth) AS (
+          SELECT target_message_id, 1
+            FROM im_message_relations
+            WHERE source_message_id = ${targetId}::uuid AND relation_kind = 'parent'
+          UNION ALL
+          SELECT parent_id, 1
+            FROM im_messages
+            WHERE id = ${targetId}::uuid AND parent_id IS NOT NULL
+          UNION ALL
+          SELECT r.target_message_id, a.depth + 1
+            FROM im_message_relations r
+            JOIN ancestors a ON r.source_message_id = a.m
+            WHERE r.relation_kind = 'parent' AND a.depth < 10
+          UNION ALL
+          SELECT msg.parent_id, a.depth + 1
+            FROM im_messages msg
+            JOIN ancestors a ON msg.id = a.m
+            WHERE msg.parent_id IS NOT NULL AND a.depth < 10
+        )
+        SELECT m, depth FROM ancestors
+        WHERE m = ${sourceMessageId}::uuid OR depth >= 10
+        LIMIT 1;
+      `)) as unknown as Array<{ m: string; depth: number }>;
+
+      if (rows.length === 0) continue;
+
+      const { m, depth } = rows[0];
+      if (m === sourceMessageId) throw new RelationError('CYCLE_DETECTED');
+      /* istanbul ignore next — CTE WHERE guarantees depth>=10 when m!==source */
+      if (depth >= 10) throw new RelationError('DEPTH_EXCEEDED');
+    }
   }
 }

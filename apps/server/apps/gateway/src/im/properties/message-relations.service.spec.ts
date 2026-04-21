@@ -13,6 +13,17 @@ const dbModule = {
     vals,
   })),
   desc: jest.fn((col: unknown) => ({ op: 'desc', col })),
+  sql: Object.assign(
+    jest.fn(
+      (strings: TemplateStringsArray, ..._values: unknown[]) =>
+        ({ sql: strings.join('?'), op: 'sql' }) as unknown,
+    ),
+    {
+      join: jest.fn(),
+      empty: {},
+      raw: jest.fn((s: string) => ({ sql: s, op: 'sql' })),
+    },
+  ),
 };
 
 const schemaModule = {
@@ -89,6 +100,7 @@ function mockDb() {
     selectResults: [] as unknown[][],
     insertResults: [] as unknown[][],
     deleteResults: [] as unknown[][],
+    executeResults: [] as unknown[][],
   };
 
   const db = {
@@ -115,6 +127,9 @@ function mockDb() {
       (query as any).args = args;
       db.__queries.delete.push(query);
       return query as never;
+    }),
+    execute: jest.fn(async (..._args: unknown[]) => {
+      return state.executeResults.shift() ?? [];
     }),
     transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
       return cb(db);
@@ -668,6 +683,185 @@ describe('MessageRelationsService', () => {
       const result = await service.getIncomingSources('target-1', 'parent');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // cycle detection
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('cycle detection', () => {
+    it('rejects direct A→B→A cycle (CTE returns source id at depth 1)', async () => {
+      const sourceId = 'msg-A';
+      const targetId = 'msg-B';
+
+      // source found
+      db.__state.selectResults.push([sourceRow()]);
+      // target found
+      db.__state.selectResults.push([targetRow({ id: targetId })]);
+      // existing edges: empty
+      db.__state.selectResults.push([]);
+      // CTE returns source id at depth 1 — cycle detected
+      db.__state.executeResults.push([{ m: sourceId, depth: 1 }]);
+
+      await expect(
+        service.setRelationTargets({
+          sourceMessageId: sourceId,
+          targetMessageIds: [targetId],
+          definition: makeDefinition() as any,
+          actorId: 'user-1',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: RELATION_ERROR_CODES.CYCLE_DETECTED },
+      });
+
+      expect(db.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects depth-10 ancestor chain', async () => {
+      const sourceId = 'msg-A';
+      const targetId = 'msg-B';
+
+      // source found
+      db.__state.selectResults.push([sourceRow()]);
+      // target found
+      db.__state.selectResults.push([targetRow({ id: targetId })]);
+      // existing edges: empty
+      db.__state.selectResults.push([]);
+      // CTE returns depth>=10 (chain too long)
+      db.__state.executeResults.push([{ m: 'msg-other', depth: 10 }]);
+
+      await expect(
+        service.setRelationTargets({
+          sourceMessageId: sourceId,
+          targetMessageIds: [targetId],
+          definition: makeDefinition() as any,
+          actorId: 'user-1',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: RELATION_ERROR_CODES.DEPTH_EXCEEDED },
+      });
+
+      expect(db.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows legal parent assignment when CTE returns empty', async () => {
+      const sourceId = 'msg-A';
+      const targetId = 'msg-B';
+
+      // source found
+      db.__state.selectResults.push([sourceRow()]);
+      // target found
+      db.__state.selectResults.push([targetRow({ id: targetId })]);
+      // existing edges: empty
+      db.__state.selectResults.push([]);
+      // CTE returns empty — no cycle, depth ok
+      db.__state.executeResults.push([]);
+      // insert succeeds
+      db.__state.insertResults.push([]);
+
+      const result = await service.setRelationTargets({
+        sourceMessageId: sourceId,
+        targetMessageIds: [targetId],
+        definition: makeDefinition() as any,
+        actorId: 'user-1',
+      });
+
+      expect(result.addedTargetIds).toEqual([targetId]);
+      expect(db.execute).toHaveBeenCalledTimes(1);
+      expect(db.__queries.insert).toHaveLength(1);
+    });
+
+    it('skips cycle check for relationKind=related', async () => {
+      const sourceId = 'msg-A';
+      const targetId = 'msg-B';
+
+      // source found
+      db.__state.selectResults.push([sourceRow()]);
+      // target found
+      db.__state.selectResults.push([targetRow({ id: targetId })]);
+      // existing edges: empty
+      db.__state.selectResults.push([]);
+      // insert succeeds
+      db.__state.insertResults.push([]);
+
+      await service.setRelationTargets({
+        sourceMessageId: sourceId,
+        targetMessageIds: [targetId],
+        definition: makeDefinition({
+          config: {
+            scope: 'any',
+            cardinality: 'multi',
+            relationKind: 'related',
+          },
+        }) as any,
+        actorId: 'user-1',
+      });
+
+      // execute should NOT have been called — related kind skips cycle detection
+      expect(db.execute).not.toHaveBeenCalled();
+    });
+
+    it('detects indirect cycle A→B→C→A via ancestor chain', async () => {
+      const sourceId = 'msg-A';
+      const targetId = 'msg-B';
+
+      // source found
+      db.__state.selectResults.push([sourceRow()]);
+      // target found
+      db.__state.selectResults.push([targetRow({ id: targetId })]);
+      // existing edges: empty
+      db.__state.selectResults.push([]);
+      // CTE returns source id at depth 3 — indirect cycle A→B→C→A
+      db.__state.executeResults.push([{ m: sourceId, depth: 3 }]);
+
+      await expect(
+        service.setRelationTargets({
+          sourceMessageId: sourceId,
+          targetMessageIds: [targetId],
+          definition: makeDefinition() as any,
+          actorId: 'user-1',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: RELATION_ERROR_CODES.CYCLE_DETECTED },
+      });
+
+      expect(db.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips cycle check for multi-target related-kind (execute never called)', async () => {
+      const sourceId = 'msg-A';
+      const targetId1 = 'msg-B';
+      const targetId2 = 'msg-C';
+
+      // source found
+      db.__state.selectResults.push([sourceRow()]);
+      // targets found
+      db.__state.selectResults.push([
+        targetRow({ id: targetId1 }),
+        targetRow({ id: targetId2 }),
+      ]);
+      // existing edges: empty
+      db.__state.selectResults.push([]);
+      // insert succeeds
+      db.__state.insertResults.push([]);
+
+      const result = await service.setRelationTargets({
+        sourceMessageId: sourceId,
+        targetMessageIds: [targetId1, targetId2],
+        definition: makeDefinition({
+          config: {
+            scope: 'any',
+            cardinality: 'multi',
+            relationKind: 'related',
+          },
+        }) as any,
+        actorId: 'user-1',
+      });
+
+      expect(result.addedTargetIds).toEqual([targetId1, targetId2]);
+      // related kind — execute never called for cycle check
+      expect(db.execute).not.toHaveBeenCalled();
     });
   });
 });
