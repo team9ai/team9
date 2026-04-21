@@ -1,4 +1,5 @@
 import { Library } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 /**
  * Shown when no Wiki is selected (route `/wiki`) or the selected Wiki has no
@@ -6,13 +7,13 @@ import { Library } from "lucide-react";
  * `WikiSubSidebar` — this component itself is presentation-only.
  */
 export function WikiEmptyState() {
+  const { t } = useTranslation("wiki");
   return (
     <main className="h-full flex flex-col items-center justify-center text-center gap-3 bg-background">
       <Library size={48} className="text-primary/40" />
-      <h2 className="font-semibold text-lg">Select a Wiki page</h2>
+      <h2 className="font-semibold text-lg">{t("empty.title")}</h2>
       <p className="text-sm text-muted-foreground max-w-sm">
-        Pick a page from the tree on the left, or create a new Wiki with the +
-        button.
+        {t("empty.description")}
       </p>
     </main>
   );

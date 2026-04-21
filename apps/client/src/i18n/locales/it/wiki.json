@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "Caricamento…",
+    "empty": "Ancora nessun wiki. Clicca + per crearne uno.",
+    "createWiki": "Crea Wiki",
+    "reviewProposals": "Rivedi proposte",
+    "itemActions": "Azioni di {{name}}"
+  },
+  "empty": {
+    "title": "Seleziona una pagina Wiki",
+    "description": "Scegli una pagina dall'albero a sinistra o crea un nuovo Wiki con il pulsante +."
+  },
+  "route": {
+    "notFound": "Wiki non trovato."
+  },
+  "common": {
+    "cancel": "Annulla",
+    "save": "Salva",
+    "saving": "Salvataggio…",
+    "loading": "Caricamento…",
+    "required": "*",
+    "optional": "(facoltativo)"
+  },
+  "create": {
+    "title": "Crea Wiki",
+    "description": "Crea un nuovo Wiki per collaborare sulle pagine con il tuo team.",
+    "iconLabel": "Icona",
+    "nameLabel": "Nome",
+    "namePlaceholder": "Manuale del team",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "Lettere minuscole, numeri e trattini. Deve iniziare con una lettera o un numero. Derivato automaticamente dal nome finché non lo modifichi.",
+    "cancel": "Annulla",
+    "submit": "Crea Wiki",
+    "submitting": "Creazione…",
+    "errors": {
+      "nameRequired": "Il nome è obbligatorio.",
+      "slugTooLong": "Lo slug deve contenere al massimo {{max}} caratteri.",
+      "slugPattern": "Lo slug deve iniziare con una lettera minuscola o un numero e contenere solo lettere minuscole, numeri e trattini.",
+      "slugTaken": "Esiste già un Wiki con questo slug. Scegline un altro.",
+      "createFailed": "Creazione fallita. Riprova.",
+      "createFailedWithMessage": "Creazione fallita: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Impostazioni Wiki",
+    "description": "Configura il nome di questo Wiki, chi può modificarlo e come vengono riviste le modifiche proposte.",
+    "generalHeading": "Generale",
+    "iconLabel": "Icona",
+    "nameLabel": "Nome",
+    "slugLabel": "Slug",
+    "slugHelp": "Lettere minuscole, numeri e trattini. Deve iniziare con una lettera o un numero.",
+    "approvalHeading": "Modalità di approvazione",
+    "approvalLegend": "Modalità di approvazione",
+    "approvalAutoLabel": "Unione automatica",
+    "approvalAutoDescription": "Le scritture vengono pubblicate immediatamente senza revisione.",
+    "approvalReviewLabel": "Revisione obbligatoria",
+    "approvalReviewDescription": "Le scritture vengono inviate come proposte che un revisore deve approvare.",
+    "permissionsHeading": "Permessi",
+    "humanLabel": "Umano",
+    "agentLabel": "Agente",
+    "permissionRead": "Lettura",
+    "permissionPropose": "Proporre",
+    "permissionWrite": "Scrittura",
+    "dangerZoneHeading": "Zona pericolosa",
+    "dangerZoneDescription": "L'archiviazione nasconde questo Wiki dalla barra laterale per tutti. Il contenuto rimane sul server e un amministratore può ripristinarlo.",
+    "archiveButton": "Archivia Wiki",
+    "cancel": "Annulla",
+    "save": "Salva modifiche",
+    "saving": "Salvataggio…",
+    "errors": {
+      "nameRequired": "Il nome è obbligatorio.",
+      "slugRequired": "Lo slug è obbligatorio.",
+      "slugTooLong": "Lo slug deve contenere al massimo {{max}} caratteri.",
+      "slugPattern": "Lo slug deve iniziare con una lettera minuscola o un numero e contenere solo lettere minuscole, numeri e trattini.",
+      "slugTaken": "Esiste già un Wiki con questo slug. Scegline un altro.",
+      "updateForbidden": "Non hai il permesso di aggiornare questo Wiki.",
+      "updateFailed": "Aggiornamento fallito. Riprova.",
+      "updateFailedWithMessage": "Aggiornamento fallito: {{message}}",
+      "archiveForbidden": "Non hai il permesso di archiviare questo Wiki.",
+      "archiveFailed": "Archiviazione fallita. Riprova.",
+      "archiveFailedWithMessage": "Archiviazione fallita: {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "Impostazioni",
+    "archive": "Archivia",
+    "actionsLabel": "Azioni di {{name}}"
+  },
+  "archive": {
+    "title": "Archiviare questo Wiki?",
+    "description": "\u201C{{name}}\u201D verrà nascosto dalla barra laterale per tutti. Puoi chiedere a un amministratore di ripristinarlo in seguito.",
+    "cancel": "Annulla",
+    "confirm": "Archivia",
+    "archiving": "Archiviazione…"
+  },
+  "iconPicker": {
+    "ariaLabel": "Scegli icona della pagina"
+  },
+  "coverPicker": {
+    "addCover": "Aggiungi copertina",
+    "changeCover": "Cambia copertina",
+    "addTriggerAria": "Aggiungi copertina pagina",
+    "changeTriggerAria": "Cambia copertina pagina",
+    "pathLabel": "Percorso dell'immagine di copertina",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "Incolla un percorso folder9. Gli upload arriveranno in una versione futura.",
+    "remove": "Rimuovi",
+    "apply": "Applica"
+  },
+  "editor": {
+    "staleAlert": "Hai modifiche locali non salvate. Stai visualizzando la tua bozza.",
+    "staleDismissAria": "Chiudi avviso di bozza obsoleta",
+    "notifySaved": "Salvato",
+    "notifySubmitted": "Inviato per revisione",
+    "notifyUploadFailed": "Upload fallito",
+    "errors": {
+      "saveConflict": "Salvataggio fallito: la pagina è cambiata sul server. Ricarica e riapplica le modifiche.",
+      "saveForbidden": "Salvataggio fallito: non hai il permesso di aggiornare questa pagina.",
+      "saveFailed": "Salvataggio fallito. Riprova."
+    }
+  },
+  "status": {
+    "synced": "Sincronizzato",
+    "unsaved": "Modifiche non salvate",
+    "lastSaved": "· ultimo salvataggio {{time}}",
+    "save": "Salva",
+    "saving": "Salvataggio…"
+  },
+  "page": {
+    "loading": "Caricamento…"
+  },
+  "proposalBanner": {
+    "message": "Questa pagina ha una proposta in attesa di revisione.",
+    "view": "Visualizza proposta"
+  },
+  "submitReview": {
+    "title": "Invia per revisione",
+    "description": "Questo Wiki richiede una revisione prima della pubblicazione delle modifiche. La tua bozza verrà salvata come proposta che un revisore può approvare.",
+    "titleLabel": "Titolo",
+    "titlePlaceholder": "Breve riassunto della modifica",
+    "descriptionLabel": "Descrizione",
+    "descriptionPlaceholder": "Aggiungi qualsiasi contesto che i revisori dovrebbero conoscere su questa modifica",
+    "cancel": "Annulla",
+    "submit": "Invia per revisione",
+    "submitting": "Invio…"
+  },
+  "review": {
+    "heading": "Revisione – {{name}}",
+    "description": "Proposte in attesa di revisione.",
+    "loading": "Caricamento…",
+    "loadFailed": "Impossibile caricare le proposte.",
+    "empty": "Nessuna proposta in attesa.",
+    "untitledProposal": "Proposta senza titolo",
+    "authorAgent": "Agente",
+    "authorUser": "Utente"
+  },
+  "proposalDiff": {
+    "back": "Torna alla coda di revisione",
+    "proposalFallbackTitle": "Proposta {{id}}",
+    "authorAgent": "Agente",
+    "authorUser": "Utente",
+    "reject": "Rifiuta",
+    "approve": "Approva",
+    "rejectReasonLabel": "Motivo (facoltativo)",
+    "rejectReasonPlaceholder": "Spiega all'autore perché questa proposta viene rifiutata.",
+    "rejectCancel": "Annulla",
+    "rejectConfirm": "Conferma rifiuto",
+    "diffLoading": "Caricamento diff…",
+    "diffLoadFailed": "Impossibile caricare il diff.",
+    "diffEmpty": "Questa proposta non contiene modifiche di file.",
+    "fileEmpty": "(nessun contenuto)",
+    "errors": {
+      "approveConflict": "Conflitto — merge annullato",
+      "approveForbidden": "Non hai il permesso di approvare questa proposta.",
+      "approveFailed": "Approvazione fallita. Riprova.",
+      "rejectConflict": "Conflitto — merge annullato",
+      "rejectForbidden": "Non hai il permesso di rifiutare questa proposta.",
+      "rejectFailed": "Rifiuto fallito. Riprova."
+    }
+  }
+}

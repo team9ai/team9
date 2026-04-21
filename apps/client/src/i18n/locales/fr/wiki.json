@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "Chargement…",
+    "empty": "Aucun wiki pour l'instant. Cliquez sur + pour en créer un.",
+    "createWiki": "Créer un Wiki",
+    "reviewProposals": "Examiner les propositions",
+    "itemActions": "Actions de {{name}}"
+  },
+  "empty": {
+    "title": "Sélectionnez une page Wiki",
+    "description": "Choisissez une page dans l'arborescence à gauche, ou créez un nouveau Wiki avec le bouton +."
+  },
+  "route": {
+    "notFound": "Wiki introuvable."
+  },
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "loading": "Chargement…",
+    "required": "*",
+    "optional": "(facultatif)"
+  },
+  "create": {
+    "title": "Créer un Wiki",
+    "description": "Créez un nouveau Wiki pour collaborer sur des pages avec votre équipe.",
+    "iconLabel": "Icône",
+    "nameLabel": "Nom",
+    "namePlaceholder": "Manuel d'équipe",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "Lettres minuscules, chiffres et tirets. Doit commencer par une lettre ou un chiffre. Dérivé automatiquement du nom jusqu'à ce que vous le modifiez.",
+    "cancel": "Annuler",
+    "submit": "Créer un Wiki",
+    "submitting": "Création…",
+    "errors": {
+      "nameRequired": "Le nom est obligatoire.",
+      "slugTooLong": "Le slug doit contenir au maximum {{max}} caractères.",
+      "slugPattern": "Le slug doit commencer par une lettre minuscule ou un chiffre et ne contenir que des lettres minuscules, des chiffres et des tirets.",
+      "slugTaken": "Un Wiki avec ce slug existe déjà. Choisissez-en un autre.",
+      "createFailed": "Échec de la création. Veuillez réessayer.",
+      "createFailedWithMessage": "Échec de la création : {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Paramètres du Wiki",
+    "description": "Configurez le nom de ce Wiki, qui peut le modifier et comment les modifications proposées sont examinées.",
+    "generalHeading": "Général",
+    "iconLabel": "Icône",
+    "nameLabel": "Nom",
+    "slugLabel": "Slug",
+    "slugHelp": "Lettres minuscules, chiffres et tirets. Doit commencer par une lettre ou un chiffre.",
+    "approvalHeading": "Mode d'approbation",
+    "approvalLegend": "Mode d'approbation",
+    "approvalAutoLabel": "Fusion automatique",
+    "approvalAutoDescription": "Les écritures sont publiées immédiatement sans révision.",
+    "approvalReviewLabel": "Révision requise",
+    "approvalReviewDescription": "Les écritures sont soumises sous forme de propositions qu'un examinateur doit approuver.",
+    "permissionsHeading": "Permissions",
+    "humanLabel": "Humain",
+    "agentLabel": "Agent",
+    "permissionRead": "Lecture",
+    "permissionPropose": "Proposer",
+    "permissionWrite": "Écriture",
+    "dangerZoneHeading": "Zone de danger",
+    "dangerZoneDescription": "L'archivage masque ce Wiki de la barre latérale pour tous. Le contenu reste sur le serveur et un administrateur peut le restaurer.",
+    "archiveButton": "Archiver le Wiki",
+    "cancel": "Annuler",
+    "save": "Enregistrer les modifications",
+    "saving": "Enregistrement…",
+    "errors": {
+      "nameRequired": "Le nom est obligatoire.",
+      "slugRequired": "Le slug est obligatoire.",
+      "slugTooLong": "Le slug doit contenir au maximum {{max}} caractères.",
+      "slugPattern": "Le slug doit commencer par une lettre minuscule ou un chiffre et ne contenir que des lettres minuscules, des chiffres et des tirets.",
+      "slugTaken": "Un Wiki avec ce slug existe déjà. Choisissez-en un autre.",
+      "updateForbidden": "Vous n'avez pas la permission de modifier ce Wiki.",
+      "updateFailed": "Échec de la mise à jour. Veuillez réessayer.",
+      "updateFailedWithMessage": "Échec de la mise à jour : {{message}}",
+      "archiveForbidden": "Vous n'avez pas la permission d'archiver ce Wiki.",
+      "archiveFailed": "Échec de l'archivage. Veuillez réessayer.",
+      "archiveFailedWithMessage": "Échec de l'archivage : {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "Paramètres",
+    "archive": "Archiver",
+    "actionsLabel": "Actions de {{name}}"
+  },
+  "archive": {
+    "title": "Archiver ce Wiki ?",
+    "description": "\u201C{{name}}\u201D sera masqué de la barre latérale pour tout le monde. Vous pouvez demander à un administrateur de le restaurer plus tard.",
+    "cancel": "Annuler",
+    "confirm": "Archiver",
+    "archiving": "Archivage…"
+  },
+  "iconPicker": {
+    "ariaLabel": "Choisir l'icône de la page"
+  },
+  "coverPicker": {
+    "addCover": "Ajouter une couverture",
+    "changeCover": "Changer la couverture",
+    "addTriggerAria": "Ajouter une couverture de page",
+    "changeTriggerAria": "Changer la couverture de page",
+    "pathLabel": "Chemin de l'image de couverture",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "Collez un chemin folder9. Le téléversement sera disponible dans une future version.",
+    "remove": "Supprimer",
+    "apply": "Appliquer"
+  },
+  "editor": {
+    "staleAlert": "Vous avez des modifications locales non enregistrées. Affichage de votre brouillon.",
+    "staleDismissAria": "Fermer l'avertissement de brouillon obsolète",
+    "notifySaved": "Enregistré",
+    "notifySubmitted": "Soumis pour révision",
+    "notifyUploadFailed": "Échec du téléversement",
+    "errors": {
+      "saveConflict": "Échec de l'enregistrement : la page a changé sur le serveur. Rechargez et réappliquez vos modifications.",
+      "saveForbidden": "Échec de l'enregistrement : vous n'avez pas la permission de mettre à jour cette page.",
+      "saveFailed": "Échec de l'enregistrement. Veuillez réessayer."
+    }
+  },
+  "status": {
+    "synced": "Synchronisé",
+    "unsaved": "Modifications non enregistrées",
+    "lastSaved": "· dernier enregistrement {{time}}",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…"
+  },
+  "page": {
+    "loading": "Chargement…"
+  },
+  "proposalBanner": {
+    "message": "Cette page a une proposition en attente de révision.",
+    "view": "Voir la proposition"
+  },
+  "submitReview": {
+    "title": "Soumettre pour révision",
+    "description": "Ce Wiki nécessite une révision avant la publication des modifications. Votre brouillon sera enregistré comme une proposition qu'un examinateur pourra approuver.",
+    "titleLabel": "Titre",
+    "titlePlaceholder": "Bref résumé de la modification",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Ajoutez tout contexte que les examinateurs devraient connaître à propos de cette modification",
+    "cancel": "Annuler",
+    "submit": "Soumettre pour révision",
+    "submitting": "Envoi…"
+  },
+  "review": {
+    "heading": "Révision – {{name}}",
+    "description": "Propositions en attente de révision.",
+    "loading": "Chargement…",
+    "loadFailed": "Échec du chargement des propositions.",
+    "empty": "Aucune proposition en attente.",
+    "untitledProposal": "Proposition sans titre",
+    "authorAgent": "Agent",
+    "authorUser": "Utilisateur"
+  },
+  "proposalDiff": {
+    "back": "Retour à la file de révision",
+    "proposalFallbackTitle": "Proposition {{id}}",
+    "authorAgent": "Agent",
+    "authorUser": "Utilisateur",
+    "reject": "Rejeter",
+    "approve": "Approuver",
+    "rejectReasonLabel": "Raison (facultatif)",
+    "rejectReasonPlaceholder": "Expliquez à l'auteur pourquoi cette proposition est rejetée.",
+    "rejectCancel": "Annuler",
+    "rejectConfirm": "Confirmer le rejet",
+    "diffLoading": "Chargement du diff…",
+    "diffLoadFailed": "Échec du chargement du diff.",
+    "diffEmpty": "Cette proposition ne contient aucune modification de fichier.",
+    "fileEmpty": "(aucun contenu)",
+    "errors": {
+      "approveConflict": "Conflit — fusion annulée",
+      "approveForbidden": "Vous n'avez pas la permission d'approuver cette proposition.",
+      "approveFailed": "Échec de l'approbation. Veuillez réessayer.",
+      "rejectConflict": "Conflit — fusion annulée",
+      "rejectForbidden": "Vous n'avez pas la permission de rejeter cette proposition.",
+      "rejectFailed": "Échec du rejet. Veuillez réessayer."
+    }
+  }
+}

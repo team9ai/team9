@@ -26,6 +26,7 @@ import type { ProposalDto, WikiDto } from "@/types/wiki";
  */
 export function WikiSubSidebar() {
   const { t } = useTranslation("navigation");
+  const { t: tWiki } = useTranslation("wiki");
   const { data: wikis, isLoading } = useWikis();
   const [showCreate, setShowCreate] = useState(false);
   const navigate = useNavigate();
@@ -87,6 +88,7 @@ export function WikiSubSidebar() {
               size="sm"
               variant="ghost"
               aria-label={t("reviewProposals")}
+              title={t("reviewProposals")}
               onClick={handleOpenReview}
               data-testid="wiki-sub-sidebar-review"
               className="relative"
@@ -99,6 +101,7 @@ export function WikiSubSidebar() {
             size="sm"
             variant="ghost"
             aria-label={t("createWiki")}
+            title={t("createWiki")}
             onClick={() => setShowCreate(true)}
           >
             <Plus size={14} />
@@ -108,16 +111,26 @@ export function WikiSubSidebar() {
       <Separator />
       <ScrollArea className="flex-1 py-2">
         {isLoading && (
-          <p className="px-4 py-2 text-xs text-muted-foreground">Loading…</p>
+          <p className="px-4 py-2 text-xs text-muted-foreground">
+            {tWiki("sidebar.loading")}
+          </p>
         )}
         {!isLoading && (!wikis || wikis.length === 0) && (
           <p className="px-4 py-2 text-xs text-muted-foreground">
-            No wikis yet. Click + to create one.
+            {tWiki("sidebar.empty")}
           </p>
         )}
-        {wikis?.map((wiki) => (
-          <WikiListItem key={wiki.id} wiki={wiki} />
-        ))}
+        {wikis && wikis.length > 0 && (
+          <div
+            role="tree"
+            aria-label={t("wiki")}
+            data-testid="wiki-sub-sidebar-tree"
+          >
+            {wikis.map((wiki) => (
+              <WikiListItem key={wiki.id} wiki={wiki} />
+            ))}
+          </div>
+        )}
       </ScrollArea>
       <CreateWikiDialog open={showCreate} onOpenChange={setShowCreate} />
     </div>

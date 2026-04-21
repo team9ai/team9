@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "Lädt…",
+    "empty": "Noch keine Wikis vorhanden. Klicken Sie auf +, um eines zu erstellen.",
+    "createWiki": "Wiki erstellen",
+    "reviewProposals": "Vorschläge prüfen",
+    "itemActions": "{{name}}-Aktionen"
+  },
+  "empty": {
+    "title": "Wiki-Seite auswählen",
+    "description": "Wählen Sie eine Seite aus dem Baum links oder erstellen Sie ein neues Wiki mit der Schaltfläche +."
+  },
+  "route": {
+    "notFound": "Wiki nicht gefunden."
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "saving": "Speichern…",
+    "loading": "Lädt…",
+    "required": "*",
+    "optional": "(optional)"
+  },
+  "create": {
+    "title": "Wiki erstellen",
+    "description": "Erstellen Sie ein neues Wiki, um mit Ihrem Team an Seiten zu arbeiten.",
+    "iconLabel": "Symbol",
+    "nameLabel": "Name",
+    "namePlaceholder": "Team-Handbuch",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "Kleinbuchstaben, Ziffern und Bindestriche. Muss mit einem Buchstaben oder einer Ziffer beginnen. Wird automatisch aus dem Namen abgeleitet, bis Sie es bearbeiten.",
+    "cancel": "Abbrechen",
+    "submit": "Wiki erstellen",
+    "submitting": "Erstellen…",
+    "errors": {
+      "nameRequired": "Name ist erforderlich.",
+      "slugTooLong": "Slug darf höchstens {{max}} Zeichen lang sein.",
+      "slugPattern": "Slug muss mit einem Kleinbuchstaben oder einer Ziffer beginnen und darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten.",
+      "slugTaken": "Ein Wiki mit diesem Slug existiert bereits. Wählen Sie einen anderen.",
+      "createFailed": "Erstellen fehlgeschlagen. Bitte erneut versuchen.",
+      "createFailedWithMessage": "Erstellen fehlgeschlagen: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Wiki-Einstellungen",
+    "description": "Konfigurieren Sie den Namen, die Bearbeitungsrechte und die Review-Methode dieses Wikis.",
+    "generalHeading": "Allgemein",
+    "iconLabel": "Symbol",
+    "nameLabel": "Name",
+    "slugLabel": "Slug",
+    "slugHelp": "Kleinbuchstaben, Ziffern und Bindestriche. Muss mit einem Buchstaben oder einer Ziffer beginnen.",
+    "approvalHeading": "Freigabemodus",
+    "approvalLegend": "Freigabemodus",
+    "approvalAutoLabel": "Automatisch zusammenführen",
+    "approvalAutoDescription": "Änderungen werden sofort ohne Review veröffentlicht.",
+    "approvalReviewLabel": "Review erforderlich",
+    "approvalReviewDescription": "Änderungen werden als Vorschläge eingereicht, die ein Prüfer genehmigen muss.",
+    "permissionsHeading": "Berechtigungen",
+    "humanLabel": "Mensch",
+    "agentLabel": "Agent",
+    "permissionRead": "Lesen",
+    "permissionPropose": "Vorschlagen",
+    "permissionWrite": "Schreiben",
+    "dangerZoneHeading": "Gefahrenzone",
+    "dangerZoneDescription": "Beim Archivieren wird dieses Wiki für alle in der Seitenleiste ausgeblendet. Der Inhalt bleibt auf dem Server und ein Admin kann es wiederherstellen.",
+    "archiveButton": "Wiki archivieren",
+    "cancel": "Abbrechen",
+    "save": "Änderungen speichern",
+    "saving": "Speichern…",
+    "errors": {
+      "nameRequired": "Name ist erforderlich.",
+      "slugRequired": "Slug ist erforderlich.",
+      "slugTooLong": "Slug darf höchstens {{max}} Zeichen lang sein.",
+      "slugPattern": "Slug muss mit einem Kleinbuchstaben oder einer Ziffer beginnen und darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten.",
+      "slugTaken": "Ein Wiki mit diesem Slug existiert bereits. Wählen Sie einen anderen.",
+      "updateForbidden": "Sie haben keine Berechtigung, dieses Wiki zu aktualisieren.",
+      "updateFailed": "Aktualisierung fehlgeschlagen. Bitte erneut versuchen.",
+      "updateFailedWithMessage": "Aktualisierung fehlgeschlagen: {{message}}",
+      "archiveForbidden": "Sie haben keine Berechtigung, dieses Wiki zu archivieren.",
+      "archiveFailed": "Archivieren fehlgeschlagen. Bitte erneut versuchen.",
+      "archiveFailedWithMessage": "Archivieren fehlgeschlagen: {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "Einstellungen",
+    "archive": "Archivieren",
+    "actionsLabel": "{{name}}-Aktionen"
+  },
+  "archive": {
+    "title": "Dieses Wiki archivieren?",
+    "description": "\u201C{{name}}\u201D wird für alle aus der Seitenleiste ausgeblendet. Sie können einen Admin bitten, es später wiederherzustellen.",
+    "cancel": "Abbrechen",
+    "confirm": "Archivieren",
+    "archiving": "Archivieren…"
+  },
+  "iconPicker": {
+    "ariaLabel": "Seitensymbol auswählen"
+  },
+  "coverPicker": {
+    "addCover": "Cover hinzufügen",
+    "changeCover": "Cover ändern",
+    "addTriggerAria": "Seitencover hinzufügen",
+    "changeTriggerAria": "Seitencover ändern",
+    "pathLabel": "Pfad des Coverbildes",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "Fügen Sie einen folder9-Pfad ein. Uploads folgen in einer späteren Version.",
+    "remove": "Entfernen",
+    "apply": "Anwenden"
+  },
+  "editor": {
+    "staleAlert": "Sie haben nicht gespeicherte lokale Änderungen. Ihr Entwurf wird angezeigt.",
+    "staleDismissAria": "Warnung zu veraltetem Entwurf schließen",
+    "notifySaved": "Gespeichert",
+    "notifySubmitted": "Zur Prüfung eingereicht",
+    "notifyUploadFailed": "Upload fehlgeschlagen",
+    "errors": {
+      "saveConflict": "Speichern fehlgeschlagen: Die Seite wurde auf dem Server geändert. Laden Sie neu und wenden Sie Ihre Änderungen erneut an.",
+      "saveForbidden": "Speichern fehlgeschlagen: Sie haben keine Berechtigung, diese Seite zu aktualisieren.",
+      "saveFailed": "Speichern fehlgeschlagen. Bitte erneut versuchen."
+    }
+  },
+  "status": {
+    "synced": "Synchronisiert",
+    "unsaved": "Nicht gespeicherte Änderungen",
+    "lastSaved": "· zuletzt gespeichert {{time}}",
+    "save": "Speichern",
+    "saving": "Speichern…"
+  },
+  "page": {
+    "loading": "Lädt…"
+  },
+  "proposalBanner": {
+    "message": "Diese Seite hat einen ausstehenden Vorschlag zur Prüfung.",
+    "view": "Vorschlag ansehen"
+  },
+  "submitReview": {
+    "title": "Zur Prüfung einreichen",
+    "description": "Dieses Wiki erfordert eine Prüfung, bevor Änderungen veröffentlicht werden. Ihr Entwurf wird als Vorschlag gespeichert, den ein Prüfer genehmigen kann.",
+    "titleLabel": "Titel",
+    "titlePlaceholder": "Kurze Zusammenfassung der Änderung",
+    "descriptionLabel": "Beschreibung",
+    "descriptionPlaceholder": "Fügen Sie Kontext hinzu, den Prüfer über diese Änderung wissen sollten",
+    "cancel": "Abbrechen",
+    "submit": "Zur Prüfung einreichen",
+    "submitting": "Einreichen…"
+  },
+  "review": {
+    "heading": "Prüfung – {{name}}",
+    "description": "Ausstehende Vorschläge zur Prüfung.",
+    "loading": "Lädt…",
+    "loadFailed": "Vorschläge konnten nicht geladen werden.",
+    "empty": "Keine ausstehenden Vorschläge.",
+    "untitledProposal": "Unbenannter Vorschlag",
+    "authorAgent": "Agent",
+    "authorUser": "Benutzer"
+  },
+  "proposalDiff": {
+    "back": "Zurück zur Prüfungswarteschlange",
+    "proposalFallbackTitle": "Vorschlag {{id}}",
+    "authorAgent": "Agent",
+    "authorUser": "Benutzer",
+    "reject": "Ablehnen",
+    "approve": "Genehmigen",
+    "rejectReasonLabel": "Begründung (optional)",
+    "rejectReasonPlaceholder": "Teilen Sie dem Autor mit, warum dieser Vorschlag abgelehnt wird.",
+    "rejectCancel": "Abbrechen",
+    "rejectConfirm": "Ablehnung bestätigen",
+    "diffLoading": "Diff wird geladen…",
+    "diffLoadFailed": "Diff konnte nicht geladen werden.",
+    "diffEmpty": "Dieser Vorschlag enthält keine Dateiänderungen.",
+    "fileEmpty": "(kein Inhalt)",
+    "errors": {
+      "approveConflict": "Konflikt — Merge abgebrochen",
+      "approveForbidden": "Sie haben keine Berechtigung, diesen Vorschlag zu genehmigen.",
+      "approveFailed": "Genehmigung fehlgeschlagen. Bitte erneut versuchen.",
+      "rejectConflict": "Konflikt — Merge abgebrochen",
+      "rejectForbidden": "Sie haben keine Berechtigung, diesen Vorschlag abzulehnen.",
+      "rejectFailed": "Ablehnen fehlgeschlagen. Bitte erneut versuchen."
+    }
+  }
+}

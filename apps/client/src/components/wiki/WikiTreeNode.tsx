@@ -56,8 +56,20 @@ export function WikiTreeNode({ node, wikiSlug, depth }: WikiTreeNodeProps) {
     });
   };
 
+  // WAI-ARIA tree semantics: each node is a `treeitem`. Directory nodes
+  // carry `aria-expanded` (true/false) — file nodes omit the attribute so
+  // AT don't announce a file as a collapsible node. `aria-level` is 1-based
+  // per the spec; our parent `WikiListItem` is level 1 (the wiki row), so
+  // tree nodes start at level 2 (their `depth` prop is already 1-based from
+  // `WikiListItem` passing `depth={1}`), and increments from there.
+  const ariaLevel = depth + 1;
   return (
-    <div>
+    <div
+      role="treeitem"
+      aria-level={ariaLevel}
+      aria-expanded={node.type === "dir" ? isExpanded : undefined}
+      aria-selected={isActive || undefined}
+    >
       <button
         type="button"
         onClick={handleClick}
@@ -80,7 +92,7 @@ export function WikiTreeNode({ node, wikiSlug, depth }: WikiTreeNodeProps) {
         <span className="truncate">{node.name}</span>
       </button>
       {node.type === "dir" && isExpanded && node.children.length > 0 && (
-        <div>
+        <div role="group">
           {node.children.map((child) => (
             <WikiTreeNode
               key={child.path}

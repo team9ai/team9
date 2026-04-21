@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "読み込み中…",
+    "empty": "Wiki がまだありません。+ をクリックして作成してください。",
+    "createWiki": "Wiki を作成",
+    "reviewProposals": "提案をレビュー",
+    "itemActions": "{{name}} のアクション"
+  },
+  "empty": {
+    "title": "Wiki ページを選択",
+    "description": "左側のツリーからページを選ぶか、+ ボタンで新しい Wiki を作成してください。"
+  },
+  "route": {
+    "notFound": "Wiki が見つかりません。"
+  },
+  "common": {
+    "cancel": "キャンセル",
+    "save": "保存",
+    "saving": "保存中…",
+    "loading": "読み込み中…",
+    "required": "*",
+    "optional": "（任意）"
+  },
+  "create": {
+    "title": "Wiki を作成",
+    "description": "新しい Wiki を作成して、チームでページを共同編集しましょう。",
+    "iconLabel": "アイコン",
+    "nameLabel": "名前",
+    "namePlaceholder": "チームハンドブック",
+    "slugLabel": "スラッグ",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "小文字、数字、ハイフンのみ使用可能。文字または数字で始める必要があります。編集するまで名前から自動生成されます。",
+    "cancel": "キャンセル",
+    "submit": "Wiki を作成",
+    "submitting": "作成中…",
+    "errors": {
+      "nameRequired": "名前は必須です。",
+      "slugTooLong": "スラッグは {{max}} 文字以下にしてください。",
+      "slugPattern": "スラッグは小文字または数字で始まり、小文字、数字、ハイフンのみ使用できます。",
+      "slugTaken": "そのスラッグの Wiki はすでに存在します。別のスラッグを選んでください。",
+      "createFailed": "作成に失敗しました。もう一度お試しください。",
+      "createFailedWithMessage": "作成に失敗しました: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Wiki 設定",
+    "description": "この Wiki の名前、編集権限、変更の審査方法を設定します。",
+    "generalHeading": "一般",
+    "iconLabel": "アイコン",
+    "nameLabel": "名前",
+    "slugLabel": "スラッグ",
+    "slugHelp": "小文字、数字、ハイフンのみ使用可能。文字または数字で始める必要があります。",
+    "approvalHeading": "承認モード",
+    "approvalLegend": "承認モード",
+    "approvalAutoLabel": "自動マージ",
+    "approvalAutoDescription": "書き込みはレビューなしで即時公開されます。",
+    "approvalReviewLabel": "レビュー必須",
+    "approvalReviewDescription": "書き込みはレビュアーが承認する提案として扱われます。",
+    "permissionsHeading": "権限",
+    "humanLabel": "人間",
+    "agentLabel": "エージェント",
+    "permissionRead": "読み取り",
+    "permissionPropose": "提案",
+    "permissionWrite": "書き込み",
+    "dangerZoneHeading": "危険ゾーン",
+    "dangerZoneDescription": "アーカイブするとこの Wiki はサイドバーから非表示になります。コンテンツはサーバーに残り、管理者が復元できます。",
+    "archiveButton": "Wiki をアーカイブ",
+    "cancel": "キャンセル",
+    "save": "変更を保存",
+    "saving": "保存中…",
+    "errors": {
+      "nameRequired": "名前は必須です。",
+      "slugRequired": "スラッグは必須です。",
+      "slugTooLong": "スラッグは {{max}} 文字以下にしてください。",
+      "slugPattern": "スラッグは小文字または数字で始まり、小文字、数字、ハイフンのみ使用できます。",
+      "slugTaken": "そのスラッグの Wiki はすでに存在します。別のスラッグを選んでください。",
+      "updateForbidden": "この Wiki を更新する権限がありません。",
+      "updateFailed": "更新に失敗しました。もう一度お試しください。",
+      "updateFailedWithMessage": "更新に失敗しました: {{message}}",
+      "archiveForbidden": "この Wiki をアーカイブする権限がありません。",
+      "archiveFailed": "アーカイブに失敗しました。もう一度お試しください。",
+      "archiveFailedWithMessage": "アーカイブに失敗しました: {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "設定",
+    "archive": "アーカイブ",
+    "actionsLabel": "{{name}} のアクション"
+  },
+  "archive": {
+    "title": "この Wiki をアーカイブしますか？",
+    "description": "\u201C{{name}}\u201D はすべての人のサイドバーから非表示になります。後で管理者に復元を依頼できます。",
+    "cancel": "キャンセル",
+    "confirm": "アーカイブ",
+    "archiving": "アーカイブ中…"
+  },
+  "iconPicker": {
+    "ariaLabel": "ページアイコンを選択"
+  },
+  "coverPicker": {
+    "addCover": "カバーを追加",
+    "changeCover": "カバーを変更",
+    "addTriggerAria": "ページカバーを追加",
+    "changeTriggerAria": "ページカバーを変更",
+    "pathLabel": "カバー画像のパス",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "folder9 のパスを貼り付けてください。アップロード機能は今後のリリースで提供されます。",
+    "remove": "削除",
+    "apply": "適用"
+  },
+  "editor": {
+    "staleAlert": "保存されていないローカルの変更があります。ドラフトを表示しています。",
+    "staleDismissAria": "古いドラフトの警告を閉じる",
+    "notifySaved": "保存しました",
+    "notifySubmitted": "レビューに提出しました",
+    "notifyUploadFailed": "アップロードに失敗しました",
+    "errors": {
+      "saveConflict": "保存に失敗しました: サーバー上でページが変更されています。再読み込みして変更を再適用してください。",
+      "saveForbidden": "保存に失敗しました: このページを更新する権限がありません。",
+      "saveFailed": "保存に失敗しました。もう一度お試しください。"
+    }
+  },
+  "status": {
+    "synced": "同期済み",
+    "unsaved": "未保存の変更",
+    "lastSaved": "· 最終保存 {{time}}",
+    "save": "保存",
+    "saving": "保存中…"
+  },
+  "page": {
+    "loading": "読み込み中…"
+  },
+  "proposalBanner": {
+    "message": "このページにはレビュー待ちの提案があります。",
+    "view": "提案を表示"
+  },
+  "submitReview": {
+    "title": "レビューに提出",
+    "description": "この Wiki は変更が公開される前にレビューが必要です。ドラフトはレビュアーが承認する提案として保存されます。",
+    "titleLabel": "タイトル",
+    "titlePlaceholder": "変更の短い概要",
+    "descriptionLabel": "説明",
+    "descriptionPlaceholder": "この変更についてレビュアーが知っておくべき背景情報を追加",
+    "cancel": "キャンセル",
+    "submit": "レビューに提出",
+    "submitting": "提出中…"
+  },
+  "review": {
+    "heading": "レビュー – {{name}}",
+    "description": "レビュー待ちの提案。",
+    "loading": "読み込み中…",
+    "loadFailed": "提案の読み込みに失敗しました。",
+    "empty": "レビュー待ちの提案はありません。",
+    "untitledProposal": "無題の提案",
+    "authorAgent": "エージェント",
+    "authorUser": "ユーザー"
+  },
+  "proposalDiff": {
+    "back": "レビューキューに戻る",
+    "proposalFallbackTitle": "提案 {{id}}",
+    "authorAgent": "エージェント",
+    "authorUser": "ユーザー",
+    "reject": "拒否",
+    "approve": "承認",
+    "rejectReasonLabel": "理由（任意）",
+    "rejectReasonPlaceholder": "この提案を拒否する理由を作者に伝えてください。",
+    "rejectCancel": "キャンセル",
+    "rejectConfirm": "拒否を確定",
+    "diffLoading": "差分を読み込み中…",
+    "diffLoadFailed": "差分の読み込みに失敗しました。",
+    "diffEmpty": "この提案にはファイルの変更はありません。",
+    "fileEmpty": "（内容なし）",
+    "errors": {
+      "approveConflict": "競合 — マージを中止しました",
+      "approveForbidden": "この提案を承認する権限がありません。",
+      "approveFailed": "承認に失敗しました。もう一度お試しください。",
+      "rejectConflict": "競合 — マージを中止しました",
+      "rejectForbidden": "この提案を拒否する権限がありません。",
+      "rejectFailed": "拒否に失敗しました。もう一度お試しください。"
+    }
+  }
+}

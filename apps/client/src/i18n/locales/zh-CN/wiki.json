@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "加载中…",
+    "empty": "还没有知识库。点击 + 创建一个。",
+    "createWiki": "创建知识库",
+    "reviewProposals": "审核提案",
+    "itemActions": "{{name}} 操作"
+  },
+  "empty": {
+    "title": "选择一个知识库页面",
+    "description": "从左侧树中选择一个页面，或使用 + 按钮创建新的知识库。"
+  },
+  "route": {
+    "notFound": "未找到知识库。"
+  },
+  "common": {
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中…",
+    "loading": "加载中…",
+    "required": "*",
+    "optional": "（可选）"
+  },
+  "create": {
+    "title": "创建知识库",
+    "description": "创建一个新的知识库，与团队协作编辑页面。",
+    "iconLabel": "图标",
+    "nameLabel": "名称",
+    "namePlaceholder": "团队手册",
+    "slugLabel": "标识符",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "仅限小写字母、数字和短横线。必须以字母或数字开头。在你编辑前会根据名称自动生成。",
+    "cancel": "取消",
+    "submit": "创建知识库",
+    "submitting": "创建中…",
+    "errors": {
+      "nameRequired": "名称不能为空。",
+      "slugTooLong": "标识符长度不能超过 {{max}} 个字符。",
+      "slugPattern": "标识符必须以小写字母或数字开头，且仅能包含小写字母、数字和短横线。",
+      "slugTaken": "该标识符的知识库已存在。请选择其他标识符。",
+      "createFailed": "创建失败，请重试。",
+      "createFailedWithMessage": "创建失败：{{message}}"
+    }
+  },
+  "settings": {
+    "title": "知识库设置",
+    "description": "配置该知识库的名称、编辑权限以及提案的审核方式。",
+    "generalHeading": "常规",
+    "iconLabel": "图标",
+    "nameLabel": "名称",
+    "slugLabel": "标识符",
+    "slugHelp": "仅限小写字母、数字和短横线。必须以字母或数字开头。",
+    "approvalHeading": "审核模式",
+    "approvalLegend": "审核模式",
+    "approvalAutoLabel": "自动合并",
+    "approvalAutoDescription": "写入立即发布，无需审核。",
+    "approvalReviewLabel": "需要审核",
+    "approvalReviewDescription": "写入会提交为需要审核人批准的提案。",
+    "permissionsHeading": "权限",
+    "humanLabel": "用户",
+    "agentLabel": "Agent",
+    "permissionRead": "只读",
+    "permissionPropose": "提案",
+    "permissionWrite": "写入",
+    "dangerZoneHeading": "危险区",
+    "dangerZoneDescription": "归档会将该知识库从侧边栏中隐藏。内容仍保留在服务器上，管理员可以恢复。",
+    "archiveButton": "归档知识库",
+    "cancel": "取消",
+    "save": "保存更改",
+    "saving": "保存中…",
+    "errors": {
+      "nameRequired": "名称不能为空。",
+      "slugRequired": "标识符不能为空。",
+      "slugTooLong": "标识符长度不能超过 {{max}} 个字符。",
+      "slugPattern": "标识符必须以小写字母或数字开头，且仅能包含小写字母、数字和短横线。",
+      "slugTaken": "该标识符的知识库已存在。请选择其他标识符。",
+      "updateForbidden": "你没有更新此知识库的权限。",
+      "updateFailed": "更新失败，请重试。",
+      "updateFailedWithMessage": "更新失败：{{message}}",
+      "archiveForbidden": "你没有归档此知识库的权限。",
+      "archiveFailed": "归档失败，请重试。",
+      "archiveFailedWithMessage": "归档失败：{{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "设置",
+    "archive": "归档",
+    "actionsLabel": "{{name}} 操作"
+  },
+  "archive": {
+    "title": "归档此知识库？",
+    "description": "\u201C{{name}}\u201D 将对所有人从侧边栏隐藏。你可以请管理员稍后恢复。",
+    "cancel": "取消",
+    "confirm": "归档",
+    "archiving": "归档中…"
+  },
+  "iconPicker": {
+    "ariaLabel": "选择页面图标"
+  },
+  "coverPicker": {
+    "addCover": "添加封面",
+    "changeCover": "更换封面",
+    "addTriggerAria": "添加页面封面",
+    "changeTriggerAria": "更换页面封面",
+    "pathLabel": "封面图片路径",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "粘贴一个 folder9 路径。文件上传将在后续版本提供。",
+    "remove": "移除",
+    "apply": "应用"
+  },
+  "editor": {
+    "staleAlert": "你有未保存的本地修改。正在查看你的草稿。",
+    "staleDismissAria": "关闭草稿过期警告",
+    "notifySaved": "已保存",
+    "notifySubmitted": "已提交审核",
+    "notifyUploadFailed": "上传失败",
+    "errors": {
+      "saveConflict": "保存失败：该页面已在服务器上被修改。请刷新并重新应用你的修改。",
+      "saveForbidden": "保存失败：你没有更新此页面的权限。",
+      "saveFailed": "保存失败，请重试。"
+    }
+  },
+  "status": {
+    "synced": "已同步",
+    "unsaved": "未保存的更改",
+    "lastSaved": "· 上次保存 {{time}}",
+    "save": "保存",
+    "saving": "保存中…"
+  },
+  "page": {
+    "loading": "加载中…"
+  },
+  "proposalBanner": {
+    "message": "此页面有一个待审核的提案。",
+    "view": "查看提案"
+  },
+  "submitReview": {
+    "title": "提交审核",
+    "description": "该知识库需要审核后才能发布变更。你的草稿将保存为提案，由审核人审批。",
+    "titleLabel": "标题",
+    "titlePlaceholder": "变更的简短摘要",
+    "descriptionLabel": "描述",
+    "descriptionPlaceholder": "添加审核人应了解的任何背景信息",
+    "cancel": "取消",
+    "submit": "提交审核",
+    "submitting": "提交中…"
+  },
+  "review": {
+    "heading": "审核 – {{name}}",
+    "description": "待审核的提案。",
+    "loading": "加载中…",
+    "loadFailed": "加载提案失败。",
+    "empty": "暂无待审核的提案。",
+    "untitledProposal": "未命名提案",
+    "authorAgent": "Agent",
+    "authorUser": "用户"
+  },
+  "proposalDiff": {
+    "back": "返回审核队列",
+    "proposalFallbackTitle": "提案 {{id}}",
+    "authorAgent": "Agent",
+    "authorUser": "用户",
+    "reject": "拒绝",
+    "approve": "批准",
+    "rejectReasonLabel": "原因（可选）",
+    "rejectReasonPlaceholder": "告诉作者为什么拒绝此提案。",
+    "rejectCancel": "取消",
+    "rejectConfirm": "确认拒绝",
+    "diffLoading": "加载差异中…",
+    "diffLoadFailed": "加载差异失败。",
+    "diffEmpty": "该提案不包含文件变更。",
+    "fileEmpty": "（无内容）",
+    "errors": {
+      "approveConflict": "冲突 — 合并已中止",
+      "approveForbidden": "你没有批准此提案的权限。",
+      "approveFailed": "批准失败，请重试。",
+      "rejectConflict": "冲突 — 合并已中止",
+      "rejectForbidden": "你没有拒绝此提案的权限。",
+      "rejectFailed": "拒绝失败，请重试。"
+    }
+  }
+}

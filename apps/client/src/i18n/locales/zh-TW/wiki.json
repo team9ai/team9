@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "載入中…",
+    "empty": "還沒有知識庫。點擊 + 建立一個。",
+    "createWiki": "建立知識庫",
+    "reviewProposals": "審核提案",
+    "itemActions": "{{name}} 操作"
+  },
+  "empty": {
+    "title": "選擇一個知識庫頁面",
+    "description": "從左側樹中選擇一個頁面，或使用 + 按鈕建立新的知識庫。"
+  },
+  "route": {
+    "notFound": "找不到知識庫。"
+  },
+  "common": {
+    "cancel": "取消",
+    "save": "儲存",
+    "saving": "儲存中…",
+    "loading": "載入中…",
+    "required": "*",
+    "optional": "（可選）"
+  },
+  "create": {
+    "title": "建立知識庫",
+    "description": "建立一個新的知識庫，與團隊協作編輯頁面。",
+    "iconLabel": "圖示",
+    "nameLabel": "名稱",
+    "namePlaceholder": "團隊手冊",
+    "slugLabel": "識別碼",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "僅限小寫字母、數字和連字號。必須以字母或數字開頭。在你編輯前會依據名稱自動產生。",
+    "cancel": "取消",
+    "submit": "建立知識庫",
+    "submitting": "建立中…",
+    "errors": {
+      "nameRequired": "名稱不能為空。",
+      "slugTooLong": "識別碼長度不能超過 {{max}} 個字元。",
+      "slugPattern": "識別碼必須以小寫字母或數字開頭，且僅能包含小寫字母、數字和連字號。",
+      "slugTaken": "該識別碼的知識庫已存在。請選擇其他識別碼。",
+      "createFailed": "建立失敗，請重試。",
+      "createFailedWithMessage": "建立失敗：{{message}}"
+    }
+  },
+  "settings": {
+    "title": "知識庫設定",
+    "description": "設定該知識庫的名稱、編輯權限以及提案的審核方式。",
+    "generalHeading": "一般",
+    "iconLabel": "圖示",
+    "nameLabel": "名稱",
+    "slugLabel": "識別碼",
+    "slugHelp": "僅限小寫字母、數字和連字號。必須以字母或數字開頭。",
+    "approvalHeading": "審核模式",
+    "approvalLegend": "審核模式",
+    "approvalAutoLabel": "自動合併",
+    "approvalAutoDescription": "寫入立即發布，無需審核。",
+    "approvalReviewLabel": "需要審核",
+    "approvalReviewDescription": "寫入會提交為需要審核人批准的提案。",
+    "permissionsHeading": "權限",
+    "humanLabel": "使用者",
+    "agentLabel": "Agent",
+    "permissionRead": "唯讀",
+    "permissionPropose": "提案",
+    "permissionWrite": "寫入",
+    "dangerZoneHeading": "危險區",
+    "dangerZoneDescription": "封存會將該知識庫從側邊欄中隱藏。內容仍保留在伺服器上，管理員可以還原。",
+    "archiveButton": "封存知識庫",
+    "cancel": "取消",
+    "save": "儲存變更",
+    "saving": "儲存中…",
+    "errors": {
+      "nameRequired": "名稱不能為空。",
+      "slugRequired": "識別碼不能為空。",
+      "slugTooLong": "識別碼長度不能超過 {{max}} 個字元。",
+      "slugPattern": "識別碼必須以小寫字母或數字開頭，且僅能包含小寫字母、數字和連字號。",
+      "slugTaken": "該識別碼的知識庫已存在。請選擇其他識別碼。",
+      "updateForbidden": "你沒有更新此知識庫的權限。",
+      "updateFailed": "更新失敗，請重試。",
+      "updateFailedWithMessage": "更新失敗：{{message}}",
+      "archiveForbidden": "你沒有封存此知識庫的權限。",
+      "archiveFailed": "封存失敗，請重試。",
+      "archiveFailedWithMessage": "封存失敗：{{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "設定",
+    "archive": "封存",
+    "actionsLabel": "{{name}} 操作"
+  },
+  "archive": {
+    "title": "封存此知識庫？",
+    "description": "\u201C{{name}}\u201D 將對所有人從側邊欄隱藏。你可以請管理員稍後還原。",
+    "cancel": "取消",
+    "confirm": "封存",
+    "archiving": "封存中…"
+  },
+  "iconPicker": {
+    "ariaLabel": "選擇頁面圖示"
+  },
+  "coverPicker": {
+    "addCover": "加入封面",
+    "changeCover": "更換封面",
+    "addTriggerAria": "加入頁面封面",
+    "changeTriggerAria": "更換頁面封面",
+    "pathLabel": "封面圖片路徑",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "貼上一個 folder9 路徑。檔案上傳將於後續版本提供。",
+    "remove": "移除",
+    "apply": "套用"
+  },
+  "editor": {
+    "staleAlert": "你有未儲存的本地修改。正在檢視你的草稿。",
+    "staleDismissAria": "關閉草稿過期警告",
+    "notifySaved": "已儲存",
+    "notifySubmitted": "已提交審核",
+    "notifyUploadFailed": "上傳失敗",
+    "errors": {
+      "saveConflict": "儲存失敗：該頁面已在伺服器上被修改。請重新載入並重新套用你的變更。",
+      "saveForbidden": "儲存失敗：你沒有更新此頁面的權限。",
+      "saveFailed": "儲存失敗，請重試。"
+    }
+  },
+  "status": {
+    "synced": "已同步",
+    "unsaved": "未儲存的變更",
+    "lastSaved": "· 上次儲存 {{time}}",
+    "save": "儲存",
+    "saving": "儲存中…"
+  },
+  "page": {
+    "loading": "載入中…"
+  },
+  "proposalBanner": {
+    "message": "此頁面有一個待審核的提案。",
+    "view": "檢視提案"
+  },
+  "submitReview": {
+    "title": "提交審核",
+    "description": "該知識庫需要審核後才能發布變更。你的草稿將儲存為提案，由審核人批准。",
+    "titleLabel": "標題",
+    "titlePlaceholder": "變更的簡短摘要",
+    "descriptionLabel": "描述",
+    "descriptionPlaceholder": "新增審核人應了解的任何背景資訊",
+    "cancel": "取消",
+    "submit": "提交審核",
+    "submitting": "提交中…"
+  },
+  "review": {
+    "heading": "審核 – {{name}}",
+    "description": "待審核的提案。",
+    "loading": "載入中…",
+    "loadFailed": "載入提案失敗。",
+    "empty": "暫無待審核的提案。",
+    "untitledProposal": "未命名提案",
+    "authorAgent": "Agent",
+    "authorUser": "使用者"
+  },
+  "proposalDiff": {
+    "back": "返回審核佇列",
+    "proposalFallbackTitle": "提案 {{id}}",
+    "authorAgent": "Agent",
+    "authorUser": "使用者",
+    "reject": "拒絕",
+    "approve": "批准",
+    "rejectReasonLabel": "原因（可選）",
+    "rejectReasonPlaceholder": "告訴作者為什麼拒絕此提案。",
+    "rejectCancel": "取消",
+    "rejectConfirm": "確認拒絕",
+    "diffLoading": "載入差異中…",
+    "diffLoadFailed": "載入差異失敗。",
+    "diffEmpty": "該提案不包含檔案變更。",
+    "fileEmpty": "（無內容）",
+    "errors": {
+      "approveConflict": "衝突 — 合併已中止",
+      "approveForbidden": "你沒有批准此提案的權限。",
+      "approveFailed": "批准失敗，請重試。",
+      "rejectConflict": "衝突 — 合併已中止",
+      "rejectForbidden": "你沒有拒絕此提案的權限。",
+      "rejectFailed": "拒絕失敗，請重試。"
+    }
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "sidebar": {
+    "loading": "Loading…",
+    "empty": "No wikis yet. Click + to create one.",
+    "createWiki": "Create Wiki",
+    "reviewProposals": "Review proposals",
+    "itemActions": "{{name}} actions"
+  },
+  "empty": {
+    "title": "Select a Wiki page",
+    "description": "Pick a page from the tree on the left, or create a new Wiki with the + button."
+  },
+  "route": {
+    "notFound": "Wiki not found."
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "loading": "Loading…",
+    "required": "*",
+    "optional": "(optional)"
+  },
+  "create": {
+    "title": "Create Wiki",
+    "description": "Create a new Wiki to collaborate on pages with your team.",
+    "iconLabel": "Icon",
+    "nameLabel": "Name",
+    "namePlaceholder": "Team handbook",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "Lowercase letters, numbers, and dashes. Must start with a letter or number. Auto-derived from the name until you edit it.",
+    "cancel": "Cancel",
+    "submit": "Create Wiki",
+    "submitting": "Creating…",
+    "errors": {
+      "nameRequired": "Name is required.",
+      "slugTooLong": "Slug must be {{max}} characters or fewer.",
+      "slugPattern": "Slug must start with a lowercase letter or number and contain only lowercase letters, numbers, and dashes.",
+      "slugTaken": "A Wiki with that slug already exists. Pick another.",
+      "createFailed": "Create failed. Please try again.",
+      "createFailedWithMessage": "Create failed: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Wiki settings",
+    "description": "Configure how this Wiki is named, who can edit it, and how proposed changes are reviewed.",
+    "generalHeading": "General",
+    "iconLabel": "Icon",
+    "nameLabel": "Name",
+    "slugLabel": "Slug",
+    "slugHelp": "Lowercase letters, numbers, and dashes. Must start with a letter or number.",
+    "approvalHeading": "Approval mode",
+    "approvalLegend": "Approval mode",
+    "approvalAutoLabel": "Auto merge",
+    "approvalAutoDescription": "Writes publish immediately without review.",
+    "approvalReviewLabel": "Review required",
+    "approvalReviewDescription": "Writes land as proposals a reviewer must approve.",
+    "permissionsHeading": "Permissions",
+    "humanLabel": "Human",
+    "agentLabel": "Agent",
+    "permissionRead": "Read",
+    "permissionPropose": "Propose",
+    "permissionWrite": "Write",
+    "dangerZoneHeading": "Danger zone",
+    "dangerZoneDescription": "Archive hides this Wiki from the sidebar for everyone. The content stays on the server and an admin can restore it.",
+    "archiveButton": "Archive Wiki",
+    "cancel": "Cancel",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "errors": {
+      "nameRequired": "Name is required.",
+      "slugRequired": "Slug is required.",
+      "slugTooLong": "Slug must be {{max}} characters or fewer.",
+      "slugPattern": "Slug must start with a lowercase letter or number and contain only lowercase letters, numbers, and dashes.",
+      "slugTaken": "A Wiki with that slug already exists. Pick another.",
+      "updateForbidden": "You don't have permission to update this Wiki.",
+      "updateFailed": "Update failed. Please try again.",
+      "updateFailedWithMessage": "Update failed: {{message}}",
+      "archiveForbidden": "You don't have permission to archive this Wiki.",
+      "archiveFailed": "Archive failed. Please try again.",
+      "archiveFailedWithMessage": "Archive failed: {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "Settings",
+    "archive": "Archive",
+    "actionsLabel": "{{name}} actions"
+  },
+  "archive": {
+    "title": "Archive this Wiki?",
+    "description": "\u201C{{name}}\u201D will be hidden from the sidebar for everyone. You can ask an admin to restore it later.",
+    "cancel": "Cancel",
+    "confirm": "Archive",
+    "archiving": "Archiving…"
+  },
+  "iconPicker": {
+    "ariaLabel": "Choose page icon"
+  },
+  "coverPicker": {
+    "addCover": "Add cover",
+    "changeCover": "Change cover",
+    "addTriggerAria": "Add page cover",
+    "changeTriggerAria": "Change page cover",
+    "pathLabel": "Cover image path",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "Paste a folder9 path. Uploads arrive in a future release.",
+    "remove": "Remove",
+    "apply": "Apply"
+  },
+  "editor": {
+    "staleAlert": "You have unsaved local changes. Viewing your draft.",
+    "staleDismissAria": "Dismiss stale draft warning",
+    "notifySaved": "Saved",
+    "notifySubmitted": "Submitted for review",
+    "notifyUploadFailed": "Upload failed",
+    "errors": {
+      "saveConflict": "Save failed: the page has changed on the server. Reload and reapply your edits.",
+      "saveForbidden": "Save failed: you don't have permission to update this page.",
+      "saveFailed": "Save failed. Please try again."
+    }
+  },
+  "status": {
+    "synced": "Synced",
+    "unsaved": "Unsaved changes",
+    "lastSaved": "· last saved {{time}}",
+    "save": "Save",
+    "saving": "Saving…"
+  },
+  "page": {
+    "loading": "Loading…"
+  },
+  "proposalBanner": {
+    "message": "This page has a pending proposal awaiting review.",
+    "view": "View proposal"
+  },
+  "submitReview": {
+    "title": "Submit for review",
+    "description": "This Wiki requires review before changes are published. Your draft will be saved as a proposal that a reviewer can approve.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "Short summary of the change",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Add any context reviewers should know about this change",
+    "cancel": "Cancel",
+    "submit": "Submit for review",
+    "submitting": "Submitting…"
+  },
+  "review": {
+    "heading": "Review – {{name}}",
+    "description": "Pending proposals awaiting review.",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load proposals.",
+    "empty": "No pending proposals.",
+    "untitledProposal": "Untitled proposal",
+    "authorAgent": "Agent",
+    "authorUser": "User"
+  },
+  "proposalDiff": {
+    "back": "Back to review queue",
+    "proposalFallbackTitle": "Proposal {{id}}",
+    "authorAgent": "Agent",
+    "authorUser": "User",
+    "reject": "Reject",
+    "approve": "Approve",
+    "rejectReasonLabel": "Reason (optional)",
+    "rejectReasonPlaceholder": "Let the author know why this proposal is being rejected.",
+    "rejectCancel": "Cancel",
+    "rejectConfirm": "Confirm reject",
+    "diffLoading": "Loading diff…",
+    "diffLoadFailed": "Failed to load diff.",
+    "diffEmpty": "This proposal contains no file changes.",
+    "fileEmpty": "(no content)",
+    "errors": {
+      "approveConflict": "Conflict — merge aborted",
+      "approveForbidden": "You don't have permission to approve this proposal.",
+      "approveFailed": "Approve failed. Please try again.",
+      "rejectConflict": "Conflict — merge aborted",
+      "rejectForbidden": "You don't have permission to reject this proposal.",
+      "rejectFailed": "Reject failed. Please try again."
+    }
+  }
+}
