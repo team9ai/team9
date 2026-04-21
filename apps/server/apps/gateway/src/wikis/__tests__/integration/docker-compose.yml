@@ -1,0 +1,63 @@
+# folder9 + postgres test harness used by wiki-folder9.integration.spec.ts.
+#
+# By default this compose file builds the folder9 image from a locally checked
+# out folder9 repository. The context is driven by $FOLDER9_BUILD_CONTEXT so
+# the test works regardless of where that repo lives on disk. If you already
+# have a published image (team9ai/folder9:latest), you can set
+# $FOLDER9_IMAGE=team9ai/folder9:latest and the `build:` section will still
+# compose (docker will prefer the tag-pulled image) — see README.md.
+#
+# Port choices (58080 / 55432) are deliberately off the default 8080 / 5432 so
+# this harness can coexist with a developer's local folder9 / postgres.
+#
+# Env vars consumed by the services match folder9/docker-compose.yml so
+# updating that file and this one in lockstep keeps the harness in sync.
+
+services:
+  folder9-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: folder9
+      POSTGRES_PASSWORD: folder9
+      POSTGRES_DB: folder9
+    ports:
+      - "55432:5432"
+    volumes:
+      - folder9-test-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U folder9"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  folder9:
+    # Two options (choose one by setting env vars when running compose):
+    #  - Build from local checkout: FOLDER9_BUILD_CONTEXT=/path/to/folder9
+    #  - Use a published image:     FOLDER9_IMAGE=team9ai/folder9:latest
+    image: ${FOLDER9_IMAGE:-team9ai/folder9:integration}
+    build:
+      context: ${FOLDER9_BUILD_CONTEXT:-../../../../../../../../../../../../folder9}
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://folder9:folder9@folder9-postgres:5432/folder9?sslmode=disable"
+      DATA_ROOT: "/data"
+      PSK: "test-psk"
+      WEBHOOK_SECRET: "test-secret"
+      FOLDER9_API_URL: "http://folder9:8080"
+      FOLDER9_GIT_URL: "http://folder9:8080/git"
+    ports:
+      - "58080:8080"
+    volumes:
+      - folder9-test-data:/data
+    depends_on:
+      folder9-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  folder9-test-pgdata:
+  folder9-test-data:
