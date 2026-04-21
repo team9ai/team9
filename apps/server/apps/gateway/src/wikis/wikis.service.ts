@@ -137,6 +137,7 @@ function toDto(row: WikiRow): WikiDto {
     workspaceId: row.workspaceId,
     name: row.name,
     slug: row.slug,
+    icon: row.icon,
     approvalMode: row.approvalMode,
     humanPermission: row.humanPermission,
     agentPermission: row.agentPermission,
@@ -320,6 +321,7 @@ export class WikisService {
           folder9FolderId: folder.id,
           name: dto.name,
           slug,
+          icon: dto.icon ?? null,
           approvalMode,
           humanPermission,
           agentPermission,
@@ -390,6 +392,9 @@ export class WikisService {
     const patch: Partial<WikiRow> = { updatedAt: new Date() };
     if (dto.name !== undefined) patch.name = dto.name;
     if (dto.slug !== undefined) patch.slug = dto.slug;
+    // `icon` is Team9-internal display metadata only — we do NOT mirror it to
+    // folder9 (folder9 has no icon concept and this is purely UI chrome).
+    if (dto.icon !== undefined) patch.icon = dto.icon;
     if (dto.approvalMode !== undefined) patch.approvalMode = dto.approvalMode;
     if (dto.humanPermission !== undefined)
       patch.humanPermission = dto.humanPermission;

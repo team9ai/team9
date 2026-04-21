@@ -132,6 +132,7 @@ function makeWikiRow(overrides: Record<string, unknown> = {}) {
     folder9FolderId: 'f9-1',
     name: 'public',
     slug: 'public',
+    icon: null as string | null,
     approvalMode: 'auto' as const,
     humanPermission: 'write' as const,
     agentPermission: 'read' as const,
@@ -195,6 +196,7 @@ describe('WikisService', () => {
         { id: 'user-1', isAgent: false },
         { name: 'public' },
       );
+      expect(result.icon).toBeNull();
 
       expect(f9.createFolder).toHaveBeenCalledWith(
         'ws-1',
@@ -224,6 +226,7 @@ describe('WikisService', () => {
         workspaceId: 'ws-1',
         name: 'public',
         slug: 'public',
+        icon: null,
         approvalMode: 'auto',
         humanPermission: 'write',
         agentPermission: 'read',
@@ -502,6 +505,39 @@ describe('WikisService', () => {
         expect.stringContaining('plain string failure'),
       );
       warnSpy.mockRestore();
+    });
+
+    it('persists dto.icon when provided', async () => {
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ icon: '📚' })]);
+
+      const result = await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'public', icon: '📚' },
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: '📚' }),
+      );
+      expect(result.icon).toBe('📚');
+    });
+
+    it('persists icon=null when dto.icon is omitted', async () => {
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([makeWikiRow()]);
+
+      await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'public' },
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: null }),
+      );
     });
   });
 
@@ -850,6 +886,64 @@ describe('WikisService', () => {
         expect.stringContaining('wiki_updated broadcast failed'),
       );
       warnSpy.mockRestore();
+    });
+
+    it('includes icon in the patch when provided and does NOT mirror it to folder9', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ icon: '📘' })]);
+
+      const result = await svc.updateWikiSettings(
+        'ws-1',
+        'wiki-1',
+        { id: 'user-1', isAgent: false },
+        { icon: '📘' },
+      );
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: '📘' }),
+      );
+      // icon is Team9-internal UI chrome; folder9 must NOT be touched for
+      // icon-only updates (it has no icon concept).
+      expect(f9.updateFolder).not.toHaveBeenCalled();
+      expect(result.icon).toBe('📘');
+    });
+
+    it('supports clearing the icon by passing empty string', async () => {
+      const row = makeWikiRow({ icon: '📚' });
+      db.limit.mockResolvedValueOnce([row]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ icon: '' })]);
+
+      await svc.updateWikiSettings(
+        'ws-1',
+        'wiki-1',
+        { id: 'user-1', isAgent: false },
+        { icon: '' },
+      );
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ icon: '' }),
+      );
+      expect(f9.updateFolder).not.toHaveBeenCalled();
+    });
+
+    it('does NOT include icon in the patch when dto.icon is omitted', async () => {
+      const row = makeWikiRow({ icon: '📘' });
+      db.limit.mockResolvedValueOnce([row]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      f9.updateFolder.mockResolvedValue(undefined as never);
+
+      await svc.updateWikiSettings(
+        'ws-1',
+        'wiki-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'Renamed' },
+      );
+
+      const setCall = (
+        db.set.mock.calls[db.set.mock.calls.length - 1] as unknown[]
+      )[0] as Record<string, unknown>;
+      expect(setCall).not.toHaveProperty('icon');
     });
   });
 

@@ -167,6 +167,7 @@ const wiki: WikiDto = {
   workspaceId: "ws-1",
   name: "Public Wiki",
   slug: "public",
+  icon: null,
   approvalMode: "auto",
   humanPermission: "write",
   agentPermission: "read",
@@ -218,6 +219,22 @@ describe("WikiListItem", () => {
       screen.getByTestId("wiki-list-item-toggle-wiki-1"),
     ).toHaveTextContent(/Public Wiki/);
     expect(screen.queryByRole("button", { name: /api/ })).toBeNull();
+  });
+
+  it("renders wiki.icon in place of the default LibraryIcon when present", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    const withIcon = { ...wiki, icon: "📚" };
+    render(<WikiListItem wiki={withIcon} />);
+
+    const iconBadge = screen.getByTestId("wiki-list-item-icon-wiki-1");
+    expect(iconBadge).toHaveTextContent("📚");
+  });
+
+  it("falls back to the default LibraryIcon when wiki.icon is null", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    render(<WikiListItem wiki={wiki} />);
+
+    expect(screen.queryByTestId("wiki-list-item-icon-wiki-1")).toBeNull();
   });
 
   it("toggles via the wiki:<id> key in the shared store", () => {

@@ -135,6 +135,7 @@ const baseWiki: WikiDto = {
   workspaceId: "ws-1",
   name: "Team Handbook",
   slug: "team-handbook",
+  icon: null,
   approvalMode: "auto",
   humanPermission: "write",
   agentPermission: "read",
@@ -575,15 +576,44 @@ describe("WikiSettingsDialog", () => {
     ).toBe("Other");
   });
 
-  it("accepts an icon selection from the picker (value not yet sent server-side)", async () => {
+  it("sends icon in the PATCH when the user picks one", async () => {
     updateMutateAsync.mockResolvedValueOnce({});
     renderDialog();
     fireEvent.click(screen.getByTestId("mock-icon-picker"));
-    // Submit with no other edits — icon is UI-only today, so no mutation.
     await act(async () => {
       fireEvent.click(screen.getByTestId("wiki-settings-save"));
     });
-    expect(updateMutateAsync).not.toHaveBeenCalled();
+    expect(updateMutateAsync).toHaveBeenCalledTimes(1);
+    expect(updateMutateAsync).toHaveBeenCalledWith({ icon: "🗂️" });
+  });
+
+  it("does NOT include icon in the PATCH when the selection matches the wiki's persisted icon", async () => {
+    updateMutateAsync.mockResolvedValueOnce({});
+    // Seed with an existing icon so the dialog opens pre-populated.
+    const withIcon: WikiDto = { ...baseWiki, icon: "🗂️" };
+    renderDialog({ wiki: withIcon });
+    // Change another field only. Icon should stay in the diff as unchanged.
+    fireEvent.change(screen.getByTestId("wiki-settings-name-input"), {
+      target: { value: "Renamed" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-settings-save"));
+    });
+    expect(updateMutateAsync).toHaveBeenCalledWith({ name: "Renamed" });
+  });
+
+  it("treats null and undefined icon seed as equivalent (no PATCH when untouched)", async () => {
+    updateMutateAsync.mockResolvedValueOnce({});
+    // baseWiki.icon is null; user edits only name, not icon.
+    renderDialog();
+    fireEvent.change(screen.getByTestId("wiki-settings-name-input"), {
+      target: { value: "Renamed" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-settings-save"));
+    });
+    // PATCH should carry only `name`, not `icon`.
+    expect(updateMutateAsync).toHaveBeenCalledWith({ name: "Renamed" });
   });
 
   it("can switch approval mode back to auto after moving to review", async () => {

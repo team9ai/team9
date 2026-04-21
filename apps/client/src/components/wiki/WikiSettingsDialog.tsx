@@ -97,9 +97,10 @@ function archiveErrorMessage(error: unknown): string {
  * closes and we push the user back to `/wiki` (no wiki selected), since
  * the current slug is about to vanish from the sidebar list.
  *
- * `icon` is tracked in local state but is not yet part of the gateway's
- * UpdateWikiDto — we still collect it for UI consistency with the Create
- * flow and will start sending it the moment the server learns the field.
+ * `icon` is seeded from the wiki's persisted value and flows through the
+ * PATCH payload when the user changes it. The dialog normalises to an
+ * empty string both locally and on the wire so "clearing" is expressible
+ * (the gateway's `@Length(0, 8)` accepts empty string).
  */
 export function WikiSettingsDialog({
   open,
@@ -129,7 +130,9 @@ export function WikiSettingsDialog({
     if (open && wiki) {
       setName(wiki.name);
       setSlug(wiki.slug);
-      setIcon(undefined);
+      // Seed icon from the persisted wiki value. `null` on the server maps
+      // to `undefined` locally so the picker's "no selection" state kicks in.
+      setIcon(wiki.icon ?? undefined);
       setApprovalMode(wiki.approvalMode);
       setHumanPermission(wiki.humanPermission);
       setAgentPermission(wiki.agentPermission);
@@ -180,6 +183,13 @@ export function WikiSettingsDialog({
     const patch: Parameters<typeof updateWiki.mutateAsync>[0] = {};
     if (trimmedName !== wiki.name) patch.name = trimmedName;
     if (trimmedSlug !== wiki.slug) patch.slug = trimmedSlug;
+    // Normalise both sides to a plain string so `null` (server) and
+    // `undefined` (picker cleared) compare equal — the server stores them
+    // identically, so leaving this field out of the diff when the user
+    // hasn't touched it keeps the PATCH body minimal.
+    const currentIcon = wiki.icon ?? "";
+    const nextIcon = icon ?? "";
+    if (nextIcon !== currentIcon) patch.icon = nextIcon;
     if (approvalMode !== wiki.approvalMode) patch.approvalMode = approvalMode;
     if (humanPermission !== wiki.humanPermission) {
       patch.humanPermission = humanPermission;

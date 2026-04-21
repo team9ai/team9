@@ -23,6 +23,7 @@ export interface WikiDto {
   workspaceId: string;
   name: string;
   slug: string;
+  icon: string | null;
   approvalMode: WikiApprovalMode;
   humanPermission: WikiPermissionLevel;
   agentPermission: WikiPermissionLevel;

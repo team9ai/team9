@@ -28,6 +28,7 @@ export const workspaceWikis = pgTable(
     folder9FolderId: uuid('folder9_folder_id').notNull(),
     name: varchar('name', { length: 200 }).notNull(),
     slug: varchar('slug', { length: 100 }).notNull(),
+    icon: text('icon'),
     approvalMode: wikiApprovalModeEnum('approval_mode')
       .default('auto')
       .notNull(),

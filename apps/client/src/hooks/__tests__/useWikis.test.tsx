@@ -35,6 +35,7 @@ const wiki: WikiDto = {
   workspaceId: "ws-1",
   name: "Handbook",
   slug: "handbook",
+  icon: null,
   approvalMode: "auto",
   humanPermission: "write",
   agentPermission: "read",

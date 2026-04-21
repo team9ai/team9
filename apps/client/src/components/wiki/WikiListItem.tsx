@@ -120,7 +120,17 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           data-testid={`wiki-list-item-toggle-${wiki.id}`}
         >
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <LibraryIcon size={14} className="text-primary" />
+          {wiki.icon ? (
+            <span
+              aria-hidden="true"
+              className="inline-flex h-[14px] w-[14px] items-center justify-center text-[12px] leading-none"
+              data-testid={`wiki-list-item-icon-${wiki.id}`}
+            >
+              {wiki.icon}
+            </span>
+          ) : (
+            <LibraryIcon size={14} className="text-primary" />
+          )}
           <span className="truncate">{wiki.name}</span>
         </button>
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>

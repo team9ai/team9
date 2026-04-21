@@ -13,6 +13,11 @@ export class UpdateWikiDto {
   slug?: string;
 
   @IsOptional()
+  @IsString()
+  @Length(0, 8)
+  icon?: string;
+
+  @IsOptional()
   @IsIn(['auto', 'review'])
   approvalMode?: 'auto' | 'review';
 

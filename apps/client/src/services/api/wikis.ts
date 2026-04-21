@@ -32,6 +32,7 @@ export interface CreateWikiInput {
 export interface UpdateWikiInput {
   name?: string;
   slug?: string;
+  icon?: string;
   approvalMode?: WikiApprovalMode;
   humanPermission?: WikiPermissionLevel;
   agentPermission?: WikiPermissionLevel;
