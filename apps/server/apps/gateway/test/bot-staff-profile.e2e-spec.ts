@@ -71,10 +71,8 @@ describe('BotStaffProfile HTTP (e2e)', () => {
 
     app = moduleRef.createNestApplication();
 
-    // Match main.ts exactly: whitelist: true only (no forbidNonWhitelisted in main.ts)
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true }),
-    );
+    // Match main.ts exactly: whitelist: true only (no forbidNonWhitelisted, no transform in main.ts)
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
     // Match main.ts: global prefix 'api'
     app.setGlobalPrefix('api');
@@ -169,6 +167,9 @@ describe('BotStaffProfile HTTP (e2e)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(FIXTURE_SNAPSHOT);
+    // Controller explicitly rebuilds { identityPatch, role, persona } regardless of DTO
+    // transform output, so absent fields are forwarded as `undefined`. Asserting on all
+    // three keys verifies the controller whitelists exactly these fields to the service.
     expect(service.updateSnapshot).toHaveBeenCalledWith('bot-1', {
       identityPatch: undefined,
       role: undefined,
