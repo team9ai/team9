@@ -85,7 +85,7 @@
     {
       "id": 12,
       "subject": "Task 13: Types + API client + React Query hooks + Zustand store",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11],
       "description": "**Goal:** Frontend DTOs, typed apiClient.wikis.*, React Query hooks, Zustand wiki store.\n\n**Files:**\n- Create: apps/client/src/types/wiki.ts\n- Create: apps/client/src/services/api/wikis.ts (+ index re-export)\n- Create: apps/client/src/hooks/useWikis.ts, useWikiTree.ts, useWikiPage.ts, useWikiProposals.ts\n- Create: apps/client/src/stores/wiki.ts\n- Create tests alongside\n\n**Verify:** pnpm --filter @team9/client test -- wiki\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/wiki.ts\",\"apps/client/src/services/api/wikis.ts\",\"apps/client/src/hooks/useWikis.ts\",\"apps/client/src/hooks/useWikiTree.ts\",\"apps/client/src/hooks/useWikiPage.ts\",\"apps/client/src/hooks/useWikiProposals.ts\",\"apps/client/src/stores/wiki.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Types match backend DTOs\",\"All CRUD + tree + page + commit + proposal methods\",\"Query keys structured\",\"Mutations invalidate correct keys\",\"Store selectors follow home.ts pattern\",\"Tests for every file\"]}\n```"
     },
