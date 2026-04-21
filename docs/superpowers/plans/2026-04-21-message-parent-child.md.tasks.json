@@ -52,7 +52,7 @@
     {
       "id": 8,
       "subject": "Task 8: REST endpoints for relation inspection + hierarchy tree",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6, 7],
       "description": "**Goal:** GET /messages/:id/relations and GET /views/:id/tree endpoints wired to service methods.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-properties.controller.ts\",\"apps/server/apps/gateway/src/im/views/views.controller.ts\",\"apps/server/apps/gateway/src/im/views/views.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-properties.controller.spec.ts\",\"apps/server/apps/gateway/src/im/views/views.controller.spec.ts\",\"apps/server/apps/gateway/src/im/views/views.service.spec.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern='(message-properties.controller|views).spec'\",\"acceptanceCriteria\":[\"GET /relations returns full outgoing+incoming structure\",\"GET /views/:id/tree honors filter/sort/maxDepth/cursor\",\"maxDepth>5 rejected\",\"unauthorized access -> 404\"]}\n```"
     },
