@@ -149,6 +149,10 @@ export class PropertyDefinitionsService {
       resolvedConfig = cfg;
 
       if (cfg.relationKind === 'parent') {
+        // NOTE: race window between SELECT and INSERT — two concurrent creates with
+        // relationKind='parent' can both pass this check. A partial unique index on
+        // channel_property_definitions(channel_id) WHERE config->>'relationKind'='parent'
+        // is the proper backstop; see follow-up ticket to add it.
         const [existingParent] = await this.db
           .select({ id: schema.channelPropertyDefinitions.id })
           .from(schema.channelPropertyDefinitions)
@@ -215,13 +219,18 @@ export class PropertyDefinitionsService {
           .from(schema.messageRelations)
           .where(eq(schema.messageRelations.propertyDefinitionId, id));
         if ((edgeCount?.n ?? 0) > 0) {
-          throw new BadRequestException(
+          throw new RelationError(
+            'DEFINITION_IMMUTABLE',
             'Cannot change relationKind/scope on a definition with existing edges',
           );
         }
       }
 
-      // Enforce one-parent-per-channel when promoting to parent
+      // Enforce one-parent-per-channel when promoting to parent.
+      // NOTE: race window between SELECT and INSERT — two concurrent updates with
+      // relationKind='parent' can both pass this check. A partial unique index on
+      // channel_property_definitions(channel_id) WHERE config->>'relationKind'='parent'
+      // is the proper backstop; see follow-up ticket to add it.
       if (relChanged && nextCfg.relationKind === 'parent') {
         const [existingParent] = await this.db
           .select({ id: schema.channelPropertyDefinitions.id })
@@ -245,7 +254,29 @@ export class PropertyDefinitionsService {
     // Build the update set, omitting undefined fields
     const updateSet: Record<string, unknown> = { updatedAt: new Date() };
     if (dto.description !== undefined) updateSet.description = dto.description;
-    if (dto.config !== undefined) updateSet.config = dto.config;
+    if (dto.config !== undefined) {
+      // For message_ref definitions, merge partial config with current to
+      // ensure scope and cardinality are always present (Spec §2.4).
+      // Explicit relationKind in the incoming dto is preserved; if absent the
+      // current value is kept. Clearing relationKind is not supported (would
+      // break existing edges).
+      if (current.valueType === 'message_ref') {
+        const currentCfg = (current.config ?? {}) as Partial<MessageRefConfig>;
+        const nextCfg = dto.config as Partial<MessageRefConfig>;
+        const merged: MessageRefConfig = {
+          scope: nextCfg.scope ?? currentCfg.scope ?? 'any',
+          cardinality: nextCfg.cardinality ?? currentCfg.cardinality ?? 'multi',
+          ...(nextCfg.relationKind !== undefined
+            ? { relationKind: nextCfg.relationKind }
+            : currentCfg.relationKind !== undefined
+              ? { relationKind: currentCfg.relationKind }
+              : {}),
+        };
+        updateSet.config = merged;
+      } else {
+        updateSet.config = dto.config;
+      }
+    }
     if (dto.aiAutoFill !== undefined) updateSet.aiAutoFill = dto.aiAutoFill;
     if (dto.aiAutoFillPrompt !== undefined)
       updateSet.aiAutoFillPrompt = dto.aiAutoFillPrompt;

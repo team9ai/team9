@@ -539,7 +539,7 @@ describe('PropertyDefinitionsService', () => {
       );
     });
 
-    it('rejects changing relationKind on a definition with existing edges', async () => {
+    it('rejects changing relationKind on a definition with existing edges (RelationError DEFINITION_IMMUTABLE)', async () => {
       // findByIdOrThrow -> findById: returns a message_ref def with 'related' kind
       db.__state.selectResults.push([
         defRow({
@@ -554,15 +554,28 @@ describe('PropertyDefinitionsService', () => {
       // edge count query: 5 edges
       db.__state.selectResults.push([{ n: 5 }]);
 
-      await expect(
-        service.update('def-1', {
+      let caughtErr: unknown;
+      try {
+        await service.update('def-1', {
           config: {
             scope: 'any',
             cardinality: 'multi',
             relationKind: 'parent',
           },
-        } as any),
-      ).rejects.toThrow(BadRequestException);
+        } as any);
+      } catch (err) {
+        caughtErr = err;
+      }
+
+      expect(caughtErr).toBeInstanceOf(RelationError);
+      expect((caughtErr as InstanceType<typeof RelationError>).errorCode).toBe(
+        'DEFINITION_IMMUTABLE',
+      );
+      // HTTP response body contains coded error
+      const body = (
+        caughtErr as InstanceType<typeof RelationError>
+      ).getResponse() as Record<string, unknown>;
+      expect(body.code).toBe('RELATION_DEFINITION_IMMUTABLE');
 
       expect(db.__queries.update).toHaveLength(0);
     });
@@ -635,6 +648,49 @@ describe('PropertyDefinitionsService', () => {
       ).rejects.toThrow(RelationError);
 
       expect(db.__queries.update).toHaveLength(0);
+    });
+
+    it('update() preserves current cardinality and relationKind when only scope is changed', async () => {
+      // arrange: current def has { scope: 'any', cardinality: 'multi', relationKind: 'related' }
+      db.__state.selectResults.push([
+        defRow({
+          valueType: 'message_ref',
+          config: {
+            scope: 'any',
+            cardinality: 'multi',
+            relationKind: 'related',
+          },
+        }),
+      ]);
+      // scope changed — triggers edge count check
+      db.__state.selectResults.push([{ n: 0 }]);
+      // no parent promotion, no conflict check needed for 'related' kind
+      // update returning: stored config should be merged
+      db.__state.updateResults.push([
+        defRow({
+          valueType: 'message_ref',
+          config: {
+            scope: 'same_channel',
+            cardinality: 'multi',
+            relationKind: 'related',
+          },
+        }),
+      ]);
+
+      await service.update('def-1', {
+        config: { scope: 'same_channel' },
+      } as any);
+
+      // The update set must contain the fully merged config
+      expect(db.__queries.update[0].set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: {
+            scope: 'same_channel',
+            cardinality: 'multi',
+            relationKind: 'related',
+          },
+        }),
+      );
     });
 
     it('allows non-relationKind updates on message_ref definition without checking edges', async () => {
