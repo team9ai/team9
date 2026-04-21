@@ -6,6 +6,8 @@ import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { PlatformLlmService } from './platform-llm.service.js';
 import { BotController } from './bot.controller.js';
+import { BotStaffProfileController } from './staff-profile/bot-staff-profile.controller.js';
+import { BotStaffProfileService } from './staff-profile/bot-staff-profile.service.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
 
@@ -28,16 +30,22 @@ import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
  * avoids a construction-time DI cycle (BotService.ctor depends on
  * ChannelsService, so ChannelsService cannot take BotService as a
  * constructor arg).
+ *
+ * BotStaffProfileController does not need ChannelsService or
+ * WebsocketGateway (it only talks to BotStaffProfileService, which
+ * owns the DB adapter directly), so it stays in this @Global module
+ * without reintroducing the circular import.
  */
 @Global()
 @Module({
   imports: [forwardRef(() => ChannelsModule), ClawHiveModule],
-  controllers: [BotController],
+  controllers: [BotController, BotStaffProfileController],
   providers: [
     BotService,
     BotTokenValidatorService,
     BotAuthCacheService,
     PlatformLlmService,
+    BotStaffProfileService,
     {
       provide: BOT_TOKEN_VALIDATOR,
       useExisting: BotTokenValidatorService,

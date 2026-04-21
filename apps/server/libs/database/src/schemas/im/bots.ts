@@ -35,6 +35,14 @@ export interface BotExtra {
     persona?: string;
     jobDescription?: string;
     model?: { provider: string; id: string };
+    /**
+     * Free-form identity facts surfaced to the agent via
+     * `StaffProfileSnapshot.identity`. Shallow-merged by the
+     * `bot-staff-profile` PATCH endpoint's `identityPatch` field.
+     * `name` (if present) is mirrored to `im_users.display_name` in
+     * the same transaction to keep display parity.
+     */
+    identity?: Record<string, unknown>;
   };
   personalStaff?: {
     persona?: string;
@@ -51,6 +59,8 @@ export interface BotExtra {
      * duplicate the greeting. Absent means bootstrap has not yet run.
      */
     bootstrappedAt?: string;
+    /** See commonStaff.identity. Role/jobDescription are system-fixed for personal staff. */
+    identity?: Record<string, unknown>;
   };
 }
 
