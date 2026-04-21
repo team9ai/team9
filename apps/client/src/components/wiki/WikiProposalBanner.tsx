@@ -1,4 +1,5 @@
 import { ExternalLink, MessageSquareWarning } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export interface WikiProposalBannerProps {
   proposalId: string;
@@ -15,6 +16,7 @@ export function WikiProposalBanner({
   proposalId,
   onView,
 }: WikiProposalBannerProps) {
+  const { t } = useTranslation("wiki");
   return (
     <div
       role="status"
@@ -26,16 +28,14 @@ export function WikiProposalBanner({
         className="shrink-0 text-amber-600"
         aria-hidden
       />
-      <div className="flex-1">
-        This page has a pending proposal awaiting review.
-      </div>
+      <div className="flex-1">{t("proposalBanner.message")}</div>
       <button
         type="button"
         onClick={() => onView(proposalId)}
         data-testid="wiki-proposal-banner-view"
         className="inline-flex items-center gap-1 px-2 py-1 rounded border border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20"
       >
-        View proposal
+        {t("proposalBanner.view")}
         <ExternalLink size={12} aria-hidden />
       </button>
     </div>

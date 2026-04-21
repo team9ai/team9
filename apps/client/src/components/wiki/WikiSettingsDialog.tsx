@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ import {
 import { IconPickerPopover } from "./IconPickerPopover";
 import { useArchiveWiki, useUpdateWiki } from "@/hooks/useWikis";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import i18n from "@/i18n";
 import type {
   WikiApprovalMode,
   WikiDto,
@@ -53,38 +55,55 @@ const SLUG_MAX_LENGTH = 100;
 
 const PERMISSION_LEVELS: WikiPermissionLevel[] = ["read", "propose", "write"];
 
-function permissionLabel(level: WikiPermissionLevel): string {
+function permissionLabel(
+  level: WikiPermissionLevel,
+  t: (key: string) => string,
+): string {
   switch (level) {
     case "read":
-      return "Read";
+      return t("settings.permissionRead");
     case "propose":
-      return "Propose";
+      return t("settings.permissionPropose");
     case "write":
-      return "Write";
+      return t("settings.permissionWrite");
   }
 }
 
+/**
+ * Error helpers use the shared `i18n.t` accessor (rather than the hook's
+ * bound `t`) so they can stay plain functions outside the component
+ * closure — the wiki namespace is eagerly registered in `@/i18n`, so `t`
+ * is safe to call at module scope.
+ */
 function updateErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 409) {
-    return "A Wiki with that slug already exists. Pick another.";
+    return i18n.t("wiki:settings.errors.slugTaken");
   }
   if (status === 403) {
-    return "You don't have permission to update this Wiki.";
+    return i18n.t("wiki:settings.errors.updateForbidden");
   }
   const serverMsg = getHttpErrorMessage(error);
-  if (serverMsg) return `Update failed: ${serverMsg}`;
-  return "Update failed. Please try again.";
+  if (serverMsg) {
+    return i18n.t("wiki:settings.errors.updateFailedWithMessage", {
+      message: serverMsg,
+    });
+  }
+  return i18n.t("wiki:settings.errors.updateFailed");
 }
 
 function archiveErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 403) {
-    return "You don't have permission to archive this Wiki.";
+    return i18n.t("wiki:settings.errors.archiveForbidden");
   }
   const serverMsg = getHttpErrorMessage(error);
-  if (serverMsg) return `Archive failed: ${serverMsg}`;
-  return "Archive failed. Please try again.";
+  if (serverMsg) {
+    return i18n.t("wiki:settings.errors.archiveFailedWithMessage", {
+      message: serverMsg,
+    });
+  }
+  return i18n.t("wiki:settings.errors.archiveFailed");
 }
 
 /**
@@ -107,6 +126,7 @@ export function WikiSettingsDialog({
   onOpenChange,
   wiki,
 }: WikiSettingsDialogProps) {
+  const { t } = useTranslation("wiki");
   const navigate = useNavigate();
   const updateWiki = useUpdateWiki(wiki?.id ?? "");
   const archiveWiki = useArchiveWiki();
@@ -152,24 +172,22 @@ export function WikiSettingsDialog({
 
     const trimmedName = name.trim();
     if (trimmedName.length === 0) {
-      setValidationError("Name is required.");
+      setValidationError(t("settings.errors.nameRequired"));
       return;
     }
     const trimmedSlug = slug.trim();
     if (trimmedSlug.length === 0) {
-      setValidationError("Slug is required.");
+      setValidationError(t("settings.errors.slugRequired"));
       return;
     }
     if (trimmedSlug.length > SLUG_MAX_LENGTH) {
       setValidationError(
-        `Slug must be ${SLUG_MAX_LENGTH} characters or fewer.`,
+        t("settings.errors.slugTooLong", { max: SLUG_MAX_LENGTH }),
       );
       return;
     }
     if (!SLUG_PATTERN.test(trimmedSlug)) {
-      setValidationError(
-        "Slug must start with a lowercase letter or number and contain only lowercase letters, numbers, and dashes.",
-      );
+      setValidationError(t("settings.errors.slugPattern"));
       return;
     }
 
@@ -246,19 +264,20 @@ export function WikiSettingsDialog({
           data-testid="wiki-settings-dialog"
         >
           <DialogHeader>
-            <DialogTitle>Wiki settings</DialogTitle>
-            <DialogDescription>
-              Configure how this Wiki is named, who can edit it, and how
-              proposed changes are reviewed.
-            </DialogDescription>
+            <DialogTitle>{t("settings.title")}</DialogTitle>
+            <DialogDescription>{t("settings.description")}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleFormSubmit} className="space-y-5">
             {/* General ------------------------------------------------- */}
             <section className="space-y-3">
-              <h3 className="text-sm font-semibold">General</h3>
+              <h3 className="text-sm font-semibold">
+                {t("settings.generalHeading")}
+              </h3>
               <div className="flex items-end gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="wiki-settings-icon">Icon</Label>
+                  <Label htmlFor="wiki-settings-icon">
+                    {t("settings.iconLabel")}
+                  </Label>
                   <div id="wiki-settings-icon">
                     <IconPickerPopover
                       value={icon}
@@ -269,7 +288,10 @@ export function WikiSettingsDialog({
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <Label htmlFor="wiki-settings-name">
-                    Name <span className="text-destructive">*</span>
+                    {t("settings.nameLabel")}{" "}
+                    <span className="text-destructive">
+                      {t("common.required")}
+                    </span>
                   </Label>
                   <Input
                     id="wiki-settings-name"
@@ -282,7 +304,10 @@ export function WikiSettingsDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="wiki-settings-slug">
-                  Slug <span className="text-destructive">*</span>
+                  {t("settings.slugLabel")}{" "}
+                  <span className="text-destructive">
+                    {t("common.required")}
+                  </span>
                 </Label>
                 <Input
                   id="wiki-settings-slug"
@@ -292,21 +317,24 @@ export function WikiSettingsDialog({
                   disabled={disabled}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Lowercase letters, numbers, and dashes. Must start with a
-                  letter or number.
+                  {t("settings.slugHelp")}
                 </p>
               </div>
             </section>
 
             {/* Approval mode ------------------------------------------ */}
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Approval mode</h3>
+              <h3 className="text-sm font-semibold">
+                {t("settings.approvalHeading")}
+              </h3>
               <fieldset
                 className="space-y-2"
                 data-testid="wiki-settings-approval-mode"
                 disabled={disabled}
               >
-                <legend className="sr-only">Approval mode</legend>
+                <legend className="sr-only">
+                  {t("settings.approvalLegend")}
+                </legend>
                 <label className="flex items-start gap-2 text-sm">
                   <input
                     type="radio"
@@ -318,9 +346,11 @@ export function WikiSettingsDialog({
                     className="mt-1"
                   />
                   <span>
-                    <span className="font-medium">Auto merge</span>
+                    <span className="font-medium">
+                      {t("settings.approvalAutoLabel")}
+                    </span>
                     <span className="block text-xs text-muted-foreground">
-                      Writes publish immediately without review.
+                      {t("settings.approvalAutoDescription")}
                     </span>
                   </span>
                 </label>
@@ -335,9 +365,11 @@ export function WikiSettingsDialog({
                     className="mt-1"
                   />
                   <span>
-                    <span className="font-medium">Review required</span>
+                    <span className="font-medium">
+                      {t("settings.approvalReviewLabel")}
+                    </span>
                     <span className="block text-xs text-muted-foreground">
-                      Writes land as proposals a reviewer must approve.
+                      {t("settings.approvalReviewDescription")}
                     </span>
                   </span>
                 </label>
@@ -346,10 +378,14 @@ export function WikiSettingsDialog({
 
             {/* Permissions -------------------------------------------- */}
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Permissions</h3>
+              <h3 className="text-sm font-semibold">
+                {t("settings.permissionsHeading")}
+              </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="wiki-settings-human">Human</Label>
+                  <Label htmlFor="wiki-settings-human">
+                    {t("settings.humanLabel")}
+                  </Label>
                   <Select
                     value={humanPermission}
                     onValueChange={(v) =>
@@ -370,14 +406,16 @@ export function WikiSettingsDialog({
                           value={level}
                           data-testid={`wiki-settings-human-${level}`}
                         >
-                          {permissionLabel(level)}
+                          {permissionLabel(level, t)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="wiki-settings-agent">Agent</Label>
+                  <Label htmlFor="wiki-settings-agent">
+                    {t("settings.agentLabel")}
+                  </Label>
                   <Select
                     value={agentPermission}
                     onValueChange={(v) =>
@@ -398,7 +436,7 @@ export function WikiSettingsDialog({
                           value={level}
                           data-testid={`wiki-settings-agent-${level}`}
                         >
-                          {permissionLabel(level)}
+                          {permissionLabel(level, t)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -427,11 +465,10 @@ export function WikiSettingsDialog({
             {/* Danger zone -------------------------------------------- */}
             <section className="space-y-2 rounded-md border border-destructive/30 p-3">
               <h3 className="text-sm font-semibold text-destructive">
-                Danger zone
+                {t("settings.dangerZoneHeading")}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Archive hides this Wiki from the sidebar for everyone. The
-                content stays on the server and an admin can restore it.
+                {t("settings.dangerZoneDescription")}
               </p>
               <Button
                 type="button"
@@ -440,7 +477,7 @@ export function WikiSettingsDialog({
                 disabled={disabled}
                 data-testid="wiki-settings-archive-button"
               >
-                Archive Wiki
+                {t("settings.archiveButton")}
               </Button>
             </section>
 
@@ -452,14 +489,14 @@ export function WikiSettingsDialog({
                 disabled={disabled}
                 data-testid="wiki-settings-cancel"
               >
-                Cancel
+                {t("settings.cancel")}
               </Button>
               <Button
                 type="submit"
                 disabled={disabled}
                 data-testid="wiki-settings-save"
               >
-                {isSaving ? "Saving…" : "Save changes"}
+                {isSaving ? t("settings.saving") : t("settings.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -472,10 +509,9 @@ export function WikiSettingsDialog({
       >
         <AlertDialogContent data-testid="wiki-settings-archive-confirm">
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive this Wiki?</AlertDialogTitle>
+            <AlertDialogTitle>{t("archive.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              “{wiki.name}” will be hidden from the sidebar for everyone. You
-              can ask an admin to restore it later.
+              {t("archive.description", { name: wiki.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -483,7 +519,7 @@ export function WikiSettingsDialog({
               disabled={isArchiving}
               data-testid="wiki-settings-archive-cancel"
             >
-              Cancel
+              {t("archive.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
@@ -497,7 +533,7 @@ export function WikiSettingsDialog({
               data-testid="wiki-settings-archive-confirm-button"
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isArchiving ? "Archiving…" : "Archive"}
+              {isArchiving ? t("archive.archiving") : t("archive.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

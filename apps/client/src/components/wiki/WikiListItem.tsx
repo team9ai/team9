@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Archive,
   ChevronDown,
@@ -36,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useArchiveWiki } from "@/hooks/useWikis";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import i18n from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { WikiDto } from "@/types/wiki";
 
@@ -43,14 +45,25 @@ interface WikiListItemProps {
   wiki: WikiDto;
 }
 
+/**
+ * Uses the shared `i18n.t` accessor (rather than the hook's bound `t`) so
+ * the helper can stay a plain function outside the component closure — the
+ * wiki namespace is eagerly registered in `@/i18n`, so `t` is safe to call
+ * at module scope. Keys are intentionally shared with `WikiSettingsDialog`
+ * since the copy itself is identical between both archive entry points.
+ */
 function archiveErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 403) {
-    return "You don't have permission to archive this Wiki.";
+    return i18n.t("wiki:settings.errors.archiveForbidden");
   }
   const serverMsg = getHttpErrorMessage(error);
-  if (serverMsg) return `Archive failed: ${serverMsg}`;
-  return "Archive failed. Please try again.";
+  if (serverMsg) {
+    return i18n.t("wiki:settings.errors.archiveFailedWithMessage", {
+      message: serverMsg,
+    });
+  }
+  return i18n.t("wiki:settings.errors.archiveFailed");
 }
 
 /**
@@ -69,6 +82,7 @@ function archiveErrorMessage(error: unknown): string {
  * auto-expand this row without duplicating bookkeeping.
  */
 export function WikiListItem({ wiki }: WikiListItemProps) {
+  const { t } = useTranslation("wiki");
   const expanded = useExpandedDirectories();
   const expandKey = `wiki:${wiki.id}`;
   const isOpen = expanded.has(expandKey);
@@ -137,7 +151,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={`${wiki.name} actions`}
+              aria-label={t("listItem.actionsLabel", { name: wiki.name })}
               data-testid={`wiki-list-item-kebab-${wiki.id}`}
               className={cn(
                 "mr-2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -157,7 +171,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               onSelect={() => setShowSettings(true)}
             >
               <Settings size={14} className="mr-2" />
-              Settings
+              {t("listItem.settings")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -166,7 +180,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               onSelect={() => setShowArchiveConfirm(true)}
             >
               <Archive size={14} className="mr-2" />
-              Archive
+              {t("listItem.archive")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -193,10 +207,9 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           data-testid={`wiki-list-item-archive-confirm-${wiki.id}`}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive this Wiki?</AlertDialogTitle>
+            <AlertDialogTitle>{t("archive.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              “{wiki.name}” will be hidden from the sidebar for everyone. You
-              can ask an admin to restore it later.
+              {t("archive.description", { name: wiki.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -204,7 +217,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               disabled={isArchiving}
               data-testid={`wiki-list-item-archive-cancel-${wiki.id}`}
             >
-              Cancel
+              {t("archive.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
@@ -217,7 +230,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               data-testid={`wiki-list-item-archive-confirm-button-${wiki.id}`}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isArchiving ? "Archiving…" : "Archive"}
+              {isArchiving ? t("archive.archiving") : t("archive.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

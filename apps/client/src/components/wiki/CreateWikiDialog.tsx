@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { IconPickerPopover } from "./IconPickerPopover";
 import { useCreateWiki } from "@/hooks/useWikis";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import i18n from "@/i18n";
 
 export interface CreateWikiDialogProps {
   open: boolean;
@@ -52,15 +54,24 @@ export function slugifyWikiName(value: string): string {
  * through to the backend's own message if present, otherwise a generic
  * line. We deliberately stay close to the `WikiPageEditor` copy so users
  * see consistent failure wording across Wiki actions.
+ *
+ * Uses the shared `i18n.t` accessor (rather than the hook's bound `t`) so
+ * the helper can stay a plain function outside the component closure — the
+ * wiki namespace is eagerly registered in `@/i18n`, so `t` is safe to call
+ * at module scope.
  */
 function createErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 409) {
-    return "A Wiki with that slug already exists. Pick another.";
+    return i18n.t("wiki:create.errors.slugTaken");
   }
   const serverMsg = getHttpErrorMessage(error);
-  if (serverMsg) return `Create failed: ${serverMsg}`;
-  return "Create failed. Please try again.";
+  if (serverMsg) {
+    return i18n.t("wiki:create.errors.createFailedWithMessage", {
+      message: serverMsg,
+    });
+  }
+  return i18n.t("wiki:create.errors.createFailed");
 }
 
 /**
@@ -77,6 +88,7 @@ export function CreateWikiDialog({
   open,
   onOpenChange,
 }: CreateWikiDialogProps) {
+  const { t } = useTranslation("wiki");
   const navigate = useNavigate();
   const createWiki = useCreateWiki();
 
@@ -123,7 +135,7 @@ export function CreateWikiDialog({
 
     const trimmedName = name.trim();
     if (trimmedName.length === 0) {
-      setValidationError("Name is required.");
+      setValidationError(t("create.errors.nameRequired"));
       return;
     }
 
@@ -133,14 +145,12 @@ export function CreateWikiDialog({
     if (trimmedSlug.length > 0) {
       if (trimmedSlug.length > SLUG_MAX_LENGTH) {
         setValidationError(
-          `Slug must be ${SLUG_MAX_LENGTH} characters or fewer.`,
+          t("create.errors.slugTooLong", { max: SLUG_MAX_LENGTH }),
         );
         return;
       }
       if (!SLUG_PATTERN.test(trimmedSlug)) {
-        setValidationError(
-          "Slug must start with a lowercase letter or number and contain only lowercase letters, numbers, and dashes.",
-        );
+        setValidationError(t("create.errors.slugPattern"));
         return;
       }
     }
@@ -181,15 +191,13 @@ export function CreateWikiDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg" data-testid="create-wiki-dialog">
         <DialogHeader>
-          <DialogTitle>Create Wiki</DialogTitle>
-          <DialogDescription>
-            Create a new Wiki to collaborate on pages with your team.
-          </DialogDescription>
+          <DialogTitle>{t("create.title")}</DialogTitle>
+          <DialogDescription>{t("create.description")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleFormSubmit} className="space-y-4">
           <div className="flex items-end gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="create-wiki-icon">Icon</Label>
+              <Label htmlFor="create-wiki-icon">{t("create.iconLabel")}</Label>
               <div id="create-wiki-icon">
                 <IconPickerPopover
                   value={icon}
@@ -200,32 +208,32 @@ export function CreateWikiDialog({
             </div>
             <div className="flex-1 space-y-1.5">
               <Label htmlFor="create-wiki-name">
-                Name <span className="text-destructive">*</span>
+                {t("create.nameLabel")}{" "}
+                <span className="text-destructive">{t("common.required")}</span>
               </Label>
               <Input
                 id="create-wiki-name"
                 data-testid="create-wiki-name-input"
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Team handbook"
+                placeholder={t("create.namePlaceholder")}
                 disabled={isSubmitting}
                 autoFocus
               />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="create-wiki-slug">Slug</Label>
+            <Label htmlFor="create-wiki-slug">{t("create.slugLabel")}</Label>
             <Input
               id="create-wiki-slug"
               data-testid="create-wiki-slug-input"
               value={slug}
               onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="team-handbook"
+              placeholder={t("create.slugPlaceholder")}
               disabled={isSubmitting}
             />
             <p className="text-xs text-muted-foreground">
-              Lowercase letters, numbers, and dashes. Must start with a letter
-              or number. Auto-derived from the name until you edit it.
+              {t("create.slugHelp")}
             </p>
           </div>
           {validationError && (
@@ -252,14 +260,14 @@ export function CreateWikiDialog({
               disabled={isSubmitting}
               data-testid="create-wiki-cancel"
             >
-              Cancel
+              {t("create.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
               data-testid="create-wiki-submit"
             >
-              {isSubmitting ? "Creating…" : "Create Wiki"}
+              {isSubmitting ? t("create.submitting") : t("create.submit")}
             </Button>
           </DialogFooter>
         </form>

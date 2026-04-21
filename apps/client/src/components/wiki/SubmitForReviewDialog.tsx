@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ export function SubmitForReviewDialog({
   onSubmit,
   isSubmitting = false,
 }: SubmitForReviewDialogProps) {
+  const { t } = useTranslation("wiki");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
@@ -83,38 +85,38 @@ export function SubmitForReviewDialog({
         data-testid="submit-for-review-dialog"
       >
         <DialogHeader>
-          <DialogTitle>Submit for review</DialogTitle>
-          <DialogDescription>
-            This Wiki requires review before changes are published. Your draft
-            will be saved as a proposal that a reviewer can approve.
-          </DialogDescription>
+          <DialogTitle>{t("submitReview.title")}</DialogTitle>
+          <DialogDescription>{t("submitReview.description")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleFormSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="submit-for-review-title">
-              Title <span className="text-destructive">*</span>
+              {t("submitReview.titleLabel")}{" "}
+              <span className="text-destructive">{t("common.required")}</span>
             </Label>
             <Input
               id="submit-for-review-title"
               data-testid="submit-for-review-title-input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Short summary of the change"
+              placeholder={t("submitReview.titlePlaceholder")}
               disabled={isSubmitting}
               autoFocus
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="submit-for-review-description">
-              Description{" "}
-              <span className="text-muted-foreground text-xs">(optional)</span>
+              {t("submitReview.descriptionLabel")}{" "}
+              <span className="text-muted-foreground text-xs">
+                {t("common.optional")}
+              </span>
             </Label>
             <textarea
               id="submit-for-review-description"
               data-testid="submit-for-review-description-input"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add any context reviewers should know about this change"
+              placeholder={t("submitReview.descriptionPlaceholder")}
               disabled={isSubmitting}
               rows={4}
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -128,14 +130,16 @@ export function SubmitForReviewDialog({
               disabled={isSubmitting}
               data-testid="submit-for-review-cancel"
             >
-              Cancel
+              {t("submitReview.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={!canSubmit}
               data-testid="submit-for-review-submit"
             >
-              {isSubmitting ? "Submitting…" : "Submit for review"}
+              {isSubmitting
+                ? t("submitReview.submitting")
+                : t("submitReview.submit")}
             </Button>
           </DialogFooter>
         </form>
