@@ -80,7 +80,7 @@
     {
       "id": 12,
       "subject": "Task 12: PropertyPanel shortcut entries for \u7236\u4efb\u52a1 / \u5173\u8054\u4efb\u52a1",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "**Goal:** Quick-create entries with pre-wired MessageRefConfig for parent + related.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/properties/PropertyPanel.tsx\",\"apps/client/src/components/channel/properties/__tests__/PropertyPanel.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/client test -- PropertyPanel\",\"acceptanceCriteria\":[\"clicking \u7236\u4efb\u52a1 creates parent definition\",\"clicking \u5173\u8054\u4efb\u52a1 creates related definition\",\"\u7236\u4efb\u52a1 disabled when already exists\",\"duplicate key auto-suffixed\"]}\n```"
     },
