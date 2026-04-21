@@ -288,6 +288,13 @@
       "when": 1776400000000,
       "tag": "0040_add_wiki_icon",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1776500000000,
+      "tag": "0041_wiki_workspace_fk",
+      "breakpoints": true
     }
   ]
 }

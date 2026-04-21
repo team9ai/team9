@@ -8,6 +8,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
+import { tenants } from '../tenant/tenants.js';
 
 export const wikiApprovalModeEnum = pgEnum('wiki_approval_mode', [
   'auto',
@@ -24,7 +25,14 @@ export const workspaceWikis = pgTable(
   'workspace_wikis',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    // Matches the convention in im/channels.ts, im/notifications.ts, etc.:
+    // workspace_id is a uuid with an ON DELETE CASCADE FK to tenants.id so
+    // purging a tenant automatically cleans up its wikis (the folder9 folder
+    // is NOT cascaded — deleting a tenant is rare enough that any orphan
+    // folders should be reaped by a separate housekeeping job if needed).
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
     folder9FolderId: uuid('folder9_folder_id').notNull(),
     name: varchar('name', { length: 200 }).notNull(),
     slug: varchar('slug', { length: 100 }).notNull(),
