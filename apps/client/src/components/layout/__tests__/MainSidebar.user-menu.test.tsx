@@ -20,7 +20,7 @@ vi.mock("react-i18next", () => ({
         routines: "Routines",
         skills: "Skills",
         resources: "Resources",
-        library: "Library",
+        wiki: "Library",
         application: "Applications",
         more: "More",
         createWorkspace: "Create workspace",

@@ -39,7 +39,7 @@ describe("useAppStore navigation helpers", () => {
         routines: "/routines",
         skills: "/skills/skill-1",
         resources: "/resources",
-        library: "/library",
+        wiki: "/wiki",
         application: "/application/app-1",
         more: "/more/members",
       },
@@ -58,7 +58,7 @@ describe("useAppStore navigation helpers", () => {
       routines: null,
       skills: null,
       resources: null,
-      library: null,
+      wiki: null,
       application: null,
       more: null,
     });

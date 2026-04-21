@@ -73,7 +73,7 @@ const navigationItems = [
   { id: "routines", labelKey: "routines" as const, icon: ListChecks },
   { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },
-  { id: "library", labelKey: "library" as const, icon: Library },
+  { id: "wiki", labelKey: "wiki" as const, icon: Library },
   { id: "application", labelKey: "application" as const, icon: LayoutGrid },
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
 ];

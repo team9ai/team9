@@ -19,7 +19,7 @@ export type SidebarSection =
   | "routines"
   | "skills"
   | "resources"
-  | "library"
+  | "wiki"
   | "application"
   | "more";
 
@@ -32,7 +32,7 @@ export const ALL_SIDEBAR_SECTIONS: SidebarSection[] = [
   "routines",
   "skills",
   "resources",
-  "library",
+  "wiki",
   "application",
   "more",
 ];
@@ -47,7 +47,7 @@ export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
   routines: "/routines",
   skills: "/skills",
   resources: "/resources",
-  library: "/library",
+  wiki: "/wiki",
   application: "/application",
   more: "/more",
 };
@@ -98,7 +98,7 @@ export function getSectionFromPath(pathname: string): SidebarSection {
   if (pathname.startsWith("/routines")) return "routines";
   if (pathname.startsWith("/skills")) return "skills";
   if (pathname.startsWith("/resources")) return "resources";
-  if (pathname.startsWith("/library")) return "library";
+  if (pathname.startsWith("/wiki")) return "wiki";
   if (pathname.startsWith("/application")) return "application";
   if (pathname.startsWith("/more")) return "more";
   // Fallback to home for unknown paths
