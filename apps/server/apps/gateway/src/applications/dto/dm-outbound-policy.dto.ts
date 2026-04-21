@@ -20,7 +20,7 @@ export class DmOutboundPolicyDto {
   @IsIn(DM_MODES, { message: 'INVALID_DM_POLICY_MODE' })
   mode!: DmOutboundPolicyMode;
 
-  @ValidateIf((o) => o.mode === 'whitelist')
+  @ValidateIf((o: DmOutboundPolicyDto) => o.mode === 'whitelist')
   @IsArray()
   @ArrayMinSize(1, { message: 'WHITELIST_EMPTY' })
   @ArrayMaxSize(50, { message: 'WHITELIST_TOO_LARGE' })
