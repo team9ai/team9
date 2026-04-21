@@ -116,20 +116,44 @@ describe('validateWikiPath', () => {
     });
   });
 
-  // ── Edge cases ────────────────────────────────────────────────────────
-  describe('edge cases', () => {
-    it('allows a trailing slash segment (splits to an empty last segment — not all-dots)', () => {
-      // `foo/` splits into ['foo', ''] — the empty segment is length 0 so
-      // neither the `..` nor the all-dots branch triggers. folder9 treats
-      // trailing slashes as directory indicators so we pass them through.
-      expect(() => validateWikiPath('foo/')).not.toThrow();
+  // ── Rule 5: empty segments (doubled / trailing slashes) ──────────────
+  describe('rejects empty segments', () => {
+    it('rejects "foo//bar.md" (doubled slash → empty middle segment)', () => {
+      expect(() => validateWikiPath('foo//bar.md')).toThrow(
+        BadRequestException,
+      );
     });
 
-    it('allows consecutive slashes (folder9 will collapse)', () => {
-      // `foo//bar` splits into ['foo', '', 'bar'] — again, empty segment is
-      // length 0, not all-dots. folder9 `filepath.Clean`s the path, so we
-      // don't need to reject here.
-      expect(() => validateWikiPath('foo//bar.md')).not.toThrow();
+    it('rejects "foo/" (trailing slash → empty last segment)', () => {
+      expect(() => validateWikiPath('foo/')).toThrow(BadRequestException);
+    });
+
+    it('rejects a single "/" (caller should not pass root to the validator)', () => {
+      // `/` is caught by the leading-slash rule, but the invariant we want is
+      // that no caller ever hands a path that splits to any empty segment.
+      // Tested here so the reservation is explicit in the test file too.
+      expect(() => validateWikiPath('/')).toThrow(BadRequestException);
+    });
+  });
+
+  // ── Rule 7: reserved leading "-" on the first segment ─────────────────
+  describe('rejects "-" as the first character of the top-level segment', () => {
+    it('rejects "-review/anything.md" (first segment starts with "-")', () => {
+      expect(() => validateWikiPath('-review/anything.md')).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('accepts "review-plan.md" (literal "-" not at start)', () => {
+      expect(() => validateWikiPath('review-plan.md')).not.toThrow();
+    });
+
+    it('accepts nested segments that start with "-" (only top-level is reserved)', () => {
+      // `foo/-bar.md` has `-bar.md` as its SECOND segment, which is
+      // unrestricted. Only the top-level segment is gated because only the
+      // top-level participates in the URL path that could collide with
+      // `/wiki/:slug/-/review`.
+      expect(() => validateWikiPath('foo/-bar.md')).not.toThrow();
     });
   });
 });
