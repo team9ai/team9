@@ -21,25 +21,6 @@ export interface User {
   updatedAt: string;
 }
 
-// Gateway Auth API types (matching server/apps/gateway/src/auth/dto)
-export interface RegisterRequest {
-  email: string;
-  username: string;
-  displayName?: string;
-}
-
-export interface LoginRequest {
-  email: string;
-}
-
-export interface LoginResponse {
-  message: string;
-  email: string;
-  loginSessionId: string;
-  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
-  verificationLink?: string;
-}
-
 export interface RefreshTokenRequest {
   refreshToken: string;
 }
@@ -56,14 +37,6 @@ export interface TokenPair {
   refreshToken: string;
 }
 
-export interface RegisterResponse {
-  message: string;
-  email: string;
-  loginSessionId: string;
-  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
-  verificationLink?: string;
-}
-
 export interface PollLoginResponse {
   status: "pending" | "verified";
   accessToken?: string;
@@ -76,6 +49,7 @@ export interface AuthStartRequest {
   email: string;
   displayName?: string;
   signupSource?: "self" | "invite";
+  turnstileToken?: string;
 }
 
 export interface AuthStartResponse {
@@ -148,20 +122,6 @@ export const authApi = {
   ): Promise<{ success: boolean }> => {
     const response = await http.post<{ success: boolean }>(
       "/v1/auth/complete-desktop-session",
-      data,
-    );
-    return response.data;
-  },
-
-  // --- Legacy endpoints ---
-  login: async (data: LoginRequest): Promise<LoginResponse> => {
-    const response = await http.post<LoginResponse>("/v1/auth/login", data);
-    return response.data;
-  },
-
-  register: async (data: RegisterRequest): Promise<RegisterResponse> => {
-    const response = await http.post<RegisterResponse>(
-      "/v1/auth/register",
       data,
     );
     return response.data;

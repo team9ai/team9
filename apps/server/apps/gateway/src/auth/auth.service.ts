@@ -2,7 +2,6 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
-  ConflictException,
   NotFoundException,
   Inject,
   Logger,
@@ -25,14 +24,13 @@ import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
 import { slugify } from 'transliteration';
 import {
-  RegisterDto,
-  LoginDto,
   GoogleLoginDto,
   AuthStartDto,
   VerifyCodeDto,
   CompleteDesktopSessionDto,
 } from './dto/index.js';
 import { USER_EVENTS, type UserRegisteredEvent } from './events/user.events.js';
+import { TurnstileService } from './turnstile.service.js';
 
 export interface TokenPair {
   accessToken: string;
@@ -63,22 +61,6 @@ export interface AuthenticatedUserResponse {
   timeZone: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface RegisterResponse {
-  message: string;
-  email: string;
-  loginSessionId: string;
-  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
-  verificationLink?: string;
-}
-
-export interface LoginResponse {
-  message: string;
-  email: string;
-  loginSessionId: string;
-  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
-  verificationLink?: string;
 }
 
 export interface AuthStartResponse {
@@ -136,6 +118,9 @@ export class AuthService {
   private readonly AUTH_CHALLENGE_PREFIX = 'im:auth_challenge:';
   private readonly AUTH_CHALLENGE_TTL = 600; // 10 minutes
   private readonly AUTH_CHALLENGE_MAX_ATTEMPTS = 5;
+  // Marks an email that recently passed Turnstile verification so that
+  // resend-code requests (within the challenge TTL window) can skip re-verification.
+  private readonly TURNSTILE_PASSED_PREFIX = 'im:turnstile_passed:';
   private readonly DESKTOP_SESSION_RATE_PREFIX = 'im:desktop_session_rate:';
   private readonly DESKTOP_SESSION_RATE_LIMIT = 10; // max 10 sessions per minute per IP
   private readonly DESKTOP_SESSION_RATE_TTL = 60;
@@ -147,6 +132,7 @@ export class AuthService {
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly emailService: EmailService,
+    private readonly turnstileService: TurnstileService,
   ) {}
 
   private getJwtExpiresIn(value: string): JwtSignOptions['expiresIn'] {
@@ -203,101 +189,6 @@ export class AuthService {
     await this.eventEmitter.emitAsync(USER_EVENTS.REGISTERED, event);
   }
 
-  async register(dto: RegisterDto): Promise<RegisterResponse> {
-    // Check if email or username already exists
-    const existingUser = await this.db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.email, dto.email))
-      .limit(1);
-
-    if (existingUser.length > 0) {
-      const user = existingUser[0];
-      if (user.emailVerified) {
-        throw new ConflictException(
-          'Email already registered. Please sign in instead.',
-        );
-      }
-      // Email exists but not verified — resend verification email
-      await this.db
-        .delete(schema.emailVerificationTokens)
-        .where(eq(schema.emailVerificationTokens.userId, user.id));
-
-      const { verificationLink } = await this.sendVerificationEmail(
-        user.id,
-        user.email,
-        user.username,
-      );
-
-      const loginSessionId = await this.createLoginSession(user.id);
-
-      return {
-        message:
-          'Registration successful. Please check your email to verify your account.',
-        email: user.email,
-        loginSessionId,
-        ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
-      };
-    }
-
-    const existingUsername = await this.db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.username, dto.username))
-      .limit(1);
-
-    if (existingUsername.length > 0) {
-      throw new ConflictException('Username already exists');
-    }
-
-    const userId = uuidv7();
-
-    // Create user without password
-    const [user] = await this.db
-      .insert(schema.users)
-      .values({
-        id: userId,
-        email: dto.email,
-        username: dto.username,
-        displayName: dto.displayName || dto.username,
-        emailVerified: false,
-      })
-      .returning();
-
-    // Emit event to create a personal workspace for the user
-    try {
-      await this.provisionRegisteredUserWorkspace({
-        userId: user.id,
-        displayName: dto.displayName || dto.username,
-        onboardingEligible: true,
-      } satisfies UserRegisteredEvent);
-    } catch (error) {
-      await this.rollbackUserCreation(user.id);
-      throw error;
-    }
-
-    // Emit event for search indexing
-    this.eventEmitter.emit('user.created', { user });
-
-    // Generate and send verification email (returns link, may skip email in dev mode)
-    const { verificationLink } = await this.sendVerificationEmail(
-      user.id,
-      user.email,
-      user.username,
-    );
-
-    const loginSessionId = await this.createLoginSession(user.id);
-
-    return {
-      message:
-        'Registration successful. Please check your email to verify your account.',
-      email: user.email,
-      loginSessionId,
-      // Include verification link in dev mode for easy testing
-      ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
-    };
-  }
-
   private async sendVerificationEmail(
     userId: string,
     email: string,
@@ -328,37 +219,6 @@ export class AuthService {
         username,
         verificationLink,
       );
-    }
-
-    return { verificationLink };
-  }
-
-  private async sendLoginLink(
-    userId: string,
-    email: string,
-    username: string,
-  ): Promise<{ verificationLink: string }> {
-    // Generate secure token
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(
-      Date.now() + this.VERIFICATION_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000,
-    );
-
-    // Store token in database (reuse email verification tokens table)
-    await this.db.insert(schema.emailVerificationTokens).values({
-      id: uuidv7(),
-      userId,
-      token,
-      email,
-      expiresAt,
-    });
-
-    // Build login link
-    const verificationLink = `${env.APP_URL}/verify-email?token=${token}`;
-
-    // In dev mode with skip verification, don't send email
-    if (!env.DEV_SKIP_EMAIL_VERIFICATION) {
-      await this.emailService.sendLoginEmail(email, username, verificationLink);
     }
 
     return { verificationLink };
@@ -510,82 +370,9 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto): Promise<LoginResponse> {
-    // Rate limiting check using Redis
-    const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
-    const recentAttempt = await this.redisService.get(rateLimitKey);
-
-    if (recentAttempt) {
-      throw new BadRequestException(
-        'Please wait before requesting another login link',
-      );
-    }
-
-    const [user] = await this.db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.email, dto.email))
-      .limit(1);
-
-    if (!user) {
-      throw new NotFoundException(
-        'No account found with this email. Please register first.',
-      );
-    }
-
-    if (user.userType !== 'human') {
-      throw new UnauthorizedException('This account cannot log in');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('Account is disabled');
-    }
-
-    if (!user.emailVerified) {
-      // If email not verified, send verification email instead
-      const { verificationLink } = await this.sendVerificationEmail(
-        user.id,
-        user.email,
-        user.username,
-      );
-      const loginSessionId = await this.createLoginSession(user.id);
-      return {
-        message:
-          'Your email is not verified yet. We have sent a verification email.',
-        email: dto.email,
-        loginSessionId,
-        // Include verification link in dev mode for easy testing
-        ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
-      };
-    }
-
-    // Delete existing login tokens for this user
-    await this.db
-      .delete(schema.emailVerificationTokens)
-      .where(eq(schema.emailVerificationTokens.userId, user.id));
-
-    // Send login link
-    const { verificationLink } = await this.sendLoginLink(
-      user.id,
-      user.email,
-      user.username,
-    );
-
-    // Set rate limit (60 seconds)
-    await this.redisService.set(rateLimitKey, '1', 60);
-
-    const loginSessionId = await this.createLoginSession(user.id);
-
-    return {
-      message: 'Login link has been sent to your email.',
-      email: dto.email,
-      loginSessionId,
-      // Include verification link in dev mode for easy testing
-      ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
-    };
-  }
-
   async googleLogin(dto: GoogleLoginDto): Promise<AuthResponse> {
+    // Google ID tokens are cryptographically signed and Google applies its
+    // own bot/abuse protection on the OAuth flow, so no Turnstile check here.
     const googleClientId = env.GOOGLE_CLIENT_ID;
     if (!googleClientId) {
       throw new BadRequestException('Google login is not configured');
@@ -962,7 +749,22 @@ export class AuthService {
 
   // --- New code-based auth flow ---
 
-  async authStart(dto: AuthStartDto): Promise<AuthStartResponse> {
+  async authStart(
+    dto: AuthStartDto,
+    clientIp: string,
+  ): Promise<AuthStartResponse> {
+    // Skip Turnstile verification if this email already passed it within the
+    // challenge TTL window (resend-code path). Otherwise verify and cache.
+    const turnstilePassedKey = `${this.TURNSTILE_PASSED_PREFIX}${dto.email}`;
+    const alreadyPassed = await this.redisService.get(turnstilePassedKey);
+    if (!alreadyPassed) {
+      await this.turnstileService.verify(dto.turnstileToken, clientIp);
+      await this.redisService.set(
+        turnstilePassedKey,
+        '1',
+        this.AUTH_CHALLENGE_TTL,
+      );
+    }
     // Rate limiting
     const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
     const recentAttempt = await this.redisService.get(rateLimitKey);

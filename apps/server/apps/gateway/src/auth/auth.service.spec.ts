@@ -17,6 +17,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
+import { TurnstileService } from './turnstile.service.js';
+import { AuthStartDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
@@ -70,6 +72,7 @@ describe('AuthService', () => {
   let jwtService: Record<string, MockFn>;
   let emailService: Record<string, MockFn>;
   let eventEmitter: Record<string, MockFn>;
+  let turnstileService: TurnstileService;
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
@@ -93,7 +96,6 @@ describe('AuthService', () => {
     emailService = {
       sendVerificationCodeEmail: jest.fn<any>().mockResolvedValue(true),
       sendVerificationEmail: jest.fn<any>().mockResolvedValue(true),
-      sendLoginEmail: jest.fn<any>().mockResolvedValue(true),
     };
     eventEmitter = {
       emit: jest.fn<any>(),
@@ -108,10 +110,15 @@ describe('AuthService', () => {
         { provide: RedisService, useValue: redisService },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: EmailService, useValue: emailService },
+        {
+          provide: TurnstileService,
+          useValue: { verify: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+    turnstileService = module.get(TurnstileService);
 
     // Stub generateTokenPair to avoid needing real JWT keys
     jest.spyOn(service as any, 'generateTokenPair').mockReturnValue({
@@ -131,7 +138,10 @@ describe('AuthService', () => {
     it('should return need_display_name for unknown email without displayName', async () => {
       db.limit.mockResolvedValue([]); // no existing user
 
-      const result = await service.authStart({ email: 'new@test.com' });
+      const result = await service.authStart(
+        { email: 'new@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('need_display_name');
       expect(result.email).toBe('new@test.com');
@@ -141,10 +151,13 @@ describe('AuthService', () => {
     it('should send code for unknown email with displayName (signup flow)', async () => {
       db.limit.mockResolvedValue([]); // no existing user
 
-      const result = await service.authStart({
-        email: 'new@test.com',
-        displayName: 'New User',
-      });
+      const result = await service.authStart(
+        {
+          email: 'new@test.com',
+          displayName: 'New User',
+        },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(result.challengeId).toBeDefined();
@@ -160,7 +173,10 @@ describe('AuthService', () => {
     it('should send code for existing verified user (login flow)', async () => {
       db.limit.mockResolvedValue([USER_ROW]);
 
-      const result = await service.authStart({ email: 'alice@test.com' });
+      const result = await service.authStart(
+        { email: 'alice@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(redisService.set).toHaveBeenCalledWith(
@@ -174,7 +190,10 @@ describe('AuthService', () => {
       process.env.DEV_SKIP_EMAIL_VERIFICATION = 'false';
       db.limit.mockResolvedValue([USER_ROW]);
 
-      const result = await service.authStart({ email: 'alice@test.com' });
+      const result = await service.authStart(
+        { email: 'alice@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(result).not.toHaveProperty('verificationCode');
@@ -189,7 +208,10 @@ describe('AuthService', () => {
       const unverifiedUser = { ...USER_ROW, emailVerified: false };
       db.limit.mockResolvedValue([unverifiedUser]);
 
-      const result = await service.authStart({ email: 'alice@test.com' });
+      const result = await service.authStart(
+        { email: 'alice@test.com' },
+        '127.0.0.1',
+      );
 
       expect(result.action).toBe('code_sent');
       expect(redisService.set).toHaveBeenCalledWith(
@@ -204,7 +226,7 @@ describe('AuthService', () => {
       db.limit.mockResolvedValue([botUser]);
 
       await expect(
-        service.authStart({ email: 'bot@test.com' }),
+        service.authStart({ email: 'bot@test.com' }, '127.0.0.1'),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -213,7 +235,7 @@ describe('AuthService', () => {
       db.limit.mockResolvedValue([inactiveUser]);
 
       await expect(
-        service.authStart({ email: 'alice@test.com' }),
+        service.authStart({ email: 'alice@test.com' }, '127.0.0.1'),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -221,8 +243,62 @@ describe('AuthService', () => {
       redisService.get.mockResolvedValue('1'); // rate limit hit
 
       await expect(
-        service.authStart({ email: 'alice@test.com' }),
+        service.authStart({ email: 'alice@test.com' }, '127.0.0.1'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('calls TurnstileService.verify with token and clientIp', async () => {
+      const verifySpy = jest.spyOn(turnstileService, 'verify');
+      try {
+        await service.authStart(
+          { email: 'a@b.com', turnstileToken: 'tok' } as AuthStartDto,
+          '9.9.9.9',
+        );
+      } catch {
+        // Downstream may fail due to unmocked DB — that's fine, we only care about verify
+      }
+      expect(verifySpy).toHaveBeenCalledWith('tok', '9.9.9.9');
+    });
+
+    it('does not hit the DB when verify() rejects', async () => {
+      const verifySpy = jest
+        .spyOn(turnstileService, 'verify')
+        .mockRejectedValueOnce(
+          new BadRequestException('TURNSTILE_TOKEN_REQUIRED'),
+        );
+      // Cache miss so verify runs
+      (redisService.get as jest.Mock).mockResolvedValueOnce(null);
+      const dbLimitSpy = jest.spyOn(db, 'limit');
+
+      await expect(
+        service.authStart(
+          { email: 'a@b.com', turnstileToken: '' } as AuthStartDto,
+          '9.9.9.9',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(verifySpy).toHaveBeenCalledTimes(1);
+      expect(dbLimitSpy).not.toHaveBeenCalled();
+    });
+
+    it('skips Turnstile verify when the email is already in the passed cache', async () => {
+      const verifySpy = jest.spyOn(turnstileService, 'verify');
+      // Cache hit: email was verified within the challenge TTL window
+      (redisService.get as jest.Mock).mockImplementation((key: string) => {
+        if (key.startsWith('im:turnstile_passed:')) return Promise.resolve('1');
+        return Promise.resolve(null);
+      });
+
+      try {
+        await service.authStart(
+          { email: 'a@b.com' } as AuthStartDto, // no turnstileToken
+          '9.9.9.9',
+        );
+      } catch {
+        // Downstream may throw due to unmocked DB — that's fine.
+      }
+
+      expect(verifySpy).not.toHaveBeenCalled();
     });
   });
 
@@ -657,101 +733,6 @@ describe('AuthService', () => {
       });
 
       expect(result.isNewUser).toBe(false);
-    });
-  });
-
-  // ── login ────────────────────────────────────────────────────────
-
-  describe('login', () => {
-    it('should enforce rate limiting before reading the user record', async () => {
-      redisService.get.mockResolvedValueOnce('1');
-
-      await expect(service.login({ email: 'alice@test.com' })).rejects.toThrow(
-        BadRequestException,
-      );
-
-      expect(db.limit).not.toHaveBeenCalled();
-    });
-
-    it('should reject login when the account does not exist', async () => {
-      db.limit.mockResolvedValueOnce([]);
-
-      await expect(
-        service.login({ email: 'missing@test.com' }),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should reject login for non-human users', async () => {
-      db.limit.mockResolvedValueOnce([{ ...USER_ROW, userType: 'bot' }]);
-
-      await expect(service.login({ email: 'bot@test.com' })).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('should reject login for inactive users', async () => {
-      db.limit.mockResolvedValueOnce([{ ...USER_ROW, isActive: false }]);
-
-      await expect(
-        service.login({ email: 'inactive@test.com' }),
-      ).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should send verification email for unverified human user', async () => {
-      const unverifiedUser = { ...USER_ROW, emailVerified: false };
-      db.limit.mockResolvedValue([unverifiedUser]);
-
-      const result = await service.login({ email: 'alice@test.com' });
-
-      expect(result.message).toBe(
-        'Your email is not verified yet. We have sent a verification email.',
-      );
-      expect(result.email).toBe('alice@test.com');
-      expect(result.loginSessionId).toBeDefined();
-      expect(db.delete).not.toHaveBeenCalled();
-      expect(db.insert).toHaveBeenCalled();
-      expect(redisService.set).toHaveBeenCalledWith(
-        expect.stringContaining('im:login_session:'),
-        expect.stringContaining('"status":"pending"'),
-        1800,
-      );
-    });
-
-    it('should send login link for verified human user', async () => {
-      db.limit.mockResolvedValue([USER_ROW]);
-
-      const result = await service.login({ email: 'alice@test.com' });
-
-      expect(result.message).toBe('Login link has been sent to your email.');
-      expect(result.email).toBe('alice@test.com');
-      expect(result.loginSessionId).toBeDefined();
-      expect(db.delete).toHaveBeenCalledTimes(1);
-      expect(db.insert).toHaveBeenCalled();
-      expect(redisService.set).toHaveBeenCalledWith(
-        expect.stringContaining('im:login_rate:alice@test.com'),
-        '1',
-        60,
-      );
-      expect(redisService.set).toHaveBeenCalledWith(
-        expect.stringContaining('im:login_session:'),
-        expect.stringContaining('"status":"pending"'),
-        1800,
-      );
-    });
-
-    it('should send the login email when dev email skipping is disabled', async () => {
-      process.env.DEV_SKIP_EMAIL_VERIFICATION = 'false';
-      db.limit.mockResolvedValue([USER_ROW]);
-
-      const result = await service.login({ email: 'alice@test.com' });
-
-      expect(result.message).toBe('Login link has been sent to your email.');
-      expect(result).not.toHaveProperty('verificationLink');
-      expect(emailService.sendLoginEmail).toHaveBeenCalledWith(
-        USER_ROW.email,
-        USER_ROW.username,
-        expect.stringContaining('https://app.test/verify-email?token='),
-      );
     });
   });
 
