@@ -826,8 +826,8 @@ export class MessagePropertiesService {
       action: explicitClear ? 'property_removed' : 'property_set',
       changes: {
         [definition.key]: {
-          added: diff.addedTargetIds,
-          removed: diff.removedTargetIds,
+          old: diff.removedTargetIds,
+          new: diff.addedTargetIds,
         },
       },
       performedBy: userId,
@@ -835,6 +835,8 @@ export class MessagePropertiesService {
         definitionId: definition.id,
         valueType: 'message_ref',
         relationKind: config.relationKind,
+        addedTargetIds: diff.addedTargetIds,
+        removedTargetIds: diff.removedTargetIds,
         ...(explicitClear ? { explicitlyCleared: true } : {}),
       },
     });

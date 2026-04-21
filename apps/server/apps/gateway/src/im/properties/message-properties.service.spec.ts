@@ -1311,13 +1311,15 @@ describe('MessagePropertiesService', () => {
         expect.objectContaining({
           changes: {
             parent: {
-              added: ['new-target'],
-              removed: ['old-target'],
+              old: ['old-target'],
+              new: ['new-target'],
             },
           },
           metadata: expect.objectContaining({
             relationKind: 'parent',
             valueType: 'message_ref',
+            addedTargetIds: ['new-target'],
+            removedTargetIds: ['old-target'],
           }),
         }),
       );

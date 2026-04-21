@@ -16,7 +16,7 @@ import {
   RelationTargetNotFoundError,
 } from './message-relations.errors.js';
 
-const { messageRelations, messages, messageProperties } = schema;
+const { messageRelations, messages, messageProperties, channels } = schema;
 
 export interface SetRelationTargetsParams {
   sourceMessageId: string;
@@ -109,13 +109,14 @@ export class MessageRelationsService {
     const { sourceMessageId, definition, actorId } = params;
     const { config } = definition;
 
-    // Load source message for channelId + tenantId
+    // Load source message for channelId + tenantId (tenantId lives on channels)
     const [source] = await tx
       .select({
         channelId: messages.channelId,
-        tenantId: messages.tenantId,
+        tenantId: channels.tenantId,
       })
       .from(messages)
+      .innerJoin(channels, eq(channels.id, messages.channelId))
       .where(eq(messages.id, sourceMessageId))
       .limit(1);
 

@@ -49,6 +49,10 @@ const schemaModule = {
     propertyDefinitionId: 'mp.propertyDefinitionId',
     jsonValue: 'mp.jsonValue',
   },
+  channels: {
+    id: 'channels.id',
+    tenantId: 'channels.tenantId',
+  },
 };
 
 jest.unstable_mockModule('@team9/database', () => dbModule);
