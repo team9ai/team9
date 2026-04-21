@@ -62,6 +62,44 @@ describe("useWikiStore", () => {
     expect(after).not.toBe(before);
   });
 
+  it("expandDirectory adds a new key", () => {
+    useWikiStore.getState().expandDirectory("api");
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+  });
+
+  it("expandDirectory is idempotent — calling twice keeps the key expanded", () => {
+    useWikiStore.getState().expandDirectory("api");
+    useWikiStore.getState().expandDirectory("api");
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+    expect(useWikiStore.getState().expandedDirectories.size).toBe(1);
+  });
+
+  it("expandDirectory never collapses an already-expanded directory", () => {
+    useWikiStore.getState().toggleDirectory("api");
+    // A second `expandDirectory` must NOT flip it closed (unlike toggleDirectory).
+    useWikiStore.getState().expandDirectory("api");
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+  });
+
+  it("expandDirectory supports multiple distinct keys", () => {
+    useWikiStore.getState().expandDirectory("api");
+    useWikiStore.getState().expandDirectory("api/docs");
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+    expect(useWikiStore.getState().expandedDirectories.has("api/docs")).toBe(
+      true,
+    );
+    expect(useWikiStore.getState().expandedDirectories.size).toBe(2);
+  });
+
+  it("expandDirectory is a no-op reference-wise when the key already exists", () => {
+    useWikiStore.getState().expandDirectory("api");
+    const before = useWikiStore.getState().expandedDirectories;
+    useWikiStore.getState().expandDirectory("api");
+    const after = useWikiStore.getState().expandedDirectories;
+    // Idempotent adds should not allocate a new Set — subscribers stay quiet.
+    expect(after).toBe(before);
+  });
+
   it("reset returns state to initial", () => {
     useWikiStore.getState().setSelectedWiki("wiki-1");
     useWikiStore.getState().setSelectedPage("/intro.md");
@@ -124,6 +162,13 @@ describe("useWikiStore", () => {
     expect(useWikiStore.getState().expandedDirectories.has("/docs")).toBe(
       false,
     );
+  });
+
+  it("wikiActions.expandDirectory proxies to the store (idempotent)", () => {
+    wikiActions.expandDirectory("api");
+    wikiActions.expandDirectory("api");
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
+    expect(useWikiStore.getState().expandedDirectories.size).toBe(1);
   });
 
   it("wikiActions.reset proxies to the store", () => {

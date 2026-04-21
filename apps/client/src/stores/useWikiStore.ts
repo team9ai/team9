@@ -19,7 +19,18 @@ interface WikiState {
 
   setSelectedWiki: (wikiId: string | null) => void;
   setSelectedPage: (path: string | null) => void;
+  /**
+   * Toggle the expanded state of a directory. Flips: collapsed ↔ expanded.
+   * Used for user-driven tree clicks.
+   */
   toggleDirectory: (key: string) => void;
+  /**
+   * Idempotently expand a directory — never collapses. Used for programmatic
+   * auto-expand (e.g. deep-linking into `wiki/:slug/api/docs/auth.md` should
+   * expand `api` and `api/docs` without surprising the user by toggling them
+   * closed if they were already expanded).
+   */
+  expandDirectory: (key: string) => void;
   reset: () => void;
 }
 
@@ -59,6 +70,22 @@ export const useWikiStore = create<WikiState>()(
           "toggleDirectory",
         ),
 
+      expandDirectory: (key) =>
+        set(
+          (state) => {
+            if (state.expandedDirectories.has(key)) {
+              // Already expanded — return the existing reference so subscribers
+              // don't re-render on a no-op.
+              return state;
+            }
+            const next = new Set(state.expandedDirectories);
+            next.add(key);
+            return { expandedDirectories: next };
+          },
+          false,
+          "expandDirectory",
+        ),
+
       reset: () =>
         set(
           {
@@ -94,5 +121,7 @@ export const wikiActions = {
     useWikiStore.getState().setSelectedPage(path),
   toggleDirectory: (key: string) =>
     useWikiStore.getState().toggleDirectory(key),
+  expandDirectory: (key: string) =>
+    useWikiStore.getState().expandDirectory(key),
   reset: () => useWikiStore.getState().reset(),
 };
