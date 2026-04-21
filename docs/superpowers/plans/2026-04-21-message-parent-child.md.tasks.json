@@ -101,7 +101,7 @@
     {
       "id": 15,
       "subject": "Task 15: TableView hierarchy mode toggle + toolbar",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 10],
       "description": "**Goal:** Toolbar toggle + default-depth selector + expand/collapse-all buttons; server DTO validation.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/views/dto/view-config.dto.ts\",\"apps/server/apps/gateway/src/im/views/views.service.ts\",\"apps/server/apps/gateway/src/im/views/views.service.spec.ts\",\"apps/client/src/components/channel/views/TableView.tsx\",\"apps/client/src/components/channel/views/TableHierarchyToolbar.tsx\",\"apps/client/src/components/channel/views/__tests__/TableHierarchyToolbar.test.tsx\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern='views.service.spec' && pnpm -C apps/client test -- TableHierarchyToolbar\",\"acceptanceCriteria\":[\"hierarchyMode+groupBy mutually exclusive (server reject)\",\"hierarchyDefaultDepth persists\",\"expand/collapse-all fire callbacks\",\"config update invalidates view-tree cache\"]}\n```"
     },
