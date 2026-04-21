@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { useWikiDraft } from "@/hooks/useWikiDraft";
@@ -64,29 +64,68 @@ export function WikiPageEditor({
     () => draft?.frontmatter ?? serverPage.frontmatter,
   );
 
+  // Monotonic re-seed generation. Bumped ONLY on explicit re-seed events
+  // AFTER the initial mount (async draft arrival, server commit while
+  // clean). Combined with `path`, this drives a `key` on `DocumentEditor`
+  // so its one-shot `InitialContentPlugin` re-ingests `initialContent`
+  // on seed events. User typing must NOT bump this (or the editor would
+  // remount on every keystroke and lose focus).
+  //
+  // The initial mount is already correctly seeded via `useState(() =>
+  // draft?.body ?? serverPage.content)`, so both effects below skip their
+  // first invocation to avoid a spurious remount on mount.
+  const [seedGen, setSeedGen] = useState(0);
+  const draftSeededRef = useRef(!!draft);
+  const serverSeededRef = useRef(true);
+
   // When useWikiDraft finishes its async reconciliation and surfaces a
   // draft (e.g. the stale-alert path), hydrate local state from the draft
-  // so the edit view reflects the user's last work. We guard with `isDirty`
-  // to avoid clobbering in-flight edits with a stale draft value on
-  // re-render.
+  // so the edit view reflects the user's last work. Gate with a ref so we
+  // seed exactly once per draft lifecycle — subsequent `draft` object
+  // identity changes (e.g. debounced setDraft from user typing) must not
+  // re-trigger the seed or remount the editor.
   useEffect(() => {
-    if (!draft) return;
-    setBody((prev) => (prev === draft.body ? prev : draft.body));
-    setFrontmatter((prev) =>
-      prev === draft.frontmatter ? prev : draft.frontmatter,
-    );
-    // `setBody` / `setFrontmatter` are stable from `useState`; the
-    // effect's only real input is `draft`.
+    if (!draft) {
+      // Draft cleared (e.g. clearDraft after commit). Reset the flag so a
+      // later draft re-arrival (e.g. user types again) can seed again.
+      draftSeededRef.current = false;
+      return;
+    }
+    if (draftSeededRef.current) return;
+    draftSeededRef.current = true;
+    setBody(draft.body);
+    setFrontmatter(draft.frontmatter);
+    setSeedGen((g) => g + 1);
   }, [draft]);
 
   // Remote-update reset: if the server page changes (e.g. another user
-  // committed) and we're not dirty, reflect the new truth. Dirty users
-  // keep their local edits; Task 19 offers a reconcile UI when they save.
+  // committed) and we're not dirty, reflect the new truth AND remount the
+  // editor (via seedGen bump) so its Lexical state picks up the new
+  // `initialContent`. Dirty users keep their local edits; Task 19 offers
+  // a reconcile UI when they save. Skip on mount — the initial useState
+  // already handled seeding.
   useEffect(() => {
+    if (serverSeededRef.current) {
+      serverSeededRef.current = false;
+      return;
+    }
     if (isDirty) return;
     setBody(serverPage.content);
     setFrontmatter(serverPage.frontmatter);
+    setSeedGen((g) => g + 1);
   }, [serverPage, isDirty]);
+
+  // Remount key. Changes when:
+  //   - `path` changes (defense in depth; the parent already re-mounts
+  //     WikiPageEditor on path change via the splat route).
+  //   - `seedGen` bumps (explicit re-seed: server commit while clean, or
+  //     async draft arrival — the two effects above batch the `setBody`
+  //     / `setFrontmatter` / `setSeedGen` updates so a single remount
+  //     picks up the fresh `initialContent`).
+  // Stable across user typing: `setDraft` firing on every keystroke does
+  // not bump `seedGen` (the `draftSeededRef` gate holds), so the editor
+  // stays mounted and the Lexical cursor/focus is preserved.
+  const editorKey = `${path}-${seedGen}`;
 
   function handleBodyChange(md: string) {
     if (readOnly) return;
@@ -171,6 +210,7 @@ export function WikiPageEditor({
 
       <div className="flex-1 px-12 pb-8 min-h-0">
         <DocumentEditor
+          key={editorKey}
           initialContent={body}
           onChange={handleBodyChange}
           readOnly={readOnly}

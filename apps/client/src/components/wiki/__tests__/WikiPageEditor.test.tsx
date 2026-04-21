@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +19,14 @@ const documentEditorProps = vi.hoisted(() =>
   vi.fn<(props: Record<string, unknown>) => void>(),
 );
 
+// Mount/unmount counters let us verify that DocumentEditor is actually
+// remounted on re-seed events (via a `key` change) and, conversely, that
+// it stays mounted during normal user typing. React's `key` prop is
+// absorbed by React itself and not passed to the child, so we have to
+// reason about identity via effect timing.
+const documentEditorMounts = vi.hoisted(() => ({ count: 0 }));
+const documentEditorUnmounts = vi.hoisted(() => ({ count: 0 }));
+
 const iconPickerProps = vi.hoisted(() =>
   vi.fn<(props: Record<string, unknown>) => void>(),
 );
@@ -33,6 +42,13 @@ vi.mock("@/components/documents/DocumentEditor", () => ({
     readOnly?: boolean;
   }) => {
     documentEditorProps(props);
+    useEffect(() => {
+      documentEditorMounts.count += 1;
+      return () => {
+        documentEditorUnmounts.count += 1;
+      };
+      // Run once per mount instance; empty deps is intentional.
+    }, []);
     return (
       <textarea
         data-testid="doc-editor"
@@ -180,6 +196,8 @@ beforeEach(() => {
   documentEditorProps.mockReset();
   iconPickerProps.mockReset();
   coverPickerProps.mockReset();
+  documentEditorMounts.count = 0;
+  documentEditorUnmounts.count = 0;
   currentUserMock.data = {
     id: "user-1",
     userType: "human",
@@ -586,6 +604,207 @@ describe("WikiPageEditor", () => {
     expect(
       (screen.getByTestId("doc-editor") as HTMLTextAreaElement).defaultValue,
     ).toBe("server body");
+  });
+
+  it("remounts DocumentEditor when serverPage commit sha changes and not dirty", () => {
+    const { rerender } = render(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    expect(documentEditorMounts.count).toBe(1);
+    expect(documentEditorUnmounts.count).toBe(0);
+
+    // Another user commits → new sha + new content. isDirty is false, so
+    // the clean-reset path runs and bumps seedGen → the editor unmounts
+    // and a fresh one mounts with the new initialContent. This exercises
+    // the Critical-fix path: DocumentEditor's InitialContentPlugin would
+    // otherwise ingest initialContent only once and silently keep the
+    // stale Lexical state.
+    const newPage: PageDto = {
+      ...basePage,
+      content: "REMOTE EDIT",
+      lastCommit: {
+        sha: "xyz",
+        author: "someone-else",
+        timestamp: "2026-04-16T00:00:00.000Z",
+      },
+    };
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={newPage}
+        wiki={baseWiki}
+      />,
+    );
+
+    expect(documentEditorUnmounts.count).toBe(1);
+    expect(documentEditorMounts.count).toBe(2);
+    const lastCall =
+      documentEditorProps.mock.calls[documentEditorProps.mock.calls.length - 1];
+    expect(lastCall[0]).toMatchObject({ initialContent: "REMOTE EDIT" });
+  });
+
+  it("does NOT remount DocumentEditor on user typing (cursor/focus preserved)", async () => {
+    const setDraft = vi.fn();
+    draftHook.state = makeDraftState({ setDraft, isDirty: false });
+    const { rerender } = render(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    expect(documentEditorMounts.count).toBe(1);
+
+    const editor = screen.getByTestId("doc-editor") as HTMLTextAreaElement;
+    await act(async () => {
+      fireEvent.change(editor, { target: { value: "t" } });
+    });
+    await act(async () => {
+      fireEvent.change(editor, { target: { value: "ty" } });
+    });
+
+    // Simulate what useWikiDraft does: each setDraft call produces a new
+    // draft object identity. isDirty flips true. The editor must stay
+    // mounted across these deliveries so the cursor/focus is preserved.
+    draftHook.state = makeDraftState({
+      setDraft,
+      isDirty: true,
+      draft: { body: "ty", frontmatter: basePage.frontmatter },
+    });
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    draftHook.state = makeDraftState({
+      setDraft,
+      isDirty: true,
+      // Same content but a fresh object identity, as if setDraft fired
+      // again on another keystroke.
+      draft: { body: "typ", frontmatter: basePage.frontmatter },
+    });
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+
+    // After the first async-draft arrival seedGen bumps once → one
+    // unmount + one remount; subsequent draft identity changes must NOT
+    // cause further remounts (the ref gate holds).
+    expect(documentEditorMounts.count).toBeLessThanOrEqual(2);
+    expect(documentEditorUnmounts.count).toBeLessThanOrEqual(1);
+  });
+
+  it("remounts DocumentEditor on first async draft arrival (seeds exactly once)", () => {
+    draftHook.state = makeDraftState();
+    const { rerender } = render(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    expect(documentEditorMounts.count).toBe(1);
+
+    // Draft arrives asynchronously (the stale-alert path).
+    draftHook.state = makeDraftState({
+      draft: { body: "async draft", frontmatter: { icon: "🦊" } },
+      isDirty: true,
+      hasStaleAlert: true,
+    });
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    expect(documentEditorMounts.count).toBe(2);
+    expect(documentEditorUnmounts.count).toBe(1);
+    const lastCall =
+      documentEditorProps.mock.calls[documentEditorProps.mock.calls.length - 1];
+    expect(lastCall[0]).toMatchObject({ initialContent: "async draft" });
+
+    // A subsequent re-delivery of the SAME draft value but a fresh
+    // object identity (as would happen on every setDraft during typing)
+    // must not cause another remount.
+    draftHook.state = makeDraftState({
+      draft: { body: "async draft", frontmatter: { icon: "🦊" } },
+      isDirty: true,
+      hasStaleAlert: true,
+    });
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    expect(documentEditorMounts.count).toBe(2);
+    expect(documentEditorUnmounts.count).toBe(1);
+  });
+
+  it("re-seeds again if a draft is cleared and a new draft later arrives", () => {
+    draftHook.state = makeDraftState({
+      draft: { body: "first draft", frontmatter: basePage.frontmatter },
+    });
+    const { rerender } = render(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+    const mountsAfterInitial = documentEditorMounts.count;
+
+    // Draft cleared (e.g. clearDraft after a commit). The ref should
+    // reset so a later draft re-arrival is treated as "first".
+    draftHook.state = makeDraftState({ draft: null });
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+
+    // New draft shows up again (user typed after save).
+    draftHook.state = makeDraftState({
+      draft: { body: "post-save draft", frontmatter: basePage.frontmatter },
+      isDirty: true,
+    });
+    rerender(
+      <WikiPageEditor
+        wikiId="wiki-1"
+        path="index.md"
+        serverPage={basePage}
+        wiki={baseWiki}
+      />,
+    );
+
+    expect(documentEditorMounts.count).toBeGreaterThan(mountsAfterInitial);
+    const lastCall =
+      documentEditorProps.mock.calls[documentEditorProps.mock.calls.length - 1];
+    expect(lastCall[0]).toMatchObject({ initialContent: "post-save draft" });
   });
 
   it("drops frontmatter edits driven from a mis-behaving child when readOnly", () => {
