@@ -17,7 +17,7 @@
     {
       "id": 3,
       "subject": "Task 3: message-relations.service \u2014 CRUD + scope + cardinality",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** New service owning relation edge CRUD with scope/cardinality/self-ref/target-existence checks.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/properties/message-relations.service.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.service.spec.ts\",\"apps/server/apps/gateway/src/im/properties/message-relations.errors.ts\",\"apps/server/apps/gateway/src/im/properties/properties.module.ts\"],\"verifyCommand\":\"pnpm -C apps/server jest -- --testPathPattern=message-relations.service.spec.ts --coverage\",\"acceptanceCriteria\":[\"setRelationTargets with diff + txn\",\"scope=same_channel enforced\",\"cardinality=single rejects multi\",\"self-ref rejected\",\"target not found rejected\",\"getOutgoingTargets order preserved\",\"getIncomingSources filters deleted sources\",\"100% coverage\"]}\n```"
     },
