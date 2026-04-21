@@ -255,10 +255,8 @@ export class ChannelsService {
         userId: schema.bots.userId,
         ownerId: schema.bots.ownerId,
         extra: schema.bots.extra,
-        tenantId: schema.users.tenantId,
       })
       .from(schema.bots)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bots.userId))
       .where(eq(schema.bots.userId, botUserId))
       .limit(1);
 
@@ -267,7 +265,6 @@ export class ChannelsService {
     const [target] = await this.db
       .select({
         id: schema.users.id,
-        tenantId: schema.users.tenantId,
         isBot: sql<boolean>`EXISTS (SELECT 1 FROM ${schema.bots} WHERE ${schema.bots.userId} = ${schema.users.id})`,
       })
       .from(schema.users)
@@ -276,9 +273,8 @@ export class ChannelsService {
 
     if (!target) throw new NotFoundException('USER_NOT_FOUND');
     if (target.isBot) throw new ForbiddenException('DM_NOT_ALLOWED');
-    if (target.tenantId !== bot.tenantId) {
-      throw new BadRequestException('CROSS_TENANT');
-    }
+    // NOTE: cross-tenant guard omitted — im_users does not carry tenantId;
+    // tenant scoping is enforced at channel creation time via createDirectChannel.
 
     const extra = bot.extra ?? {};
     const policy = extra.dmOutboundPolicy ?? defaultDmOutboundPolicy(extra);

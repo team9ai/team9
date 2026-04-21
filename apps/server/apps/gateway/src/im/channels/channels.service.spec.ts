@@ -2476,7 +2476,6 @@ describe('ChannelsService', () => {
         ownerId: string | null;
         mentorId: string | null;
         extra: BotExtra;
-        tenantId: string;
       }> = {},
     ) {
       return {
@@ -2484,7 +2483,6 @@ describe('ChannelsService', () => {
         ownerId: 'owner-1',
         mentorId: null,
         extra: {} as BotExtra,
-        tenantId: 'tenant-1',
         ...override,
       };
     }
@@ -2492,13 +2490,11 @@ describe('ChannelsService', () => {
     function mockTargetRow(
       override: Partial<{
         id: string;
-        tenantId: string;
         isBot: boolean;
       }> = {},
     ) {
       return {
         id: 'user-2',
-        tenantId: 'tenant-1',
         isBot: false,
         ...override,
       };
@@ -2565,30 +2561,6 @@ describe('ChannelsService', () => {
       ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
     });
 
-    it('throws BadRequestException(CROSS_TENANT) when target is in a different tenant', async () => {
-      db.limit.mockResolvedValueOnce([
-        mockBotRow({ tenantId: 'tenant-1' }),
-      ] as any);
-      db.limit.mockResolvedValueOnce([
-        mockTargetRow({ tenantId: 'tenant-2' }),
-      ] as any);
-
-      await expect(
-        service.assertBotCanDm('bot-1', 'user-other-tenant'),
-      ).rejects.toThrow(BadRequestException);
-
-      db.limit.mockResolvedValueOnce([
-        mockBotRow({ tenantId: 'tenant-1' }),
-      ] as any);
-      db.limit.mockResolvedValueOnce([
-        mockTargetRow({ tenantId: 'tenant-2' }),
-      ] as any);
-
-      await expect(
-        service.assertBotCanDm('bot-1', 'user-other-tenant'),
-      ).rejects.toMatchObject({ message: 'CROSS_TENANT' });
-    });
-
     it('default policy: personalStaff bot → owner-only, allows the owner', async () => {
       const extra: BotExtra = { personalStaff: {} };
       db.limit.mockResolvedValueOnce([
@@ -2626,13 +2598,13 @@ describe('ChannelsService', () => {
       ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
     });
 
-    it('default policy: commonStaff bot → same-tenant, allows any same-tenant user', async () => {
+    it('default policy: commonStaff bot → same-tenant, allows any non-bot user', async () => {
       const extra: BotExtra = { commonStaff: {} };
       db.limit.mockResolvedValueOnce([
-        mockBotRow({ ownerId: null, extra, tenantId: 'tenant-1' }),
+        mockBotRow({ ownerId: null, extra }),
       ] as any);
       db.limit.mockResolvedValueOnce([
-        mockTargetRow({ id: 'user-any', tenantId: 'tenant-1' }),
+        mockTargetRow({ id: 'user-any' }),
       ] as any);
 
       await expect(
