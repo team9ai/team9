@@ -21,6 +21,7 @@ const schemaModule = {
   users: {
     id: 'users.id',
     displayName: 'users.display_name',
+    updatedAt: 'users.updated_at',
   },
 };
 
@@ -127,7 +128,8 @@ type BotRow = {
   extra: Record<string, unknown> | null;
   managedMeta: Record<string, unknown> | null;
   displayName: string | null;
-  updatedAt: Date;
+  botUpdatedAt: Date;
+  userUpdatedAt: Date;
 };
 
 function makeRow(overrides: Partial<BotRow> = {}): BotRow {
@@ -137,7 +139,8 @@ function makeRow(overrides: Partial<BotRow> = {}): BotRow {
     extra: null,
     managedMeta: { agentId: AGENT_ID },
     displayName: 'Display',
-    updatedAt: FIXED_DATE,
+    botUpdatedAt: FIXED_DATE,
+    userUpdatedAt: FIXED_DATE,
     ...overrides,
   };
 }
@@ -227,18 +230,47 @@ describe('BotStaffProfileService', () => {
       expect(snap.persona).toBeUndefined();
     });
 
-    it('returns empty identity {} when extra.commonStaff exists but identity unset', async () => {
+    it('returns empty identity {} when identity unset and users.display_name is null', async () => {
       db.__state.selectResults.push([
-        makeRow({ extra: { commonStaff: { roleTitle: 'X' } } }),
+        makeRow({
+          extra: { commonStaff: { roleTitle: 'X' } },
+          displayName: null,
+        }),
       ]);
 
       const snap = await service.getSnapshot(BOT_USER_ID);
       expect(snap.identity).toEqual({});
     });
 
-    it('returns empty identity {} when extra.personalStaff exists but identity unset', async () => {
+    it('falls back to users.display_name when identity.name is absent', async () => {
       db.__state.selectResults.push([
-        makeRow({ extra: { personalStaff: {} } }),
+        makeRow({
+          extra: { commonStaff: { identity: { favoriteColor: 'red' } } },
+          displayName: 'Morgan',
+        }),
+      ]);
+
+      const snap = await service.getSnapshot(BOT_USER_ID);
+      expect(snap.identity).toEqual({ favoriteColor: 'red', name: 'Morgan' });
+    });
+
+    it('uses max(bots.updated_at, users.updated_at) for snapshot.updatedAt', async () => {
+      const userUpdatedAt = new Date('2026-04-22T00:00:00.000Z');
+      db.__state.selectResults.push([
+        makeRow({
+          extra: { commonStaff: {} },
+          botUpdatedAt: FIXED_DATE,
+          userUpdatedAt,
+        }),
+      ]);
+
+      const snap = await service.getSnapshot(BOT_USER_ID);
+      expect(snap.updatedAt).toBe('2026-04-22T00:00:00.000Z');
+    });
+
+    it('returns empty identity {} when personal identity unset and users.display_name is null', async () => {
+      db.__state.selectResults.push([
+        makeRow({ extra: { personalStaff: {} }, displayName: null }),
       ]);
 
       const snap = await service.getSnapshot(BOT_USER_ID);
@@ -401,6 +433,8 @@ describe('BotStaffProfileService', () => {
       });
 
       expect(db.__queries.update).toHaveLength(2);
+      const botsSet = db.__queries.update[0].set.mock.calls[0][0];
+      expect('name' in botsSet.extra.commonStaff.identity).toBe(false);
       const usersSet = db.__queries.update[1].set.mock.calls[0][0];
       expect(usersSet.displayName).toBeNull();
       expect(usersSet.updatedAt).toBeInstanceOf(Date);
