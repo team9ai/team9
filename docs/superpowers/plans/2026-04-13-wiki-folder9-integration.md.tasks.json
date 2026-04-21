@@ -134,7 +134,7 @@
     {
       "id": 19,
       "subject": "Task 20: Create Wiki dialog + settings + archive",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [15],
       "description": "**Goal:** Replace stubbed CreateWikiDialog + add WikiSettingsDialog for renaming, approval mode toggle, permissions, archive.\n\n**Files:**\n- Modify: CreateWikiDialog.tsx, WikiListItem.tsx (kebab)\n- Create: WikiSettingsDialog.tsx\n\n**Verify:** pnpm --filter @team9/client test -- CreateWikiDialog WikiSettingsDialog\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/CreateWikiDialog.tsx\",\"apps/client/src/components/wiki/WikiSettingsDialog.tsx\",\"apps/client/src/components/wiki/WikiListItem.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- Create Settings\",\"acceptanceCriteria\":[\"Create with name+slug+icon\",\"Settings dialog for name/slug/approvalMode/permissions\",\"Archive with confirmation\",\"Validation + server error toast\"]}\n```"
     },
