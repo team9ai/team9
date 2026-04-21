@@ -76,6 +76,7 @@ export class FileService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/FS] onModuleInit enter');
     this.logger.log(
       `FileService initialized with ${PENDING_EXPIRATION_DAYS} day expiration for pending uploads`,
     );

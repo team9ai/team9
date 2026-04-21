@@ -33,6 +33,7 @@ export class ZombieCleanerService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/ZC] onModuleInit enter');
     // Start periodic cleanup
     this.cleanerInterval = setInterval(() => {
       void this.cleanZombies();

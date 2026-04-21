@@ -42,6 +42,7 @@ export class ClusterNodeService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
+    this.logger.log('[DEBUG/CLN] onModuleInit enter');
     await this.registerNode();
     this.startHeartbeat();
     this.logger.log(`Gateway node initialized: ${this.nodeId}`);

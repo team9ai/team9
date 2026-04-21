@@ -40,6 +40,7 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    this.logger.log('[DEBUG/GWMQ] onModuleInit enter');
     // Wait for RabbitMQ connection
     await this.waitForConnection();
     this.logger.log('GatewayMQService initialized, waiting for node ID');

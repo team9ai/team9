@@ -52,6 +52,7 @@ export class ConnectionService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/CNN] onModuleInit enter');
     this.logger.log('Connection service initialized');
   }
 

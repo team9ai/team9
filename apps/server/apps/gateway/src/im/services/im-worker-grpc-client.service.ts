@@ -90,6 +90,7 @@ export class ImWorkerGrpcClientService
   }
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/IMWG] onModuleInit enter');
     this.logger.log(`Initializing gRPC client, targeting: ${this.grpcUrl}`);
 
     try {

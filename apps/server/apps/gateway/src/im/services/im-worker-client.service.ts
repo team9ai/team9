@@ -19,6 +19,7 @@ export class ImWorkerClientService implements OnModuleInit {
   }
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/IMWC] onModuleInit enter');
     this.logger.log(`IM Worker client initialized, targeting: ${this.baseUrl}`);
   }
 

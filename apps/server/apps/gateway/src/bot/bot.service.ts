@@ -111,6 +111,7 @@ export class BotService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/BOT] onModuleInit enter');
     if (env.SYSTEM_BOT_ENABLED) {
       // await this.initializeSystemBot();
     } else {

@@ -14,6 +14,7 @@ export class WebPushService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    this.logger.log('[DEBUG/WP] onModuleInit enter');
     const publicKey = env.VAPID_PUBLIC_KEY;
     const privateKey = env.VAPID_PRIVATE_KEY;
 

@@ -24,6 +24,7 @@ export class NotificationDeliveryConsumerService implements OnModuleInit {
   constructor(private readonly deliveryService: NotificationDeliveryService) {}
 
   onModuleInit() {
+    this.logger.log('[DEBUG/NDC] onModuleInit enter');
     this.logger.log(
       'NotificationDeliveryConsumerService initialized in Gateway',
     );

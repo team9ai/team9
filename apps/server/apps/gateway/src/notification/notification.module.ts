@@ -48,6 +48,8 @@ export class NotificationModule implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    // eslint-disable-next-line no-console
+    console.log('[DEBUG/NOTM] onModuleInit enter');
     // Set the WebSocket gateway reference to avoid circular dependency
     this.deliveryService.setWebsocketGateway(this.websocketGateway);
   }
