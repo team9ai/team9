@@ -703,7 +703,13 @@ export function MessageList({
         followOutput={handleFollowOutput}
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={150}
-        increaseViewportBy={{ top: 300, bottom: 100 }}
+        // Pre-render a tall buffer above and below the viewport so that fast
+        // trackpad/wheel scrolling through heavy messages (images, code
+        // blocks, tool-call cards, A2UI surfaces) doesn't expose blank
+        // regions before React catches up. The prior 300/100 values were
+        // smaller than a single tall message and caused intermittent
+        // "white flash" bands during rapid scrolling.
+        increaseViewportBy={{ top: 1200, bottom: 800 }}
         className="h-full px-4 overflow-x-hidden"
         components={{
           Header: () =>
