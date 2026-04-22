@@ -30,7 +30,15 @@ time = { version = "0.3", features = ["formatting"] }
 tauri-plugin-notification = "2"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
-tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time", "sync"] }
+anyhow = "1"
+base64 = "0.22"
+
+# ahand library embedding — pinned to branch until merged + tagged rust-v0.1.2
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", branch = "feat/ahand-stream-a" }
+
+[dev-dependencies]
+tempfile = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
