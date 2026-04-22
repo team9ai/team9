@@ -42,8 +42,12 @@ export class AhandEventsSubscriber implements OnModuleInit, OnModuleDestroy {
     this.subscriber.on('reconnecting', () =>
       this.logger.warn('Redis subscriber reconnecting'),
     );
-    // Re-subscribe on every reconnect (covers the case where initial psubscribe
-    // failed and ioredis did not record the subscription in its internal state).
+    // Re-subscribe on every connect event (including reconnects). ioredis only
+    // auto-resubscribes channels that were previously successful — if the initial
+    // psubscribe failed (e.g. Redis unavailable at boot), ioredis has no record
+    // of the subscription and will not re-issue it on reconnect without this handler.
+    // Note: if initial psubscribe succeeds, the 'connect' event fires again on each
+    // reconnect, causing a duplicate psubscribe call. ioredis handles this idempotently.
     this.subscriber.on('connect', () => {
       this.subscriber?.psubscribe(PATTERN).catch((e) => {
         this.logger.warn(

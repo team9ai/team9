@@ -116,7 +116,7 @@ export class AhandWebhookService {
           'EX',
           ttl,
         );
-        // updateLastSeen moved after ownership lookup below
+        // lastSeenAt updated after the ownership SELECT below (only when row exists).
         break;
       }
       case 'device.heartbeat': {
@@ -134,13 +134,13 @@ export class AhandWebhookService {
       }
       case 'device.offline': {
         await this.redis.del(devicePresenceKey(evt.deviceId));
-        // updateLastSeen moved after ownership lookup below
+        // lastSeenAt updated after the ownership SELECT below (only when row exists).
         break;
       }
       case 'device.revoked': {
         await this.redis.del(devicePresenceKey(evt.deviceId));
         // Only update (and fan-out) if the row transitions from active → revoked.
-        // Using RETURNING lets us skip duplicate fan-out for already-revoked devices.
+        // RETURNING gives us the row data for fan-out, avoiding a redundant SELECT.
         const updated = await this.db
           .update(schema.ahandDevices)
           .set({ status: 'revoked', revokedAt: new Date() })
@@ -151,14 +151,33 @@ export class AhandWebhookService {
             ),
           )
           .returning();
-        // Mark this event as "already-processed" if the row was not found (already revoked)
         if (updated.length === 0) {
           this.logger.debug(
             `device.revoked for ${evt.deviceId} — row already revoked or absent, skipping fan-out`,
           );
           return;
         }
-        break;
+        // Fan-out directly using the returned row — no need for a second SELECT.
+        const revokedRow = updated[0];
+        await this.publisher.publishForOwner({
+          ownerType: revokedRow.ownerType as 'user' | 'workspace',
+          ownerId: revokedRow.ownerId,
+          eventType:
+            'device.revoked' as import('./ahand-redis-publisher.service.js').AhandEventType,
+          data: { ...evt.data, hubDeviceId: evt.deviceId },
+        });
+        this.eventsGateway.emitToOwner(
+          revokedRow.ownerType as 'user' | 'workspace',
+          revokedRow.ownerId,
+          'device.revoked',
+          {
+            hubDeviceId: evt.deviceId,
+            nickname: revokedRow.nickname,
+            platform: revokedRow.platform,
+            ...evt.data,
+          },
+        );
+        return; // handled inline — skip the shared fan-out below
       }
       case 'device.registered':
         // DB row was created during the Tauri registration call; fan-out only.
