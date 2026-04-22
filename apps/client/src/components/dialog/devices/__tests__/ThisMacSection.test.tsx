@@ -20,11 +20,13 @@ vi.mock("react-i18next", () => ({
 const mockGetIdentity = vi.hoisted(() => vi.fn());
 const mockStart = vi.hoisted(() => vi.fn());
 const mockStop = vi.hoisted(() => vi.fn());
+const mockClearIdentity = vi.hoisted(() => vi.fn());
 vi.mock("@/services/ahand-tauri", () => ({
   ahandTauri: {
     getIdentity: mockGetIdentity,
     start: mockStart,
     stop: mockStop,
+    clearIdentity: mockClearIdentity,
   },
 }));
 
@@ -117,6 +119,7 @@ describe("ThisMacSection", () => {
     useAhandStore.setState({ usersEnabled: {} });
     mockUseUser.mockReturnValue(DEFAULT_USER);
     mockLocalStatus.mockReturnValue({ state: "idle" });
+    mockClearIdentity.mockResolvedValue(undefined);
     window.confirm = vi.fn().mockReturnValue(true);
   });
 
@@ -267,6 +270,7 @@ describe("ThisMacSection", () => {
     await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
     expect(mockStop).toHaveBeenCalled();
     expect(mockRemove).toHaveBeenCalledWith("row-1");
+    expect(mockClearIdentity).toHaveBeenCalledWith("u1");
     expect(useAhandStore.getState().usersEnabled["u1"]).toBeUndefined();
   });
 

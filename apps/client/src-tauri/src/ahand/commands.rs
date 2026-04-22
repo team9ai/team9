@@ -42,3 +42,17 @@ pub async fn ahand_stop(runtime: State<'_, AhandRuntime>) -> Result<(), String> 
 pub async fn ahand_status(runtime: State<'_, AhandRuntime>) -> Result<DaemonStatus, String> {
     Ok(runtime.status().await)
 }
+
+/// Delete the on-disk identity directory for a user.
+/// Must only be called after the daemon is stopped and the device removed from the backend.
+#[tauri::command]
+pub async fn ahand_clear_identity(
+    app: AppHandle,
+    team9_user_id: String,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        super::identity::remove(&app, &team9_user_id)
+    })
+    .await
+    .map_err(|e| format!("clear-identity task panicked: {e}"))?
+}

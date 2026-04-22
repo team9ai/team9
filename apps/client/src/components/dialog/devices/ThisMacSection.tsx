@@ -78,6 +78,7 @@ export function ThisMacSection() {
       const devices = await ahandApi.list({ includeOffline: true });
       const row = devices.find((d) => d.hubDeviceId === deviceId);
       if (row) await ahandApi.remove(row.id);
+      await ahandTauri.clearIdentity(userId);
       store.clearUser(userId);
       qc.invalidateQueries({ queryKey: AHAND_DEVICES_QUERY_KEY });
       toast.success(t("thisMacRemoved"));

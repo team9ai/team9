@@ -13,4 +13,6 @@ export const ahandTauri = {
   start: (cfg: StartConfig) => invoke<StartResult>("ahand_start", { cfg }),
   stop: () => invoke<void>("ahand_stop"),
   status: () => invoke<DaemonStatus>("ahand_status"),
+  clearIdentity: (team9UserId: string) =>
+    invoke<void>("ahand_clear_identity", { team9UserId }),
 };

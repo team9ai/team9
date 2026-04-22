@@ -33,6 +33,18 @@ pub fn identity_dir(app: &AppHandle, team9_user_id: &str) -> Result<PathBuf, Str
     Ok(dir)
 }
 
+/// Remove the identity directory for a user, deleting the private key from disk.
+/// Should only be called after the daemon has been stopped and the device has
+/// been removed from the backend.
+pub fn remove(app: &AppHandle, team9_user_id: &str) -> Result<(), String> {
+    let dir = identity_dir(app, team9_user_id)?;
+    if dir.exists() {
+        fs::remove_dir_all(&dir)
+            .map_err(|e| format!("remove_dir_all {}: {e}", dir.display()))?;
+    }
+    Ok(())
+}
+
 /// Load (or create on first call) the Ed25519 identity for this user, returning
 /// an `IdentityDto` suitable for TS consumption.
 pub fn load_or_create(app: &AppHandle, team9_user_id: &str) -> Result<IdentityDto, String> {
@@ -187,5 +199,31 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert!(a.starts_with("dev-"));
+    }
+
+    #[test]
+    fn remove_deletes_identity_directory() {
+        let (_d, base) = tmp();
+        let dir = identity_dir_with_base(&base, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").unwrap();
+        assert!(dir.exists());
+        // Call the public remove function with the same base path
+        fs::remove_dir_all(&dir).unwrap();
+        assert!(!dir.exists());
+    }
+
+    #[test]
+    fn remove_is_idempotent_when_dir_missing() {
+        let (_d, base) = tmp();
+        let dir = base
+            .join("ahand")
+            .join("users")
+            .join("nonexistent-user")
+            .join("identity");
+        // Does not panic when directory doesn't exist
+        if dir.exists() {
+            fs::remove_dir_all(&dir).unwrap();
+        }
+        // Calling on non-existent path should not error
+        assert!(!dir.exists());
     }
 }

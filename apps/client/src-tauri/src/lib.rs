@@ -336,6 +336,7 @@ pub fn run() {
             ahand::commands::ahand_start,
             ahand::commands::ahand_stop,
             ahand::commands::ahand_status,
+            ahand::commands::ahand_clear_identity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

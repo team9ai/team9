@@ -24,6 +24,14 @@ export function useAhandDevices(opts: { includeOffline?: boolean } = {}) {
     const room = `user:${currentUser.id}:ahand`;
     wsService.joinAhandRoom(room);
 
+    // Re-join the room after reconnect — Socket.io rooms don't survive
+    // socket replacement (which happens on auth recovery and reconnects).
+    const offConnectionChange = wsService.onConnectionChange((status) => {
+      if (status === "connected") {
+        wsService.joinAhandRoom(room);
+      }
+    });
+
     const onUpdate = (patch: Partial<DeviceDto> & { hubDeviceId: string }) => {
       qc.setQueryData<DeviceDto[]>(
         [...AHAND_DEVICES_QUERY_KEY, includeOffline],
@@ -62,6 +70,7 @@ export function useAhandDevices(opts: { includeOffline?: boolean } = {}) {
     wsService.on("reconnect", onReconnect);
 
     return () => {
+      offConnectionChange();
       wsService.leaveAhandRoom(room);
       wsService.off("device.online", onOnline);
       wsService.off("device.offline", onOffline);

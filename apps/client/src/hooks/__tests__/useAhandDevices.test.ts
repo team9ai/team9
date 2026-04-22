@@ -8,6 +8,7 @@ const mockOn = vi.hoisted(() => vi.fn());
 const mockOff = vi.hoisted(() => vi.fn());
 const mockJoinRoom = vi.hoisted(() => vi.fn());
 const mockLeaveRoom = vi.hoisted(() => vi.fn());
+const mockOnConnectionChange = vi.hoisted(() => vi.fn());
 vi.mock("@/services/ahand-api", () => ({ ahandApi: { list: mockList } }));
 vi.mock("@/services/websocket", () => ({
   default: {
@@ -15,6 +16,7 @@ vi.mock("@/services/websocket", () => ({
     off: mockOff,
     joinAhandRoom: mockJoinRoom,
     leaveAhandRoom: mockLeaveRoom,
+    onConnectionChange: mockOnConnectionChange,
   },
 }));
 
@@ -40,6 +42,7 @@ describe("useAhandDevices", () => {
     vi.clearAllMocks();
     mockList.mockResolvedValue([]);
     mockUseUser.mockReturnValue({ id: "u1", name: "Alice" });
+    mockOnConnectionChange.mockReturnValue(() => {});
   });
 
   it("fetches device list when user is present", async () => {
@@ -62,6 +65,34 @@ describe("useAhandDevices", () => {
     expect(mockJoinRoom).toHaveBeenCalledWith("user:u1:ahand");
     unmount();
     expect(mockLeaveRoom).toHaveBeenCalledWith("user:u1:ahand");
+  });
+
+  it("re-joins ahand room when connection status becomes connected", () => {
+    let connectionCallback: ((status: string) => void) | null = null;
+    mockOnConnectionChange.mockImplementation(
+      (cb: (status: string) => void) => {
+        connectionCallback = cb;
+        return () => {};
+      },
+    );
+    const { wrapper } = makeWrapper();
+    renderHook(() => useAhandDevices(), { wrapper });
+    expect(mockJoinRoom).toHaveBeenCalledTimes(1);
+    // Simulate reconnect
+    act(() => {
+      connectionCallback?.("connected");
+    });
+    expect(mockJoinRoom).toHaveBeenCalledTimes(2);
+    expect(mockJoinRoom).toHaveBeenLastCalledWith("user:u1:ahand");
+  });
+
+  it("unregisters onConnectionChange on unmount", () => {
+    const mockUnsubscribe = vi.fn();
+    mockOnConnectionChange.mockReturnValue(mockUnsubscribe);
+    const { wrapper } = makeWrapper();
+    const { unmount } = renderHook(() => useAhandDevices(), { wrapper });
+    unmount();
+    expect(mockUnsubscribe).toHaveBeenCalled();
   });
 
   it("registers all WS listeners on mount", () => {
