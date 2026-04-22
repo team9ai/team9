@@ -14,6 +14,7 @@ import { SequenceModule } from './sequence/sequence.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
 import { PostBroadcastModule } from './post-broadcast/post-broadcast.module.js';
 import { NotificationModule } from './notification/notification.module.js';
+import { AhandImWorkerModule } from './ahand/ahand.module.js';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { NotificationModule } from './notification/notification.module.js';
     OutboxModule,
     PostBroadcastModule,
     NotificationModule,
+    AhandImWorkerModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: CustomSentryFilter }],
 })
