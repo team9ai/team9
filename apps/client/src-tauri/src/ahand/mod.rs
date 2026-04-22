@@ -1,5 +1,6 @@
-// Phase 7 tasks populate this module:
-// - runtime.rs   (AhandRuntime singleton + DaemonHandle lifecycle)  [Task 7.3]
-// - commands.rs  (#[tauri::command] surface)                        [Task 7.4]
+// commands.rs (#[tauri::command] surface) added in Task 7.4
 
 pub mod identity;
+pub mod runtime;
+
+pub use runtime::{AhandRuntime, DaemonStatus, ErrorKind, StartConfig, StartResult};

@@ -9,8 +9,10 @@ use objc2::msg_send;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 use serde::Serialize;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_autostart::MacosLauncher;
+
+use ahand::AhandRuntime;
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 
@@ -240,6 +242,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_notification::init())
         .manage(PendingUpdate::default())
+        .manage(AhandRuntime::new())
         .setup(|app| {
             tauri::async_runtime::spawn(health_server::start_health_server());
 
@@ -337,6 +340,14 @@ pub fn run() {
             // ahand::ahand_stop,
             // ahand::ahand_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let runtime = app_handle.state::<AhandRuntime>();
+                tauri::async_runtime::block_on(async {
+                    let _ = runtime.stop().await;
+                });
+            }
+        });
 }
