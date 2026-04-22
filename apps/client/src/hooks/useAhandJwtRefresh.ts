@@ -44,7 +44,7 @@ async function doRefresh(userId: string): Promise<void> {
     const { deviceJwt, jwtExpiresAt } = await ahandApi.refreshToken(row.id);
     await ahandTauri.start({
       team9_user_id: userId,
-      hub_url: "",
+      hub_url: useAhandStore.getState().getHubUrlForUser(userId),
       device_jwt: deviceJwt,
       jwt_expires_at: Math.floor(new Date(jwtExpiresAt).getTime() / 1000),
     });

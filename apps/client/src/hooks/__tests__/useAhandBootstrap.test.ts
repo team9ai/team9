@@ -9,7 +9,10 @@ vi.mock("@/services/ahand-api", () => ({
   ahandApi: { list: mockList, refreshToken: mockRefreshToken },
 }));
 const mockStart = vi.hoisted(() => vi.fn());
-vi.mock("@/services/ahand-tauri", () => ({ ahandTauri: { start: mockStart } }));
+const mockStop = vi.hoisted(() => vi.fn());
+vi.mock("@/services/ahand-tauri", () => ({
+  ahandTauri: { start: mockStart, stop: mockStop },
+}));
 const mockUseAppStore = vi.hoisted(() => vi.fn());
 vi.mock("@/stores/useAppStore", () => ({ useAppStore: mockUseAppStore }));
 const mockToastError = vi.hoisted(() => vi.fn());
@@ -70,5 +73,31 @@ describe("useAhandBootstrap", () => {
     mockList.mockRejectedValue(new Error("network fail"));
     renderHook(() => useAhandBootstrap());
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+  });
+
+  it("stops daemon when userId transitions to null (logout)", async () => {
+    mockStop.mockResolvedValue(undefined);
+    mockUseAppStore.mockImplementation((sel: (s: { user: null }) => unknown) =>
+      sel({ user: null }),
+    );
+    renderHook(() => useAhandBootstrap());
+    await waitFor(() => expect(mockStop).toHaveBeenCalled());
+  });
+
+  it("uses stored hubUrl when resuming", async () => {
+    useAhandStore
+      .getState()
+      .setDeviceIdForUser("u1", "dev-abc", true, "wss://hub.example.com");
+    mockList.mockResolvedValue([{ id: "row-1", hubDeviceId: "dev-abc" }]);
+    mockRefreshToken.mockResolvedValue({
+      deviceJwt: "jwt-new",
+      jwtExpiresAt: "2026-06-01T00:00:00Z",
+    });
+    mockStart.mockResolvedValue({ device_id: "dev-abc" });
+    renderHook(() => useAhandBootstrap());
+    await waitFor(() => expect(mockStart).toHaveBeenCalled());
+    expect(mockStart).toHaveBeenCalledWith(
+      expect.objectContaining({ hub_url: "wss://hub.example.com" }),
+    );
   });
 });

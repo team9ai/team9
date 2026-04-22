@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 export interface UserAhandState {
   enabled: boolean;
   deviceId: string | null;
+  hubUrl: string;
 }
 
 interface AhandStore {
@@ -11,10 +12,12 @@ interface AhandStore {
   usersEnabled: Record<string, UserAhandState>;
 
   getDeviceIdForUser(userId: string): string | null;
+  getHubUrlForUser(userId: string): string;
   setDeviceIdForUser(
     userId: string,
     deviceId: string | null,
     enabled: boolean,
+    hubUrl?: string,
   ): void;
   clearUser(userId: string): void;
 }
@@ -27,11 +30,19 @@ export const useAhandStore = create<AhandStore>()(
         const entry = get().usersEnabled[userId];
         return entry?.enabled ? (entry.deviceId ?? null) : null;
       },
-      setDeviceIdForUser(userId, deviceId, enabled) {
+      getHubUrlForUser(userId) {
+        return get().usersEnabled[userId]?.hubUrl ?? "";
+      },
+      setDeviceIdForUser(userId, deviceId, enabled, hubUrl) {
+        const prev = get().usersEnabled[userId];
         set({
           usersEnabled: {
             ...get().usersEnabled,
-            [userId]: { enabled, deviceId },
+            [userId]: {
+              enabled,
+              deviceId,
+              hubUrl: hubUrl ?? prev?.hubUrl ?? "",
+            },
           },
         });
       },

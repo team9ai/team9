@@ -9,12 +9,20 @@ import { toast } from "sonner";
 export function useAhandBootstrap() {
   const userId = useAppStore((s) => s.user?.id ?? null);
 
+  // Resume daemon when user logs in
   useEffect(() => {
     if (!isTauriApp() || !userId) return;
     const store = useAhandStore.getState();
     const entry = store.usersEnabled[userId];
     if (!entry?.enabled || !entry.deviceId) return;
     void resume(userId, entry.deviceId);
+  }, [userId]);
+
+  // Stop daemon when user logs out (userId transitions to null)
+  useEffect(() => {
+    if (!isTauriApp()) return;
+    if (userId !== null) return;
+    void ahandTauri.stop().catch(() => {});
   }, [userId]);
 }
 
@@ -29,7 +37,7 @@ async function resume(userId: string, cachedDeviceId: string): Promise<void> {
     const { deviceJwt, jwtExpiresAt } = await ahandApi.refreshToken(row.id);
     await ahandTauri.start({
       team9_user_id: userId,
-      hub_url: "", // hub_url comes from initial registration; refreshToken doesn't return it
+      hub_url: useAhandStore.getState().getHubUrlForUser(userId),
       device_jwt: deviceJwt,
       jwt_expires_at: Math.floor(new Date(jwtExpiresAt).getTime() / 1000),
     });

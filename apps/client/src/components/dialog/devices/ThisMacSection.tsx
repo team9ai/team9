@@ -46,7 +46,7 @@ export function ThisMacSection() {
             nickname,
             platform: plat,
           });
-          store.setDeviceIdForUser(userId, id.deviceId, true);
+          store.setDeviceIdForUser(userId, id.deviceId, true, hubUrl);
           await ahandTauri.start({
             team9_user_id: userId,
             hub_url: hubUrl,
