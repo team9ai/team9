@@ -22,6 +22,7 @@ import { AuthStartDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
+import { PosthogService } from '@team9/posthog';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -113,6 +114,10 @@ describe('AuthService', () => {
         {
           provide: TurnstileService,
           useValue: { verify: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: PosthogService,
+          useValue: { capture: jest.fn(), identify: jest.fn() },
         },
       ],
     }).compile();
