@@ -89,7 +89,7 @@
   },
   "archive": {
     "title": "归档此知识库？",
-    "description": "\u201C{{name}}\u201D 将对所有人从侧边栏隐藏。你可以请管理员稍后恢复。",
+    "description": "“{{name}}” 将对所有人从侧边栏隐藏。你可以请管理员稍后恢复。",
     "cancel": "取消",
     "confirm": "归档",
     "archiving": "归档中…"
@@ -128,7 +128,8 @@
     "saving": "保存中…"
   },
   "page": {
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "binaryFile": "二进制文件 — 不支持在此编辑。"
   },
   "proposalBanner": {
     "message": "此页面有一个待审核的提案。",

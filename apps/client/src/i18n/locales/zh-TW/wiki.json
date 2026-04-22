@@ -89,7 +89,7 @@
   },
   "archive": {
     "title": "封存此知識庫？",
-    "description": "\u201C{{name}}\u201D 將對所有人從側邊欄隱藏。你可以請管理員稍後還原。",
+    "description": "“{{name}}” 將對所有人從側邊欄隱藏。你可以請管理員稍後還原。",
     "cancel": "取消",
     "confirm": "封存",
     "archiving": "封存中…"
@@ -128,7 +128,8 @@
     "saving": "儲存中…"
   },
   "page": {
-    "loading": "載入中…"
+    "loading": "載入中…",
+    "binaryFile": "二進位檔案 — 不支援在此編輯。"
   },
   "proposalBanner": {
     "message": "此頁面有一個待審核的提案。",

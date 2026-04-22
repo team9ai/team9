@@ -218,7 +218,7 @@ describe("WikiPageView", () => {
       to: string;
       params: { wikiSlug: string; proposalId: string };
     };
-    expect(arg.to).toBe("/wiki/$wikiSlug/review/$proposalId");
+    expect(arg.to).toBe("/wiki/$wikiSlug/-/review/$proposalId");
     expect(arg.params).toEqual({ wikiSlug: "handbook", proposalId: "prop-42" });
   });
 });

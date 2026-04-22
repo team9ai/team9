@@ -89,7 +89,7 @@
   },
   "archive": {
     "title": "Archiviare questo Wiki?",
-    "description": "\u201C{{name}}\u201D verrà nascosto dalla barra laterale per tutti. Puoi chiedere a un amministratore di ripristinarlo in seguito.",
+    "description": "“{{name}}” verrà nascosto dalla barra laterale per tutti. Puoi chiedere a un amministratore di ripristinarlo in seguito.",
     "cancel": "Annulla",
     "confirm": "Archivia",
     "archiving": "Archiviazione…"
@@ -128,7 +128,8 @@
     "saving": "Salvataggio…"
   },
   "page": {
-    "loading": "Caricamento…"
+    "loading": "Caricamento…",
+    "binaryFile": "File binario — non modificabile qui."
   },
   "proposalBanner": {
     "message": "Questa pagina ha una proposta in attesa di revisione.",

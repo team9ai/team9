@@ -128,7 +128,8 @@
     "saving": "Saving…"
   },
   "page": {
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "binaryFile": "Binary file — not editable here."
   },
   "proposalBanner": {
     "message": "This page has a pending proposal awaiting review.",

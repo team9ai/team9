@@ -89,7 +89,7 @@
   },
   "archive": {
     "title": "이 Wiki를 보관하시겠습니까?",
-    "description": "\u201C{{name}}\u201D은(는) 모두의 사이드바에서 숨겨집니다. 나중에 관리자에게 복원을 요청할 수 있습니다.",
+    "description": "“{{name}}”은(는) 모두의 사이드바에서 숨겨집니다. 나중에 관리자에게 복원을 요청할 수 있습니다.",
     "cancel": "취소",
     "confirm": "보관",
     "archiving": "보관 중…"
@@ -128,7 +128,8 @@
     "saving": "저장 중…"
   },
   "page": {
-    "loading": "로드 중…"
+    "loading": "로드 중…",
+    "binaryFile": "바이너리 파일 — 여기에서 편집할 수 없습니다."
   },
   "proposalBanner": {
     "message": "이 페이지에 검토 대기 중인 제안이 있습니다.",

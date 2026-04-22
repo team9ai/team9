@@ -89,7 +89,7 @@
   },
   "archive": {
     "title": "Deze Wiki archiveren?",
-    "description": "\u201C{{name}}\u201D wordt voor iedereen uit de zijbalk verborgen. Je kunt een admin later vragen om het te herstellen.",
+    "description": "“{{name}}” wordt voor iedereen uit de zijbalk verborgen. Je kunt een admin later vragen om het te herstellen.",
     "cancel": "Annuleren",
     "confirm": "Archiveren",
     "archiving": "Archiveren…"
@@ -128,7 +128,8 @@
     "saving": "Opslaan…"
   },
   "page": {
-    "loading": "Laden…"
+    "loading": "Laden…",
+    "binaryFile": "Binair bestand — hier niet bewerkbaar."
   },
   "proposalBanner": {
     "message": "Deze pagina heeft een voorstel dat op beoordeling wacht.",
