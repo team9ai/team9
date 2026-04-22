@@ -420,6 +420,11 @@ export class WikisService {
       );
     }
 
+    if (!updated[0]) {
+      // TOCTOU: wiki was concurrently archived/deleted between getWikiOrThrow and UPDATE
+      throw new NotFoundException(`Wiki ${wikiId} not found`);
+    }
+
     // Broadcast AFTER DB + folder9 mirror both succeeded. A failure above
     // already throws and never reaches this line, so subscribers only ever
     // see updates for wikis that are actually updated.

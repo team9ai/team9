@@ -94,6 +94,22 @@ export class WikisController {
     return { id: userId, isAgent };
   }
 
+  /**
+   * Validate a folder9 proposal ID. folder9 uses opaque string IDs (not UUIDs)
+   * so we can't use ParseUUIDPipe, but we still enforce length + charset to
+   * prevent arbitrary strings from being forwarded to folder9.
+   */
+  private requireProposalId(proposalId: string): void {
+    if (
+      !proposalId ||
+      proposalId.length > 128 ||
+      // Allow alphanumeric, hyphens, underscores, dots — folder9's ID charset
+      !/^[a-zA-Z0-9._-]+$/.test(proposalId)
+    ) {
+      throw new BadRequestException('invalid proposal id');
+    }
+  }
+
   // ── Wiki CRUD ──────────────────────────────────────────────────────
 
   @Get()
@@ -233,6 +249,7 @@ export class WikisController {
     @Param('wikiId', ParseUUIDPipe) wikiId: string,
     @Param('proposalId') proposalId: string,
   ): Promise<void> {
+    this.requireProposalId(proposalId);
     const ws = this.requireWorkspaceId(workspaceId);
     const user = await this.actingUser(userId);
     await this.wikis.approveProposal(ws, wikiId, user, proposalId);
@@ -246,6 +263,7 @@ export class WikisController {
     @Param('proposalId') proposalId: string,
     @Body() body: RejectProposalBody = {},
   ): Promise<void> {
+    this.requireProposalId(proposalId);
     const ws = this.requireWorkspaceId(workspaceId);
     const user = await this.actingUser(userId);
     await this.wikis.rejectProposal(ws, wikiId, user, proposalId, body.reason);
@@ -258,6 +276,7 @@ export class WikisController {
     @Param('wikiId', ParseUUIDPipe) wikiId: string,
     @Param('proposalId') proposalId: string,
   ) {
+    this.requireProposalId(proposalId);
     const ws = this.requireWorkspaceId(workspaceId);
     const user = await this.actingUser(userId);
     return this.wikis.getProposalDiff(ws, wikiId, user, proposalId);
