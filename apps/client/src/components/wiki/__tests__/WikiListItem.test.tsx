@@ -207,8 +207,37 @@ describe("WikiListItem", () => {
 
     // Hook called with `null` so React Query stays disabled.
     expect(mockUseWikiTree).toHaveBeenCalledWith(null);
-    // No tree rows rendered.
-    expect(screen.queryByRole("button", { name: /index\.md/ })).toBeNull();
+    // No tree rows rendered. WikiTreeNode buttons carry role="treeitem" (A-3 fix).
+    expect(screen.queryByRole("treeitem", { name: /index\.md/ })).toBeNull();
+  });
+
+  it("outer div has role=treeitem, aria-level=1, and aria-expanded=false when collapsed", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    const { container } = render(<WikiListItem wiki={wiki} />);
+    const treeitem = container.firstChild as HTMLElement;
+    expect(treeitem).toHaveAttribute("role", "treeitem");
+    expect(treeitem).toHaveAttribute("aria-level", "1");
+    expect(treeitem).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("aria-expanded becomes true on the treeitem when expanded", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    const { container, rerender } = render(<WikiListItem wiki={wiki} />);
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    rerender(<WikiListItem wiki={wiki} />);
+    const treeitem = container.firstChild as HTMLElement;
+    expect(treeitem).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("children container has role=group when the row is expanded", () => {
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    mockUseWikiTree.mockReturnValue({ data: treeEntries });
+    render(<WikiListItem wiki={wiki} />);
+    expect(screen.getByRole("group")).toBeInTheDocument();
   });
 
   it("renders only the wiki row when collapsed", () => {
@@ -218,7 +247,7 @@ describe("WikiListItem", () => {
     expect(
       screen.getByTestId("wiki-list-item-toggle-wiki-1"),
     ).toHaveTextContent(/Public Wiki/);
-    expect(screen.queryByRole("button", { name: /api/ })).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: /api/ })).toBeNull();
   });
 
   it("renders wiki.icon in place of the default LibraryIcon when present", () => {
@@ -259,10 +288,15 @@ describe("WikiListItem", () => {
 
     expect(mockUseWikiTree).toHaveBeenCalledWith("wiki-1");
     // Tree rows now present; `api` (dir) and `index.md` (file at root).
-    expect(screen.getByRole("button", { name: /^api$/ })).toBeInTheDocument();
+    // WikiTreeNode buttons carry role="treeitem" (A-3 fix). The outer
+    // WikiListItem div also has role="treeitem", so accessible names are
+    // shared across levels — use getAllByRole to avoid "multiple elements" error.
     expect(
-      screen.getByRole("button", { name: /index\.md/ }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("treeitem", { name: /^api$/ }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("treeitem", { name: /index\.md/ }).length,
+    ).toBeGreaterThan(0);
   });
 
   it("renders an empty tree without crashing while loading", () => {

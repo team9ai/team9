@@ -64,13 +64,12 @@ export function WikiTreeNode({ node, wikiSlug, depth }: WikiTreeNodeProps) {
   // `WikiListItem` passing `depth={1}`), and increments from there.
   const ariaLevel = depth + 1;
   return (
-    <div
-      role="treeitem"
-      aria-level={ariaLevel}
-      aria-expanded={node.type === "dir" ? isExpanded : undefined}
-      aria-selected={isActive || undefined}
-    >
+    <div>
       <button
+        role="treeitem"
+        aria-level={ariaLevel}
+        aria-expanded={node.type === "dir" ? isExpanded : undefined}
+        aria-selected={isActive || undefined}
         type="button"
         onClick={handleClick}
         style={{ paddingLeft: `${8 + depth * 14}px` }}

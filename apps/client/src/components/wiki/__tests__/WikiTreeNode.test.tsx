@@ -46,12 +46,82 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /auth\.md/ }));
+    fireEvent.click(screen.getByRole("treeitem", { name: /auth\.md/ }));
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/wiki/$wikiSlug/$",
       params: { wikiSlug: "public", _splat: "api/auth.md" },
     });
+  });
+
+  it("button carries role=treeitem (not a wrapper div)", () => {
+    render(
+      <WikiTreeNode
+        node={fileNode("api/auth.md")}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const btn = screen.getByRole("treeitem");
+    expect(btn.tagName).toBe("BUTTON");
+  });
+
+  it("button has correct aria-level (depth + 1)", () => {
+    render(
+      <WikiTreeNode node={fileNode("auth.md")} wikiSlug="public" depth={2} />,
+    );
+    const btn = screen.getByRole("treeitem");
+    expect(btn).toHaveAttribute("aria-level", "3");
+  });
+
+  it("directory button has aria-expanded=false when collapsed", () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/x.md")])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const btn = screen.getByRole("treeitem");
+    expect(btn).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("directory button has aria-expanded=true when expanded", () => {
+    act(() => {
+      useWikiStore.getState().toggleDirectory("api");
+    });
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/x.md")])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const btn = screen.getByRole("treeitem", { name: /api/ });
+    expect(btn).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("file button does not have aria-expanded", () => {
+    render(
+      <WikiTreeNode node={fileNode("auth.md")} wikiSlug="public" depth={0} />,
+    );
+    const btn = screen.getByRole("treeitem");
+    expect(btn).not.toHaveAttribute("aria-expanded");
+  });
+
+  it("active file button has aria-selected=true", () => {
+    act(() => {
+      useWikiStore.getState().setSelectedPage("api/auth.md");
+    });
+    render(
+      <WikiTreeNode
+        node={fileNode("api/auth.md")}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const btn = screen.getByRole("treeitem");
+    expect(btn).toHaveAttribute("aria-selected", "true");
   });
 
   it("does not toggle a directory when clicking a file", () => {
@@ -62,7 +132,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /auth\.md/ }));
+    fireEvent.click(screen.getByRole("treeitem", { name: /auth\.md/ }));
 
     expect(useWikiStore.getState().expandedDirectories.has("api/auth.md")).toBe(
       false,
@@ -77,7 +147,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /api/ }));
+    fireEvent.click(screen.getByRole("treeitem", { name: /api/ }));
     expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
   });
 
@@ -89,7 +159,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /api/ }));
+    fireEvent.click(screen.getByRole("treeitem", { name: /api/ }));
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
@@ -101,7 +171,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /api/ }));
+    fireEvent.click(screen.getByRole("treeitem", { name: /api/ }));
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/wiki/$wikiSlug/$",
       params: { wikiSlug: "public", _splat: "api/index.md" },
@@ -120,7 +190,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    const button = screen.getByRole("button", { name: /api/ });
+    const button = screen.getByRole("treeitem", { name: /api/ });
 
     fireEvent.click(button);
     expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
@@ -140,7 +210,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    const button = screen.getByRole("button", { name: /api/ });
+    const button = screen.getByRole("treeitem", { name: /api/ });
 
     fireEvent.click(button);
     expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
@@ -155,7 +225,7 @@ describe("WikiTreeNode", () => {
     const { rerender } = render(
       <WikiTreeNode node={node} wikiSlug="public" depth={0} />,
     );
-    expect(screen.queryByRole("button", { name: /auth\.md/ })).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: /auth\.md/ })).toBeNull();
 
     act(() => {
       useWikiStore.getState().toggleDirectory("api");
@@ -163,7 +233,7 @@ describe("WikiTreeNode", () => {
     rerender(<WikiTreeNode node={node} wikiSlug="public" depth={0} />);
 
     expect(
-      screen.getByRole("button", { name: /auth\.md/ }),
+      screen.getByRole("treeitem", { name: /auth\.md/ }),
     ).toBeInTheDocument();
   });
 
@@ -178,9 +248,9 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    expect(screen.getByRole("button", { name: /auth\.md/ }).className).toMatch(
-      /bg-primary/,
-    );
+    expect(
+      screen.getByRole("treeitem", { name: /auth\.md/ }).className,
+    ).toMatch(/bg-primary/);
   });
 
   it("does not highlight a non-matching file", () => {
@@ -195,7 +265,7 @@ describe("WikiTreeNode", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: /auth\.md/ }).className,
+      screen.getByRole("treeitem", { name: /auth\.md/ }).className,
     ).not.toMatch(/bg-primary/);
   });
 
@@ -204,7 +274,7 @@ describe("WikiTreeNode", () => {
       useWikiStore.getState().setSelectedPage("api");
     });
     render(<WikiTreeNode node={dirNode("api")} wikiSlug="public" depth={0} />);
-    expect(screen.getByRole("button", { name: /api/ }).className).not.toMatch(
+    expect(screen.getByRole("treeitem", { name: /api/ }).className).not.toMatch(
       /bg-primary/,
     );
   });
@@ -213,7 +283,7 @@ describe("WikiTreeNode", () => {
     render(
       <WikiTreeNode node={fileNode("auth.md")} wikiSlug="public" depth={3} />,
     );
-    const button = screen.getByRole("button", { name: /auth\.md/ });
+    const button = screen.getByRole("treeitem", { name: /auth\.md/ });
     expect(button.getAttribute("style")).toMatch(/padding-left: 50px/);
   });
 
@@ -229,10 +299,10 @@ describe("WikiTreeNode", () => {
 
     render(<WikiTreeNode node={tree} wikiSlug="public" depth={0} />);
 
-    expect(screen.getByRole("button", { name: /api$/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /v1/ })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: /api$/ })).toBeInTheDocument();
+    expect(screen.getByRole("treeitem", { name: /v1/ })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /auth\.md/ }),
+      screen.getByRole("treeitem", { name: /auth\.md/ }),
     ).toBeInTheDocument();
   });
 
@@ -266,7 +336,7 @@ describe("WikiTreeNode", () => {
     const { container } = render(
       <WikiTreeNode node={dirNode("api")} wikiSlug="public" depth={0} />,
     );
-    // Exactly one button (the dir row) — no nested wrapper div
-    expect(container.querySelectorAll("button")).toHaveLength(1);
+    // Exactly one treeitem button (the dir row) — no nested wrapper div
+    expect(container.querySelectorAll("[role='treeitem']")).toHaveLength(1);
   });
 });

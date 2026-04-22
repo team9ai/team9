@@ -125,7 +125,12 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
   };
 
   return (
-    <div className="group/wiki-row relative">
+    <div
+      role="treeitem"
+      aria-level={1}
+      aria-expanded={isOpen}
+      className="group/wiki-row relative"
+    >
       <div className="flex items-center w-full hover:bg-accent">
         <button
           type="button"
@@ -185,15 +190,18 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {isOpen &&
-        tree.map((node) => (
-          <WikiTreeNode
-            key={node.path}
-            node={node}
-            wikiSlug={wiki.slug}
-            depth={1}
-          />
-        ))}
+      {isOpen && (
+        <div role="group">
+          {tree.map((node) => (
+            <WikiTreeNode
+              key={node.path}
+              node={node}
+              wikiSlug={wiki.slug}
+              depth={1}
+            />
+          ))}
+        </div>
+      )}
       <WikiSettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}
