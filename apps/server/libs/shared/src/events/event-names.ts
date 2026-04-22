@@ -69,6 +69,8 @@ export const WS_EVENTS = {
     OBSERVE: 'channel:observe',
     /** Client requests to stop observing a channel */
     UNOBSERVE: 'channel:unobserve',
+    /** Channel session model changed - broadcast by server (DM/routine-session only) */
+    MODEL_CHANGED: 'channel_model_changed',
   },
 
   // ==================== Message Operations ====================

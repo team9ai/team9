@@ -34,6 +34,7 @@ export const WS_EVENTS = {
     UNARCHIVED: "channel_unarchived",
     OBSERVE: "channel:observe",
     UNOBSERVE: "channel:unobserve",
+    MODEL_CHANGED: "channel_model_changed",
   },
 
   // Message operations
@@ -239,6 +240,16 @@ export interface ChannelUnarchivedEvent {
   channelId: string;
   channelName?: string;
   unarchivedBy: string;
+}
+
+/** Channel session model changed event */
+export interface ChannelModelChangedEvent {
+  channelId: string;
+  botId: string;
+  model: { provider: string; id: string };
+  source: "agent_default" | "session_initial" | "dynamic";
+  changedBy: string | null;
+  changedAt: string;
 }
 
 // ==================== Message Event Types ====================

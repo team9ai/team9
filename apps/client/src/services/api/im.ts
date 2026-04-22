@@ -164,6 +164,44 @@ export const channelsApi = {
       show,
     });
   },
+
+  // Get the effective LLM model for this channel's agent session.
+  // Only available on human↔agent DM and routine-session channels.
+  getChannelModel: async (
+    channelId: string,
+  ): Promise<{
+    channelId: string;
+    model: { provider: string; id: string };
+    source: "agent_default" | "session_initial" | "dynamic";
+    override: { provider: string; id: string } | null;
+  }> => {
+    const response = await http.get<{
+      channelId: string;
+      model: { provider: string; id: string };
+      source: "agent_default" | "session_initial" | "dynamic";
+      override: { provider: string; id: string } | null;
+    }>(`/v1/im/channels/${channelId}/model`);
+    return response.data;
+  },
+
+  // Switch this channel's session-level model.
+  updateChannelModel: async (
+    channelId: string,
+    model: { provider: string; id: string },
+  ): Promise<{
+    channelId: string;
+    model: { provider: string; id: string };
+    source: "agent_default" | "session_initial" | "dynamic";
+    override: { provider: string; id: string } | null;
+  }> => {
+    const response = await http.patch<{
+      channelId: string;
+      model: { provider: string; id: string };
+      source: "agent_default" | "session_initial" | "dynamic";
+      override: { provider: string; id: string } | null;
+    }>(`/v1/im/channels/${channelId}/model`, { model });
+    return response.data;
+  },
 };
 
 // Messages API

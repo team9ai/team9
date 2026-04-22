@@ -18,6 +18,7 @@ import {
   desc,
   isNull,
   inArray,
+  notInArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -1209,6 +1210,15 @@ export class ChannelsService {
    * Fetch channel rows (with unread counts) for a set of channel ids that are
    * derived via mentor-lookup and are NOT present in the user's direct-member
    * list. These channels are group/tracking channels — no otherUser enrichment.
+   *
+   * NOTE: `direct` and `echo` channels are excluded here even if the caller's
+   * id list includes them. The mentor-cascade path is meant to grant visibility
+   * into group/tracking channels where a mentored bot participates; it must
+   * NOT expose bot-to-bot private DMs (created e.g. by `base-model-staff`
+   * install when the tenant already has other bot members) as "Direct
+   * Message" rows in the mentor's sidebar. Without this filter, those
+   * bot-to-bot DMs reach the client with `otherUser=undefined` and render
+   * as the generic "Direct Message" fallback.
    */
   private async fetchChannelsByIds(
     channelIds: string[],
@@ -1246,7 +1256,12 @@ export class ChannelsService {
           eq(schema.userChannelReadStatus.userId, userId),
         ),
       )
-      .where(inArray(schema.channels.id, channelIds));
+      .where(
+        and(
+          inArray(schema.channels.id, channelIds),
+          notInArray(schema.channels.type, ['direct', 'echo']),
+        ),
+      );
 
     return rows.map((row) => ({
       ...row,
@@ -1561,6 +1576,90 @@ export class ChannelsService {
     }
 
     throw new ForbiddenException('Access denied');
+  }
+
+  /**
+   * Resolve the target of a channel-level model switch.
+   *
+   * A channel is eligible iff:
+   *   - type ∈ ('direct', 'routine-session')
+   *   - requester has read access
+   *   - contains exactly one managed-hive bot member (managedProvider='hive'
+   *     with a resolvable managedMeta.agentId)
+   *
+   * Returns the bot + agent-pi session id, or throws ForbiddenException.
+   * Used by the channel-model GET/PATCH/SSE endpoints.
+   */
+  async resolveModelSwitchTarget(
+    channelId: string,
+    requesterId: string,
+  ): Promise<{
+    tenantId: string | null;
+    agentId: string;
+    sessionId: string;
+    bot: { botUserId: string };
+  }> {
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    if (channel.type !== 'direct' && channel.type !== 'routine-session') {
+      throw new ForbiddenException(
+        'Model switching is only available on DM and routine-session channels',
+      );
+    }
+
+    await this.assertReadAccess(channelId, requesterId);
+
+    const botRows = await this.db
+      .select({
+        userId: schema.channelMembers.userId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
+      })
+      .from(schema.channelMembers)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.channelMembers.userId),
+      )
+      .innerJoin(
+        schema.bots,
+        eq(schema.bots.userId, schema.channelMembers.userId),
+      )
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          isNull(schema.channelMembers.leftAt),
+          eq(schema.users.userType, 'bot'),
+        ),
+      );
+
+    const hiveBots = botRows.filter(
+      (row) => row.managedProvider === 'hive' && !!row.managedMeta?.agentId,
+    );
+
+    if (hiveBots.length !== 1) {
+      throw new ForbiddenException(
+        hiveBots.length === 0
+          ? 'Channel has no hive-managed bot'
+          : 'Model switching is not supported in channels with multiple bots',
+      );
+    }
+
+    const bot = hiveBots[0];
+    const agentId = bot.managedMeta!.agentId as string;
+    const tenantId = channel.tenantId;
+    // Mirrors the sessionId convention in post-broadcast.service.ts for
+    // direct / routine-session channels (scope='dm', scopeId=channel.id).
+    const sessionId = `team9/${tenantId ?? ''}/${agentId}/dm/${channelId}`;
+
+    return {
+      tenantId,
+      agentId,
+      sessionId,
+      bot: { botUserId: bot.userId },
+    };
   }
 
   async isBot(userId: string): Promise<boolean> {
