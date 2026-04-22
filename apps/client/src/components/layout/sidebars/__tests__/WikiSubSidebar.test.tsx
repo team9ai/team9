@@ -296,7 +296,7 @@ describe("WikiSubSidebar", () => {
     fireEvent.click(screen.getByTestId("wiki-sub-sidebar-review"));
 
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/wiki/$wikiSlug/review",
+      to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: "first" },
     });
   });
@@ -338,7 +338,7 @@ describe("WikiSubSidebar", () => {
     fireEvent.click(screen.getByTestId("wiki-sub-sidebar-review"));
 
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/wiki/$wikiSlug/review",
+      to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: "second" },
     });
   });

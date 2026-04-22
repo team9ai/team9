@@ -59,15 +59,10 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
       : null;
 
   const handleViewProposal = (proposalId: string) => {
-    // The `/wiki/$wikiSlug/-/review/$proposalId` route is owned by Task 21 and
-    // doesn't exist yet. Cast keeps the typed-router from rejecting the
-    // link at build time; once Task 21 lands the route, the cast can be
-    // dropped without otherwise changing this call site.
-    // TODO(Task 21): remove the cast once the review route exists.
     void navigate({
       to: "/wiki/$wikiSlug/-/review/$proposalId",
       params: { wikiSlug: wiki.slug, proposalId },
-    } as unknown as Parameters<typeof navigate>[0]);
+    });
   };
 
   if (page.encoding === "base64") {

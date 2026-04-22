@@ -70,7 +70,7 @@ export function WikiSubSidebar() {
   const handleOpenReview = reviewTargetSlug
     ? () =>
         void navigate({
-          to: "/wiki/$wikiSlug/review",
+          to: "/wiki/$wikiSlug/-/review",
           params: { wikiSlug: reviewTargetSlug },
         })
     : undefined;

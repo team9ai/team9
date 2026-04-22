@@ -29,7 +29,7 @@ vi.mock("@/components/wiki/ProposalDiffView", () => ({
   ),
 }));
 
-import { Route as WikiReviewDetailRoute } from "../$wikiSlug.review.$proposalId";
+import { Route as WikiReviewDetailRoute } from "../$wikiSlug.dash-review.$proposalId";
 import { useWikiStore } from "@/stores/useWikiStore";
 
 function renderRouteComponent(route: unknown) {
@@ -38,7 +38,7 @@ function renderRouteComponent(route: unknown) {
   return render(<Component />);
 }
 
-describe("/_authenticated/wiki/$wikiSlug/review/$proposalId route component", () => {
+describe("/_authenticated/wiki/$wikiSlug/-/review/$proposalId route component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWikiStore.getState().reset();
@@ -100,5 +100,14 @@ describe("/_authenticated/wiki/$wikiSlug/review/$proposalId route component", ()
 
     expect(queryByTestId("proposal-diff-view-mock")).toBeNull();
     expect(getByTestId("wiki-review-detail-route-missing")).toBeInTheDocument();
+  });
+
+  it("route file exports a Route object (smoke test)", () => {
+    // The Route export exists and has the expected shape produced by
+    // createFileRoute() in the mock (an object with useParams and __config).
+    expect(WikiReviewDetailRoute).toBeDefined();
+    expect(
+      (WikiReviewDetailRoute as unknown as { __config: unknown }).__config,
+    ).toBeDefined();
   });
 });

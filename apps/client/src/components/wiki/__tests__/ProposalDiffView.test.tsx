@@ -377,7 +377,7 @@ describe("ProposalDiffView", () => {
 
     fireEvent.click(screen.getByTestId("proposal-diff-back"));
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/wiki/$wikiSlug/review",
+      to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: "public" },
     });
   });
@@ -454,7 +454,7 @@ describe("ProposalDiffView", () => {
 
     expect(approveMutate).toHaveBeenCalledWith("prop-1");
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/wiki/$wikiSlug/review",
+      to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: "public" },
     });
   });
@@ -567,7 +567,7 @@ describe("ProposalDiffView", () => {
       reason: "Not quite right",
     });
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/wiki/$wikiSlug/review",
+      to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: "public" },
     });
   });

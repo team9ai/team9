@@ -25,7 +25,7 @@ function formatAuthor(proposal: ProposalDto): string {
 }
 
 /**
- * Proposal list rendered at `/wiki/:wikiSlug/review`.
+ * Proposal list rendered at `/wiki/:wikiSlug/-/review`.
  *
  * Only shows pending proposals — users who want historical entries can
  * filter via the URL once we surface that. Rows are `<Link>`s to the
@@ -89,7 +89,7 @@ export function ReviewPanel({ wiki }: ReviewPanelProps) {
             {proposals.map((proposal) => (
               <li key={proposal.id}>
                 <Link
-                  to="/wiki/$wikiSlug/review/$proposalId"
+                  to="/wiki/$wikiSlug/-/review/$proposalId"
                   params={{
                     wikiSlug: wiki.slug,
                     proposalId: proposal.id,

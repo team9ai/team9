@@ -5,7 +5,7 @@ import { useWikis } from "@/hooks/useWikis";
 import { wikiActions } from "@/stores/useWikiStore";
 
 /**
- * `/wiki/:wikiSlug/review` — list of pending proposals for the selected
+ * `/wiki/:wikiSlug/-/review` — list of pending proposals for the selected
  * wiki. Mirrors the other wiki routes by seeding `selectedWikiId` in the
  * store so the sub-sidebar stays in sync. The page itself is `ReviewPanel`.
  *
@@ -13,8 +13,13 @@ import { wikiActions } from "@/stores/useWikiStore";
  * lightweight fallback instead of blanking the pane — the sidebar's own
  * archived-wiki filtering typically prevents this, but the route can be
  * hit via a stale deep-link.
+ *
+ * The route lives under `/-/review` (not `/review`) so that wiki pages
+ * whose path begins with "review/" are never shadowed by this route.
  */
-export const Route = createFileRoute("/_authenticated/wiki/$wikiSlug/review")({
+export const Route = createFileRoute(
+  "/_authenticated/wiki/$wikiSlug/dash-review",
+)({
   component: WikiReviewPage,
 });
 

@@ -26,7 +26,7 @@ vi.mock("@/components/wiki/ReviewPanel", () => ({
   ),
 }));
 
-import { Route as WikiReviewRoute } from "../$wikiSlug.review";
+import { Route as WikiReviewRoute } from "../$wikiSlug.dash-review";
 import { useWikiStore } from "@/stores/useWikiStore";
 
 function renderRouteComponent(route: unknown) {
@@ -35,7 +35,7 @@ function renderRouteComponent(route: unknown) {
   return render(<Component />);
 }
 
-describe("/_authenticated/wiki/$wikiSlug/review route component", () => {
+describe("/_authenticated/wiki/$wikiSlug/-/review route component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWikiStore.getState().reset();
@@ -89,5 +89,14 @@ describe("/_authenticated/wiki/$wikiSlug/review route component", () => {
 
     expect(queryByTestId("review-panel-mock")).toBeNull();
     expect(getByTestId("wiki-review-route-missing")).toBeInTheDocument();
+  });
+
+  it("route file exports a Route object (smoke test)", () => {
+    // The Route export exists and has the expected shape produced by
+    // createFileRoute() in the mock (an object with useParams and __config).
+    expect(WikiReviewRoute).toBeDefined();
+    expect(
+      (WikiReviewRoute as unknown as { __config: unknown }).__config,
+    ).toBeDefined();
   });
 });

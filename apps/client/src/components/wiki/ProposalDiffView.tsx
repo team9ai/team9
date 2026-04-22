@@ -167,7 +167,7 @@ function rejectErrorMessage(error: unknown): string {
  * one-click action because folder9 doesn't accept a reason on approve.
  *
  * On success we invalidate the proposals list (via the mutation's own
- * `onSuccess`) and navigate back to `/wiki/:slug/review` so the user
+ * `onSuccess`) and navigate back to `/wiki/:slug/-/review` so the user
  * lands on a freshly-pruned queue.
  */
 export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
@@ -200,7 +200,7 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
 
   const goBackToList = () => {
     void navigate({
-      to: "/wiki/$wikiSlug/review",
+      to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: wiki.slug },
     });
   };

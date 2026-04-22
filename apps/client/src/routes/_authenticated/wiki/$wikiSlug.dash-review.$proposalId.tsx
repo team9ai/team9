@@ -5,12 +5,15 @@ import { useWikis } from "@/hooks/useWikis";
 import { wikiActions } from "@/stores/useWikiStore";
 
 /**
- * `/wiki/:wikiSlug/review/:proposalId` — per-proposal diff + approve/reject.
+ * `/wiki/:wikiSlug/-/review/:proposalId` — per-proposal diff + approve/reject.
  * The component owns the data-fetching (proposal list + diff); the route
  * file stays minimal so deep-links behave deterministically.
+ *
+ * The route lives under `/-/review` (not `/review`) so that wiki pages
+ * whose path begins with "review/" are never shadowed by this route.
  */
 export const Route = createFileRoute(
-  "/_authenticated/wiki/$wikiSlug/review/$proposalId",
+  "/_authenticated/wiki/$wikiSlug/dash-review/$proposalId",
 )({
   component: WikiReviewDetailPage,
 });
