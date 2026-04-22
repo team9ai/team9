@@ -17,7 +17,8 @@ function makeServer() {
 
 function makeClient(userId: string | null) {
   return {
-    data: userId ? { user: { id: userId } } : {},
+    data: {},
+    user: userId ? { sub: userId } : undefined,
     join: jest.fn<any>().mockResolvedValue(undefined),
     leave: jest.fn<any>().mockResolvedValue(undefined),
   } as any;
@@ -47,12 +48,12 @@ describe('AhandEventsGateway', () => {
   // ─── emitToOwner ──────────────────────────────────────────────────────────
 
   describe('emitToOwner', () => {
-    it('emits to user:{id}:ahand with ahand: prefixed event', () => {
+    it('emits to user:{id}:ahand with plain event name (no prefix)', () => {
       const srv = makeServer();
       (gateway as unknown as { server: unknown }).server = srv;
       gateway.emitToOwner('user', 'u1', 'device.online', { hubDeviceId: 'd1' });
       expect(srv.to).toHaveBeenCalledWith('user:u1:ahand');
-      expect(srv._emit).toHaveBeenCalledWith('ahand:device.online', {
+      expect(srv._emit).toHaveBeenCalledWith('device.online', {
         hubDeviceId: 'd1',
       });
     });

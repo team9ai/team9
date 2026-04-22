@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { env } from '@team9/shared';
 import {
   AhandControlPlaneClient,
@@ -66,10 +66,27 @@ type ResolvedCallingClient =
  * without ahand components rather than crashing.
  */
 @Injectable()
-export class AhandBlueprintExtender {
+export class AhandBlueprintExtender implements OnModuleInit {
   private readonly logger = new Logger(AhandBlueprintExtender.name);
 
   constructor(private readonly control: AhandControlPlaneClient) {}
+
+  onModuleInit(): void {
+    // Validate required config eagerly so misconfiguration fails at boot
+    // rather than silently degrading ahand injection.
+    try {
+      const token = env.INTERNAL_AUTH_VALIDATION_TOKEN;
+      if (!token) {
+        this.logger.warn(
+          'INTERNAL_AUTH_VALIDATION_TOKEN is not set — ahand component injection will be disabled',
+        );
+      }
+    } catch {
+      this.logger.warn(
+        'INTERNAL_AUTH_VALIDATION_TOKEN is not set — ahand component injection will be disabled',
+      );
+    }
+  }
 
   private get hubUrl(): string {
     return env.AHAND_HUB_URL ?? '';

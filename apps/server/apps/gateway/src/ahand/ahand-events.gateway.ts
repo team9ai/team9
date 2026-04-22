@@ -62,7 +62,7 @@ export class AhandEventsGateway {
       );
       return;
     }
-    this.server.to(room).emit(`ahand:${eventType}`, data);
+    this.server.to(room).emit(eventType, data);
   }
 
   @SubscribeMessage('ahand:join_room')
@@ -74,18 +74,17 @@ export class AhandEventsGateway {
     const parsed = parseRoom(room);
     if (!parsed) return { ok: false, error: 'Invalid room format' };
 
-    const authUser = (client as unknown as { data?: { user?: { id: string } } })
-      .data?.user;
-    if (!authUser) return { ok: false, error: 'Unauthenticated' };
+    const authUser = (client as unknown as { user?: { sub: string } }).user;
+    if (!authUser?.sub) return { ok: false, error: 'Unauthenticated' };
 
     if (parsed.ownerType === 'user') {
-      if (parsed.ownerId !== authUser.id) {
+      if (parsed.ownerId !== authUser.sub) {
         return { ok: false, error: "Cannot join another user's room" };
       }
     } else {
       const member = await this.workspaceService.isWorkspaceMember(
         parsed.ownerId,
-        authUser.id,
+        authUser.sub,
       );
       if (!member)
         return { ok: false, error: 'Not a member of this workspace' };

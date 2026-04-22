@@ -69,9 +69,17 @@ export class AhandWebhookService {
     if (got.length !== expected.length) {
       throw new UnauthorizedException('Signature mismatch');
     }
-    if (
-      !timingSafeEqual(Buffer.from(got, 'hex'), Buffer.from(expected, 'hex'))
-    ) {
+    if (!/^[0-9a-f]+$/i.test(got)) {
+      throw new UnauthorizedException('Signature mismatch');
+    }
+    try {
+      if (
+        !timingSafeEqual(Buffer.from(got, 'hex'), Buffer.from(expected, 'hex'))
+      ) {
+        throw new UnauthorizedException('Signature mismatch');
+      }
+    } catch (e) {
+      if (e instanceof UnauthorizedException) throw e;
       throw new UnauthorizedException('Signature mismatch');
     }
   }
@@ -130,6 +138,9 @@ export class AhandWebhookService {
         // DB row was created during the Tauri registration call; fan-out only.
         break;
     }
+
+    // Heartbeat only refreshes the Redis presence key — no DB queries or fan-out.
+    if (evt.eventType === 'device.heartbeat') return;
 
     // Resolve ownership for fan-out.
     const [row] = await this.db

@@ -9,8 +9,7 @@ export type AhandEventType =
   | 'device.online'
   | 'device.heartbeat'
   | 'device.offline'
-  | 'device.revoked'
-  | 'device.presence.changed';
+  | 'device.revoked';
 
 export interface AhandOwnerEvent {
   ownerType: 'user' | 'workspace';

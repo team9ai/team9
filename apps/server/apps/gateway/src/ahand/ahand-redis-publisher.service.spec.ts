@@ -67,7 +67,7 @@ describe('AhandRedisPublisher', () => {
       publisher.publishForOwner({
         ownerType: 'user',
         ownerId: 'u1',
-        eventType: 'device.presence.changed',
+        eventType: 'device.revoked',
         data: {},
       }),
     ).resolves.toBeUndefined();

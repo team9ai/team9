@@ -37,7 +37,13 @@ export class AhandHubWebhookController {
     if (!raw) throw new BadRequestException('Missing request body');
     const rawBuf: Buffer = Buffer.isBuffer(raw)
       ? raw
-      : Buffer.from(typeof raw === 'string' ? raw : JSON.stringify(raw));
+      : typeof raw === 'string'
+        ? Buffer.from(raw)
+        : (() => {
+            throw new BadRequestException(
+              'Raw body unavailable — configure NestFactory with rawBody: true',
+            );
+          })();
 
     this.svc.verifySignature(rawBuf, signature, timestamp);
 

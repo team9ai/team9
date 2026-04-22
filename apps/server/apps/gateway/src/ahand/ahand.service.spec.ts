@@ -375,6 +375,58 @@ describe('AhandDevicesService', () => {
         }),
       ).rejects.toThrow('mint err');
     });
+
+    it('pre-flight check throws ConflictException when device already exists in DB', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await expect(
+        service.registerDeviceForUser('u1', {
+          hubDeviceId: 'hub-d1',
+          publicKey: 'pk',
+          nickname: 'n',
+          platform: 'macos',
+        }),
+      ).rejects.toThrow(ConflictException);
+      // Hub should never be called if DB already has the device
+      expect(hub.registerDevice).not.toHaveBeenCalled();
+    });
+
+    it('DB 23505 unique constraint maps to ConflictException and compensates hub', async () => {
+      // Pre-flight returns empty (no existing row), so we proceed to hub register
+      dbFixture.chains.selectWhere.mockResolvedValue([]);
+      hub.registerDevice.mockResolvedValue({ deviceId: 'd' });
+      hub.deleteDevice.mockResolvedValue(undefined);
+      const uniqueErr = Object.assign(new Error('unique violation'), {
+        code: '23505',
+      });
+      dbFixture.chains.insertReturning.mockRejectedValue(uniqueErr);
+      await expect(
+        service.registerDeviceForUser('u1', {
+          hubDeviceId: 'd',
+          publicKey: 'p',
+          nickname: 'n',
+          platform: 'macos',
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(hub.deleteDevice).toHaveBeenCalledWith('d');
+    });
+
+    it('DB 23505 compensation hub DELETE failure is swallowed', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([]);
+      hub.registerDevice.mockResolvedValue({ deviceId: 'd' });
+      hub.deleteDevice.mockRejectedValue(new Error('hub gone'));
+      const uniqueErr = Object.assign(new Error('unique violation'), {
+        code: '23505',
+      });
+      dbFixture.chains.insertReturning.mockRejectedValue(uniqueErr);
+      await expect(
+        service.registerDeviceForUser('u1', {
+          hubDeviceId: 'd',
+          publicKey: 'p',
+          nickname: 'n',
+          platform: 'macos',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   // ─── listDevicesForOwner ────────────────────────────────────────────
@@ -593,7 +645,10 @@ describe('AhandDevicesService', () => {
       hub.deleteDevice.mockResolvedValue(undefined);
       await service.revokeDevice('u1', 'row-1');
       expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'revoked' }),
+        expect.objectContaining({
+          status: 'revoked',
+          revokedAt: expect.any(Date),
+        }),
       );
       expect(hub.deleteDevice).toHaveBeenCalledWith('hub-d1');
       expect(publisher.publishForOwner).toHaveBeenCalledWith({
@@ -625,14 +680,13 @@ describe('AhandDevicesService', () => {
 
   describe('onUserDeleted', () => {
     it('no devices -> short-circuit', async () => {
-      dbFixture.chains.selectWhere.mockResolvedValue([]);
+      dbFixture.chains.updateReturning.mockResolvedValue([]);
       await service.onUserDeleted({ userId: 'u-deleted' });
-      expect(dbFixture.chains.updateSet).not.toHaveBeenCalled();
       expect(hub.deleteDevice).not.toHaveBeenCalled();
     });
 
     it('revokes all active rows and cascades hub DELETEs', async () => {
-      dbFixture.chains.selectWhere.mockResolvedValue([
+      dbFixture.chains.updateReturning.mockResolvedValue([
         makeDeviceRow({ hubDeviceId: 'h1' }),
         makeDeviceRow({ id: 'row-2', hubDeviceId: 'h2' }),
       ]);
@@ -647,7 +701,7 @@ describe('AhandDevicesService', () => {
     });
 
     it('hub DELETE failure is logged, cascade continues', async () => {
-      dbFixture.chains.selectWhere.mockResolvedValue([
+      dbFixture.chains.updateReturning.mockResolvedValue([
         makeDeviceRow({ hubDeviceId: 'h1' }),
         makeDeviceRow({ id: 'row-2', hubDeviceId: 'h2' }),
       ]);

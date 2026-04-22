@@ -47,12 +47,19 @@ describe('AhandHubWebhookController', () => {
     expect(svc.handleEvent).toHaveBeenCalledWith(body);
   });
 
-  it('uses req.body as fallback when rawBody is absent', async () => {
-    const req = { body } as any;
+  it('uses req.body string fallback when rawBody is absent', async () => {
+    const req = { body: JSON.stringify(body) } as any;
     await expect(
       controller.ingest(req, 'sha256=sig', 'ts', 'evt_abc', body),
     ).resolves.toBeUndefined();
     expect(svc.verifySignature).toHaveBeenCalled();
+  });
+
+  it('throws BadRequest when rawBody is absent and req.body is a parsed object', async () => {
+    const req = { body } as any;
+    await expect(
+      controller.ingest(req, 'sha256=sig', 'ts', 'evt_abc', body),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('throws BadRequest when body is null/undefined', async () => {
@@ -103,11 +110,10 @@ describe('AhandHubWebhookController', () => {
     expect(svc.verifySignature).toHaveBeenCalled();
   });
 
-  it('handles non-string, non-Buffer body via JSON.stringify fallback', async () => {
+  it('throws BadRequest when rawBody is non-Buffer non-string object', async () => {
     const req = { rawBody: { raw: true } } as any;
     await expect(
       controller.ingest(req, 'sha256=sig', 'ts', 'evt_abc', body),
-    ).resolves.toBeUndefined();
-    expect(svc.verifySignature).toHaveBeenCalled();
+    ).rejects.toThrow(BadRequestException);
   });
 });

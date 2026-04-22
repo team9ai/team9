@@ -147,6 +147,23 @@ describe('AhandEventsSubscriber', () => {
     expect(dispatcher.dispatch).not.toHaveBeenCalled();
   });
 
+  it('dispatches with ownerType=undefined when payload omits it (dispatcher no-ops)', async () => {
+    const payload = JSON.stringify({
+      eventType: 'device.online',
+      data: { hubDeviceId: 'd1' },
+      publishedAt: 'x',
+      // ownerType intentionally absent
+    });
+    redis.sub.emit('pmessage', 'ahand:events:*', 'ahand:events:u1', payload);
+    await Promise.resolve();
+    expect(dispatcher.dispatch).toHaveBeenCalledWith({
+      ownerType: undefined,
+      ownerId: 'u1',
+      eventType: 'device.online',
+      data: { hubDeviceId: 'd1' },
+    });
+  });
+
   it('logs and skips message on unexpected channel', async () => {
     const warnSpy = jest
       .spyOn(

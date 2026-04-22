@@ -7,10 +7,28 @@ import { createHmac } from 'crypto';
 const mockEq = jest.fn((f: unknown, v: unknown) => ({ kind: 'eq', f, v }));
 const mockAnd = jest.fn((...c: unknown[]) => ({ kind: 'and', c }));
 
+const noop = jest.fn((..._args: unknown[]) => ({}));
 jest.unstable_mockModule('@team9/database', () => ({
   DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION'),
   eq: mockEq,
   and: mockAnd,
+  // Provide no-op stubs for all drizzle helpers used by transitive imports
+  ne: noop,
+  or: noop,
+  lt: noop,
+  lte: noop,
+  gt: noop,
+  gte: noop,
+  sql: noop,
+  like: noop,
+  desc: noop,
+  asc: noop,
+  isNull: noop,
+  inArray: noop,
+  notInArray: noop,
+  aliasedTable: noop,
+  alias: noop,
+  DatabaseModule: class DatabaseModule {},
 }));
 
 jest.unstable_mockModule('@team9/database/schemas', () => ({
@@ -24,7 +42,13 @@ jest.unstable_mockModule('@team9/database/schemas', () => ({
 
 const SECRET = 'webhook-secret-key-32chars-long!!';
 const mockSharedEnv = { AHAND_HUB_WEBHOOK_SECRET: SECRET };
-jest.unstable_mockModule('@team9/shared', () => ({ env: mockSharedEnv }));
+// Re-export WS_EVENTS so transitive imports (workspace.service → websocket.module)
+// don't blow up when @team9/shared is mocked.
+const actualShared = await import('@team9/shared');
+jest.unstable_mockModule('@team9/shared', () => ({
+  ...actualShared,
+  env: mockSharedEnv,
+}));
 
 const { AhandWebhookService } = await import('./ahand-webhook.service.js');
 type Svc = InstanceType<typeof AhandWebhookService>;
@@ -166,6 +190,13 @@ describe('AhandWebhookService', () => {
     it('rejects wrong-length hex in signature (length mismatch fast-path)', () => {
       expect(() =>
         svc.verifySignature(body, 'sha256=' + 'a'.repeat(10), nowSec()),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects signature with non-hex characters', () => {
+      const body = Buffer.from('test');
+      expect(() =>
+        svc.verifySignature(body, 'sha256=' + 'g'.repeat(64), nowSec()),
       ).toThrow(UnauthorizedException);
     });
 

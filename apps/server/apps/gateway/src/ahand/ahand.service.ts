@@ -96,6 +96,16 @@ export class AhandDevicesService {
     this.validateNickname(input.nickname);
     const hubUrl = this.requireHubUrl();
 
+    // 0. Pre-flight: bail early if device already exists in DB so we don't
+    //    pre-register with hub only to compensate the deletion of a live record.
+    const existing = await this.db
+      .select()
+      .from(schema.ahandDevices)
+      .where(eq(schema.ahandDevices.hubDeviceId, input.hubDeviceId));
+    if (existing.length > 0) {
+      throw new ConflictException('Device already registered');
+    }
+
     // 1. Pre-register with hub.
     await this.hub.registerDevice({
       deviceId: input.hubDeviceId,
@@ -121,6 +131,16 @@ export class AhandDevicesService {
         .returning();
       inserted = row;
     } catch (e) {
+      // Map postgres unique constraint violation to ConflictException
+      if ((e as { code?: string }).code === '23505') {
+        // Compensate hub registration since the device is already in DB
+        await this.hub.deleteDevice(input.hubDeviceId).catch((err) => {
+          this.logger.error(
+            `Hub compensation DELETE failed for ${input.hubDeviceId}: ${describe(err)}`,
+          );
+        });
+        throw new ConflictException('Device already registered');
+      }
       this.logger.warn(
         `Rolling back hub registration for ${input.hubDeviceId} after DB insert failure: ${describe(e)}`,
       );
@@ -287,7 +307,8 @@ export class AhandDevicesService {
     } catch (e) {
       // Row is already revoked; hub cleanup will reconcile via webhook.
       this.logger.warn(
-        `Hub deleteDevice failed for ${device.hubDeviceId}: ${describe(e)}`,
+        `Hub deleteDevice failed for ${device.hubDeviceId}: ${e instanceof Error ? e.message : String(e)}. ` +
+          `DB row is already revoked; hub reconciliation will handle cleanup via device.revoked webhook.`,
       );
     }
     await this.publisher.publishForOwner({
@@ -302,18 +323,8 @@ export class AhandDevicesService {
 
   @OnEvent('user.deleted')
   async onUserDeleted(payload: { userId: string }): Promise<void> {
-    const rows = await this.db
-      .select()
-      .from(schema.ahandDevices)
-      .where(
-        and(
-          eq(schema.ahandDevices.ownerType, 'user'),
-          eq(schema.ahandDevices.ownerId, payload.userId),
-          eq(schema.ahandDevices.status, 'active'),
-        ),
-      );
-    if (rows.length === 0) return;
-    await this.db
+    // Use RETURNING to atomically get-and-update, avoiding TOCTOU
+    const updated = await this.db
       .update(schema.ahandDevices)
       .set({ status: 'revoked', revokedAt: new Date() })
       .where(
@@ -322,8 +333,10 @@ export class AhandDevicesService {
           eq(schema.ahandDevices.ownerId, payload.userId),
           eq(schema.ahandDevices.status, 'active'),
         ),
-      );
-    for (const row of rows) {
+      )
+      .returning();
+    if (updated.length === 0) return;
+    for (const row of updated) {
       try {
         await this.hub.deleteDevice(row.hubDeviceId);
       } catch (e) {
