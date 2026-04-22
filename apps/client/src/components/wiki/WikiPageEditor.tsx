@@ -307,7 +307,12 @@ export function WikiPageEditor({
     async (reviewInput?: SubmitForReviewInput) => {
       const propose = !!reviewInput;
       const content = serializeFrontmatter({ frontmatter, body });
-      const message = reviewInput?.title.trim() || `Update ${path}`;
+      const commitMessage = reviewInput
+        ? reviewInput.description?.trim()
+          ? `${reviewInput.title.trim()}\n\n${reviewInput.description.trim()}`
+          : reviewInput.title.trim()
+        : `Update ${path}`;
+      const message = commitMessage || `Update ${path}`;
       try {
         const result = await commit.mutateAsync({
           message,

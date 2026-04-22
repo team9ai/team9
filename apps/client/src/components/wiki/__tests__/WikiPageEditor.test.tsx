@@ -1091,7 +1091,9 @@ describe("WikiPageEditor", () => {
         propose: boolean;
       };
       expect(dto.propose).toBe(true);
-      expect(dto.message).toBe("Fix typo");
+      // Mock dialog fires { title: "Fix typo", description: "misspelled" };
+      // the editor must concatenate both into a single commit message.
+      expect(dto.message).toBe("Fix typo\n\nmisspelled");
       expect(setSubmittedProposalSpy).toHaveBeenCalledWith(
         "wiki-1",
         "index.md",
@@ -1099,6 +1101,45 @@ describe("WikiPageEditor", () => {
       );
       // Draft must NOT be cleared on the review-mode success path.
       expect(clearDraft).not.toHaveBeenCalled();
+    });
+
+    it("review mode: title only (no description) → message is just the title (no trailing newlines)", async () => {
+      draftHook.state = makeDraftState({
+        isDirty: true,
+        draft: { body: "draft body", frontmatter: basePage.frontmatter },
+      });
+      commitHook.mutateAsync.mockResolvedValue({
+        commit: { sha: "new-sha" },
+        proposal: { id: "prop-99" },
+      });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={{ ...baseWiki, approvalMode: "review" }}
+        />,
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      });
+      // Directly invoke onSubmit with title only (no description field).
+      const lastCall =
+        submitForReviewProps.mock.calls[
+          submitForReviewProps.mock.calls.length - 1
+        ];
+      const onSubmit = lastCall[0].onSubmit as (input: {
+        title: string;
+        description?: string;
+      }) => void;
+      await act(async () => {
+        onSubmit({ title: "My Title" });
+      });
+      const dto = commitHook.mutateAsync.mock.calls[0][0] as {
+        message: string;
+      };
+      // No description supplied → message must be "My Title" with no trailing \n\n.
+      expect(dto.message).toBe("My Title");
     });
 
     it("review mode: falls back to a default message when the dialog title is empty", async () => {
