@@ -273,12 +273,17 @@ export interface AttachmentDto {
   mimeType: string;
 }
 
+export type ClientContext =
+  | { kind: "macapp"; deviceId: string | null }
+  | { kind: "web" };
+
 export interface CreateMessageDto {
   content: string;
   clientMsgId?: string;
   parentId?: string;
   attachments?: AttachmentDto[];
   metadata?: Record<string, unknown>;
+  clientContext?: ClientContext;
 }
 
 export interface UpdateMessageDto {

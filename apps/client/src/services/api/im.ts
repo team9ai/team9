@@ -1,4 +1,8 @@
 import http from "../http";
+import { isTauriApp } from "@/lib/tauri";
+import { useAhandStore } from "@/stores/useAhandStore";
+import { useAppStore } from "@/stores/useAppStore";
+import type { ClientContext } from "@/types/im";
 import type {
   Channel,
   ChannelWithUnread,
@@ -27,6 +31,14 @@ import type {
   SyncAckDto,
 } from "@/types/im";
 import { normalizeMessage, normalizeMessages } from "./normalize-reactions";
+
+function buildClientContext(): ClientContext {
+  if (!isTauriApp()) return { kind: "web" };
+  const userId = useAppStore.getState().user?.id;
+  if (!userId) return { kind: "macapp", deviceId: null };
+  const deviceId = useAhandStore.getState().getDeviceIdForUser(userId);
+  return { kind: "macapp", deviceId: deviceId ?? null };
+}
 
 // Channels API
 export const channelsApi = {
@@ -209,7 +221,7 @@ export const messagesApi = {
   ): Promise<Message> => {
     const response = await http.post<Message>(
       `/v1/im/channels/${channelId}/messages`,
-      data,
+      { ...data, clientContext: buildClientContext() },
     );
     return normalizeMessage(response.data);
   },
