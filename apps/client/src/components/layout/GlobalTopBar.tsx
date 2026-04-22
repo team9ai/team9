@@ -17,7 +17,6 @@ import {
 } from "@/stores";
 import { alignMacTrafficLights, isMacTauriApp } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-// import { LocalDeviceStatus } from "./LocalDeviceStatus";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useDebouncedQuickSearch } from "@/hooks/useSearch";
 import { QuickSearchResults } from "@/components/search/QuickSearchResults";
@@ -246,11 +245,6 @@ export function GlobalTopBar() {
           </div>
         </div>
       </div>
-
-      {/* [DISABLED] Local device status
-      <div className="flex items-center gap-1">
-        <LocalDeviceStatus />
-      </div> */}
     </header>
   );
 }
