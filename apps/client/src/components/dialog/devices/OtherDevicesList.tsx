@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelative } from "@/lib/date-format";
 import {
   useAhandDevices,
   AHAND_DEVICES_QUERY_KEY,
@@ -65,9 +65,7 @@ export function OtherDevicesList({ excludeLocal }: { excludeLocal: boolean }) {
                   {d.platform} ·{" "}
                   {d.lastSeenAt
                     ? t("lastSeen", {
-                        when: formatDistanceToNow(new Date(d.lastSeenAt), {
-                          addSuffix: true,
-                        }),
+                        when: formatRelative(new Date(d.lastSeenAt)),
                       })
                     : t("neverSeen")}
                 </div>

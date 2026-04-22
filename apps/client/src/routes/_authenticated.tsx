@@ -15,6 +15,7 @@ import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
 import { useSyncUserLocale } from "@/hooks/useSyncUserLocale";
+import { useAhandBootstrap } from "@/hooks/useAhandBootstrap";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -260,6 +261,9 @@ function AuthenticatedLayout() {
   //     invoke("ahand_stop").catch(() => {});
   //   };
   // }, []);
+
+  // Resume aHand daemon connection if previously enabled
+  useAhandBootstrap();
 
   // Initialize WebSocket connection
   useWebSocket();
