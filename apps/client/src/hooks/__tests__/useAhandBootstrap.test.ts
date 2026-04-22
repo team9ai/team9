@@ -75,12 +75,18 @@ describe("useAhandBootstrap", () => {
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
   });
 
-  it("stops daemon when userId transitions to null (logout)", async () => {
+  it("stops daemon when userId transitions from a value to null (logout)", async () => {
     mockStop.mockResolvedValue(undefined);
-    mockUseAppStore.mockImplementation((sel: (s: { user: null }) => unknown) =>
-      sel({ user: null }),
+    // Start with a real userId, then transition to null
+    let currentUserId: string | null = "u1";
+    mockUseAppStore.mockImplementation(
+      (sel: (s: { user: { id: string } | null }) => unknown) =>
+        sel(currentUserId ? { user: { id: currentUserId } } : { user: null }),
     );
-    renderHook(() => useAhandBootstrap());
+    const { rerender } = renderHook(() => useAhandBootstrap());
+    // Now simulate logout
+    currentUserId = null;
+    rerender();
     await waitFor(() => expect(mockStop).toHaveBeenCalled());
   });
 

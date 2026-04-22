@@ -9,7 +9,7 @@ import {
   useAhandDevices,
   AHAND_DEVICES_QUERY_KEY,
 } from "@/hooks/useAhandDevices";
-import { useAhandStore } from "@/stores/useAhandStore";
+import { useAhandStore, type UserAhandState } from "@/stores/useAhandStore";
 import { useUser } from "@/stores/useAppStore";
 import { ahandApi, type DeviceDto } from "@/services/ahand-api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,9 +19,10 @@ export function OtherDevicesList({ excludeLocal }: { excludeLocal: boolean }) {
   const { t } = useTranslation("ahand");
   const { data, isLoading } = useAhandDevices({ includeOffline: true });
   const currentUser = useUser();
-  const localId = currentUser
-    ? useAhandStore.getState().getDeviceIdForUser(currentUser.id)
-    : null;
+  const localId = useAhandStore(
+    (s: { usersEnabled: Record<string, UserAhandState> }) =>
+      currentUser ? s.getDeviceIdForUser(currentUser.id) : null,
+  );
   const qc = useQueryClient();
 
   if (isLoading) {
@@ -85,23 +86,22 @@ function DeviceRow({
       return;
     }
     setSaving(true);
-    // Optimistic update
-    qc.setQueryData<DeviceDto[]>([...AHAND_DEVICES_QUERY_KEY, true], (old) =>
-      old?.map((d) => (d.id === device.id ? { ...d, nickname: trimmed } : d)),
-    );
+    // Optimistic update across all cache variants (includeOffline: true and false)
+    const patchCache = (nickname: string) =>
+      qc.setQueriesData<DeviceDto[]>(
+        { queryKey: AHAND_DEVICES_QUERY_KEY },
+        (old) => old?.map((d) => (d.id === device.id ? { ...d, nickname } : d)),
+      );
+    patchCache(trimmed);
     try {
       await ahandApi.patch(device.id, { nickname: trimmed });
       setEditing(false);
     } catch (e: unknown) {
-      // Rollback
-      qc.setQueryData<DeviceDto[]>([...AHAND_DEVICES_QUERY_KEY, true], (old) =>
-        old?.map((d) =>
-          d.id === device.id ? { ...d, nickname: device.nickname } : d,
-        ),
-      );
+      // Rollback all cache variants
+      patchCache(device.nickname);
       setDraft(device.nickname);
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(t("error.removeFailed", { msg }));
+      toast.error(t("error.nicknameSaveFailed", { msg }));
     } finally {
       setSaving(false);
     }

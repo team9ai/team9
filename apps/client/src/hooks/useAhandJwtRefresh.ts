@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 import { useAhandLocalStatus } from "./useAhandLocalStatus";
 import { useAppStore } from "@/stores/useAppStore";
 import { useAhandStore } from "@/stores/useAhandStore";
@@ -36,9 +37,7 @@ async function doRefresh(userId: string): Promise<void> {
     if (!row) {
       store.setDeviceIdForUser(userId, null, false);
       await ahandTauri.stop().catch(() => {});
-      toast.info(
-        "aHand: this device is no longer authorized; please re-enable",
-      );
+      toast.info(i18n.t("error.deviceRevoked", { ns: "ahand" }));
       return;
     }
     const { deviceJwt, jwtExpiresAt } = await ahandApi.refreshToken(row.id);
@@ -50,6 +49,6 @@ async function doRefresh(userId: string): Promise<void> {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    toast.error(`aHand: auto-refresh failed — ${msg}`);
+    toast.error(i18n.t("error.autoRefreshFailed", { ns: "ahand", msg }));
   }
 }

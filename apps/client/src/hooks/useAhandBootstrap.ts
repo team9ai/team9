@@ -1,13 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { isTauriApp } from "@/lib/tauri";
 import { useAppStore } from "@/stores/useAppStore";
 import { useAhandStore } from "@/stores/useAhandStore";
 import { ahandTauri } from "@/services/ahand-tauri";
 import { ahandApi } from "@/services/ahand-api";
 import { toast } from "sonner";
+import i18n from "@/i18n";
 
 export function useAhandBootstrap() {
   const userId = useAppStore((s) => s.user?.id ?? null);
+  const prevUserIdRef = useRef<string | null>(undefined as unknown as null);
 
   // Resume daemon when user logs in
   useEffect(() => {
@@ -18,11 +20,15 @@ export function useAhandBootstrap() {
     void resume(userId, entry.deviceId);
   }, [userId]);
 
-  // Stop daemon when user logs out (userId transitions to null)
+  // Stop daemon only when userId transitions from a real value to null (logout).
+  // Guard against the initial render where prevUserIdRef is unset.
   useEffect(() => {
+    const prev = prevUserIdRef.current;
+    prevUserIdRef.current = userId;
     if (!isTauriApp()) return;
-    if (userId !== null) return;
-    void ahandTauri.stop().catch(() => {});
+    if (userId === null && prev !== null && prev !== undefined) {
+      void ahandTauri.stop().catch(() => {});
+    }
   }, [userId]);
 }
 
@@ -43,6 +49,6 @@ async function resume(userId: string, cachedDeviceId: string): Promise<void> {
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    toast.error(`aHand resume failed: ${msg}`);
+    toast.error(i18n.t("error.resumeFailed", { ns: "ahand", msg }));
   }
 }

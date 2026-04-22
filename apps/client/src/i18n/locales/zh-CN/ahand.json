@@ -11,7 +11,6 @@
   "thisMacRemoved": "已移除此设备。",
   "removed": "已移除 {{name}}。",
   "remove": "移除",
-
   "online": "● 在线",
   "offline": "离线",
   "connecting": "⟳ 连接中…",
@@ -21,15 +20,17 @@
   "statusNoneOnline": "无设备在线",
   "lastSeen": "最后活跃 {{when}}",
   "neverSeen": "从未上线",
-
   "error": {
     "header": "✕ 错误",
     "jwtExpired": "会话已过期，正在刷新…",
     "hubUnavailable": "远程服务不可用，请稍后重试。",
     "toggleFailed": "切换失败：{{msg}}",
-    "removeFailed": "移除失败：{{msg}}"
+    "removeFailed": "移除失败：{{msg}}",
+    "nicknameSaveFailed": "昵称保存失败：{{msg}}",
+    "resumeFailed": "aHand：恢复失败 — {{msg}}",
+    "deviceRevoked": "aHand：此设备已被撤销，请重新启用。",
+    "autoRefreshFailed": "aHand：自动刷新失败 — {{msg}}"
   },
-
   "ctaTitle": "让 Agent 接管你的电脑",
   "ctaBody": "使用 Team9 桌面应用把这台电脑变成你 Agent 的远程执行手臂，以极低的成本获得本机 shell 能力。",
   "ctaPrimaryAction": "打开桌面应用",

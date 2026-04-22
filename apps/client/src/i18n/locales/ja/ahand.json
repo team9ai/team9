@@ -11,7 +11,6 @@
   "thisMacRemoved": "このデバイスを削除しました。",
   "removed": "{{name}} を削除しました。",
   "remove": "削除",
-
   "online": "● オンライン",
   "offline": "オフライン",
   "connecting": "⟳ 接続中…",
@@ -21,15 +20,17 @@
   "statusNoneOnline": "オンラインのデバイスはありません",
   "lastSeen": "最終アクティブ {{when}}",
   "neverSeen": "接続履歴なし",
-
   "error": {
     "header": "✕ エラー",
     "jwtExpired": "セッションが期限切れです。再取得中…",
     "hubUnavailable": "リモートサービスに接続できません。後でもう一度お試しください。",
     "toggleFailed": "切り替えに失敗しました：{{msg}}",
-    "removeFailed": "削除に失敗しました：{{msg}}"
+    "removeFailed": "削除に失敗しました：{{msg}}",
+    "nicknameSaveFailed": "ニックネームの保存に失敗しました: {{msg}}",
+    "resumeFailed": "aHand: 再開に失敗しました — {{msg}}",
+    "deviceRevoked": "aHand: このデバイスは認証されていません。再度有効化してください。",
+    "autoRefreshFailed": "aHand: 自動更新に失敗しました — {{msg}}"
   },
-
   "ctaTitle": "エージェントにあなたの PC を委ねよう",
   "ctaBody": "Team9 デスクトップアプリで、この PC をあなたのエージェントのリモート実行アームに。ほぼゼロコストでローカル shell を提供します。",
   "ctaPrimaryAction": "デスクトップアプリを開く",

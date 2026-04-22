@@ -27,7 +27,11 @@
     "jwtExpired": "Session expired; refreshing…",
     "hubUnavailable": "Remote service unavailable. Please try again.",
     "toggleFailed": "Failed to toggle: {{msg}}",
-    "removeFailed": "Failed to remove: {{msg}}"
+    "removeFailed": "Failed to remove: {{msg}}",
+    "nicknameSaveFailed": "Failed to save nickname: {{msg}}",
+    "resumeFailed": "aHand: failed to resume — {{msg}}",
+    "deviceRevoked": "aHand: this device is no longer authorized. Please re-enable.",
+    "autoRefreshFailed": "aHand: auto-refresh failed — {{msg}}"
   },
 
   "ctaTitle": "Let agents take over your computer",

@@ -9,10 +9,8 @@ use objc2::msg_send;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 use serde::Serialize;
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter, State};
 use tauri_plugin_autostart::MacosLauncher;
-
-use ahand::AhandRuntime;
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 
@@ -242,7 +240,6 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_notification::init())
         .manage(PendingUpdate::default())
-        .manage(AhandRuntime::new())
         .setup(|app| {
             tauri::async_runtime::spawn(health_server::start_health_server());
 
@@ -334,19 +331,12 @@ pub fn run() {
             desktop_check_for_update,
             desktop_install_update,
             desktop_align_traffic_lights,
-            ahand::commands::ahand_get_identity,
-            ahand::commands::ahand_start,
-            ahand::commands::ahand_stop,
-            ahand::commands::ahand_status,
+            // Task 7.4 adds ahand commands here:
+            // ahand::ahand_get_identity,
+            // ahand::ahand_start,
+            // ahand::ahand_stop,
+            // ahand::ahand_status,
         ])
-        .build(tauri::generate_context!())
-        .expect("error building tauri application")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                let runtime = app_handle.state::<AhandRuntime>();
-                tauri::async_runtime::block_on(async {
-                    let _ = runtime.stop().await;
-                });
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }

@@ -183,7 +183,10 @@ impl AhandRuntime {
 
     async fn shutdown_session(session: ActiveSession) {
         let _ = session.handle.shutdown().await;
+        // Abort then await so the forwarder finishes its current poll (delivering
+        // the final Offline status event) before we return.
         session.status_forwarder.abort();
+        let _ = session.status_forwarder.await;
     }
 }
 
@@ -221,11 +224,36 @@ mod tests {
             device_id: Some("abc".into()),
         };
         let json = serde_json::to_string(&s).unwrap();
-        let back: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(back["state"], "error");
-        assert_eq!(back["kind"], "auth");
-        assert_eq!(back["message"], "jwt_expired");
-        assert_eq!(back["device_id"], "abc");
+        // Verify serialized shape
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["state"], "error");
+        assert_eq!(v["kind"], "auth");
+        assert_eq!(v["message"], "jwt_expired");
+        assert_eq!(v["device_id"], "abc");
+        // Verify full deserialization round-trip
+        let back: DaemonStatus = serde_json::from_str(&json).unwrap();
+        match back {
+            DaemonStatus::Error { kind: ErrorKind::Auth, message, device_id: Some(d) } => {
+                assert_eq!(message, "jwt_expired");
+                assert_eq!(d, "abc");
+            }
+            _ => panic!("wrong variant after round-trip"),
+        }
+    }
+
+    #[test]
+    fn daemon_status_all_variants_deserialize() {
+        let cases = [
+            (r#"{"state":"idle"}"#, "idle"),
+            (r#"{"state":"connecting"}"#, "connecting"),
+            (r#"{"state":"online","device_id":"dev-1"}"#, "online"),
+            (r#"{"state":"offline"}"#, "offline"),
+            (r#"{"state":"error","kind":"network","message":"x"}"#, "error"),
+        ];
+        for (json, label) in &cases {
+            let result: Result<DaemonStatus, _> = serde_json::from_str(json);
+            assert!(result.is_ok(), "failed to deserialize {label}: {:?}", result.err());
+        }
     }
 
     #[test]

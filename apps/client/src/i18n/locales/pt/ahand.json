@@ -11,7 +11,6 @@
   "thisMacRemoved": "Este dispositivo foi removido.",
   "removed": "{{name}} foi removido.",
   "remove": "Remover",
-
   "online": "● Online",
   "offline": "Offline",
   "connecting": "⟳ Conectando…",
@@ -21,15 +20,17 @@
   "statusNoneOnline": "Nenhum dispositivo online",
   "lastSeen": "última atividade {{when}}",
   "neverSeen": "nunca visto",
-
   "error": {
     "header": "✕ Erro",
     "jwtExpired": "Sessão expirada; atualizando…",
     "hubUnavailable": "Serviço remoto indisponível. Tente novamente.",
     "toggleFailed": "Falha ao alternar: {{msg}}",
-    "removeFailed": "Falha ao remover: {{msg}}"
+    "removeFailed": "Falha ao remover: {{msg}}",
+    "nicknameSaveFailed": "Falha ao salvar apelido: {{msg}}",
+    "resumeFailed": "aHand: falha ao retomar — {{msg}}",
+    "deviceRevoked": "aHand: este dispositivo não está mais autorizado. Por favor, reative-o.",
+    "autoRefreshFailed": "aHand: falha na atualização automática — {{msg}}"
   },
-
   "ctaTitle": "Deixe agentes assumirem seu computador",
   "ctaBody": "Use o app de desktop Team9 para transformar esta máquina no braço de execução remota do seu agente — com custo quase zero.",
   "ctaPrimaryAction": "Abrir app de desktop",

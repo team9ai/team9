@@ -7,12 +7,17 @@ use super::{
 
 /// Get (or create) the Ed25519 identity for a team9 user.
 /// Idempotent — repeated calls return the same key.
+/// Runs on a blocking thread because key generation and filesystem I/O are synchronous.
 #[tauri::command]
 pub async fn ahand_get_identity(
     app: AppHandle,
     team9_user_id: String,
 ) -> Result<IdentityDto, String> {
-    super::identity::load_or_create(&app, &team9_user_id)
+    tokio::task::spawn_blocking(move || {
+        super::identity::load_or_create(&app, &team9_user_id)
+    })
+    .await
+    .map_err(|e| format!("identity task panicked: {e}"))?
 }
 
 /// Start the embedded daemon for this user.

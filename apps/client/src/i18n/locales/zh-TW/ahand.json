@@ -11,7 +11,6 @@
   "thisMacRemoved": "已移除此裝置。",
   "removed": "已移除 {{name}}。",
   "remove": "移除",
-
   "online": "● 線上",
   "offline": "離線",
   "connecting": "⟳ 連線中…",
@@ -21,15 +20,17 @@
   "statusNoneOnline": "無裝置在線",
   "lastSeen": "最後活躍 {{when}}",
   "neverSeen": "從未上線",
-
   "error": {
     "header": "✕ 錯誤",
     "jwtExpired": "工作階段已過期，正在重新整理…",
     "hubUnavailable": "遠端服務無法使用，請稍後再試。",
     "toggleFailed": "切換失敗：{{msg}}",
-    "removeFailed": "移除失敗：{{msg}}"
+    "removeFailed": "移除失敗：{{msg}}",
+    "nicknameSaveFailed": "暱稱儲存失敗：{{msg}}",
+    "resumeFailed": "aHand：恢復失敗 — {{msg}}",
+    "deviceRevoked": "aHand：此裝置已被撤銷，請重新啟用。",
+    "autoRefreshFailed": "aHand：自動重新整理失敗 — {{msg}}"
   },
-
   "ctaTitle": "讓 Agent 接管你的電腦",
   "ctaBody": "使用 Team9 桌面應用程式把這台電腦變成你 Agent 的遠端執行手臂，以極低的成本獲得本機 shell 能力。",
   "ctaPrimaryAction": "開啟桌面應用程式",

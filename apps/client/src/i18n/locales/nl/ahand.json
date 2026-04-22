@@ -11,7 +11,6 @@
   "thisMacRemoved": "Dit apparaat is verwijderd.",
   "removed": "{{name}} is verwijderd.",
   "remove": "Verwijderen",
-
   "online": "● Online",
   "offline": "Offline",
   "connecting": "⟳ Verbinden…",
@@ -21,15 +20,17 @@
   "statusNoneOnline": "Geen apparaten online",
   "lastSeen": "laatst actief {{when}}",
   "neverSeen": "nooit gezien",
-
   "error": {
     "header": "✕ Fout",
     "jwtExpired": "Sessie verlopen; vernieuwen…",
     "hubUnavailable": "Externe service niet beschikbaar. Probeer het opnieuw.",
     "toggleFailed": "Schakelen mislukt: {{msg}}",
-    "removeFailed": "Verwijderen mislukt: {{msg}}"
+    "removeFailed": "Verwijderen mislukt: {{msg}}",
+    "nicknameSaveFailed": "Bijnaam opslaan mislukt: {{msg}}",
+    "resumeFailed": "aHand: hervatten mislukt — {{msg}}",
+    "deviceRevoked": "aHand: dit apparaat is niet meer geautoriseerd. Schakel het opnieuw in.",
+    "autoRefreshFailed": "aHand: automatisch verversen mislukt — {{msg}}"
   },
-
   "ctaTitle": "Laat agents je computer overnemen",
   "ctaBody": "Gebruik de Team9-desktop-app om deze machine te veranderen in de remote-uitvoeringsarm van je agent — tegen bijna nul kosten.",
   "ctaPrimaryAction": "Desktop-app openen",

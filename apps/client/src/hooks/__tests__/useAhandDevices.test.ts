@@ -6,9 +6,16 @@ import { createElement } from "react";
 const mockList = vi.hoisted(() => vi.fn());
 const mockOn = vi.hoisted(() => vi.fn());
 const mockOff = vi.hoisted(() => vi.fn());
+const mockJoinRoom = vi.hoisted(() => vi.fn());
+const mockLeaveRoom = vi.hoisted(() => vi.fn());
 vi.mock("@/services/ahand-api", () => ({ ahandApi: { list: mockList } }));
 vi.mock("@/services/websocket", () => ({
-  default: { on: mockOn, off: mockOff },
+  default: {
+    on: mockOn,
+    off: mockOff,
+    joinAhandRoom: mockJoinRoom,
+    leaveAhandRoom: mockLeaveRoom,
+  },
 }));
 
 // Mock useUser to return a user or null
@@ -49,7 +56,15 @@ describe("useAhandDevices", () => {
     expect(mockList).not.toHaveBeenCalled();
   });
 
-  it("registers WS listeners on mount", () => {
+  it("joins ahand room on mount and leaves on unmount", () => {
+    const { wrapper } = makeWrapper();
+    const { unmount } = renderHook(() => useAhandDevices(), { wrapper });
+    expect(mockJoinRoom).toHaveBeenCalledWith("user:u1:ahand");
+    unmount();
+    expect(mockLeaveRoom).toHaveBeenCalledWith("user:u1:ahand");
+  });
+
+  it("registers all WS listeners on mount", () => {
     const { wrapper } = makeWrapper();
     renderHook(() => useAhandDevices(), { wrapper });
     expect(mockOn).toHaveBeenCalledWith("device.online", expect.any(Function));
@@ -62,7 +77,7 @@ describe("useAhandDevices", () => {
     expect(mockOn).toHaveBeenCalledWith("reconnect", expect.any(Function));
   });
 
-  it("deregisters WS listeners on unmount", () => {
+  it("deregisters all WS listeners on unmount", () => {
     const { wrapper } = makeWrapper();
     const { unmount } = renderHook(() => useAhandDevices(), { wrapper });
     unmount();
@@ -75,6 +90,11 @@ describe("useAhandDevices", () => {
       "device.revoked",
       expect.any(Function),
     );
+    expect(mockOff).toHaveBeenCalledWith(
+      "device.registered",
+      expect.any(Function),
+    );
+    expect(mockOff).toHaveBeenCalledWith("reconnect", expect.any(Function));
   });
 
   it("patches isOnline to true on device.online event", async () => {
@@ -148,5 +168,42 @@ describe("useAhandDevices", () => {
       true,
     ]);
     expect(cached).toHaveLength(0);
+  });
+
+  it("patches isOnline to false on device.offline event", async () => {
+    const initialDevices = [
+      {
+        id: "1",
+        hubDeviceId: "hub-1",
+        nickname: "My Mac",
+        platform: "macos" as const,
+        hostname: null,
+        status: "active" as const,
+        lastSeenAt: null,
+        isOnline: true,
+        createdAt: "2026-01-01",
+      },
+    ];
+    mockList.mockResolvedValue(initialDevices);
+    const { wrapper, qc } = makeWrapper();
+    renderHook(() => useAhandDevices(), { wrapper });
+    await waitFor(() => expect(mockOn).toHaveBeenCalled());
+
+    const offlineCall = vi
+      .mocked(mockOn)
+      .mock.calls.find(([evt]) => evt === "device.offline");
+    const onOffline = offlineCall?.[1] as (evt: {
+      hubDeviceId: string;
+    }) => void;
+
+    act(() => {
+      onOffline({ hubDeviceId: "hub-1" });
+    });
+
+    const cached = qc.getQueryData<typeof initialDevices>([
+      ...AHAND_DEVICES_QUERY_KEY,
+      true,
+    ]);
+    expect(cached?.[0].isOnline).toBe(false);
   });
 });

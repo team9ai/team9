@@ -21,6 +21,9 @@ export function useAhandDevices(opts: { includeOffline?: boolean } = {}) {
   useEffect(() => {
     if (!currentUser) return;
 
+    const room = `user:${currentUser.id}:ahand`;
+    wsService.joinAhandRoom(room);
+
     const onUpdate = (patch: Partial<DeviceDto> & { hubDeviceId: string }) => {
       qc.setQueryData<DeviceDto[]>(
         [...AHAND_DEVICES_QUERY_KEY, includeOffline],
@@ -59,6 +62,7 @@ export function useAhandDevices(opts: { includeOffline?: boolean } = {}) {
     wsService.on("reconnect", onReconnect);
 
     return () => {
+      wsService.leaveAhandRoom(room);
       wsService.off("device.online", onOnline);
       wsService.off("device.offline", onOffline);
       wsService.off("device.revoked", onRevoked);

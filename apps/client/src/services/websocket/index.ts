@@ -847,6 +847,18 @@ class WebSocketService {
   offTabDeleted(callback: (event: TabDeletedEvent) => void): void {
     this.off<TabDeletedEvent>(WS_EVENTS.TAB.DELETED, callback);
   }
+
+  // ── ahand Room ───────────────────────────────────
+
+  joinAhandRoom(room: string): void {
+    if (!this.socket) return;
+    this.socket.emit("ahand:join_room", { room });
+  }
+
+  leaveAhandRoom(room: string): void {
+    if (!this.socket) return;
+    this.socket.emit("ahand:leave_room", { room });
+  }
 }
 
 // Create singleton instance

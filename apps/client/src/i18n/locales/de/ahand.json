@@ -11,7 +11,6 @@
   "thisMacRemoved": "Dieses Gerät wurde entfernt.",
   "removed": "{{name}} wurde entfernt.",
   "remove": "Entfernen",
-
   "online": "● Online",
   "offline": "Offline",
   "connecting": "⟳ Verbinden…",
@@ -21,15 +20,17 @@
   "statusNoneOnline": "Keine Geräte online",
   "lastSeen": "zuletzt aktiv {{when}}",
   "neverSeen": "nie gesehen",
-
   "error": {
     "header": "✕ Fehler",
     "jwtExpired": "Sitzung abgelaufen; wird aktualisiert…",
     "hubUnavailable": "Remote-Dienst nicht verfügbar. Bitte versuche es erneut.",
     "toggleFailed": "Umschalten fehlgeschlagen: {{msg}}",
-    "removeFailed": "Entfernen fehlgeschlagen: {{msg}}"
+    "removeFailed": "Entfernen fehlgeschlagen: {{msg}}",
+    "nicknameSaveFailed": "Fehler beim Speichern des Namens: {{msg}}",
+    "resumeFailed": "aHand: Wiederaufnahme fehlgeschlagen — {{msg}}",
+    "deviceRevoked": "aHand: Dieses Gerät ist nicht mehr autorisiert. Bitte erneut aktivieren.",
+    "autoRefreshFailed": "aHand: automatische Aktualisierung fehlgeschlagen — {{msg}}"
   },
-
   "ctaTitle": "Lass Agenten deinen Computer übernehmen",
   "ctaBody": "Nutze die Team9-Desktop-App, um diesen Rechner zum Remote-Ausführungsarm deines Agenten zu machen — zu nahezu null Kosten.",
   "ctaPrimaryAction": "Desktop-App öffnen",
