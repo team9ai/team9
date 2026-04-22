@@ -37,8 +37,9 @@ export async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   // Raw body for ahand webhook signature verification — must come BEFORE json().
+  // Path matches the NestJS route after setGlobalPrefix('api') + URI version '1'.
   app.use(
-    '/api/ahand/hub-webhook',
+    '/api/v1/ahand/hub-webhook',
     raw({ type: 'application/json', limit: '1mb' }),
   );
 

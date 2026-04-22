@@ -64,7 +64,7 @@ export class AhandControlPlaneClient {
     deviceIds?: string[],
   ): Promise<AhandTokenResponse> {
     return this.request(
-      '/internal/ahand/control-plane/token',
+      '/api/v1/internal/ahand/control-plane/token',
       { userId, deviceIds },
       TokenResponseSchema,
     );
@@ -75,7 +75,7 @@ export class AhandControlPlaneClient {
     opts: { includeOffline?: boolean } = {},
   ): Promise<AhandDeviceSummary[]> {
     return this.request(
-      '/internal/ahand/devices/list-for-user',
+      '/api/v1/internal/ahand/devices/list-for-user',
       { userId, includeOffline: opts.includeOffline ?? true },
       DeviceListSchema,
     );

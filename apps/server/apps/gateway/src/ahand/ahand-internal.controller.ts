@@ -23,7 +23,7 @@ import {
  * truth; this controller does not inspect any user-facing JWT.
  */
 @UseGuards(InternalAuthGuard)
-@Controller('internal/ahand')
+@Controller({ path: 'internal/ahand', version: '1' })
 export class AhandInternalController {
   constructor(private readonly svc: AhandDevicesService) {}
 

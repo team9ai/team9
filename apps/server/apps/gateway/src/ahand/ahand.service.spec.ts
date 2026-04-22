@@ -713,5 +713,27 @@ describe('AhandDevicesService', () => {
       ).resolves.toBeUndefined();
       expect(hub.deleteDevice).toHaveBeenCalledTimes(2);
     });
+
+    it('publishes device.revoked event for each cascaded device', async () => {
+      dbFixture.chains.updateReturning.mockResolvedValue([
+        makeDeviceRow({ hubDeviceId: 'h1' }),
+        makeDeviceRow({ id: 'row-2', hubDeviceId: 'h2' }),
+      ]);
+      hub.deleteDevice.mockResolvedValue(undefined);
+      await service.onUserDeleted({ userId: 'u1' });
+      expect(publisher.publishForOwner).toHaveBeenCalledTimes(2);
+      expect(publisher.publishForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'device.revoked',
+          data: { hubDeviceId: 'h1' },
+        }),
+      );
+      expect(publisher.publishForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'device.revoked',
+          data: { hubDeviceId: 'h2' },
+        }),
+      );
+    });
   });
 });

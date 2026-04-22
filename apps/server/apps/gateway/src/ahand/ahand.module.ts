@@ -15,6 +15,10 @@ import { AhandWebhookService } from './ahand-webhook.service.js';
 import { AhandRedisPublisher } from './ahand-redis-publisher.service.js';
 import { AhandEventsGateway } from './ahand-events.gateway.js';
 
+// Note: clientContext is stored in messages.metadata.clientContext (no new column
+// added) because im_messages already has a metadata jsonb column. The im-worker
+// reads metadata.clientContext to determine the originating client device for
+// blueprint injection. See Task 4.8 in the implementation plan for details.
 @Module({
   imports: [
     ConfigModule,

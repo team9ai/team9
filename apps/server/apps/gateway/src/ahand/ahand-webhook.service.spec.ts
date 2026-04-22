@@ -312,6 +312,8 @@ describe('AhandWebhookService', () => {
       expect(await redis.get('ahand:device:h1:presence')).toBe('online');
       // update() should NOT have been called (no lastSeenAt write)
       expect(dbFixture.db.update).not.toHaveBeenCalled();
+      expect(publisher.publishForOwner).not.toHaveBeenCalled();
+      expect(eventsGw.emitToOwner).not.toHaveBeenCalled();
     });
 
     it('uses default TTL 180 when presenceTtlSeconds absent', async () => {
@@ -336,6 +338,19 @@ describe('AhandWebhookService', () => {
       expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
         expect.objectContaining({ lastSeenAt: expect.any(Date) }),
       );
+      expect(publisher.publishForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'device.offline',
+          ownerType: 'user',
+          ownerId: 'u1',
+        }),
+      );
+      expect(eventsGw.emitToOwner).toHaveBeenCalledWith(
+        'user',
+        'u1',
+        'device.offline',
+        expect.any(Object),
+      );
     });
   });
 
@@ -350,6 +365,19 @@ describe('AhandWebhookService', () => {
           status: 'revoked',
           revokedAt: expect.any(Date),
         }),
+      );
+      expect(publisher.publishForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'device.revoked',
+          ownerType: 'user',
+          ownerId: 'u1',
+        }),
+      );
+      expect(eventsGw.emitToOwner).toHaveBeenCalledWith(
+        'user',
+        'u1',
+        'device.revoked',
+        expect.any(Object),
       );
     });
   });

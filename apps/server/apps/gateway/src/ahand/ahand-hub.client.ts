@@ -203,7 +203,7 @@ export class AhandHubClient {
           this.logger.debug(
             `ahand-hub ${opts.method} ${opts.path} -> ${response.status} in ${elapsed}ms`,
           );
-          if (opts.allowEmptyBody && (text === '' || payload === undefined)) {
+          if (opts.allowEmptyBody) {
             return undefined as T;
           }
           return this.validateShape(opts, payload);

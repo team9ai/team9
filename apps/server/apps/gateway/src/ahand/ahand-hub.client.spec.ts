@@ -261,9 +261,9 @@ describe('AhandHubClient', () => {
       );
     });
 
-    it('200 with non-empty body: no schema -> value pass-through', async () => {
+    it('allowEmptyBody always returns undefined (ignores body content)', async () => {
       // Defensive: if the hub ever returns a 200 JSON body for DELETE, our
-      // `allowEmptyBody` path should still resolve (no schema validation).
+      // `allowEmptyBody` flag short-circuits unconditionally and returns undefined.
       fetchMock.mockResolvedValue(okResponse({ ok: true }));
       await expect(client.deleteDevice('abc')).resolves.toBeUndefined();
     });

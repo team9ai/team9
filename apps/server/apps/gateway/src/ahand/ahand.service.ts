@@ -344,6 +344,18 @@ export class AhandDevicesService {
           `Hub delete after user deletion failed for ${row.hubDeviceId}: ${describe(e)}`,
         );
       }
+      this.publisher
+        .publishForOwner({
+          ownerType: row.ownerType as OwnerType,
+          ownerId: row.ownerId,
+          eventType: 'device.revoked',
+          data: { hubDeviceId: row.hubDeviceId },
+        })
+        .catch((e) =>
+          this.logger.warn(
+            `Failed to publish device.revoked for user deletion: ${describe(e)}`,
+          ),
+        );
     }
   }
 

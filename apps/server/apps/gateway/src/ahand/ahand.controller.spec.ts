@@ -55,6 +55,20 @@ describe('AhandController', () => {
   // ─── POST /devices ──────────────────────────────────────────────────
 
   describe('register', () => {
+    it('propagates ConflictException from service', async () => {
+      svc.registerDeviceForUser.mockRejectedValue(
+        new ConflictException('Device already registered'),
+      );
+      await expect(
+        controller.register(testUser, {
+          hubDeviceId: 'a'.repeat(64),
+          publicKey: 'pk',
+          nickname: 'A',
+          platform: 'macos',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
     it('returns 201 shape with device + JWT', async () => {
       const row = makeRow({ hubDeviceId: 'a'.repeat(64), nickname: 'MyMac' });
       svc.registerDeviceForUser.mockResolvedValue({
@@ -171,6 +185,18 @@ describe('AhandController', () => {
         NotFoundException,
       );
     });
+
+    it('Conflict when device is revoked propagates', async () => {
+      svc.refreshDeviceToken.mockRejectedValue(
+        new ConflictException('Device has been revoked'),
+      );
+      await expect(
+        controller.refreshToken(
+          testUser,
+          '11111111-1111-1111-1111-111111111111',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   // ─── PATCH /devices/:id ─────────────────────────────────────────────
@@ -183,6 +209,24 @@ describe('AhandController', () => {
       const res = await controller.patch(testUser, uuid, { nickname: 'New' });
       expect(res.nickname).toBe('New');
       expect(res.isOnline).toBeNull();
+    });
+
+    it('propagates NotFoundException from service', async () => {
+      svc.patchDevice.mockRejectedValue(
+        new NotFoundException('Device not found'),
+      );
+      await expect(
+        controller.patch(testUser, '11111111-1111-1111-1111-111111111111', {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('propagates ConflictException from service', async () => {
+      svc.patchDevice.mockRejectedValue(
+        new ConflictException('Device has been revoked'),
+      );
+      await expect(
+        controller.patch(testUser, '11111111-1111-1111-1111-111111111111', {}),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

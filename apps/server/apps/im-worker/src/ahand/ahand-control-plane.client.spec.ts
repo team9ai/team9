@@ -78,7 +78,7 @@ describe('AhandControlPlaneClient', () => {
       const res = await client.mintControlPlaneToken('u1', ['a'.repeat(64)]);
       expect(res.token).toBe('cp.xyz');
       const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe(`${BASE}/internal/ahand/control-plane/token`);
+      expect(url).toBe(`${BASE}/api/v1/internal/ahand/control-plane/token`);
       expect((init.headers as Record<string, string>).Authorization).toBe(
         `Bearer ${TOKEN}`,
       );
