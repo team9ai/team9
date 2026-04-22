@@ -556,6 +556,7 @@ export class WikisService {
     return {
       path,
       content: body,
+      encoding: blob.encoding ?? 'text',
       frontmatter,
       lastCommit: null,
     };

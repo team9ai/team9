@@ -1139,6 +1139,7 @@ describe('WikisService', () => {
 
       expect(result.path).toBe('guide.md');
       expect(result.content).toBe('Body here.');
+      expect(result.encoding).toBe('text');
       expect(result.frontmatter).toEqual({ title: 'Hi', tags: ['wiki'] });
       expect(result.lastCommit).toBeNull();
       expect(f9.getBlob).toHaveBeenCalledWith(
@@ -1147,6 +1148,48 @@ describe('WikisService', () => {
         'tok-read',
         'guide.md',
       );
+    });
+
+    it('passes encoding="base64" through to the DTO for binary files', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getBlob.mockResolvedValue({
+        path: 'assets/logo.png',
+        size: 1234,
+        content:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQ',
+        encoding: 'base64',
+      });
+
+      const result = await svc.getPage(
+        'ws-1',
+        'wiki-1',
+        user,
+        'assets/logo.png',
+      );
+
+      expect(result.encoding).toBe('base64');
+      // Content is passed through verbatim — the service does NOT decode base64
+      expect(result.content).toBe(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQ',
+      );
+    });
+
+    it('defaults encoding to "text" when blob.encoding is undefined', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getBlob.mockResolvedValue({
+        path: 'readme.md',
+        size: 10,
+        content: 'Hello',
+        // encoding intentionally omitted to simulate an older folder9 response
+      });
+
+      const result = await svc.getPage('ws-1', 'wiki-1', user, 'readme.md');
+
+      expect(result.encoding).toBe('text');
     });
 
     it('returns empty frontmatter + full body when blob has no frontmatter', async () => {
