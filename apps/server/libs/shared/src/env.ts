@@ -215,6 +215,20 @@ export const env = {
     return process.env.FILE_KEEPER_JWT_SECRET;
   },
 
+  // ahand-hub (optional - ahand device feature is gated on these being set)
+  get AHAND_HUB_URL(): string | undefined {
+    return process.env.AHAND_HUB_URL || undefined;
+  },
+  get AHAND_HUB_SERVICE_TOKEN(): string | undefined {
+    return process.env.AHAND_HUB_SERVICE_TOKEN || undefined;
+  },
+  // Shared secret the hub signs webhook bodies with. Required when
+  // AHAND_HUB_URL is set; the hub webhook controller rejects unsigned
+  // callbacks.
+  get AHAND_HUB_WEBHOOK_SECRET(): string | undefined {
+    return process.env.AHAND_HUB_WEBHOOK_SECRET || undefined;
+  },
+
   // Google OAuth (optional - Google login disabled if not set)
   get GOOGLE_CLIENT_ID() {
     return process.env.GOOGLE_CLIENT_ID;
