@@ -140,6 +140,8 @@ export const WS_EVENTS = {
     DEFINITION_UPDATED: "property_definition_updated",
     DEFINITION_DELETED: "property_definition_deleted",
     MESSAGE_CHANGED: "message_property_changed",
+    RELATION_CHANGED: "message_relation_changed",
+    RELATIONS_PURGED: "message_relations_purged",
   },
 
   // View events
@@ -668,6 +670,27 @@ export interface ViewDeletedEvent {
 
 // ==================== Tab Event Types ====================
 
+export interface MessageRelationChangedEvent {
+  channelId: string;
+  sourceMessageId: string;
+  propertyDefinitionId: string;
+  propertyKey: string;
+  relationKind: "parent" | "related";
+  action: "added" | "removed" | "replaced";
+  addedTargetIds: string[];
+  removedTargetIds: string[];
+  currentTargetIds: string[];
+  performedBy: string;
+  timestamp: string;
+}
+
+/** Message relations purged event — broadcast when a message is soft-deleted */
+export interface MessageRelationsPurgedEvent {
+  channelId: string;
+  deletedMessageId: string;
+  affectedSourceIds: string[];
+}
+
 /** Tab created event */
 export interface TabCreatedEvent {
   channelId: string;
@@ -762,4 +785,7 @@ export interface ServerToClientEvents {
   tab_created: TabCreatedEvent;
   tab_updated: TabUpdatedEvent;
   tab_deleted: TabDeletedEvent;
+  // Message relations
+  message_relation_changed: MessageRelationChangedEvent;
+  message_relations_purged: MessageRelationsPurgedEvent;
 }
