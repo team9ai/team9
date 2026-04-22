@@ -139,10 +139,25 @@ export class AhandWebhookService {
       }
       case 'device.revoked': {
         await this.redis.del(devicePresenceKey(evt.deviceId));
-        await this.db
+        // Only update (and fan-out) if the row transitions from active → revoked.
+        // Using RETURNING lets us skip duplicate fan-out for already-revoked devices.
+        const updated = await this.db
           .update(schema.ahandDevices)
           .set({ status: 'revoked', revokedAt: new Date() })
-          .where(eq(schema.ahandDevices.hubDeviceId, evt.deviceId));
+          .where(
+            and(
+              eq(schema.ahandDevices.hubDeviceId, evt.deviceId),
+              eq(schema.ahandDevices.status, 'active'),
+            ),
+          )
+          .returning();
+        // Mark this event as "already-processed" if the row was not found (already revoked)
+        if (updated.length === 0) {
+          this.logger.debug(
+            `device.revoked for ${evt.deviceId} — row already revoked or absent, skipping fan-out`,
+          );
+          return;
+        }
         break;
       }
       case 'device.registered':

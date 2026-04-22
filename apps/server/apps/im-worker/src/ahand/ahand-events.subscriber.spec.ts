@@ -287,4 +287,23 @@ describe('AhandEventsSubscriber', () => {
     await expect(failSubscriber.onModuleInit()).resolves.toBeUndefined();
     await failSubscriber.onModuleDestroy();
   });
+
+  it('re-subscribes on connect event after initial psubscribe failure', async () => {
+    const failRedis = makeRedis();
+    failRedis.sub.psubscribe
+      .mockRejectedValueOnce(new Error('initial fail'))
+      .mockResolvedValue(undefined);
+    const failSubscriber = new AhandEventsSubscriber(
+      failRedis.redis as never,
+      dispatcher as unknown as AhandSessionDispatcher,
+    );
+    await failSubscriber.onModuleInit();
+    // Simulate reconnect — 'connect' event fires
+    failRedis.sub.emit('connect');
+    // Allow the async psubscribe in the connect handler to settle
+    await Promise.resolve();
+    // psubscribe should have been called twice: once on init (failed), once on connect
+    expect(failRedis.sub.psubscribe).toHaveBeenCalledTimes(2);
+    await failSubscriber.onModuleDestroy();
+  });
 });

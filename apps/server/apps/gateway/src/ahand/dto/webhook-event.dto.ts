@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -30,6 +31,7 @@ export class WebhookEventDataDto {
 
 export class WebhookEventDto {
   @IsString()
+  @MaxLength(128)
   @Matches(/^evt_[A-Z0-9_]+$/i)
   eventId!: string;
 

@@ -147,5 +147,15 @@ describe('AhandEventsGateway', () => {
       expect(res.ok).toBe(true);
       expect(client.leave).toHaveBeenCalledWith('');
     });
+
+    it('unauthenticated socket can still leave (guard throws, not soft-return)', async () => {
+      // onLeaveRoom has @UseGuards(WsAuthGuard). In production, if the guard fails it
+      // throws WsException — no soft {ok:false} return. This test documents that the
+      // guard override (canActivate:true) allows leave even without user data.
+      const client = makeClient(null); // no user — guard is overridden to pass anyway
+      const res = await gateway.onLeaveRoom(client, { room: 'user:u1:ahand' });
+      expect(res.ok).toBe(true); // guard passes due to override; handler just leaves
+      expect(client.leave).toHaveBeenCalledWith('user:u1:ahand');
+    });
   });
 });

@@ -42,12 +42,21 @@ export class AhandEventsSubscriber implements OnModuleInit, OnModuleDestroy {
     this.subscriber.on('reconnecting', () =>
       this.logger.warn('Redis subscriber reconnecting'),
     );
+    // Re-subscribe on every reconnect (covers the case where initial psubscribe
+    // failed and ioredis did not record the subscription in its internal state).
+    this.subscriber.on('connect', () => {
+      this.subscriber?.psubscribe(PATTERN).catch((e) => {
+        this.logger.warn(
+          `Failed to re-subscribe to ${PATTERN} on reconnect: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      });
+    });
     try {
       await this.subscriber.psubscribe(PATTERN);
       this.logger.log(`Subscribed to ${PATTERN}`);
     } catch (e) {
       this.logger.warn(
-        `Failed to subscribe to ${PATTERN} on init: ${e instanceof Error ? e.message : String(e)}. Will retry on reconnect.`,
+        `Failed to subscribe to ${PATTERN} on init: ${e instanceof Error ? e.message : String(e)}. Will re-attempt on reconnect.`,
       );
     }
   }

@@ -58,7 +58,14 @@ type Svc = InstanceType<typeof AhandWebhookService>;
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
 function makeDbMock() {
-  const updateWhere: MockFn = jest.fn<any>().mockResolvedValue(undefined);
+  const updateReturning: MockFn = jest.fn<any>().mockResolvedValue([]);
+  // updateWhere returns an object that is both awaitable (thenable) and has .returning().
+  // This mirrors Drizzle's QueryBuilder which supports both patterns.
+  const updateWhere: MockFn = jest.fn<any>().mockImplementation(() => {
+    const thenable = Promise.resolve(undefined) as any;
+    thenable.returning = updateReturning;
+    return thenable;
+  });
   const updateSet = jest.fn<any>().mockReturnValue({ where: updateWhere });
   const selectWhere: MockFn = jest.fn<any>().mockResolvedValue([]);
   const selectFrom = jest.fn<any>().mockReturnValue({ where: selectWhere });
@@ -68,7 +75,13 @@ function makeDbMock() {
       update: jest.fn<any>().mockReturnValue({ set: updateSet }),
       select: jest.fn<any>().mockReturnValue({ from: selectFrom }),
     },
-    chains: { updateSet, updateWhere, selectFrom, selectWhere },
+    chains: {
+      updateSet,
+      updateWhere,
+      updateReturning,
+      selectFrom,
+      selectWhere,
+    },
   };
 }
 
@@ -380,6 +393,8 @@ describe('AhandWebhookService', () => {
     it('deletes presence, flips DB status + revokedAt', async () => {
       redis._store.set('ahand:device:h1:presence', { val: 'online' });
       dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      // updateReturning returns a non-empty array so the active→revoked transition is detected.
+      dbFixture.chains.updateReturning.mockResolvedValue([makeDeviceRow()]);
       await svc.handleEvent(baseEvt('device.revoked'));
       expect(await redis.get('ahand:device:h1:presence')).toBeNull();
       expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
@@ -388,6 +403,10 @@ describe('AhandWebhookService', () => {
           revokedAt: expect.any(Date),
         }),
       );
+      // Issue 4: verify update was called exactly once
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(1);
+      // Issue 6: verify WHERE clause includes hubDeviceId filter
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.hubDeviceId', 'h1');
       expect(publisher.publishForOwner).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: 'device.revoked',
@@ -401,6 +420,14 @@ describe('AhandWebhookService', () => {
         'device.revoked',
         expect.any(Object),
       );
+    });
+
+    it('device.revoked: already-revoked device skips fan-out (idempotent)', async () => {
+      // updateReturning returns [] meaning no rows were transitioned
+      dbFixture.chains.updateReturning.mockResolvedValue([]);
+      await svc.handleEvent(baseEvt('device.revoked'));
+      expect(publisher.publishForOwner).not.toHaveBeenCalled();
+      expect(eventsGw.emitToOwner).not.toHaveBeenCalled();
     });
   });
 
