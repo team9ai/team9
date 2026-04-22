@@ -13,7 +13,7 @@ import { wikiActions } from "@/stores/useWikiStore";
  * whose path begins with "review/" are never shadowed by this route.
  */
 export const Route = createFileRoute(
-  "/_authenticated/wiki/$wikiSlug/dash-review/$proposalId",
+  "/_authenticated/wiki/$wikiSlug/-/review/$proposalId",
 )({
   component: WikiReviewDetailPage,
 });

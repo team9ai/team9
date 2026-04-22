@@ -42,10 +42,10 @@ export async function bootstrap(): Promise<void> {
     rawBody: true,
   });
 
-  // Raise JSON body parser limit to 1 MB to support long text messages (up to
-  // 100K chars). `useBodyParser` respects the `rawBody: true` option above,
-  // whereas `app.use(express.json())` would strip the raw buffer.
-  app.useBodyParser('json', { limit: '1mb' });
+  // Raise JSON body parser limit to 10 MB. Wiki image uploads are base64-encoded
+  // inline (up to 5 MB raw → ~6.7 MB base64). Long text messages also benefit
+  // from headroom beyond 1 MB. `useBodyParser` respects `rawBody: true` above.
+  app.useBodyParser('json', { limit: '10mb' });
 
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {

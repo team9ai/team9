@@ -17,11 +17,11 @@ import { wikiActions } from "@/stores/useWikiStore";
  * The route lives under `/-/review` (not `/review`) so that wiki pages
  * whose path begins with "review/" are never shadowed by this route.
  */
-export const Route = createFileRoute(
-  "/_authenticated/wiki/$wikiSlug/dash-review",
-)({
-  component: WikiReviewPage,
-});
+export const Route = createFileRoute("/_authenticated/wiki/$wikiSlug/-/review")(
+  {
+    component: WikiReviewPage,
+  },
+);
 
 function WikiReviewPage() {
   const { wikiSlug } = Route.useParams();
