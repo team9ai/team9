@@ -16,6 +16,7 @@ import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
 import { useSyncUserLocale } from "@/hooks/useSyncUserLocale";
 import { useAhandBootstrap } from "@/hooks/useAhandBootstrap";
+import { useAhandJwtRefresh } from "@/hooks/useAhandJwtRefresh";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -264,6 +265,9 @@ function AuthenticatedLayout() {
 
   // Resume aHand daemon connection if previously enabled
   useAhandBootstrap();
+
+  // Auto-refresh aHand JWT when daemon reports auth error
+  useAhandJwtRefresh();
 
   // Initialize WebSocket connection
   useWebSocket();
