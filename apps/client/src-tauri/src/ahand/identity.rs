@@ -201,29 +201,41 @@ mod tests {
         assert!(a.starts_with("dev-"));
     }
 
+    /// Test helper that exercises the remove logic without needing AppHandle.
+    pub fn remove_with_base(base: &Path, team9_user_id: &str) -> Result<(), String> {
+        validate_user_id(team9_user_id)?;
+        let dir = base
+            .join("ahand")
+            .join("users")
+            .join(team9_user_id)
+            .join("identity");
+        if dir.exists() {
+            fs::remove_dir_all(&dir)
+                .map_err(|e| format!("remove_dir_all {}: {e}", dir.display()))?;
+        }
+        Ok(())
+    }
+
     #[test]
     fn remove_deletes_identity_directory() {
         let (_d, base) = tmp();
         let dir = identity_dir_with_base(&base, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").unwrap();
         assert!(dir.exists());
-        // Call the public remove function with the same base path
-        fs::remove_dir_all(&dir).unwrap();
+        remove_with_base(&base, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").unwrap();
         assert!(!dir.exists());
     }
 
     #[test]
     fn remove_is_idempotent_when_dir_missing() {
         let (_d, base) = tmp();
-        let dir = base
-            .join("ahand")
-            .join("users")
-            .join("nonexistent-user")
-            .join("identity");
-        // Does not panic when directory doesn't exist
-        if dir.exists() {
-            fs::remove_dir_all(&dir).unwrap();
-        }
-        // Calling on non-existent path should not error
-        assert!(!dir.exists());
+        let result = remove_with_base(&base, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn remove_rejects_invalid_user_id() {
+        let (_d, base) = tmp();
+        assert!(remove_with_base(&base, "..").is_err());
+        assert!(remove_with_base(&base, "").is_err());
     }
 }

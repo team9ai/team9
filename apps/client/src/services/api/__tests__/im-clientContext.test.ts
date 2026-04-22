@@ -90,18 +90,19 @@ describe("sendMessage clientContext injection", () => {
     );
   });
 
-  it("does not override caller-supplied clientContext", async () => {
+  it("auto-injected clientContext overrides caller-supplied value (server is authoritative)", async () => {
+    // buildClientContext() always runs and takes precedence over any caller-supplied
+    // clientContext — the server is the source of truth for client attribution.
     vi.mocked(isTauriApp).mockReturnValue(false);
     const { messagesApi } = await import("../im");
     await messagesApi.sendMessage("ch1", {
       content: "hi",
       clientContext: { kind: "macapp", deviceId: "override" },
     });
-    // buildClientContext runs regardless, but caller's value gets overridden by spread
-    // (server-side is authoritative; this just verifies the field is present)
+    // In web env, buildClientContext returns { kind: "web" }, overriding the caller
     expect(http.post).toHaveBeenCalledWith(
       "/v1/im/channels/ch1/messages",
-      expect.objectContaining({ clientContext: expect.any(Object) }),
+      expect.objectContaining({ clientContext: { kind: "web" } }),
     );
   });
 });
