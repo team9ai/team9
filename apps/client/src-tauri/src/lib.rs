@@ -334,11 +334,10 @@ pub fn run() {
             desktop_check_for_update,
             desktop_install_update,
             desktop_align_traffic_lights,
-            // Task 7.4 adds ahand commands here:
-            // ahand::ahand_get_identity,
-            // ahand::ahand_start,
-            // ahand::ahand_stop,
-            // ahand::ahand_status,
+            ahand::commands::ahand_get_identity,
+            ahand::commands::ahand_start,
+            ahand::commands::ahand_stop,
+            ahand::commands::ahand_status,
         ])
         .build(tauri::generate_context!())
         .expect("error building tauri application")

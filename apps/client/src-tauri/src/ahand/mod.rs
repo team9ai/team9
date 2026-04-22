@@ -1,6 +1,6 @@
-// commands.rs (#[tauri::command] surface) added in Task 7.4
-
+pub mod commands;
 pub mod identity;
 pub mod runtime;
 
+pub use commands::{ahand_get_identity, ahand_start, ahand_status, ahand_stop};
 pub use runtime::{AhandRuntime, DaemonStatus, ErrorKind, StartConfig, StartResult};
