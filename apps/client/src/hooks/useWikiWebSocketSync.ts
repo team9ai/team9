@@ -51,6 +51,7 @@ function clearSubmittedProposalsByProposalId(proposalId: string): void {
   for (const [key, value] of Object.entries(map)) {
     if (value !== proposalId) continue;
     const colonIdx = key.indexOf(":");
+    if (colonIdx < 0) continue; // malformed key — skip
     const wikiId = key.slice(0, colonIdx);
     const path = key.slice(colonIdx + 1);
     wikiActions.setSubmittedProposal(wikiId, path, null);

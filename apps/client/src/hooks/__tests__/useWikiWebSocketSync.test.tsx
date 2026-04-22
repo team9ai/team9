@@ -358,6 +358,48 @@ describe("useWikiWebSocketSync", () => {
     },
   );
 
+  it("skips malformed keys (no colon) without throwing or corrupting state", () => {
+    // Directly inject a malformed key into the store to simulate a
+    // corrupted or externally-modified store. The guard `if (colonIdx < 0)
+    // continue` should skip this entry cleanly and still clear valid ones.
+    act(() => {
+      // Manually set a malformed key (no colon) via the raw store setter.
+      useWikiStore.setState((s) => ({
+        ...s,
+        submittedProposals: {
+          ...s.submittedProposals,
+          malformedkeynocodon: "p-1",
+        },
+      }));
+      // Also set a valid key for the same proposalId.
+      wikiActions.setSubmittedProposal("wiki-1", "api/auth.md", "p-1");
+    });
+
+    renderHook(() => useWikiWebSocketSync(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    expect(() => {
+      act(() =>
+        wsEmitter.emit("wiki_proposal_approved", {
+          wikiId: "wiki-1",
+          proposalId: "p-1",
+        }),
+      );
+    }).not.toThrow();
+
+    // Valid key should be cleared.
+    expect(
+      useWikiStore.getState().submittedProposals[
+        submittedProposalKey("wiki-1", "api/auth.md")
+      ],
+    ).toBeUndefined();
+    // Malformed key is untouched (skipped, not cleared).
+    expect(
+      useWikiStore.getState().submittedProposals["malformedkeynocodon"],
+    ).toBe("p-1");
+  });
+
   it("handles paths that contain slashes correctly when clearing store entries", () => {
     // Wiki paths commonly contain multiple slashes (e.g. `guides/setup/db.md`).
     // The composite key is `${wikiId}:${path}` — splitting on the FIRST colon
