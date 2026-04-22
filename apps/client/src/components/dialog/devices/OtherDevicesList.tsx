@@ -9,7 +9,7 @@ import {
   useAhandDevices,
   AHAND_DEVICES_QUERY_KEY,
 } from "@/hooks/useAhandDevices";
-import { useAhandStore, type UserAhandState } from "@/stores/useAhandStore";
+import { useAhandStore } from "@/stores/useAhandStore";
 import { useUser } from "@/stores/useAppStore";
 import { ahandApi, type DeviceDto } from "@/services/ahand-api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,9 +19,8 @@ export function OtherDevicesList({ excludeLocal }: { excludeLocal: boolean }) {
   const { t } = useTranslation("ahand");
   const { data, isLoading } = useAhandDevices({ includeOffline: true });
   const currentUser = useUser();
-  const localId = useAhandStore(
-    (s: { usersEnabled: Record<string, UserAhandState> }) =>
-      currentUser ? s.getDeviceIdForUser(currentUser.id) : null,
+  const localId = useAhandStore((s) =>
+    currentUser ? s.getDeviceIdForUser(currentUser.id) : null,
   );
   const qc = useQueryClient();
 

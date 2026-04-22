@@ -240,6 +240,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_notification::init())
         .manage(PendingUpdate::default())
+        .manage(ahand::AhandRuntime::new())
         .setup(|app| {
             tauri::async_runtime::spawn(health_server::start_health_server());
 
@@ -331,11 +332,10 @@ pub fn run() {
             desktop_check_for_update,
             desktop_install_update,
             desktop_align_traffic_lights,
-            // Task 7.4 adds ahand commands here:
-            // ahand::ahand_get_identity,
-            // ahand::ahand_start,
-            // ahand::ahand_stop,
-            // ahand::ahand_status,
+            ahand::commands::ahand_get_identity,
+            ahand::commands::ahand_start,
+            ahand::commands::ahand_stop,
+            ahand::commands::ahand_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
