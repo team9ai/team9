@@ -1,15 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { REDIS_CLIENT, type RedisType } from '@team9/redis';
 
-// Event shape published onto the shared Redis `ahand:events` channel.
-// im-worker's AhandEventsSubscriber reads from the same channel.
-// Task 4.7 formalises the publisher; Task 5.3 formalises the subscriber.
-//
-// We keep this stub here so Task 4.3 (AhandDevicesService) can depend on the
-// type + class without pulling the full implementation forward.
+// The AhandOwnerEvent type is re-exported so TaskDefinition 4.3 + 4.6 callers
+// can import it without reaching into the gateway's private directory.
 
 export type AhandEventType =
   | 'device.registered'
+  | 'device.online'
+  | 'device.heartbeat'
+  | 'device.offline'
   | 'device.revoked'
   | 'device.presence.changed';
 
@@ -20,7 +19,13 @@ export interface AhandOwnerEvent {
   data: Record<string, unknown>;
 }
 
-const CHANNEL = 'ahand:events';
+// Channel pattern: ahand:events:{ownerId}
+// im-worker (Task 5.3) subscribes with PSUBSCRIBE ahand:events:* so it
+// receives events for all owners. Scoping per-owner lets a future subscriber
+// opt into events for a single owner without pattern matching overhead.
+function channel(ownerId: string): string {
+  return `ahand:events:${ownerId}`;
+}
 
 @Injectable()
 export class AhandRedisPublisher {
@@ -29,19 +34,25 @@ export class AhandRedisPublisher {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: RedisType) {}
 
   async publishForOwner(event: AhandOwnerEvent): Promise<void> {
+    const ch = channel(event.ownerId);
     const payload = JSON.stringify({
-      ...event,
-      emittedAt: new Date().toISOString(),
+      ownerType: event.ownerType,
+      eventType: event.eventType,
+      data: event.data,
+      publishedAt: new Date().toISOString(),
     });
     try {
-      await this.redis.publish(CHANNEL, payload);
+      const subscribers = await this.redis.publish(ch, payload);
+      if (subscribers === 0) {
+        this.logger.debug(
+          `Published ${event.eventType} to ${ch} -- 0 subscribers (may indicate misconfig)`,
+        );
+      }
     } catch (error) {
-      // Swallow transport errors: presence/notification is best-effort.
-      // Persistent state lives in Postgres, so a missed publish just means
-      // subscribers reconcile on next heartbeat.
       this.logger.warn(
-        `Failed to publish ${event.eventType} for ${event.ownerType}:${event.ownerId}`,
-        error instanceof Error ? error.stack : String(error),
+        `Redis publish failed for ${ch}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
   }
