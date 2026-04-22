@@ -91,4 +91,29 @@ describe("useAhandJwtRefresh", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });
+
+  it("does NOT refresh for error.kind=other", async () => {
+    mockLocalStatus.mockReturnValue({
+      state: "error",
+      kind: "other",
+      message: "unexpected",
+    });
+    renderHook(() => useAhandJwtRefresh());
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when ahand not enabled for user", async () => {
+    useAhandStore.getState().clearUser("u1");
+    renderHook(() => useAhandJwtRefresh());
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mockRefresh).not.toHaveBeenCalled();
+  });
+
+  it("shows error toast when refreshToken API call fails", async () => {
+    mockRefresh.mockRejectedValue(new Error("api down"));
+    renderHook(() => useAhandJwtRefresh());
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(mockStart).not.toHaveBeenCalled();
+  });
 });
