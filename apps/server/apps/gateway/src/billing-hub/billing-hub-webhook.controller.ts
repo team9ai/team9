@@ -12,7 +12,11 @@ import {
 import { PosthogService } from '@team9/posthog';
 import { env } from '@team9/shared';
 
-export type BillingPaymentType = 'subscription' | 'one_time';
+export type BillingPaymentType =
+  | 'subscription'
+  | 'subscription_renewal'
+  | 'subscription_update'
+  | 'one_time';
 // Raw Stripe interval (`month`/`year`), as surfaced by billing-hub.
 export type BillingInterval = 'month' | 'year';
 
@@ -30,11 +34,16 @@ interface BillingPaymentSucceededPayload {
   billingInterval?: BillingInterval | null;
   creditsAmount?: number | null;
   stripePriceId: string;
-  stripeSessionId: string;
+  // Exactly one of stripeSessionId / stripeInvoiceId is set. Checkout-driven
+  // events (initial signup, topup) carry a session id; invoice-driven events
+  // (renewal, plan update) carry an invoice id.
+  stripeSessionId?: string | null;
+  stripeInvoiceId?: string | null;
   stripeSubscriptionId?: string | null;
-  // Stripe event id; we forward it as `$insert_id` so PostHog dedupes if
-  // billing-hub fires twice for the same underlying event.
   stripeEventId: string;
+  // Raw Stripe invoice.billing_reason for invoice-driven events, passed
+  // through for downstream segmentation.
+  billingReason?: string | null;
 }
 
 const TENANT_OWNER_PREFIX = 'tenant:';
@@ -77,11 +86,22 @@ export class BillingHubWebhookController {
       );
     }
 
+    // Dedup key: session id for checkout-driven events, invoice id for
+    // invoice-driven events. Both are stable per underlying payment across
+    // Stripe's event variants (sync vs async, retries). Stripe event id is
+    // too narrow — a single payment can produce multiple event ids.
+    const insertId = payload.stripeSessionId ?? payload.stripeInvoiceId;
+    if (!insertId) {
+      throw new BadRequestException(
+        'Either stripeSessionId or stripeInvoiceId is required',
+      );
+    }
+
     this.posthogService.capture({
       distinctId: initiatorUserId,
       event: 'payment_completed',
       properties: {
-        $insert_id: payload.stripeEventId,
+        $insert_id: insertId,
         workspace_id: workspaceId,
         payment_type: payload.paymentType,
         plan_name: payload.productName,
@@ -90,14 +110,17 @@ export class BillingHubWebhookController {
         billing_interval: payload.billingInterval ?? null,
         credits_amount: payload.creditsAmount ?? null,
         stripe_price_id: payload.stripePriceId,
-        stripe_session_id: payload.stripeSessionId,
+        stripe_session_id: payload.stripeSessionId ?? null,
+        stripe_invoice_id: payload.stripeInvoiceId ?? null,
         stripe_subscription_id: payload.stripeSubscriptionId ?? null,
+        stripe_event_id: payload.stripeEventId,
+        billing_reason: payload.billingReason ?? null,
       },
       groups: { workspace: workspaceId },
     });
 
     this.logger.log(
-      `payment_completed captured for user=${initiatorUserId} workspace=${workspaceId} product=${payload.productName}`,
+      `payment_completed[${payload.paymentType}] user=${initiatorUserId} workspace=${workspaceId} product=${payload.productName}`,
     );
 
     return { ok: true };
