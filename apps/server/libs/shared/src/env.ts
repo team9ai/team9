@@ -215,6 +215,11 @@ export const env = {
     return process.env.FILE_KEEPER_JWT_SECRET;
   },
 
+  // Gateway internal URL (used by im-worker to call /internal/* endpoints)
+  get GATEWAY_INTERNAL_URL(): string | undefined {
+    return process.env.GATEWAY_INTERNAL_URL || undefined;
+  },
+
   // ahand-hub (optional - ahand device feature is gated on these being set)
   get AHAND_HUB_URL(): string | undefined {
     return process.env.AHAND_HUB_URL || undefined;
