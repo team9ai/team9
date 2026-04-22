@@ -1,0 +1,347 @@
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { UnauthorizedException } from '@nestjs/common';
+import { createHmac } from 'crypto';
+
+// ─── Mock @team9/database ────────────────────────────────────────────────────
+
+const mockEq = jest.fn((f: unknown, v: unknown) => ({ kind: 'eq', f, v }));
+const mockAnd = jest.fn((...c: unknown[]) => ({ kind: 'and', c }));
+
+jest.unstable_mockModule('@team9/database', () => ({
+  DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION'),
+  eq: mockEq,
+  and: mockAnd,
+}));
+
+jest.unstable_mockModule('@team9/database/schemas', () => ({
+  ahandDevices: {
+    hubDeviceId: 'ahandDevices.hubDeviceId',
+    status: 'ahandDevices.status',
+    revokedAt: 'ahandDevices.revokedAt',
+    lastSeenAt: 'ahandDevices.lastSeenAt',
+  },
+}));
+
+const SECRET = 'webhook-secret-key-32chars-long!!';
+const mockSharedEnv = { AHAND_HUB_WEBHOOK_SECRET: SECRET };
+jest.unstable_mockModule('@team9/shared', () => ({ env: mockSharedEnv }));
+
+const { AhandWebhookService } = await import('./ahand-webhook.service.js');
+type Svc = InstanceType<typeof AhandWebhookService>;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+type MockFn = jest.Mock<(...args: any[]) => any>;
+
+function makeDbMock() {
+  const updateWhere: MockFn = jest.fn<any>().mockResolvedValue(undefined);
+  const updateSet = jest.fn<any>().mockReturnValue({ where: updateWhere });
+  const selectWhere: MockFn = jest.fn<any>().mockResolvedValue([]);
+  const selectFrom = jest.fn<any>().mockReturnValue({ where: selectWhere });
+
+  return {
+    db: {
+      update: jest.fn<any>().mockReturnValue({ set: updateSet }),
+      select: jest.fn<any>().mockReturnValue({ from: selectFrom }),
+    },
+    chains: { updateSet, updateWhere, selectFrom, selectWhere },
+  };
+}
+
+function makeRedis() {
+  const store = new Map<string, { val: string; ex?: number }>();
+  return {
+    set: jest.fn<any>().mockImplementation(async (...args: string[]) => {
+      const [key, val, ...rest] = args;
+      const nxIdx = rest.indexOf('NX');
+      if (nxIdx >= 0 && store.has(key)) return null;
+      store.set(key, { val });
+      return 'OK';
+    }),
+    get: jest.fn<any>().mockImplementation(async (key: string) => {
+      return store.get(key)?.val ?? null;
+    }),
+    del: jest.fn<any>().mockImplementation(async (key: string) => {
+      const had = store.has(key);
+      store.delete(key);
+      return had ? 1 : 0;
+    }),
+    _store: store,
+  };
+}
+
+function makePublisher() {
+  return { publishForOwner: jest.fn<any>().mockResolvedValue(undefined) };
+}
+
+function makeEventsGateway() {
+  return { emitToOwner: jest.fn<any>() };
+}
+
+function sign(body: string): string {
+  return 'sha256=' + createHmac('sha256', SECRET).update(body).digest('hex');
+}
+
+function nowSec() {
+  return String(Math.floor(Date.now() / 1000));
+}
+
+function makeDeviceRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'row-1',
+    ownerType: 'user',
+    ownerId: 'u1',
+    hubDeviceId: 'h1',
+    publicKey: 'pk',
+    nickname: 'MacBook',
+    platform: 'macos',
+    hostname: null,
+    status: 'active',
+    lastSeenAt: null,
+    createdAt: new Date('2026-04-22'),
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
+// ─── Test suite ───────────────────────────────────────────────────────────────
+
+describe('AhandWebhookService', () => {
+  let svc: Svc;
+  let dbFixture: ReturnType<typeof makeDbMock>;
+  let redis: ReturnType<typeof makeRedis>;
+  let publisher: ReturnType<typeof makePublisher>;
+  let eventsGw: ReturnType<typeof makeEventsGateway>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSharedEnv.AHAND_HUB_WEBHOOK_SECRET = SECRET;
+    dbFixture = makeDbMock();
+    redis = makeRedis();
+    publisher = makePublisher();
+    eventsGw = makeEventsGateway();
+    svc = new AhandWebhookService(
+      dbFixture.db as never,
+      redis as never,
+      publisher as never,
+      eventsGw as never,
+    );
+  });
+
+  // ─── verifySignature ─────────────────────────────────────────────────────
+
+  describe('verifySignature', () => {
+    const body = Buffer.from(JSON.stringify({ eventId: 'evt_1' }));
+
+    it('accepts valid signature + fresh timestamp', () => {
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString()), nowSec()),
+      ).not.toThrow();
+    });
+
+    it('rejects missing signature header', () => {
+      expect(() => svc.verifySignature(body, undefined, nowSec())).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects empty string signature', () => {
+      expect(() => svc.verifySignature(body, '', nowSec())).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects non-sha256= prefix', () => {
+      expect(() => svc.verifySignature(body, 'md5=abc', nowSec())).toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rejects signature tampering (wrong HMAC value, same length)', () => {
+      expect(() =>
+        svc.verifySignature(body, 'sha256=' + '0'.repeat(64), nowSec()),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects wrong-length hex in signature (length mismatch fast-path)', () => {
+      expect(() =>
+        svc.verifySignature(body, 'sha256=' + 'a'.repeat(10), nowSec()),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects timestamp older than 5 min', () => {
+      const old = String(Math.floor(Date.now() / 1000) - 400);
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString()), old),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects timestamp from the future beyond skew', () => {
+      const future = String(Math.floor(Date.now() / 1000) + 400);
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString()), future),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects non-numeric timestamp', () => {
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString()), 'not-a-number'),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects missing timestamp header', () => {
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString()), undefined),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('throws when AHAND_HUB_WEBHOOK_SECRET is not configured', () => {
+      mockSharedEnv.AHAND_HUB_WEBHOOK_SECRET = '';
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString()), nowSec()),
+      ).toThrow(Error);
+    });
+  });
+
+  // ─── dedupe / clearDedupe ────────────────────────────────────────────────
+
+  describe('dedupe + clearDedupe', () => {
+    it('returns true first time, false on duplicate', async () => {
+      expect(await svc.dedupe('evt_1')).toBe(true);
+      expect(await svc.dedupe('evt_1')).toBe(false);
+    });
+
+    it('clearDedupe removes key so next dedupe succeeds', async () => {
+      await svc.dedupe('evt_2');
+      await svc.clearDedupe('evt_2');
+      expect(await svc.dedupe('evt_2')).toBe(true);
+    });
+
+    it('clearDedupe swallows redis.del errors', async () => {
+      redis.del.mockRejectedValue(new Error('redis down'));
+      await expect(svc.clearDedupe('evt_x')).resolves.toBeUndefined();
+    });
+  });
+
+  // ─── handleEvent ────────────────────────────────────────────────────────
+
+  function baseEvt(eventType: string, overrides: Record<string, unknown> = {}) {
+    return {
+      eventId: 'evt_x',
+      eventType,
+      occurredAt: new Date().toISOString(),
+      deviceId: 'h1',
+      externalUserId: 'u1',
+      data: {},
+      ...overrides,
+    } as any;
+  }
+
+  describe('device.online', () => {
+    it('sets presence with TTL, updates lastSeenAt, fans out', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(
+        baseEvt('device.online', { data: { presenceTtlSeconds: 60 } }),
+      );
+      expect(await redis.get('ahand:device:h1:presence')).toBe('online');
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(1);
+      expect(publisher.publishForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'device.online',
+          ownerType: 'user',
+          ownerId: 'u1',
+        }),
+      );
+      expect(eventsGw.emitToOwner).toHaveBeenCalledWith(
+        'user',
+        'u1',
+        'device.online',
+        expect.any(Object),
+      );
+    });
+
+    it('uses default TTL 180 when presenceTtlSeconds absent', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(baseEvt('device.online'));
+      expect(redis.set).toHaveBeenCalledWith(
+        'ahand:device:h1:presence',
+        'online',
+        'EX',
+        180,
+      );
+    });
+  });
+
+  describe('device.heartbeat', () => {
+    it('refreshes presence TTL but does NOT update lastSeenAt', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(
+        baseEvt('device.heartbeat', { data: { presenceTtlSeconds: 30 } }),
+      );
+      expect(await redis.get('ahand:device:h1:presence')).toBe('online');
+      // update() should NOT have been called (no lastSeenAt write)
+      expect(dbFixture.db.update).not.toHaveBeenCalled();
+    });
+
+    it('uses default TTL 180 when presenceTtlSeconds absent', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(baseEvt('device.heartbeat'));
+      expect(redis.set).toHaveBeenCalledWith(
+        'ahand:device:h1:presence',
+        'online',
+        'EX',
+        180,
+      );
+    });
+  });
+
+  describe('device.offline', () => {
+    it('deletes presence key, updates lastSeenAt', async () => {
+      redis._store.set('ahand:device:h1:presence', { val: 'online' });
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(baseEvt('device.offline'));
+      expect(await redis.get('ahand:device:h1:presence')).toBeNull();
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(1);
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ lastSeenAt: expect.any(Date) }),
+      );
+    });
+  });
+
+  describe('device.revoked', () => {
+    it('deletes presence, flips DB status + revokedAt', async () => {
+      redis._store.set('ahand:device:h1:presence', { val: 'online' });
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(baseEvt('device.revoked'));
+      expect(await redis.get('ahand:device:h1:presence')).toBeNull();
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'revoked',
+          revokedAt: expect.any(Date),
+        }),
+      );
+    });
+  });
+
+  describe('device.registered', () => {
+    it('no DB writes, only fan-out', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(baseEvt('device.registered'));
+      expect(dbFixture.db.update).not.toHaveBeenCalled();
+      expect(publisher.publishForOwner).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'device.registered' }),
+      );
+    });
+  });
+
+  describe('unknown deviceId', () => {
+    it('logs and skips fan-out without throwing', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([]);
+      await expect(
+        svc.handleEvent(baseEvt('device.online')),
+      ).resolves.toBeUndefined();
+      expect(publisher.publishForOwner).not.toHaveBeenCalled();
+      expect(eventsGw.emitToOwner).not.toHaveBeenCalled();
+    });
+  });
+});
