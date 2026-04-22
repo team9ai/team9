@@ -34,6 +34,9 @@ export class AhandRedisPublisher {
 
   async publishForOwner(event: AhandOwnerEvent): Promise<void> {
     const ch = channel(event.ownerId);
+    // Note: ownerId is intentionally NOT included in the payload — it is encoded
+    // in the channel key itself (ahand:events:{ownerId}). The subscriber extracts
+    // ownerId from the channel name. Including it in the payload would be redundant.
     const payload = JSON.stringify({
       ownerType: event.ownerType,
       eventType: event.eventType,

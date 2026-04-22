@@ -51,6 +51,11 @@ export class AhandSessionDispatcher {
         ? input.data.hubDeviceId
         : null;
 
+    // Synchronous loop: each session's dispatchToSession is called in sequence.
+    // Per-session errors are caught individually, so one failing session never
+    // blocks others. This isolation invariant holds because the loop is synchronous —
+    // if dispatch were ever made async (e.g. awaiting addComponent), errors must
+    // still be caught per-iteration to preserve the invariant.
     for (const s of sessions) {
       try {
         this.dispatchToSession(s.sessionId, input.eventType, hubDeviceId);

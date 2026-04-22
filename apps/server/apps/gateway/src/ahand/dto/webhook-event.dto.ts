@@ -1,6 +1,7 @@
 import {
   IsIn,
   IsISO8601,
+  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
@@ -57,6 +58,7 @@ export class WebhookEventDto {
   deviceId!: string;
 
   @IsString()
+  @IsNotEmpty()
   externalUserId!: string;
 
   @IsObject()

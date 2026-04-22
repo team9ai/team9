@@ -477,6 +477,17 @@ describe('AhandDevicesService', () => {
       expect(rows[0].isOnline).toBeNull();
     });
 
+    it('Redis outage with includeOffline:false — returns all devices with isOnline:null rather than empty list', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      redis.mget.mockRejectedValue(new Error('redis down'));
+      const rows = await service.listDevicesForOwner('user', 'u1', {
+        includeOffline: false,
+      });
+      // Degraded mode: all devices returned with isOnline:null
+      expect(rows).toHaveLength(1);
+      expect(rows[0].isOnline).toBeNull();
+    });
+
     it('Redis outage with non-Error rejection still degrades gracefully', async () => {
       dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
 

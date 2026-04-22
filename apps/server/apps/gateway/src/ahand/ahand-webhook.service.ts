@@ -116,6 +116,10 @@ export class AhandWebhookService {
           'EX',
           ttl,
         );
+        // Presence key is set here (before the DB ownership lookup) because the hub
+        // has already confirmed the device is online. For devices without a DB row
+        // (e.g. pre-registration race or stale hub state), the key expires naturally
+        // after at most 3600s. Fan-out is gated on the ownership lookup below.
         // lastSeenAt updated after the ownership SELECT below (only when row exists).
         break;
       }

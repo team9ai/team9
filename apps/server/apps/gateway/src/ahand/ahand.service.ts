@@ -215,6 +215,14 @@ export class AhandDevicesService {
       isOnline: presence === null ? null : presence[i] === 'online',
     }));
 
+    // When Redis is unavailable (presence === null), we cannot determine which
+    // devices are online. Rather than silently returning an empty list to
+    // callers that set includeOffline:false, we return all devices with
+    // isOnline:null to signal the degraded state.
+    if (presence === null) {
+      return enriched; // all devices, isOnline:null for each
+    }
+
     if (!opts.includeOffline) {
       return enriched.filter((d) => d.isOnline === true);
     }

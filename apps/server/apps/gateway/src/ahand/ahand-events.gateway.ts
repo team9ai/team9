@@ -25,6 +25,11 @@ type OwnerType = 'user' | 'workspace';
  * Membership is validated: a user may only join their own `user:{id}:ahand` room,
  * and may only join `workspace:{id}:ahand` if they are a member of that workspace.
  */
+// Uses the same /im namespace as WebsocketGateway. NestJS/Socket.io shares
+// a single Server instance across both gateways on the same namespace, so
+// the Redis adapter configured on WebsocketGateway automatically covers
+// AhandEventsGateway.server too. ahand:join_room/leave_room message names
+// are prefixed to avoid collision with existing IM message names.
 // CORS origin must be read lazily (at connection time) to avoid
 // failing env reads during module import in test environments.
 @WebSocketGateway({
