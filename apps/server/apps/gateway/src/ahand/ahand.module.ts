@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { DatabaseModule } from '@team9/database';
@@ -26,7 +26,7 @@ import { AhandEventsGateway } from './ahand-events.gateway.js';
     DatabaseModule,
     RedisModule,
     AuthModule,
-    forwardRef(() => WorkspaceModule),
+    WorkspaceModule,
   ],
   controllers: [
     AhandController,

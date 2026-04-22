@@ -674,6 +674,15 @@ describe('AhandDevicesService', () => {
         NotFoundException,
       );
     });
+
+    it('publisher failure in revokeDevice propagates to caller', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      hub.deleteDevice.mockResolvedValue(undefined);
+      publisher.publishForOwner.mockRejectedValue(new Error('pub-fail'));
+      await expect(service.revokeDevice('u1', 'row-1')).rejects.toThrow(
+        'pub-fail',
+      );
+    });
   });
 
   // ─── onUserDeleted ──────────────────────────────────────────────────
@@ -734,6 +743,17 @@ describe('AhandDevicesService', () => {
           data: { hubDeviceId: 'h2' },
         }),
       );
+    });
+
+    it('publisher rejection in onUserDeleted is swallowed (fire-and-forget)', async () => {
+      dbFixture.chains.updateReturning.mockResolvedValue([
+        makeDeviceRow({ hubDeviceId: 'h1' }),
+      ]);
+      hub.deleteDevice.mockResolvedValue(undefined);
+      publisher.publishForOwner.mockRejectedValue(new Error('publish-boom'));
+      await expect(
+        service.onUserDeleted({ userId: 'u1' }),
+      ).resolves.toBeUndefined();
     });
   });
 });

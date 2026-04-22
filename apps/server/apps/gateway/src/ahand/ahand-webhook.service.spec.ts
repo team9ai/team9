@@ -276,6 +276,15 @@ describe('AhandWebhookService', () => {
       );
       expect(await redis.get('ahand:device:h1:presence')).toBe('online');
       expect(dbFixture.db.update).toHaveBeenCalledTimes(1);
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ lastSeenAt: expect.any(Date) }),
+      );
+      expect(redis.set).toHaveBeenCalledWith(
+        'ahand:device:h1:presence',
+        'online',
+        'EX',
+        60,
+      );
       expect(publisher.publishForOwner).toHaveBeenCalledWith(
         expect.objectContaining({
           eventType: 'device.online',
@@ -299,6 +308,19 @@ describe('AhandWebhookService', () => {
         'online',
         'EX',
         180,
+      );
+    });
+
+    it('device.online: caps presenceTtlSeconds to 3600 when provided value is larger', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+      await svc.handleEvent(
+        baseEvt('device.online', { data: { presenceTtlSeconds: 99999 } }),
+      );
+      expect(redis.set).toHaveBeenCalledWith(
+        'ahand:device:h1:presence',
+        'online',
+        'EX',
+        3600,
       );
     });
   });

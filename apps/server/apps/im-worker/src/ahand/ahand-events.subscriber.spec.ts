@@ -275,4 +275,16 @@ describe('AhandEventsSubscriber', () => {
     await Promise.resolve();
     expect(dispatcher.dispatch).not.toHaveBeenCalled();
   });
+
+  it('continues (does not throw) when psubscribe fails on init', async () => {
+    // Setup a new subscriber where psubscribe rejects
+    const failRedis = makeRedis();
+    failRedis.sub.psubscribe.mockRejectedValue(new Error('Redis unavailable'));
+    const failSubscriber = new AhandEventsSubscriber(
+      failRedis.redis as never,
+      dispatcher as unknown as AhandSessionDispatcher,
+    );
+    await expect(failSubscriber.onModuleInit()).resolves.toBeUndefined();
+    await failSubscriber.onModuleDestroy();
+  });
 });

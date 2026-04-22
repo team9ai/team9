@@ -36,7 +36,7 @@ export class AhandEventsSubscriber implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     this.subscriber = this.redis.duplicate();
-    await this.subscriber.psubscribe(PATTERN);
+    // Attach event listeners before the first command so early errors are caught.
     this.subscriber.on('pmessage', this.onMessage);
     this.subscriber.on('error', (e) =>
       this.logger.error('Redis subscriber error', e),
@@ -44,7 +44,14 @@ export class AhandEventsSubscriber implements OnModuleInit, OnModuleDestroy {
     this.subscriber.on('reconnecting', () =>
       this.logger.warn('Redis subscriber reconnecting'),
     );
-    this.logger.log(`Subscribed to ${PATTERN}`);
+    try {
+      await this.subscriber.psubscribe(PATTERN);
+      this.logger.log(`Subscribed to ${PATTERN}`);
+    } catch (e) {
+      this.logger.warn(
+        `Failed to subscribe to ${PATTERN} on init: ${e instanceof Error ? e.message : String(e)}. Will retry on reconnect.`,
+      );
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -32,7 +32,9 @@ export interface ExtenderInput {
   clientContext: ClientContextRaw;
 }
 
-export interface AhandTrackingState {
+// Pre-session state returned by extend() — sessionId is null until
+// the caller creates the agent session and sets it.
+export interface PendingAhandTrackingState {
   sessionId: string | null;
   userId: string;
   onlineDeviceIds: string[];
@@ -40,7 +42,7 @@ export interface AhandTrackingState {
 
 export interface ExtenderOutput {
   blueprint: Blueprint;
-  ahandTrackingState: AhandTrackingState;
+  ahandTrackingState: PendingAhandTrackingState;
 }
 
 type ResolvedCallingClient =
@@ -96,6 +98,11 @@ export class AhandBlueprintExtender implements OnModuleInit {
     return env.GATEWAY_INTERNAL_URL ?? '';
   }
 
+  // SECURITY: This token is a long-lived internal service secret. It is embedded
+  // in blueprint component configs so downstream components can authenticate to
+  // gateway internal endpoints. Log scrubbing should be applied to any output
+  // containing component configs. Rotate on breach.
+  //
   // Attempts to read INTERNAL_AUTH_VALIDATION_TOKEN; returns '' if not configured
   // (onModuleInit logs a warning in that case).
   private get gatewayInternalToken(): string {
@@ -110,7 +117,7 @@ export class AhandBlueprintExtender implements OnModuleInit {
     blueprint: Blueprint,
     input: ExtenderInput,
   ): Promise<ExtenderOutput> {
-    const emptyTracking: AhandTrackingState = {
+    const emptyTracking: PendingAhandTrackingState = {
       sessionId: null,
       userId: input.callingUserId,
       onlineDeviceIds: [],
@@ -143,6 +150,15 @@ export class AhandBlueprintExtender implements OnModuleInit {
     const onlineDevices = devices.filter(
       (d) => d.isOnline === true && d.status === 'active',
     );
+
+    const token = this.gatewayInternalToken;
+    if (!token) {
+      this.logger.warn(
+        `INTERNAL_AUTH_VALIDATION_TOKEN not set — skipping ahand injection for user ${input.callingUserId}`,
+      );
+      return { blueprint, ahandTrackingState: emptyTracking };
+    }
+
     const callingClient = this.resolveCallingClient(
       input.clientContext,
       devices,
@@ -160,7 +176,7 @@ export class AhandBlueprintExtender implements OnModuleInit {
           callingUserId: input.callingUserId,
           callingClient,
           gatewayInternalUrl: this.gatewayInternalUrl,
-          gatewayInternalAuthToken: this.gatewayInternalToken,
+          gatewayInternalAuthToken: token,
           hubUrl: this.hubUrl,
         },
       });
@@ -173,7 +189,7 @@ export class AhandBlueprintExtender implements OnModuleInit {
         callingUserId: input.callingUserId,
         callingClient,
         gatewayInternalUrl: this.gatewayInternalUrl,
-        gatewayInternalAuthToken: this.gatewayInternalToken,
+        gatewayInternalAuthToken: token,
       },
     });
 

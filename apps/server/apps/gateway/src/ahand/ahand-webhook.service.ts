@@ -110,13 +110,17 @@ export class AhandWebhookService {
 
     switch (evt.eventType) {
       case 'device.online': {
-        const ttl = evt.data.presenceTtlSeconds ?? 180;
+        // Cap TTL to 3600s to prevent malicious/erroneous values from creating
+        // near-permanent Redis keys.
+        const ttl = Math.min(Number(evt.data.presenceTtlSeconds ?? 180), 3600);
         await this.redis.set(presenceKey, 'online', 'EX', ttl);
         await this.updateLastSeen(evt.deviceId);
         break;
       }
       case 'device.heartbeat': {
-        const ttl = evt.data.presenceTtlSeconds ?? 180;
+        // Cap TTL to 3600s to prevent malicious/erroneous values from creating
+        // near-permanent Redis keys.
+        const ttl = Math.min(Number(evt.data.presenceTtlSeconds ?? 180), 3600);
         await this.redis.set(presenceKey, 'online', 'EX', ttl);
         // Do NOT update last_seen_at on heartbeats — write amplification.
         break;

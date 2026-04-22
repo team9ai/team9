@@ -305,6 +305,24 @@ describe('AhandBlueprintExtender', () => {
       expect(host.config.gatewayInternalUrl).toBe('');
     });
 
+    it('empty INTERNAL_AUTH_VALIDATION_TOKEN → blueprint untouched, tracking empty', async () => {
+      mockSharedEnv.INTERNAL_AUTH_VALIDATION_TOKEN = '';
+      control.listDevicesForUser.mockResolvedValue([makeDevice()]);
+      const { blueprint, ahandTrackingState } = await extender.extend(
+        baseBlueprint,
+        { callingUserId: 'u1', clientContext: null },
+      );
+      expect(
+        blueprint.components.filter((c) => c.typeKey === 'ahand-host'),
+      ).toHaveLength(0);
+      expect(
+        blueprint.components.filter(
+          (c) => c.typeKey === 'ahand-context-provider',
+        ),
+      ).toHaveLength(0);
+      expect(ahandTrackingState.onlineDeviceIds).toEqual([]);
+    });
+
     it('gateway failure with non-Error rejection still degrades gracefully', async () => {
       control.listDevicesForUser.mockImplementation(async () => {
         // eslint-disable-next-line @typescript-eslint/only-throw-error

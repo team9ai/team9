@@ -1,11 +1,4 @@
-import {
-  jest,
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-} from '@jest/globals';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import {
   ConflictException,
   ForbiddenException,
@@ -14,9 +7,16 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { AhandHubClient } from './ahand-hub.client.js';
 
 const BASE = 'https://hub.example.com';
+
+const mockEnv = {
+  AHAND_HUB_URL: BASE,
+  AHAND_HUB_SERVICE_TOKEN: 'svc_token_abcdef',
+};
+jest.unstable_mockModule('@team9/shared', () => ({ env: mockEnv }));
+
+const { AhandHubClient } = await import('./ahand-hub.client.js');
 
 function okResponse(body: unknown, status = 200): Response {
   const text = typeof body === 'string' ? body : JSON.stringify(body);
@@ -39,20 +39,15 @@ function errorResponse(status: number, body: unknown = null): Response {
 }
 
 describe('AhandHubClient', () => {
-  let client: AhandHubClient;
+  let client: InstanceType<typeof AhandHubClient>;
   let fetchMock: jest.Mock;
 
   beforeEach(() => {
-    process.env.AHAND_HUB_URL = BASE;
-    process.env.AHAND_HUB_SERVICE_TOKEN = 'svc_token_abcdef';
+    mockEnv.AHAND_HUB_URL = BASE;
+    mockEnv.AHAND_HUB_SERVICE_TOKEN = 'svc_token_abcdef';
     fetchMock = jest.fn<any>();
     global.fetch = fetchMock as unknown as typeof fetch;
     client = new AhandHubClient();
-  });
-
-  afterEach(() => {
-    delete process.env.AHAND_HUB_URL;
-    delete process.env.AHAND_HUB_SERVICE_TOKEN;
   });
 
   // ─── isConfigured ────────────────────────────────────────────────────
@@ -63,19 +58,19 @@ describe('AhandHubClient', () => {
     });
 
     it('false when AHAND_HUB_URL missing', () => {
-      delete process.env.AHAND_HUB_URL;
+      mockEnv.AHAND_HUB_URL = '';
       expect(client.isConfigured()).toBe(false);
     });
 
     it('false when AHAND_HUB_SERVICE_TOKEN missing', () => {
-      delete process.env.AHAND_HUB_SERVICE_TOKEN;
+      mockEnv.AHAND_HUB_SERVICE_TOKEN = '';
       expect(client.isConfigured()).toBe(false);
     });
   });
 
   describe('configuration guard', () => {
     it('requireConfig -> ServiceUnavailable when env missing', async () => {
-      delete process.env.AHAND_HUB_URL;
+      mockEnv.AHAND_HUB_URL = undefined as any;
       await expect(
         client.registerDevice({
           deviceId: 'x',
@@ -208,6 +203,17 @@ describe('AhandHubClient', () => {
       );
       await client.mintDeviceToken({ deviceId: 'abc' });
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toEqual({});
+    });
+
+    it('omits ttlSeconds from body when passed as 0 (falsy guard behavior)', async () => {
+      fetchMock.mockResolvedValue(
+        okResponse({ token: 't', expiresAt: '2026-04-29T10:00:00Z' }),
+      );
+      await client.mintDeviceToken({ deviceId: 'abc', ttlSeconds: 0 });
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      // 0 is falsy — the current implementation uses `input.ttlSeconds ?` guard,
+      // so ttlSeconds:0 behaves identically to omitting ttlSeconds.
       expect(JSON.parse(init.body as string)).toEqual({});
     });
 
