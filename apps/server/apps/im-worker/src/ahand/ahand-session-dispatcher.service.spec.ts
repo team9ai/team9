@@ -138,6 +138,21 @@ describe('AhandSessionDispatcher', () => {
       });
       expect(tracking.get('s1')!.onlineDeviceIds).toEqual([]);
     });
+
+    it('no-op when hubDeviceId absent in data', async () => {
+      tracking.register({
+        sessionId: 's1',
+        userId: 'u1',
+        onlineDeviceIds: ['d1'],
+      });
+      await dispatcher.dispatch({
+        ownerType: 'user',
+        ownerId: 'u1',
+        eventType: 'device.revoked',
+        data: {},
+      });
+      expect(tracking.get('s1')!.onlineDeviceIds).toEqual(['d1']);
+    });
   });
 
   // ─── no-op events ─────────────────────────────────────────────────────────
@@ -275,6 +290,8 @@ describe('AhandSessionDispatcher', () => {
 
       // s2 still processed
       expect(tracking.get('s2')!.onlineDeviceIds).toEqual([]);
+      // s1's onlineDeviceIds should remain ['d1'] since the mutation threw
+      expect(tracking.get('s1')?.onlineDeviceIds).toEqual(['d1']);
     });
   });
 

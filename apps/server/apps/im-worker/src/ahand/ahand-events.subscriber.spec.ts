@@ -178,6 +178,29 @@ describe('AhandEventsSubscriber', () => {
     expect(dispatcher.dispatch).not.toHaveBeenCalled();
   });
 
+  it('logs and skips message on channel with empty ownerId (ahand:events: with no suffix)', async () => {
+    const warnSpy = jest
+      .spyOn(
+        (subscriber as unknown as { logger: { warn: jest.Mock } }).logger,
+        'warn',
+      )
+      .mockImplementation(() => undefined);
+    // Channel is exactly 'ahand:events:' — ownerId becomes empty string after replace
+    redis.sub.emit(
+      'pmessage',
+      'ahand:events:*',
+      'ahand:events:',
+      JSON.stringify({
+        ownerType: 'user',
+        eventType: 'device.online',
+        data: {},
+      }),
+    );
+    await Promise.resolve();
+    expect(warnSpy).toHaveBeenCalled();
+    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+  });
+
   it('logs redis subscriber errors without crashing', () => {
     const errSpy = jest
       .spyOn(

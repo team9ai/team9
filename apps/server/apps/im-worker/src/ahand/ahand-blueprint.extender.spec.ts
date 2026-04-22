@@ -307,7 +307,8 @@ describe('AhandBlueprintExtender', () => {
 
     it('gateway failure with non-Error rejection still degrades gracefully', async () => {
       control.listDevicesForUser.mockImplementation(async () => {
-        throw new Error('non-Error fallback');
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'string error — not an Error instance';
       });
       const { blueprint } = await extender.extend(baseBlueprint, {
         callingUserId: 'u1',
@@ -316,6 +317,78 @@ describe('AhandBlueprintExtender', () => {
       expect(
         blueprint.components.filter((c) => c.typeKey === 'ahand-host'),
       ).toHaveLength(0);
+    });
+  });
+
+  // ─── clientContext: revoked+online edge case ───────────────────────────────
+
+  describe('clientContext resolution', () => {
+    it('macapp with revoked+online device → isAhandEnabled=false (revoked not considered enabled)', async () => {
+      control.listDevicesForUser.mockResolvedValue([
+        makeDevice({
+          hubDeviceId: 'dRevoked',
+          status: 'revoked',
+          isOnline: true,
+        }),
+      ]);
+      const { blueprint } = await extender.extend(baseBlueprint, {
+        callingUserId: 'u1',
+        clientContext: { kind: 'macapp', deviceId: 'dRevoked' },
+      });
+      const provider = blueprint.components.find(
+        (c) => c.typeKey === 'ahand-context-provider',
+      )!;
+      expect(
+        (provider.config.callingClient as { isAhandEnabled: boolean })
+          .isAhandEnabled,
+      ).toBe(false);
+    });
+  });
+
+  // ─── onModuleInit ─────────────────────────────────────────────────────────
+
+  describe('onModuleInit', () => {
+    it('does not warn when INTERNAL_AUTH_VALIDATION_TOKEN is set', () => {
+      mockSharedEnv.INTERNAL_AUTH_VALIDATION_TOKEN = 'valid-token';
+      const warnSpy = jest
+        .spyOn((extender as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+      extender.onModuleInit();
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('warns when INTERNAL_AUTH_VALIDATION_TOKEN is falsy (empty string)', () => {
+      mockSharedEnv.INTERNAL_AUTH_VALIDATION_TOKEN = '';
+      const warnSpy = jest
+        .spyOn((extender as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+      extender.onModuleInit();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('INTERNAL_AUTH_VALIDATION_TOKEN is not set'),
+      );
+    });
+
+    it('warns when INTERNAL_AUTH_VALIDATION_TOKEN getter throws', () => {
+      // Make the getter throw — getRequiredEnv throws if the value is missing
+      Object.defineProperty(mockSharedEnv, 'INTERNAL_AUTH_VALIDATION_TOKEN', {
+        get: () => {
+          throw new Error('missing env');
+        },
+        configurable: true,
+      });
+      const warnSpy = jest
+        .spyOn((extender as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+      extender.onModuleInit();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('INTERNAL_AUTH_VALIDATION_TOKEN is not set'),
+      );
+      // Restore normal property
+      Object.defineProperty(mockSharedEnv, 'INTERNAL_AUTH_VALIDATION_TOKEN', {
+        value: 'internal-token',
+        writable: true,
+        configurable: true,
+      });
     });
   });
 });

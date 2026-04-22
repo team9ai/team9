@@ -96,9 +96,14 @@ export class AhandBlueprintExtender implements OnModuleInit {
     return env.GATEWAY_INTERNAL_URL ?? '';
   }
 
-  // INTERNAL_AUTH_VALIDATION_TOKEN is required (throws if missing).
+  // Attempts to read INTERNAL_AUTH_VALIDATION_TOKEN; returns '' if not configured
+  // (onModuleInit logs a warning in that case).
   private get gatewayInternalToken(): string {
-    return env.INTERNAL_AUTH_VALIDATION_TOKEN;
+    try {
+      return env.INTERNAL_AUTH_VALIDATION_TOKEN ?? '';
+    } catch {
+      return '';
+    }
   }
 
   async extend(

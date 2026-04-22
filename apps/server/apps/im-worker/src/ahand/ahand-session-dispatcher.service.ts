@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AhandSessionTrackingService } from './ahand-session-tracking.service.js';
 
 export interface AhandDispatchInput {
-  ownerType: 'user' | 'workspace';
+  // 'user' and 'workspace' are the handled values; string allows any runtime
+  // value from JSON without breaking the type contract.
+  ownerType: string;
   ownerId: string;
   eventType: string;
   data: Record<string, unknown>;
