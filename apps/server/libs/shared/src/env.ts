@@ -150,6 +150,11 @@ export const env = {
   get BILLING_HUB_SERVICE_KEY(): string | undefined {
     return process.env.BILLING_HUB_SERVICE_KEY || undefined;
   },
+  // Shared secret validating inbound webhooks from billing-hub
+  // (e.g. payment_succeeded → PostHog). Leave unset to disable the endpoint.
+  get BILLING_HUB_WEBHOOK_SECRET(): string | undefined {
+    return process.env.BILLING_HUB_WEBHOOK_SECRET || undefined;
+  },
 
   // Application Environment
   get APP_ENV() {

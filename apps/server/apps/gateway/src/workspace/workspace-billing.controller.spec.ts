@@ -71,12 +71,16 @@ describe('WorkspaceBillingController', () => {
   });
 
   it('delegates checkout creation to BillingHubService', async () => {
-    await controller.createCheckout('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
-      priceId: 'price_pro_monthly',
-      type: 'subscription',
-      view: 'credits',
-      amountCents: 5500,
-    });
+    await controller.createCheckout(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      {
+        priceId: 'price_pro_monthly',
+        type: 'subscription',
+        view: 'credits',
+        amountCents: 5500,
+      },
+      'user-123',
+    );
 
     expect(billingHubService.createWorkspaceCheckout).toHaveBeenCalledWith(
       '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
@@ -86,6 +90,7 @@ describe('WorkspaceBillingController', () => {
       5500,
       undefined,
       undefined,
+      'user-123',
     );
   });
 

@@ -247,6 +247,7 @@ export class BillingHubService {
     amountCents?: number,
     successPath?: string,
     cancelPath?: string,
+    initiatorUserId?: string,
   ): Promise<CheckoutSessionResponse> {
     if (!this.enabled) {
       throw new ServiceUnavailableException('Billing Hub is not configured');
@@ -272,6 +273,9 @@ export class BillingHubService {
           view,
         }),
         ...(amountCents !== undefined ? { amountCents } : {}),
+        // Persisted in Stripe session metadata so billing-hub can echo it
+        // back when firing the payment-succeeded webhook to team9.
+        ...(initiatorUserId ? { metadata: { initiatorUserId } } : {}),
       }),
     });
   }
