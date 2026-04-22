@@ -1,6 +1,5 @@
-// Phase 7 tasks populate this module with:
-// - identity.rs  (per-user identity dir helpers)
-// - runtime.rs   (AhandRuntime singleton + DaemonHandle lifecycle)
-// - commands.rs  (#[tauri::command] surface)
+// Phase 7 tasks populate this module:
+// - runtime.rs   (AhandRuntime singleton + DaemonHandle lifecycle)  [Task 7.3]
+// - commands.rs  (#[tauri::command] surface)                        [Task 7.4]
 
-pub fn _placeholder() {}
+pub mod identity;

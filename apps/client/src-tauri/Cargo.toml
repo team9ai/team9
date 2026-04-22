@@ -33,6 +33,8 @@ tower-http = { version = "0.6", features = ["cors"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time", "sync"] }
 anyhow = "1"
 base64 = "0.22"
+sha2 = "0.10"
+hex = "0.4"
 
 # ahand library embedding — pinned to branch until merged + tagged rust-v0.1.2
 ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", branch = "feat/ahand-stream-a" }
