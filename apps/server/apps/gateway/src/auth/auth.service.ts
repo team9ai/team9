@@ -20,6 +20,7 @@ import {
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { EmailService } from '@team9/email';
+import { PosthogService } from '@team9/posthog';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
 import { slugify } from 'transliteration';
@@ -133,7 +134,24 @@ export class AuthService {
     private readonly eventEmitter: EventEmitter2,
     private readonly emailService: EmailService,
     private readonly turnstileService: TurnstileService,
+    private readonly posthogService: PosthogService,
   ) {}
+
+  private trackAuthCompletion(
+    userId: string,
+    authMethod: 'email' | 'google',
+    isNewUser: boolean,
+    signupSource?: 'self' | 'invite',
+  ): void {
+    this.posthogService.capture({
+      distinctId: userId,
+      event: isNewUser ? 'signup_completed' : 'login_completed',
+      properties: {
+        auth_method: authMethod,
+        ...(isNewUser && signupSource ? { signup_source: signupSource } : {}),
+      },
+    });
+  }
 
   private getJwtExpiresIn(value: string): JwtSignOptions['expiresIn'] {
     return value as JwtSignOptions['expiresIn'];
@@ -298,6 +316,8 @@ export class AuthService {
       );
     }
 
+    this.trackAuthCompletion(user.id, 'email', false);
+
     return {
       ...tokens,
       isNewUser: false,
@@ -426,6 +446,7 @@ export class AuthService {
       }
 
       const tokens = this.generateTokenPair(existingUser);
+      this.trackAuthCompletion(existingUser.id, 'google', false);
       return {
         ...tokens,
         isNewUser: false,
@@ -473,6 +494,7 @@ export class AuthService {
     this.eventEmitter.emit('user.created', { user });
 
     const tokens = this.generateTokenPair(user);
+    this.trackAuthCompletion(user.id, 'google', true, dto.signupSource);
     return {
       ...tokens,
       isNewUser: true,
@@ -956,6 +978,7 @@ export class AuthService {
     }
 
     const tokens = this.generateTokenPair(user);
+    this.trackAuthCompletion(user.id, 'email', false);
     return {
       ...tokens,
       isNewUser: false,
@@ -985,6 +1008,7 @@ export class AuthService {
       // Race condition: user was created between start and verify-code
       // Just log them in
       const tokens = this.generateTokenPair(existing);
+      this.trackAuthCompletion(existing.id, 'email', false);
       return {
         ...tokens,
         isNewUser: false,
@@ -1027,6 +1051,7 @@ export class AuthService {
     this.eventEmitter.emit('user.created', { user });
 
     const tokens = this.generateTokenPair(user);
+    this.trackAuthCompletion(user.id, 'email', true, signupSource);
     return {
       ...tokens,
       isNewUser: true,
