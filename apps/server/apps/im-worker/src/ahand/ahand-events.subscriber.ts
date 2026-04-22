@@ -6,10 +6,8 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { REDIS_CLIENT, type RedisType } from '@team9/redis';
-import {
-  AhandSessionDispatcher,
-  type AhandDispatchInput,
-} from './ahand-session-dispatcher.stub.js';
+import { AhandSessionDispatcher } from './ahand-session-dispatcher.service.js';
+import type { AhandDispatchInput } from './ahand-session-dispatcher.service.js';
 
 const PATTERN = 'ahand:events:*';
 

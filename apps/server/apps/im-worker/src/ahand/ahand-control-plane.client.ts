@@ -35,6 +35,16 @@ const DeviceListSchema = z.array(DeviceSchema);
 
 export type AhandDeviceSummary = z.infer<typeof DeviceSchema>;
 
+class GatewayClientError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'GatewayClientError';
+  }
+}
+
 /**
  * Thin wrapper around gateway's internal ahand endpoints.
  *
@@ -131,17 +141,18 @@ export class AhandControlPlaneClient {
 
         if (res.status >= 400 && res.status < 500) {
           // Non-403 4xx: fail fast, do not retry.
-          throw new Error(`gateway POST ${path} returned ${res.status}`);
+          throw new GatewayClientError(
+            res.status,
+            `gateway POST ${path} returned ${res.status}`,
+          );
         }
 
         lastError = new Error(`gateway POST ${path} returned ${res.status}`);
       } catch (e) {
         if (e instanceof ForbiddenException) throw e;
         if (e instanceof InternalServerErrorException) throw e;
-        // Fast-fail non-5xx errors (e.g. our own 4xx Error above).
-        if (e instanceof Error && /returned [4][0-9]{2}/.test(e.message)) {
-          throw e;
-        }
+        // Fast-fail client errors (4xx) — no retry
+        if (e instanceof GatewayClientError) throw e;
         lastError = e;
         this.logger.warn(
           `gateway POST ${path} attempt ${attempt} failed: ${

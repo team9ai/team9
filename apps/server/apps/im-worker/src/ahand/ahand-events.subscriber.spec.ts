@@ -7,7 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { AhandEventsSubscriber } from './ahand-events.subscriber.js';
-import { AhandSessionDispatcher } from './ahand-session-dispatcher.stub.js';
+import { AhandSessionDispatcher } from './ahand-session-dispatcher.service.js';
 
 // ─── Minimal Redis mock ───────────────────────────────────────────────────
 //

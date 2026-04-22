@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -8,6 +8,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { env } from '@team9/shared';
+import { WsAuthGuard } from '@team9/auth';
 import { WorkspaceService } from '../workspace/workspace.service.js';
 
 // Typed for documentation purposes; widened to string to prevent assignability
@@ -65,6 +66,7 @@ export class AhandEventsGateway {
     this.server.to(room).emit(eventType, data);
   }
 
+  @UseGuards(WsAuthGuard)
   @SubscribeMessage('ahand:join_room')
   async onJoinRoom(
     @ConnectedSocket() client: Socket,
@@ -94,6 +96,7 @@ export class AhandEventsGateway {
     return { ok: true };
   }
 
+  @UseGuards(WsAuthGuard)
   @SubscribeMessage('ahand:leave_room')
   async onLeaveRoom(
     @ConnectedSocket() client: Socket,

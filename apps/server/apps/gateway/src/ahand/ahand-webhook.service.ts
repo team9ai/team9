@@ -15,6 +15,7 @@ import * as schema from '@team9/database/schemas';
 import { REDIS_CLIENT, type RedisType } from '@team9/redis';
 import { env } from '@team9/shared';
 import { AhandEventsGateway } from './ahand-events.gateway.js';
+import { devicePresenceKey, webhookDedupeKey } from './ahand-redis-keys.js';
 import { AhandRedisPublisher } from './ahand-redis-publisher.service.js';
 import type { WebhookEventDto } from './dto/webhook-event.dto.js';
 
@@ -88,7 +89,7 @@ export class AhandWebhookService {
 
   async dedupe(eventId: string): Promise<boolean> {
     const res = await this.redis.set(
-      `ahand:webhook:seen:${eventId}`,
+      webhookDedupeKey(eventId),
       '1',
       'EX',
       DEDUPE_TTL_SECONDS,
@@ -98,40 +99,46 @@ export class AhandWebhookService {
   }
 
   async clearDedupe(eventId: string): Promise<void> {
-    await this.redis
-      .del(`ahand:webhook:seen:${eventId}`)
-      .catch(() => undefined);
+    await this.redis.del(webhookDedupeKey(eventId)).catch(() => undefined);
   }
 
   // ─── Event dispatch ───────────────────────────────────────────────────────
 
   async handleEvent(evt: WebhookEventDto): Promise<void> {
-    const presenceKey = `ahand:device:${evt.deviceId}:presence`;
-
     switch (evt.eventType) {
       case 'device.online': {
         // Cap TTL to 3600s to prevent malicious/erroneous values from creating
         // near-permanent Redis keys.
         const ttl = Math.min(Number(evt.data.presenceTtlSeconds ?? 180), 3600);
-        await this.redis.set(presenceKey, 'online', 'EX', ttl);
-        await this.updateLastSeen(evt.deviceId);
+        await this.redis.set(
+          devicePresenceKey(evt.deviceId),
+          'online',
+          'EX',
+          ttl,
+        );
+        // updateLastSeen moved after ownership lookup below
         break;
       }
       case 'device.heartbeat': {
         // Cap TTL to 3600s to prevent malicious/erroneous values from creating
         // near-permanent Redis keys.
         const ttl = Math.min(Number(evt.data.presenceTtlSeconds ?? 180), 3600);
-        await this.redis.set(presenceKey, 'online', 'EX', ttl);
+        await this.redis.set(
+          devicePresenceKey(evt.deviceId),
+          'online',
+          'EX',
+          ttl,
+        );
         // Do NOT update last_seen_at on heartbeats — write amplification.
         break;
       }
       case 'device.offline': {
-        await this.redis.del(presenceKey);
-        await this.updateLastSeen(evt.deviceId);
+        await this.redis.del(devicePresenceKey(evt.deviceId));
+        // updateLastSeen moved after ownership lookup below
         break;
       }
       case 'device.revoked': {
-        await this.redis.del(presenceKey);
+        await this.redis.del(devicePresenceKey(evt.deviceId));
         await this.db
           .update(schema.ahandDevices)
           .set({ status: 'revoked', revokedAt: new Date() })
@@ -156,6 +163,14 @@ export class AhandWebhookService {
         `Webhook for unknown deviceId=${evt.deviceId}; skipping fan-out`,
       );
       return;
+    }
+
+    // Update last_seen_at for state-change events (not heartbeat, not registered)
+    if (
+      evt.eventType === 'device.online' ||
+      evt.eventType === 'device.offline'
+    ) {
+      await this.updateLastSeen(evt.deviceId);
     }
 
     await this.publisher.publishForOwner({

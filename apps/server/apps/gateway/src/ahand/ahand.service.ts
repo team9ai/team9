@@ -19,6 +19,7 @@ import * as schema from '@team9/database/schemas';
 import { REDIS_CLIENT, type RedisType } from '@team9/redis';
 import { env } from '@team9/shared';
 import { AhandHubClient } from './ahand-hub.client.js';
+import { devicePresenceKey } from './ahand-redis-keys.js';
 import { AhandRedisPublisher } from './ahand-redis-publisher.service.js';
 
 export type OwnerType = 'user' | 'workspace';
@@ -47,12 +48,6 @@ export interface DeviceWithPresence extends AhandDevice {
 
 // Device JWTs are 7d to match the Tauri session lifetime (spec § 4.6).
 const DEVICE_JWT_TTL_SECONDS = 7 * 24 * 3600;
-
-// Redis key shape used by hive-daemon heartbeat handler (Task 5.3 writes,
-// this reads).
-function presenceKey(hubDeviceId: string): string {
-  return `ahand:device:${hubDeviceId}:presence`;
-}
 
 /**
  * AhandDevicesService owns the gateway-side device lifecycle: pre-register,
@@ -207,7 +202,7 @@ export class AhandDevicesService {
     let presence: (string | null)[] | null = null;
     try {
       presence = await this.redis.mget(
-        ...rows.map((r) => presenceKey(r.hubDeviceId)),
+        ...rows.map((r) => devicePresenceKey(r.hubDeviceId)),
       );
     } catch (e) {
       this.logger.warn(
@@ -311,12 +306,18 @@ export class AhandDevicesService {
           `DB row is already revoked; hub reconciliation will handle cleanup via device.revoked webhook.`,
       );
     }
-    await this.publisher.publishForOwner({
-      ownerType: device.ownerType as OwnerType,
-      ownerId: device.ownerId,
-      eventType: 'device.revoked',
-      data: { hubDeviceId: device.hubDeviceId },
-    });
+    this.publisher
+      .publishForOwner({
+        ownerType: device.ownerType as OwnerType,
+        ownerId: device.ownerId,
+        eventType: 'device.revoked',
+        data: { hubDeviceId: device.hubDeviceId },
+      })
+      .catch((e) =>
+        this.logger.warn(
+          `Failed to publish device.revoked for ${device.hubDeviceId}: ${describe(e)}`,
+        ),
+      );
   }
 
   // ─── user.deleted cascade ────────────────────────────────────────────

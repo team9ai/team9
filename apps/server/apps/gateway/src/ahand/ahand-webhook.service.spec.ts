@@ -424,5 +424,19 @@ describe('AhandWebhookService', () => {
       expect(publisher.publishForOwner).not.toHaveBeenCalled();
       expect(eventsGw.emitToOwner).not.toHaveBeenCalled();
     });
+
+    it('device.online with unknown deviceId: sets presence but skips updateLastSeen and fan-out', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([]); // no row
+      await svc.handleEvent(
+        baseEvt('device.online', { data: { presenceTtlSeconds: 60 } }),
+      );
+      // Presence key IS set (hub confirmed the device is online)
+      expect(await redis.get('ahand:device:h1:presence')).toBe('online');
+      // But NO DB update (no lastSeenAt write for unknown device)
+      expect(dbFixture.db.update).not.toHaveBeenCalled();
+      // And NO fan-out
+      expect(publisher.publishForOwner).not.toHaveBeenCalled();
+      expect(eventsGw.emitToOwner).not.toHaveBeenCalled();
+    });
   });
 });

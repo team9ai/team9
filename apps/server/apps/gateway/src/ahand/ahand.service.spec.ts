@@ -675,13 +675,13 @@ describe('AhandDevicesService', () => {
       );
     });
 
-    it('publisher failure in revokeDevice propagates to caller', async () => {
+    it('publisher failure in revokeDevice is swallowed (fire-and-forget)', async () => {
       dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
       hub.deleteDevice.mockResolvedValue(undefined);
       publisher.publishForOwner.mockRejectedValue(new Error('pub-fail'));
-      await expect(service.revokeDevice('u1', 'row-1')).rejects.toThrow(
-        'pub-fail',
-      );
+      await expect(
+        service.revokeDevice('u1', 'row-1'),
+      ).resolves.toBeUndefined();
     });
   });
 
