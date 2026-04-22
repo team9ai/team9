@@ -416,6 +416,35 @@ describe('WikisController', () => {
       );
       expect(result).toBeUndefined();
     });
+
+    // ── requireProposalId guard ─────────────────────────────────────────
+    // The controller validates proposalId (length + charset) before
+    // forwarding to the service. Covers the three invalid-input categories:
+    // empty string, too-long string, and disallowed characters.
+
+    it('throws BadRequestException when proposalId is empty', async () => {
+      await expect(
+        controller.approve(WS_ID, USER_ID, WIKI_ID, ''),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.approveProposal).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when proposalId exceeds 128 chars', async () => {
+      const tooLong = 'a'.repeat(129);
+      await expect(
+        controller.approve(WS_ID, USER_ID, WIKI_ID, tooLong),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.approveProposal).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when proposalId contains disallowed characters', async () => {
+      // Path-traversal style payload — contains "/" which is NOT in the
+      // allowed charset [a-zA-Z0-9._-].
+      await expect(
+        controller.approve(WS_ID, USER_ID, WIKI_ID, '../escape'),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.approveProposal).not.toHaveBeenCalled();
+    });
   });
 
   describe('reject', () => {
@@ -447,6 +476,13 @@ describe('WikisController', () => {
         undefined,
       );
     });
+
+    it('throws BadRequestException when proposalId contains disallowed characters', async () => {
+      await expect(
+        controller.reject(WS_ID, USER_ID, WIKI_ID, 'path/traversal'),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.rejectProposal).not.toHaveBeenCalled();
+    });
   });
 
   describe('getProposalDiff', () => {
@@ -458,6 +494,13 @@ describe('WikisController', () => {
         { id: USER_ID, isAgent: false },
         PROPOSAL_ID,
       );
+    });
+
+    it('throws BadRequestException when proposalId contains disallowed characters', async () => {
+      await expect(
+        controller.getProposalDiff(WS_ID, USER_ID, WIKI_ID, 'path/traversal'),
+      ).rejects.toThrow(BadRequestException);
+      expect(wikis.getProposalDiff).not.toHaveBeenCalled();
     });
   });
 });

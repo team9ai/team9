@@ -428,6 +428,31 @@ describe('WorkspaceService', () => {
       expect(wikisService.createWiki).toHaveBeenCalledTimes(1);
     });
 
+    it('should log a warning (not re-throw) when wiki seeding fails', async () => {
+      // Capture the internal logger directly so the assertion is tied to
+      // WorkspaceService's own logger, not a global Logger spy that would
+      // match unrelated `logger.warn` calls elsewhere in create().
+      const warnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => {});
+      wikisService.createWiki.mockRejectedValueOnce(
+        new Error('folder9 unreachable'),
+      );
+
+      await expect(
+        service.create({ name: 'Test Workspace', ownerId: 'owner-1' }),
+      ).resolves.toEqual(WORKSPACE_ROW);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to seed default public wiki'),
+      );
+      // The error message must be included so operators can diagnose.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('folder9 unreachable'),
+      );
+      warnSpy.mockRestore();
+    });
+
     it('should seed the public wiki after owner membership is established', async () => {
       const callOrder: string[] = [];
       (service.addMember as MockFn).mockImplementation((() => {

@@ -221,4 +221,18 @@ describe("WikiPageView", () => {
     expect(arg.to).toBe("/wiki/$wikiSlug/-/review/$proposalId");
     expect(arg.params).toEqual({ wikiSlug: "handbook", proposalId: "prop-42" });
   });
+
+  it("renders the binary-file placeholder instead of the editor when encoding is base64", () => {
+    mockUseWikiPage.mockReturnValue({
+      data: { ...page, encoding: "base64" },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="image.png" />);
+
+    const placeholder = screen.getByTestId("wiki-page-binary");
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder).toHaveTextContent("Binary file — not editable here.");
+    expect(screen.queryByTestId("editor-stub")).toBeNull();
+  });
 });

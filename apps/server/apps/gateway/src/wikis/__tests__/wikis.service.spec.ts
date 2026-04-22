@@ -814,6 +814,26 @@ describe('WikisService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
+    it('throws NotFoundException when UPDATE returns an empty array (TOCTOU: wiki was archived/deleted concurrently)', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]); // getWikiOrThrow resolves
+      // UPDATE ... RETURNING resolves to [] — row vanished between the initial
+      // read and the write (row archived/deleted by a concurrent request).
+      db.returning.mockResolvedValueOnce([]);
+      f9.updateFolder.mockResolvedValue(undefined as never);
+
+      await expect(
+        svc.updateWikiSettings(
+          'ws-1',
+          'wiki-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'Renamed' },
+        ),
+      ).rejects.toThrow(NotFoundException);
+      // Broadcast must NOT fire when the row is missing after UPDATE.
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
     it('broadcasts wiki_updated to the workspace on success', async () => {
       const row = makeWikiRow();
       db.limit.mockResolvedValueOnce([row]);
