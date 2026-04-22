@@ -1,98 +1,100 @@
-# Stream E 完成报告
+# Stream E Completion Report
 
-**分支：** `feat/ahand-stream-e` → `dev`  
-**PR：** [#51](https://github.com/team9ai/team9/pull/51)  
-**完成时间：** 2026-04-22  
-**负责范围：** `apps/client/**`（Tauri Rust + React/TS 前端）
-
----
-
-## 一、任务完成情况
-
-### Phase I — i18n 资源（Task 8.6）✅
-
-- 新增 `ahand` i18n namespace，覆盖全部 12 个 locale（en/zh-CN/zh-TW/ja/ko/es/pt/fr/de/it/nl/ru）
-- **35 个 key**，涵盖：设备管理操作、状态标签、错误提示（resumeFailed/deviceRevoked/autoRefreshFailed/nicknameSaveFailed）、Web CTA 文案
-- 注册到 `loadLanguage.ts` NAMESPACES、`index.ts` 预加载、`i18next.d.ts` 类型声明
-- 38 个测试验证跨 locale 的 key 对等性和插值占位符一致性
-
-### Phase II — Tauri Rust 嵌入（Tasks 7.1–7.4）✅
-
-| Task | Commit     | 内容                                                                                                                                                                     |
-| ---- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 7.1  | `615a8635` | 删除 legacy `src/ahand.rs`（513 行 sidecar 代码），移除 `externalBin`，CI 去掉 sidecar 下载步骤，Cargo.toml 新增 `ahandd` git dep                                        |
-| 7.2  | `a4cf5cb8` | `identity.rs`：per-user 身份目录（`{app_data_dir}/ahand/users/{userId}/identity`），UUID 字符集校验，Unix 0700 权限，`device_id_from_dir()` 与 ahandd 算法保持一致       |
-| 7.3  | `e3693a0d` | `AhandRuntime` 单例（`tokio::Mutex`），`start/stop/status/current_device_id`，status forwarder 任务，app-exit 清理钩子                                                   |
-| 7.4  | `8b553d80` | 4 个 Tauri 命令：`ahand_get_identity`/`ahand_start`/`ahand_stop`/`ahand_status`/`ahand_clear_identity`，TS bindings（`tauri-ahand.ts`），invoke 封装（`ahand-tauri.ts`） |
-
-**Rust 测试：** 24 个，全部通过。
-
-### Phase III — 前端 API/Hook 层（Tasks 8.1–8.2）✅
-
-| Task | Commit     | 内容                                                                                                                                               |
-| ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 8.1  | `b52c5abd` | `useAhandStore`（Zustand persist，per-user `{enabled, deviceId, hubUrl}`），`buildClientContext()` 注入所有 `sendMessage` HTTP 调用                |
-| 8.2  | `0137aa12` | `ahand-api.ts`（`/ahand/*` REST wrapper），`useAhandDevices`（React Query + WS room join/reconnect 重发），`useAhandLocalStatus`（Tauri 事件订阅） |
-
-### Phase IV — UI + 自动恢复 + 清理（Tasks 8.3–8.5, 8.7）✅
-
-| Task | Commit     | 内容                                                                                                                                                                        |
-| ---- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 8.3  | `1bfdf10e` | `DevicesDialog`（env branch），`ThisMacSection`（5步注册流/remove/状态），`OtherDevicesList`（设备列表 + nickname 内联编辑 + remove），`WebCtaCard`（deep-link + 平台 URL） |
-| 8.4  | `82c3965a` | `useAhandBootstrap`（登录恢复 + 登出停止），`MainSidebar` Laptop 按钮 + 状态点，`_authenticated.tsx` 挂载                                                                   |
-| 8.5  | `4a3a3dc5` | `useAhandJwtRefresh`（auth error 触发 JWT 刷新，30s rate limit）                                                                                                            |
-| 8.7  | `ff81bc38` | 删除 `useAHandSetupStore`/`useAHandStatus`/`AHandSetupDialog`/`LocalDeviceStatus` 等全部 legacy sidecar-era 代码                                                            |
-
-### Review 和修复
-
-- **Claude review-loop：** 2 轮，修复 WS 事件名、room join 缺失、`hubUrl` 未持久化、logout 未停 daemon、nickname 保存 i18n key 错误、MainSidebar test 残留 mock 等问题
-- **Codex review（2轮）：** 修复 Tauri 命令未注册、URL 双重 `/api`、identity 磁盘未清理、reconnect 后 room 未重加入
-- **Copilot review：** 2条修复（identity 测试助手、测试名修正），3条驳回（有据可查）
-
-**最终测试：1310 TS + 24 Rust = 1334 tests，全部通过。**
+**Branch:** `feat/ahand-stream-e` → `dev`  
+**PR:** [#51](https://github.com/team9ai/team9/pull/51)  
+**Completed:** 2026-04-22  
+**Scope:** `apps/client/**` (Tauri Rust + React/TS frontend)
 
 ---
 
-## 二、关键实现决策
+## 1. Task Completion
 
-### ahandd Cargo 依赖
+### Phase I — i18n Resources (Task 8.6) ✅
+
+- Added `ahand` i18n namespace across all 12 locales (en/zh-CN/zh-TW/ja/ko/es/pt/fr/de/it/nl/ru)
+- **35 keys** covering: device management actions, status labels, error messages (`resumeFailed`, `deviceRevoked`, `autoRefreshFailed`, `nicknameSaveFailed`), and web CTA copy
+- Registered in `loadLanguage.ts` NAMESPACES, `index.ts` preload, and `i18next.d.ts` type declaration
+- 38 tests enforce cross-locale key parity and interpolation placeholder consistency
+
+### Phase II — Tauri Rust Embedding (Tasks 7.1–7.4) ✅
+
+| Task | Commit     | Description                                                                                                                                                                               |
+| ---- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7.1  | `615a8635` | Delete legacy `src/ahand.rs` (513-line sidecar code), remove `externalBin`, remove sidecar download from CI, add `ahandd` git dep to Cargo.toml                                           |
+| 7.2  | `a4cf5cb8` | `identity.rs`: per-user identity directory (`{app_data_dir}/ahand/users/{userId}/identity`), UUID charset validation, Unix 0700 perms, `device_id_from_dir()` matching ahandd's algorithm |
+| 7.3  | `e3693a0d` | `AhandRuntime` singleton (`tokio::Mutex`), `start/stop/status/current_device_id`, status forwarder task, app-exit cleanup hook                                                            |
+| 7.4  | `8b553d80` | 5 Tauri commands: `ahand_get_identity`/`ahand_start`/`ahand_stop`/`ahand_status`/`ahand_clear_identity`; TS bindings (`tauri-ahand.ts`); invoke wrapper (`ahand-tauri.ts`)                |
+
+**Rust tests:** 24 passing.
+
+### Phase III — Frontend API/Hook Layer (Tasks 8.1–8.2) ✅
+
+| Task | Commit     | Description                                                                                                                                                    |
+| ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 8.1  | `b52c5abd` | `useAhandStore` (persisted Zustand, per-user `{enabled, deviceId, hubUrl}`); `buildClientContext()` auto-injected into all `sendMessage` HTTP calls            |
+| 8.2  | `0137aa12` | `ahand-api.ts` (`/ahand/*` REST wrapper); `useAhandDevices` (React Query + WS room join with reconnect replay); `useAhandLocalStatus` (Tauri event subscriber) |
+
+### Phase IV — UI + Auto-Resume + Cleanup (Tasks 8.3–8.5, 8.7) ✅
+
+| Task | Commit     | Description                                                                                                                                                                                   |
+| ---- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 8.3  | `1bfdf10e` | `DevicesDialog` (env branch), `ThisMacSection` (5-step registration/remove/status), `OtherDevicesList` (device list + inline nickname edit + remove), `WebCtaCard` (deep-link + platform URL) |
+| 8.4  | `82c3965a` | `useAhandBootstrap` (login resume + logout stop), `MainSidebar` Laptop button + status dot, `_authenticated.tsx` mount wiring                                                                 |
+| 8.5  | `4a3a3dc5` | `useAhandJwtRefresh` (auth error triggers JWT refresh, 30s rate limit)                                                                                                                        |
+| 8.7  | `ff81bc38` | Deleted `useAHandSetupStore`/`useAHandStatus`/`AHandSetupDialog`/`LocalDeviceStatus` and all other legacy sidecar-era code                                                                    |
+
+### Reviews and Fixes
+
+- **Claude review-loop (2 rounds):** Fixed WS event name mismatch, missing room join, `hubUrl` not persisted, daemon not stopped on logout, wrong i18n key for nickname save error, stale mock in MainSidebar test
+- **Codex review (2 rounds):** Fixed Tauri commands not registered, double `/api` URL prefix, identity not cleared from disk on remove, WS room not re-joined after reconnect
+- **Copilot review:** 2 fixes (identity test helper, misleading test name); 3 declined with documented reasoning
+
+**Final test count: 1310 TS + 24 Rust = 1334 tests, all passing.**
+
+---
+
+## 2. Key Implementation Decisions
+
+### ahandd Cargo Dependency
 
 ```toml
 ahandd = { git = "https://github.com/team9ai/ahand", package = "ahandd", branch = "feat/ahand-stream-a" }
 ```
 
-**待办：** Stream A 合并到 dev 后，改为 `tag = "rust-v0.1.2"`。
+**Action needed:** After Stream A merges to dev, update to `tag = "rust-v0.1.2"`.
 
-### clientContext 承载方式
+### clientContext Wire Format
 
-- 字段名：`clientContext`（HTTP body 顶层，camelCase）
-- 形状：`{ kind: "macapp"; deviceId: string | null } | { kind: "web" }`
-- 注入点：`messagesApi.sendMessage` 内的 `buildClientContext()` 自动注入，不依赖调用方
-- **注意：** 服务端 Stream D Task 4.8 需要在 `CreateMessageDto` 加 `clientContext` 字段，才能持久化和透传给 im-worker。客户端已正确实现，等 Stream D 落盘自动生效。
+- Field name: `clientContext` (top-level in HTTP body, camelCase)
+- Shape: `{ kind: "macapp"; deviceId: string | null } | { kind: "web" }`
+- Injection point: `buildClientContext()` inside `messagesApi.sendMessage` — automatic, no call-site changes needed
+- **Note:** Stream D Task 4.8 must add `clientContext` to `CreateMessageDto` for the field to be persisted and forwarded to im-worker. The client implementation is complete; it activates automatically once Stream D ships.
 
-### device_id 派生方式
+### device_id Derivation
 
-- Tauri shell 用 `device_id_from_dir(identity_dir)` 计算：SHA256(`"ahandd-device-id:" + identity_dir_path`)，前缀 `"dev-"`
-- 与 `ahandd` 库内部 `default_device_id()` 算法完全一致
-- **注意：** 这意味着 device_id 与 identity 目录路径绑定。如果 `app_data_dir` 变更（例如 macOS 应用迁移），device_id 会变，需要重新注册
+- Tauri shell computes via `device_id_from_dir(identity_dir)`: SHA256(`"ahandd-device-id:" + identity_dir_path`), prefixed with `"dev-"`
+- Matches `ahandd` library's own `default_device_id()` algorithm exactly
+- **Note:** device_id is bound to the identity directory path. If `app_data_dir` changes (e.g., macOS app migration), device_id changes and re-registration is required.
 
-### isTauriApp 位置
+### isTauriApp Location
 
-- **实际路径：** `@/lib/tauri`（plan 中写的是 `@/lib/env`，实际不存在）
+- **Actual path:** `@/lib/tauri` (plan referred to `@/lib/env` which does not exist)
 
-### useCurrentUser 替换
+### useCurrentUser Replacement
 
-- `useCurrentUser()` from `@/hooks/useAuth` 返回 React Query result（`{ data, isLoading }`），不能直接取 `currentUser`
-- 所有需要同步读 userId 的地方改用 `useAppStore((s) => s.user)`
+- `useCurrentUser()` from `@/hooks/useAuth` returns a React Query result object (`{ data, isLoading, ... }`), not a user directly
+- All places needing a synchronous userId use `useAppStore((s) => s.user)` instead
 
 ---
 
-## 三、联调注意事项
+## 3. Integration Notes
 
-### Stream A（ahandd 库）
+### Stream A (ahandd library)
 
-1. **Cargo.toml pin 需要更新：** 等 Stream A PR 合并到 dev 后，将依赖从 `branch = "feat/ahand-stream-a"` 改为 `tag = "rust-v0.1.2"`
-2. **DaemonStatus TS binding 合约：**
+1. **Cargo.toml pin update needed:** After Stream A PR merges to dev, change the dependency from `branch = "feat/ahand-stream-a"` to `tag = "rust-v0.1.2"`.
+
+2. **DaemonStatus TS binding contract:**
+
    ```ts
    export type DaemonStatus =
      | { state: "idle" }
@@ -106,67 +108,82 @@ ahandd = { git = "https://github.com/team9ai/ahand", package = "ahandd", branch 
          device_id?: string;
        };
    ```
-   Rust serde：`#[serde(tag = "state", rename_all = "camelCase")]`，`Online.device_id` 保持 snake_case（有显式 `#[serde(rename = "device_id")]`）
-3. **spawn() API 合约：** `DaemonConfig::builder(hub_url, device_jwt, identity_dir).device_id(id).session_mode(AutoAccept).browser_enabled(false).heartbeat_interval(60s).build()`
 
-### Stream D（gateway REST + DB schema）
+   Rust serde: `#[serde(tag = "state", rename_all = "camelCase")]`. `Online.device_id` stays snake_case via explicit `#[serde(rename = "device_id")]`.
 
-1. **API 路径：** 客户端调用 `/ahand/*`（HttpClient baseURL 已含 `/api`，不要再加前缀）
-   - `POST /ahand/devices` → 注册
-   - `GET /ahand/devices` → 列表
-   - `POST /ahand/devices/:id/token/refresh` → JWT 刷新（**注意：** 响应需包含 `hubUrl` 字段，否则 bootstrap 传空字符串给 daemon）
-   - `PATCH /ahand/devices/:id` → 改名
-   - `DELETE /ahand/devices/:id` → 删除
-2. **RegisterDeviceResponse 必须包含 `hubUrl`：** `useAhandBootstrap` 和 `useAhandJwtRefresh` 在 resume/refresh 时从 store 读 `hubUrl`，初始值来自注册响应。若 `refreshToken` 接口也返回 `hubUrl`，可简化 bootstrap 逻辑（当前方案：注册时存入 store，刷新时从 store 读）。
-3. **WS 事件名：** 服务端 emit 的是 `device.online`/`device.offline`/`device.revoked`/`device.registered`（不含 `ahand:` 前缀）。客户端 `useAhandDevices` 订阅的事件名与此一致。
-4. **WS Room：** 客户端在 `useAhandDevices` mount 时发送 `ahand:join_room` 事件，服务端 `AhandEventsGateway` 需要处理此事件并将 socket 加入 `user:{userId}:ahand` room。
-5. **`clientContext` DB 列：** Task 4.8 在 `messages` 表加 `client_context jsonb NULL`，并在 `send_message` WS handler 接受和持久化此字段。客户端已发送，服务端 DTO 对应字段名为 `clientContext`（camelCase）。
-6. **AhandEventsGateway emit 的 room 名格式：** `user:{userId}:ahand`
+3. **spawn() API contract:**
+   ```rust
+   DaemonConfig::builder(hub_url, device_jwt, identity_dir)
+     .device_id(id)
+     .session_mode(SessionMode::AutoAccept)
+     .browser_enabled(false)   // disabled in MVP per spec
+     .heartbeat_interval(Duration::from_secs(60))
+     .build()
+   ```
 
-### Phase 9（集成测试）
+### Stream D (gateway REST + DB schema)
 
-- **前置条件已满足：** Phase IV 全部代码已合并，legacy cleanup 完成
-- **DaemonStatus TS binding** 见上方 Stream A 部分，供 claw-hive 合约对齐
-- **Playwright E2E 可以开始**
+1. **API path prefix:** Client calls `/ahand/*` — HttpClient `baseURL` already includes `/api`, so do **not** add `/api` again in route paths.
+   - `POST /ahand/devices` → register device
+   - `GET /ahand/devices` → list devices
+   - `POST /ahand/devices/:id/token/refresh` → refresh JWT (**must return `hubUrl`** — see point 2)
+   - `PATCH /ahand/devices/:id` → rename device
+   - `DELETE /ahand/devices/:id` → remove device
+
+2. **`hubUrl` in `RegisterDeviceResponse` is critical:** `useAhandBootstrap` and `useAhandJwtRefresh` read `hubUrl` from the store on every resume/refresh cycle. The value is stored at registration time. If `refreshToken` also returns `hubUrl`, the bootstrap logic can be simplified; currently it reads from the store (set at registration).
+
+3. **WS event names:** Server emits `device.online` / `device.offline` / `device.revoked` / `device.registered` — **no `ahand:` prefix**. Client `useAhandDevices` subscribes to these exact names.
+
+4. **WS room join:** Client emits `ahand:join_room` with `{ room: "user:{userId}:ahand" }` on mount and on every reconnect. `AhandEventsGateway` must handle this event and add the socket to the named room. Without this, `server.to(room).emit(...)` reaches no clients.
+
+5. **`clientContext` DB column:** Task 4.8 adds `client_context jsonb NULL` to the `messages` table and accepts the field in the `send_message` handler. Client sends `clientContext` (camelCase) in the HTTP body; server DTO field name should match.
+
+6. **Room name format:** `user:{userId}:ahand` (userId is the team9 user UUID).
+
+### Phase 9 (Integration Tests)
+
+- **Prerequisites met:** All Phase IV code shipped, legacy cleanup complete
+- **DaemonStatus TS binding** documented above — use for claw-hive contract alignment (Task 9.1)
+- **Playwright E2E** can begin (Task 9.4 precondition satisfied)
 
 ---
 
-## 四、已知 pending 项（不影响合并）
+## 4. Known Pending Items (non-blocking for merge)
 
-| 项目                           | 说明                                                       | 负责方                            |
-| ------------------------------ | ---------------------------------------------------------- | --------------------------------- |
-| Cargo.toml tag 更新            | `branch = "feat/ahand-stream-a"` → `tag = "rust-v0.1.2"`   | Stream E（等 Stream A 合并后）    |
-| `clientContext` 服务端持久化   | `CreateMessageDto` 加字段                                  | Stream D Task 4.8                 |
-| `refreshToken` 响应含 `hubUrl` | 简化 resume 逻辑                                           | Stream D Task 4.4（可 follow-up） |
-| `ahand_clear_identity` 测试    | Tauri 命令层无法单元测试（需 AppHandle），Phase 9 E2E 覆盖 | Phase 9                           |
+| Item                                    | Description                                                         | Owner                            |
+| --------------------------------------- | ------------------------------------------------------------------- | -------------------------------- |
+| Cargo.toml tag update                   | `branch = "feat/ahand-stream-a"` → `tag = "rust-v0.1.2"`            | Stream E (after Stream A merges) |
+| `clientContext` server-side persistence | Add `clientContext` field to `CreateMessageDto` and persist         | Stream D Task 4.8                |
+| `hubUrl` in `refreshToken` response     | Would simplify bootstrap logic; current workaround reads from store | Stream D Task 4.4 (follow-up)    |
+| `ahand_clear_identity` command test     | Tauri State injection not unit-testable; covered by Phase 9 E2E     | Phase 9                          |
 
 ---
 
-## 五、文件变更地图（核心）
+## 5. Key File Map
 
 ```
 apps/client/
 ├── src-tauri/src/ahand/
-│   ├── mod.rs              # 模块导出
-│   ├── identity.rs         # per-user 身份目录管理
-│   ├── runtime.rs          # AhandRuntime 单例
-│   └── commands.rs         # 5 个 Tauri 命令
+│   ├── mod.rs              # module re-exports
+│   ├── identity.rs         # per-user identity directory management
+│   ├── runtime.rs          # AhandRuntime singleton
+│   └── commands.rs         # 5 Tauri commands
 ├── src/
-│   ├── types/tauri-ahand.ts        # TS 类型 bindings
+│   ├── types/tauri-ahand.ts        # hand-maintained TS type bindings
 │   ├── services/
-│   │   ├── ahand-tauri.ts          # invoke() 封装
+│   │   ├── ahand-tauri.ts          # invoke() wrappers
 │   │   └── ahand-api.ts            # REST client
-│   ├── stores/useAhandStore.ts     # 持久化 Zustand store
+│   ├── stores/useAhandStore.ts     # persisted Zustand store
 │   ├── hooks/
-│   │   ├── useAhandLocalStatus.ts  # Tauri 事件订阅
-│   │   ├── useAhandDevices.ts      # React Query + WS
-│   │   ├── useAhandBootstrap.ts    # 登录恢复 + 登出停止
-│   │   └── useAhandJwtRefresh.ts   # auth error 自动刷新
+│   │   ├── useAhandLocalStatus.ts  # Tauri event subscriber
+│   │   ├── useAhandDevices.ts      # React Query + WS room
+│   │   ├── useAhandBootstrap.ts    # login resume + logout stop
+│   │   └── useAhandJwtRefresh.ts   # auth-error JWT refresh
 │   └── components/
 │       ├── dialog/DevicesDialog.tsx
 │       ├── dialog/devices/
 │       │   ├── ThisMacSection.tsx
 │       │   ├── OtherDevicesList.tsx
 │       │   └── WebCtaCard.tsx
-│       └── layout/MainSidebar.tsx  # +Laptop 按钮 patch
+│       └── layout/MainSidebar.tsx  # patched: +Laptop button
 ```
