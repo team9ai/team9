@@ -26,8 +26,12 @@ export type SubscriptionEntrySource = "home" | "onboarding" | "manage_credits";
 
 export type SignupMethod = "email" | "google" | "apple";
 
-// Events that should also be pushed to window.dataLayer for GTM → ad platforms.
+// Events that should be pushed to window.dataLayer for GTM → ad platforms.
 // Keys are PostHog event names, values are GTM-facing event names.
+//
+// Note: SIGNUP_COMPLETED's PostHog capture now happens server-side in
+// AuthService. The client only pushes to GTM here (via pushGtmConversion)
+// for Google Ads conversion tracking — it does NOT also capture to PostHog.
 export const GTM_BRIDGE_EVENTS: Record<string, string> = {
   [EVENTS.SIGNUP_COMPLETED]: "conversion_signup_completed",
 };
