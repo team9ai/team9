@@ -51,6 +51,7 @@ export class SearchController {
     const options: SearchOptions = {
       limit: dto.limit,
       offset: dto.offset,
+      channelId: dto.channelId,
     };
 
     return this.searchService.searchMessages(dto.q, userId, tenantId, options);

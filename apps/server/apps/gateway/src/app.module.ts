@@ -33,6 +33,7 @@ import { FileModule } from './file/file.module.js';
 import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
 import { BotModule } from './bot/bot.module.js';
+import { BotChannelsModule } from './bot/channels/bot-channels.module.js';
 import { OpenclawModule } from './openclaw/openclaw.module.js';
 import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
@@ -47,6 +48,7 @@ import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
 import { BillingHubModule } from './billing-hub/billing-hub.module.js';
 import { AccountModule } from './account/account.module.js';
+import { AhandModule } from './ahand/ahand.module.js';
 
 @Module({
   imports: [
@@ -71,6 +73,7 @@ import { AccountModule } from './account/account.module.js';
     BillingHubModule,
     ImSharedModule,
     BotModule,
+    BotChannelsModule,
     OpenclawModule,
     FileKeeperModule,
     ApplicationsModule,
@@ -88,6 +91,7 @@ import { AccountModule } from './account/account.module.js';
     SkillsModule,
     DeepResearchModule,
     PushModule,
+    AhandModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

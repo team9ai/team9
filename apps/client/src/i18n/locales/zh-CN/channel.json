@@ -1,4 +1,7 @@
 {
+  "table": {
+    "openInChat": "打开消息"
+  },
   "createChannel": "创建频道",
   "createChannelDescription": "频道是团队沟通的地方。最好围绕一个主题创建频道，例如 #项目-火星 或 #日常讨论",
   "channelName": "频道名称",

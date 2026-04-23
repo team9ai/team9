@@ -100,6 +100,20 @@ const mockWsService = vi.hoisted(() => ({
     mockWsService.on("message_property_changed", callback),
   ),
   offMessagePropertyChanged: vi.fn(),
+  onRelationChanged: vi.fn((callback: (...args: any[]) => void) => {
+    mockWsService.on("message_relation_changed", callback);
+    return () => mockWsService.off("message_relation_changed", callback);
+  }),
+  offRelationChanged: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.off("message_relation_changed", callback),
+  ),
+  onRelationsPurged: vi.fn((callback: (...args: any[]) => void) => {
+    mockWsService.on("message_relations_purged", callback);
+    return () => mockWsService.off("message_relations_purged", callback);
+  }),
+  offRelationsPurged: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.off("message_relations_purged", callback),
+  ),
 }));
 
 const mockSyncCurrentUser = vi.hoisted(() => vi.fn());
@@ -128,6 +142,20 @@ vi.mock("@/services/websocket", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => mockQueryClient,
+}));
+
+vi.mock("@/lib/query-client", () => ({
+  queryClient: mockQueryClient,
+  relationKeys: {
+    all: ["relations"],
+    byMessage: (messageId: string) => ["relations", messageId],
+    inbound: (messageId: string) => ["relations-inbound", messageId],
+    viewTree: (channelId: string, viewId: string) => [
+      "view-tree",
+      channelId,
+      viewId,
+    ],
+  },
 }));
 
 const mockAppStoreState = vi.hoisted(() => ({

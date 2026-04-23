@@ -1,9 +1,9 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
-import { json } from 'express';
+import { json, raw } from 'express';
 import { NestFactory } from '@nestjs/core';
-import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -36,6 +36,13 @@ export async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create(AppModule);
 
+  // Raw body for ahand webhook signature verification — must come BEFORE json().
+  // Path matches the NestJS route after setGlobalPrefix('api').
+  app.use(
+    '/api/ahand/hub-webhook',
+    raw({ type: 'application/json', limit: '1mb' }),
+  );
+
   // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
   app.use(json({ limit: '1mb' }));
 
@@ -54,10 +61,6 @@ export async function bootstrap(): Promise<void> {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
 
   // Configure Socket.io Redis Adapter for multi-node deployment
   try {
