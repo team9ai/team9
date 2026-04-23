@@ -2,7 +2,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, SquarePen } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import type { TopicSessionGroup } from "@/services/api/im";
@@ -197,16 +197,21 @@ function AgentGroup({
         <button
           type="button"
           onClick={handleNewTopic}
-          title={t("newMessage")}
-          aria-label={t("newMessage")}
+          title={t("newTopic", {
+            ns: "navigation" as const,
+            defaultValue: "新建话题",
+          })}
+          aria-label={t("newTopic", {
+            ns: "navigation" as const,
+            defaultValue: "新建话题",
+          })}
           className={cn(
-            "shrink-0 inline-flex size-5 items-center justify-center rounded",
-            "text-nav-foreground-subtle opacity-0 transition-opacity",
+            "shrink-0 inline-flex size-6 items-center justify-center rounded",
+            "text-nav-foreground-subtle transition-colors",
             "hover:text-nav-foreground-strong hover:bg-nav-hover",
-            "group-hover:opacity-100 focus-visible:opacity-100",
           )}
         >
-          <Plus size={14} />
+          <SquarePen size={14} />
         </button>
       </div>
 
