@@ -32,6 +32,11 @@ import type {
   ChannelView as ChannelViewType,
 } from "@/types/properties";
 import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import { useChannelModel } from "@/hooks/useChannelModel";
+import {
+  COMMON_STAFF_MODELS,
+  DEFAULT_STAFF_MODEL,
+} from "@/lib/common-staff-models";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -282,8 +287,35 @@ export function ChannelView({
     return dmOtherUser?.id ?? null;
   }, [dmOtherUser, isBotDm]);
 
-  // Bot model switching for bot DM channels
+  // Session-level (this conversation only) model controller. Changing the
+  // model here records a `model_change` entry on agent-pi's session, so
+  // future agent-default changes on the bot won't reset this conversation.
+  // If the channel is not eligible (e.g. not a managed hive DM, or agent
+  // is unreachable), the GET 4xx's — we fall back to `useBotModelSwitch`
+  // so the composer still shows the current bot default (read-only if the
+  // channel isn't eligible for session-level switching).
   const botModelSwitch = useBotModelSwitch(isBotDm ? botDmUserId : null);
+  const channelModel = useChannelModel(channelId, { enabled: isBotDm });
+  const channelModelSwitch = useMemo(() => {
+    if (!isBotDm) return undefined;
+    if (channelModel.isError || !channelModel.data) return undefined;
+    const current = channelModel.data.model;
+    const matched = COMMON_STAFF_MODELS.find(
+      (m) => m.provider === current.provider && m.id === current.id,
+    );
+    const label = matched?.label ?? current.id ?? DEFAULT_STAFF_MODEL.label;
+    return {
+      currentModel: current,
+      currentModelLabel: label,
+      canSwitchModel: true,
+      applicationId: null as string | null,
+      installedApplicationId: null as string | null,
+      botId: null as string | null,
+      isUpdating: channelModel.isUpdating,
+      updateModel: (model: { provider: string; id: string }): Promise<void> =>
+        channelModel.updateModel(model).then(() => undefined),
+    };
+  }, [isBotDm, channelModel]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {
@@ -489,15 +521,16 @@ export function ChannelView({
   }, [threadPanelCount, threadPanelWidth]);
 
   const handleSendMessage = async (
-    content: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
     attachments?: AttachmentDto[],
   ) => {
+    const { content, contentAst } = payload;
     // Allow sending if there's content or attachments
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     startBotThinking(content);
     try {
-      await sendMessage.mutateAsync({ content, attachments });
+      await sendMessage.mutateAsync({ content, contentAst, attachments });
     } catch {
       // Clear thinking indicators on send failure to avoid stale state
       setThinkingBotIds([]);
@@ -623,7 +656,9 @@ export function ChannelView({
             autoSendInitialDraft={autoSendInitialDraft}
             onInitialDraftAutoSent={onInitialDraftAutoSent}
             isBotDm={isBotDm}
-            botModelSwitch={isBotDm ? botModelSwitch : undefined}
+            botModelSwitch={
+              isBotDm ? (channelModelSwitch ?? botModelSwitch) : undefined
+            }
           />
         )}
 

@@ -48,6 +48,7 @@ import type {
   ChannelDeletedEvent,
   ChannelArchivedEvent,
   ChannelUnarchivedEvent,
+  ChannelModelChangedEvent,
   // Message
   NewMessageEvent,
   MessageUpdatedEvent,
@@ -164,6 +165,7 @@ export interface ServerToClientEvents {
   channel_deleted: ChannelDeletedEvent;
   channel_archived: ChannelArchivedEvent;
   channel_unarchived: ChannelUnarchivedEvent;
+  channel_model_changed: ChannelModelChangedEvent;
   // Message
   new_message: NewMessageEvent;
   message_updated: MessageUpdatedEvent;
