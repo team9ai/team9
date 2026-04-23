@@ -464,6 +464,59 @@ describe('ClawHiveService', () => {
     });
   });
 
+  // ── updateSessionTitle ────────────────────────────────────────────────────
+
+  describe('updateSessionTitle', () => {
+    it('sends PATCH with the title to /api/sessions/{id}', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ sessionId: 'sess-1', title: 'Topic A' }),
+      );
+
+      await service.updateSessionTitle('sess-1', 'Topic A', 'tenant-1');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/sess-1',
+        expect.objectContaining({
+          method: 'PATCH',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-Hive-Tenant': 'tenant-1',
+          }),
+          body: JSON.stringify({ title: 'Topic A' }),
+        }),
+      );
+    });
+
+    it('supports clearing the title with null', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ sessionId: 'sess-1', title: null }),
+      );
+
+      await service.updateSessionTitle('sess-1', null);
+
+      const body = (mockFetch.mock.calls[0] as any[])[1]?.body;
+      expect(body).toBe(JSON.stringify({ title: null }));
+    });
+
+    it('tolerates 404 silently (session already deleted)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response('Not Found', { status: 404 }),
+      );
+
+      await expect(
+        service.updateSessionTitle('gone-session', 'Late title'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws on non-404 error responses', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Server error', 500));
+
+      await expect(service.updateSessionTitle('sess-1', 'T')).rejects.toThrow(
+        'Failed to update session title: 500',
+      );
+    });
+  });
+
   // ── headers ──────────────────────────────────────────────────────────────
 
   describe('headers', () => {

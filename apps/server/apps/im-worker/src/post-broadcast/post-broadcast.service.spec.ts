@@ -1153,6 +1153,59 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(createTrackingSpy).not.toHaveBeenCalled();
   });
 
+  it('routes topic-session channel message to topic/ scope with channel id', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('topic-session'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
+    const [sessionId, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    expect(sessionId).toBe(
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/topic/${CHANNEL_ID}`,
+    );
+    expect(event.payload.location.type).toBe('topic');
+    expect(event.payload.team9Context.scopeType).toBe('topic');
+    expect(event.payload.team9Context.scopeId).toBe(CHANNEL_ID);
+    // No tracking channel spawned for topic sessions — same as DM.
+    expect(event.payload.trackingChannelId).toBeUndefined();
+  });
+
+  it('forwards topic-session message even without @mention (alwaysForward)', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('topic-session'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not create a tracking channel for topic-session', async () => {
+    const bot = makeHiveBot('claude');
+    const createTrackingSpy = jest.spyOn(
+      service as any,
+      'createTrackingChannel',
+    );
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('topic-session'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(createTrackingSpy).not.toHaveBeenCalled();
+  });
+
   it('routes tracking channel message to same session without creating new channel', async () => {
     const bot = makeHiveBot('claude');
     setupDbForHivePush({ bots: [bot], channel: makeChannel('tracking') });

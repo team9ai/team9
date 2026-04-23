@@ -81,7 +81,8 @@ export interface ChannelResponse {
     | 'task'
     | 'tracking'
     | 'echo'
-    | 'routine-session';
+    | 'routine-session'
+    | 'topic-session';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
@@ -560,6 +561,124 @@ export class ChannelsService {
     );
 
     return channel;
+  }
+
+  /**
+   * Create a topic-session channel: one ephemeral conversation between a
+   * user and an agent, scoped to a single topic. Unlike `direct` channels,
+   * the same (user, agent) pair can have many topic sessions.
+   *
+   * The caller is expected to pre-generate `channelId` (UUIDv7) and the
+   * matching agent-pi `sessionId` (format
+   * `team9/{tenantId}/{agentId}/topic/{channelId}`), create the agent-pi
+   * session first, then call this — that ordering makes the scopeId
+   * contract between team9 and agent-pi observable at construction time
+   * and keeps compensation logic on the caller where the saga lives.
+   *
+   * propertySettings.topicSession caches `{ agentId, sessionId, title }`
+   * for cheap sidebar/search reads; title is eventually consistent with
+   * agent-pi (the source of truth) via the `topic_session_updated` WS
+   * event. Membership: creator + bot shadow user, both 'member'.
+   */
+  async createTopicSessionChannel(params: {
+    creatorId: string;
+    botUserId: string;
+    tenantId: string | null;
+    agentId: string;
+    sessionId: string;
+    title: string | null;
+    channelId?: string;
+  }): Promise<ChannelResponse> {
+    const { creatorId, botUserId, tenantId, agentId, sessionId, title } =
+      params;
+    const channelId = params.channelId ?? uuidv7();
+
+    const propertySettings: unknown = {
+      topicSession: { agentId, sessionId, title },
+    };
+
+    const channel = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(schema.channels)
+        .values({
+          id: channelId,
+          tenantId: tenantId ?? null,
+          type: 'topic-session',
+          name: null,
+          createdBy: creatorId,
+          propertySettings,
+        })
+        .returning();
+
+      await tx.insert(schema.channelMembers).values([
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: creatorId,
+          role: 'member' as const,
+        },
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: botUserId,
+          role: 'member' as const,
+        },
+      ]);
+
+      return row;
+    });
+
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, creatorId),
+    );
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, botUserId),
+    );
+
+    return channel;
+  }
+
+  /**
+   * Update the cached title on a topic-session channel's propertySettings.
+   * The canonical title lives on agent-pi — this is the read-model mirror
+   * that sidebar/search consult. Always called after a successful agent-pi
+   * PATCH, never the other way around.
+   */
+  async updateTopicSessionTitle(
+    channelId: string,
+    title: string | null,
+  ): Promise<void> {
+    const [row] = await this.db
+      .select({
+        propertySettings: schema.channels.propertySettings,
+        type: schema.channels.type,
+      })
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    if (!row || row.type !== 'topic-session') return;
+
+    const existing =
+      (row.propertySettings as {
+        topicSession?: {
+          agentId?: string;
+          sessionId?: string;
+          title?: string | null;
+        };
+      } | null) ?? {};
+    const ts = existing.topicSession ?? {};
+
+    const next = {
+      ...existing,
+      topicSession: { ...ts, title },
+    };
+
+    await this.db
+      .update(schema.channels)
+      .set({ propertySettings: next, updatedAt: new Date() })
+      .where(eq(schema.channels.id, channelId));
   }
 
   /**
