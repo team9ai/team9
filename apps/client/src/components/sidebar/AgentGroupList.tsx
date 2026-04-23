@@ -1,8 +1,8 @@
+import type { KeyboardEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, MessageSquare, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import type { TopicSessionGroup } from "@/services/api/im";
@@ -34,7 +34,7 @@ function navigateToChannel(
 }
 
 export interface AgentGroupListProps {
-  /** Grouped data from `useTopicSessionsGrouped()`. */
+  /** Grouped data from `useAgentGroupsForSidebar()`. */
   groups: TopicSessionGroup[];
   /** Currently-open channel id, used to highlight the matching row. */
   selectedChannelId?: string;
@@ -49,16 +49,20 @@ export interface AgentGroupListProps {
 }
 
 /**
- * Sidebar section that renders one collapsible block per agent, each
- * containing the caller's most-recent topic sessions with that agent plus
- * an optional "legacy DM" tail row.
+ * Sidebar section that renders one collapsible block per agent.
  *
- * Header click behaviour (per product decision D4):
- *  - Toggles the group's expanded state.
- *  - If a legacy direct channel exists, also navigates to it — that channel
- *    is treated as the agent's "default / historical" conversation surface.
+ * Layout is intentionally kept flat and high-contrast:
+ *   - header row: 32px tall, shows expand chevron + avatar + agent name,
+ *     with a hover-revealed "+" button for quick "new topic"
+ *   - child rows: 28px tall, indented under a thin left border,
+ *     showing the topic title (no leading icon to keep scanning easy)
+ *   - legacy DM tail row (if any): same 28px but italic + dim so it
+ *     reads as "this is the older persistent conversation"
  *
- * Child rows link straight to the topic-session channel.
+ * Header click behaviour (product decision D4):
+ *   - Toggles the group's expanded state.
+ *   - If a legacy direct channel exists, also navigates to it — that
+ *     channel is treated as the agent's default / historical surface.
  */
 export function AgentGroupList({
   groups,
@@ -99,7 +103,7 @@ export function AgentGroupList({
   }
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-px">
       {groups.map((group) => (
         <AgentGroup
           key={group.agentUserId}
@@ -142,7 +146,14 @@ function AgentGroup({
     }
   };
 
-  const handleNewTopic = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleHeaderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleHeaderClick();
+    }
+  };
+
+  const handleNewTopic = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     // Send the user back to the dashboard composer. The dashboard
     // remembers the last-selected agent in its own state, so the user
@@ -152,20 +163,26 @@ function AgentGroup({
 
   return (
     <div>
-      <Button
-        variant="ghost"
+      {/* Using a div instead of a Button so the inner "+" button is
+          allowed (nested native <button> elements are invalid HTML and
+          caused the older design to render with odd focus/active
+          states). keyboard accessibility is preserved manually. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleHeaderClick}
+        onKeyDown={handleHeaderKeyDown}
         className={cn(
-          "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm",
+          "group flex items-center gap-2 h-8 px-2 rounded-md cursor-pointer select-none",
+          "text-sm font-medium text-nav-foreground-strong",
+          "hover:bg-nav-hover",
           headerHighlighted &&
-            "bg-nav-active text-nav-foreground hover:bg-nav-active",
+            "bg-nav-active text-nav-foreground-strong hover:bg-nav-active",
         )}
       >
-        {expanded ? (
-          <ChevronDown size={14} className="shrink-0" />
-        ) : (
-          <ChevronRight size={14} className="shrink-0" />
-        )}
+        <span className="shrink-0 inline-flex w-4 items-center justify-center text-nav-foreground-subtle">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
         <UserAvatar
           userId={group.agentUserId}
           name={group.agentDisplayName}
@@ -177,22 +194,26 @@ function AgentGroup({
         <span className="truncate flex-1 text-left">
           {group.agentDisplayName}
         </span>
-        <Button
-          asChild={false}
-          variant="ghost"
-          size="icon"
+        <button
+          type="button"
           onClick={handleNewTopic}
           title={t("newMessage")}
-          className="h-6 w-6 opacity-60 hover:opacity-100"
+          aria-label={t("newMessage")}
+          className={cn(
+            "shrink-0 inline-flex size-5 items-center justify-center rounded",
+            "text-nav-foreground-subtle opacity-0 transition-opacity",
+            "hover:text-nav-foreground-strong hover:bg-nav-hover",
+            "group-hover:opacity-100 focus-visible:opacity-100",
+          )}
         >
-          <Plus size={12} />
-        </Button>
-      </Button>
+          <Plus size={14} />
+        </button>
+      </div>
 
       {expanded && (
-        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-nav-border pl-2">
+        <div className="ml-[14px] mt-0.5 mb-1 space-y-px border-l border-nav-border/60 pl-2">
           {group.recentSessions.length === 0 && !group.legacyDirectChannelId ? (
-            <p className="text-[0.7rem] text-nav-foreground-faint px-2 py-1">
+            <p className="text-[0.7rem] italic text-nav-foreground-faint px-2 py-1">
               {t("topicSessionsEmpty", {
                 ns: "navigation" as const,
                 defaultValue: "暂无话题",
@@ -246,24 +267,27 @@ function TopicSessionRow({
 }) {
   const navigate = useNavigate();
   const label = title?.trim() || fallbackLabel;
+  const isUntitled = !title?.trim();
 
   return (
-    <Button
-      variant="ghost"
+    <button
+      type="button"
       onClick={() => navigateToChannel(navigate, linkPrefix, channelId)}
       className={cn(
-        "w-full justify-start gap-2 px-2 h-auto py-1 text-[0.8rem]",
-        isSelected && "bg-nav-active text-nav-foreground hover:bg-nav-active",
+        "flex w-full items-center gap-2 h-7 px-2 rounded-md text-left text-[0.8rem]",
+        "text-nav-foreground hover:bg-nav-hover hover:text-nav-foreground-strong",
+        isUntitled && "text-nav-foreground-faint italic",
+        isSelected &&
+          "bg-nav-active text-nav-foreground-strong not-italic hover:bg-nav-active",
       )}
     >
-      <MessageSquare size={12} className="shrink-0 text-nav-foreground-faint" />
-      <span className="truncate flex-1 text-left">{label}</span>
+      <span className="truncate flex-1">{label}</span>
       {unreadCount > 0 ? (
-        <span className="ml-auto shrink-0 rounded-full bg-[#2f67ff] px-1.5 text-[0.6rem] font-semibold text-white">
+        <span className="ml-auto shrink-0 rounded-full bg-[#2f67ff] px-1.5 py-0.5 text-[0.6rem] font-semibold leading-none text-white">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : null}
-    </Button>
+    </button>
   );
 }
 
@@ -280,18 +304,20 @@ function LegacyDirectChannelRow({
   const { t } = useTranslation(["navigation"]);
 
   return (
-    <Button
-      variant="ghost"
+    <button
+      type="button"
       onClick={() => navigateToChannel(navigate, linkPrefix, channelId)}
       className={cn(
-        "w-full justify-start gap-2 px-2 h-auto py-1 text-[0.75rem] text-nav-foreground-faint italic",
-        isSelected && "bg-nav-active text-nav-foreground hover:bg-nav-active",
+        "flex w-full items-center gap-2 h-7 px-2 rounded-md text-left text-[0.75rem] italic",
+        "text-nav-foreground-faint hover:bg-nav-hover hover:text-nav-foreground",
+        isSelected &&
+          "bg-nav-active text-nav-foreground-strong not-italic hover:bg-nav-active",
       )}
     >
-      <MessageSquare size={11} className="shrink-0" />
-      <span className="truncate flex-1 text-left">
+      <MessageSquare size={11} className="shrink-0 opacity-70" />
+      <span className="truncate flex-1">
         {t("directMessages", { defaultValue: "Direct message" })}
       </span>
-    </Button>
+    </button>
   );
 }
