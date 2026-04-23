@@ -206,12 +206,12 @@ function AgentGroup({
             defaultValue: "新建话题",
           })}
           className={cn(
-            "shrink-0 inline-flex size-6 items-center justify-center rounded",
+            "shrink-0 inline-flex size-5 items-center justify-center rounded",
             "text-nav-foreground-subtle transition-colors",
             "hover:text-nav-foreground-strong hover:bg-nav-hover",
           )}
         >
-          <SquarePen size={14} />
+          <SquarePen size={12} />
         </button>
       </div>
 
