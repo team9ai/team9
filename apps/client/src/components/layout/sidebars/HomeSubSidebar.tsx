@@ -47,6 +47,8 @@ import {
   usePublicChannels,
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
+import { useTopicSessionsGrouped } from "@/hooks/useTopicSessions";
+import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
 import {
   useSections,
   useMoveChannel,
@@ -279,6 +281,7 @@ export function HomeSubSidebar() {
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
 
   const [channelsExpanded, setChannelsExpanded] = useState(true);
+  const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [dmsExpanded, setDmsExpanded] = useState(true);
   const [appsExpanded, setAppsExpanded] = useState(true);
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
@@ -302,6 +305,8 @@ export function HomeSubSidebar() {
   } = useChannelsByType();
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
+  const { data: agentGroups = [], isLoading: isLoadingAgents } =
+    useTopicSessionsGrouped(5);
   const setSidebarVisibility = useSetSidebarVisibility();
   const { data: sections = [] } = useSections();
   const moveChannel = useMoveChannel();
@@ -412,28 +417,32 @@ export function HomeSubSidebar() {
     return grouped;
   }, [allChannels]);
 
-  // Extract users from direct channels
-  const directMessageUsers = directChannels.map((channel) => {
-    // Use the otherUser info from the channel if available
-    const otherUser = channel.otherUser;
-    const displayName =
-      otherUser?.displayName || otherUser?.username || "Direct Message";
+  // Extract users from direct channels. Bots are rendered under the
+  // "AI Agents" grouping further down (via AgentGroupList), so the
+  // flat DM list shows only human-to-human conversations here to avoid
+  // duplicating each agent in two places.
+  const directMessageUsers = directChannels
+    .filter((channel) => channel.otherUser?.userType !== "bot")
+    .map((channel) => {
+      const otherUser = channel.otherUser;
+      const displayName =
+        otherUser?.displayName || otherUser?.username || "Direct Message";
 
-    return {
-      id: channel.id,
-      channelId: channel.id,
-      userId: otherUser?.id,
-      name: displayName,
-      avatarUrl: otherUser?.avatarUrl,
-      agentType: otherUser?.agentType,
-      staffKind: otherUser?.staffKind ?? null,
-      roleTitle: otherUser?.roleTitle ?? null,
-      ownerName: otherUser?.ownerName ?? null,
-      status: otherUser?.status || ("offline" as const),
-      unreadCount: channel.unreadCount || 0,
-      isBot: otherUser?.userType === "bot",
-    };
-  });
+      return {
+        id: channel.id,
+        channelId: channel.id,
+        userId: otherUser?.id,
+        name: displayName,
+        avatarUrl: otherUser?.avatarUrl,
+        agentType: otherUser?.agentType,
+        staffKind: otherUser?.staffKind ?? null,
+        roleTitle: otherUser?.roleTitle ?? null,
+        ownerName: otherUser?.ownerName ?? null,
+        status: otherUser?.status || ("offline" as const),
+        unreadCount: channel.unreadCount || 0,
+        isBot: otherUser?.userType === "bot",
+      };
+    });
 
   return (
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
@@ -693,6 +702,34 @@ export function HomeSubSidebar() {
               ) : null}
             </DragOverlay>
           </DndContext>
+
+          {/* AI Agents Section — groups topic sessions per agent; the
+              agent-header click opens the legacy direct channel when one
+              exists, so no agent conversation is orphaned by the move. */}
+          <div className="mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setAgentsExpanded(!agentsExpanded)}
+              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
+            >
+              {agentsExpanded ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+              <span>{tNav("aiAgents", { defaultValue: "AI Agents" })}</span>
+            </Button>
+            {agentsExpanded && (
+              <div className="ml-2 mt-1">
+                <AgentGroupList
+                  groups={agentGroups}
+                  selectedChannelId={selectedChannelId}
+                  linkPrefix="/channels"
+                  isLoading={isLoadingAgents}
+                />
+              </div>
+            )}
+          </div>
 
           {/* DMs Section */}
           <div className="mt-4">
