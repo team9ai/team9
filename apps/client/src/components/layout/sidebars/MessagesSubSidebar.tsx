@@ -17,9 +17,11 @@ import {
   useCreateDirectChannel,
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
+import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
+import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
 
 export function MessagesSubSidebar() {
   const { t } = useTranslation(["navigation", "common"]);
@@ -36,6 +38,8 @@ export function MessagesSubSidebar() {
     isLoading: isLoadingChannels,
   } = useChannelsByType();
   const setSidebarVisibility = useSetSidebarVisibility();
+  const { groups: agentGroups, isLoading: isLoadingAgents } =
+    useAgentGroupsForSidebar(5);
   // Use selected workspace or fallback to first workspace
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
@@ -50,27 +54,31 @@ export function MessagesSubSidebar() {
   }, [membersData]);
   const createDirectChannel = useCreateDirectChannel();
 
-  // Extract users from direct channels (existing conversations)
+  // Extract users from direct channels (existing conversations).
+  // Bots are rendered under the dedicated AI Agents section, so the
+  // human-DM list below filters them out to avoid a double-appearance.
   const directMessageUsers = useMemo(() => {
-    return directChannels.map((channel) => {
-      const otherUser = channel.otherUser;
-      const displayName =
-        otherUser?.displayName || otherUser?.username || "Direct Message";
+    return directChannels
+      .filter((channel) => channel.otherUser?.userType !== "bot")
+      .map((channel) => {
+        const otherUser = channel.otherUser;
+        const displayName =
+          otherUser?.displayName || otherUser?.username || "Direct Message";
 
-      return {
-        id: channel.id,
-        channelId: channel.id,
-        userId: otherUser?.id,
-        name: displayName,
-        avatarUrl: otherUser?.avatarUrl,
-        agentType: otherUser?.agentType,
-        staffKind: otherUser?.staffKind ?? null,
-        roleTitle: otherUser?.roleTitle ?? null,
-        ownerName: otherUser?.ownerName ?? null,
-        unreadCount: channel.unreadCount || 0,
-        isBot: otherUser?.userType === "bot",
-      };
-    });
+        return {
+          id: channel.id,
+          channelId: channel.id,
+          userId: otherUser?.id,
+          name: displayName,
+          avatarUrl: otherUser?.avatarUrl,
+          agentType: otherUser?.agentType,
+          staffKind: otherUser?.staffKind ?? null,
+          roleTitle: otherUser?.roleTitle ?? null,
+          ownerName: otherUser?.ownerName ?? null,
+          unreadCount: channel.unreadCount || 0,
+          isBot: otherUser?.userType === "bot",
+        };
+      });
   }, [directChannels]);
 
   const filteredMembers = useMemo(() => {
@@ -126,6 +134,23 @@ export function MessagesSubSidebar() {
       {/* Messages List */}
       <ScrollArea className="flex-1 min-h-0 px-3">
         <nav className="space-y-0.5 pb-3 pt-2">
+          {/* AI Agents — topic sessions grouped per agent.
+              Rendered above the human-DM list so users see their
+              AI conversations first (most common case today). */}
+          {(agentGroups.length > 0 || isLoadingAgents) && (
+            <div className="pb-2 mb-2 border-b border-nav-border">
+              <div className="px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint">
+                {t("aiAgents", { defaultValue: "AI Agents" })}
+              </div>
+              <AgentGroupList
+                groups={agentGroups}
+                selectedChannelId={selectedChannelId}
+                linkPrefix="/messages"
+                isLoading={isLoadingAgents}
+              />
+            </div>
+          )}
+
           {isLoading ? (
             <p className="text-xs text-nav-foreground-faint px-2 py-2">
               {t("common:loading")}
