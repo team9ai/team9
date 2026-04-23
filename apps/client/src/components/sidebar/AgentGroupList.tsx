@@ -193,9 +193,9 @@ function AgentGroup({
         <div className="ml-4 mt-0.5 space-y-0.5 border-l border-nav-border pl-2">
           {group.recentSessions.length === 0 && !group.legacyDirectChannelId ? (
             <p className="text-[0.7rem] text-nav-foreground-faint px-2 py-1">
-              {t("noMessages", {
-                ns: "message" as const,
-                defaultValue: "No conversations yet",
+              {t("topicSessionsEmpty", {
+                ns: "navigation" as const,
+                defaultValue: "暂无话题",
               })}
             </p>
           ) : null}
@@ -208,9 +208,9 @@ function AgentGroup({
               unreadCount={s.unreadCount}
               isSelected={s.channelId === selectedChannelId}
               linkPrefix={linkPrefix}
-              fallbackLabel={t("noMessages", {
-                ns: "message" as const,
-                defaultValue: "Untitled topic",
+              fallbackLabel={t("topicSessionUntitled", {
+                ns: "navigation" as const,
+                defaultValue: "(未命名话题)",
               })}
             />
           ))}

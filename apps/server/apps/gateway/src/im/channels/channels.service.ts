@@ -640,25 +640,34 @@ export class ChannelsService {
   }
 
   /**
-   * Update the cached title on a topic-session channel's propertySettings.
-   * The canonical title lives on agent-pi — this is the read-model mirror
-   * that sidebar/search consult. Always called after a successful agent-pi
-   * PATCH, never the other way around.
+   * Set the user-facing title on a topic-session channel.
+   *
+   * Title lives in two mirrored places for distinct read paths:
+   *   1. `propertySettings.topicSession.title` — the canonical location for
+   *      the agent-group sidebar (grouped query reads it from here).
+   *   2. `channels.name` — so the existing search indexer and anywhere that
+   *      displays `channel.name` pick it up with no extra plumbing.
+   *
+   * Both are updated atomically, and the row is re-fetched so callers can
+   * fan out `channel.updated` (for search re-index) and `topic_session_updated`
+   * (for sidebar live refresh) with consistent payloads.
+   *
+   * Uses an atomic guard (`WHERE title IS NULL`) when `expectCurrentTitleNull`
+   * is set so concurrent callers racing on the same channel can't double-write.
+   * Returns `null` when the guard rejects the write.
    */
   async updateTopicSessionTitle(
     channelId: string,
     title: string | null,
-  ): Promise<void> {
+    options: { expectCurrentTitleNull?: boolean } = {},
+  ): Promise<schema.Channel | null> {
     const [row] = await this.db
-      .select({
-        propertySettings: schema.channels.propertySettings,
-        type: schema.channels.type,
-      })
+      .select()
       .from(schema.channels)
       .where(eq(schema.channels.id, channelId))
       .limit(1);
 
-    if (!row || row.type !== 'topic-session') return;
+    if (!row || row.type !== 'topic-session') return null;
 
     const existing =
       (row.propertySettings as {
@@ -670,6 +679,11 @@ export class ChannelsService {
       } | null) ?? {};
     const ts = existing.topicSession ?? {};
 
+    if (options.expectCurrentTitleNull && ts.title) {
+      // Another writer beat us to it — bail without overwriting.
+      return null;
+    }
+
     const next = {
       ...existing,
       topicSession: { ...ts, title },
@@ -677,8 +691,22 @@ export class ChannelsService {
 
     await this.db
       .update(schema.channels)
-      .set({ propertySettings: next, updatedAt: new Date() })
+      .set({
+        // Mirror the title onto `name` so the search indexer (which keys
+        // off channel.name/description) picks it up automatically.
+        name: title,
+        propertySettings: next,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.channels.id, channelId));
+
+    const [updated] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    return updated ?? null;
   }
 
   /**

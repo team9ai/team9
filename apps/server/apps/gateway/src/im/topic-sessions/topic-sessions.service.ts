@@ -192,24 +192,44 @@ export class TopicSessionsService {
       throw err;
     }
 
-    // Fire-and-forget post-broadcast task: unread fan-out + agent
-    // forwarding via pushToHiveBots (scope='topic').
-    if (this.gatewayMQ?.isReady()) {
-      const task: PostBroadcastTask = {
-        msgId: messageId,
-        channelId,
-        senderId: creatorId,
-        workspaceId,
-        broadcastAt: Date.now(),
-      };
-      this.gatewayMQ.publishPostBroadcast(task).catch((err) => {
-        this.logger.warn(
-          `publishPostBroadcast failed on topic-session ${channelId}: ${err}`,
-        );
-      });
-    } else {
-      this.logger.warn(
-        `GatewayMQService not ready — topic-session ${channelId} initial message not fanned out to bot`,
+    // Fire post-broadcast task synchronously: unread fan-out + agent
+    // forwarding via pushToHiveBots (scope='topic'). We await the publish
+    // (not the downstream processing) so a failure to hand off to MQ
+    // surfaces as a 5xx to the caller — otherwise the user sees the
+    // channel appear but the agent never replies, and we silently lose
+    // the first-turn event.
+    const task: PostBroadcastTask = {
+      msgId: messageId,
+      channelId,
+      senderId: creatorId,
+      workspaceId,
+      broadcastAt: Date.now(),
+    };
+
+    if (!this.gatewayMQ?.isReady()) {
+      // Message itself is already persisted, channel + session exist.
+      // Surface the fan-out gap so the user retries instead of staring
+      // at a silent topic — same contract as any other message send
+      // when the worker queue is unavailable.
+      this.logger.error(
+        `GatewayMQService not ready — topic-session ${channelId} initial message persisted but not fanned out to bot`,
+      );
+      throw new Error(
+        'Message queue is temporarily unavailable, please try again in a moment',
+      );
+    }
+
+    try {
+      await this.gatewayMQ.publishPostBroadcast(task);
+      this.logger.log(
+        `Topic session ${channelId} created (session ${sessionId}, msg ${messageId}); post-broadcast task published for agent ${agentId}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `publishPostBroadcast failed on topic-session ${channelId}: ${err}`,
+      );
+      throw new Error(
+        'Failed to notify worker about the new message, please try again',
       );
     }
 

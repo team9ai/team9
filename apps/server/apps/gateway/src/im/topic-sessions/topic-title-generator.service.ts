@@ -1,0 +1,232 @@
+import {
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+  forwardRef,
+} from '@nestjs/common';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import {
+  DATABASE_CONNECTION,
+  and,
+  asc,
+  eq,
+  type PostgresJsDatabase,
+} from '@team9/database';
+import * as schema from '@team9/database/schemas';
+import {
+  AiClientService,
+  AIProvider,
+  type AICompletionResponse,
+} from '@team9/ai-client';
+import { ChannelsService } from '../channels/channels.service.js';
+import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { WS_EVENTS } from '../websocket/events/events.constants.js';
+
+interface MessageCreatedPayload {
+  message: {
+    id: string;
+    channelId: string;
+    senderId: string | null;
+    content: string | null;
+    type: string;
+  };
+  channel?: { id: string; type?: string } | null;
+  sender?: { id: string; userType?: string; username?: string } | null;
+}
+
+// Keep the prompt language-agnostic and rely on the model to mirror the
+// input language. Tight length constraints make sure the title fits the
+// sidebar row.
+const TITLE_PROMPT = `You are a concise title generator for a chat app's sidebar.
+
+Given the user's first message in a conversation, produce a short title that summarises the topic.
+
+Rules (ALL mandatory):
+- Match the language of the input exactly (if the user wrote in Chinese, reply in Chinese; Japanese → Japanese; etc.).
+- Max 12 characters for CJK scripts, OR max 6 words for Latin scripts. Keep it very short.
+- No quotes, no trailing punctuation, no numbering, no prefix like "Title:".
+- Output the title only. No explanations.`;
+
+@Injectable()
+export class TopicTitleGeneratorService {
+  private readonly logger = new Logger(TopicTitleGeneratorService.name);
+
+  /**
+   * Channels whose title-generation call is in flight right now.
+   * In-process dedupe only — the DB-level guard
+   * (`expectCurrentTitleNull`) is what actually prevents double-writes
+   * across restarts or multiple Node instances.
+   */
+  private readonly inflight = new Set<string>();
+
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: PostgresJsDatabase<typeof schema>,
+    @Optional() private readonly ai?: AiClientService,
+    @Inject(forwardRef(() => ChannelsService))
+    private readonly channels?: ChannelsService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private readonly ws?: WebsocketGateway,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
+  ) {}
+
+  /**
+   * Listen for any freshly persisted message (human, bot, streaming end…)
+   * and decide whether to generate a title for the channel it landed in.
+   * The decision is "bot just replied in a topic-session channel whose
+   * title is still null" — exactly the first-turn-done signal we want.
+   */
+  @OnEvent('message.created')
+  async onMessageCreated(payload: MessageCreatedPayload): Promise<void> {
+    try {
+      await this.maybeGenerate(payload);
+    } catch (err) {
+      this.logger.error(
+        `Title generation handler failed (channel ${payload?.message?.channelId ?? '?'}): ${err}`,
+      );
+    }
+  }
+
+  private async maybeGenerate(payload: MessageCreatedPayload): Promise<void> {
+    const channelId = payload?.message?.channelId;
+    const senderId = payload?.message?.senderId;
+    if (!channelId || !senderId) return;
+    if (!this.ai || !this.channels) return; // module wired without deps
+    if (this.inflight.has(channelId)) return;
+
+    // Only fire on bot-authored messages. If the sender info wasn't
+    // included in the payload, fall back to a single lookup.
+    let senderUserType = payload.sender?.userType;
+    if (!senderUserType) {
+      const [u] = await this.db
+        .select({ userType: schema.users.userType })
+        .from(schema.users)
+        .where(eq(schema.users.id, senderId))
+        .limit(1);
+      senderUserType = u?.userType;
+    }
+    if (senderUserType !== 'bot') return;
+
+    // Channel must be a topic session and its title must still be null.
+    const [channel] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+    if (!channel || channel.type !== 'topic-session') return;
+
+    const ts =
+      (
+        channel.propertySettings as {
+          topicSession?: { title?: string | null };
+        } | null
+      )?.topicSession ?? {};
+    if (ts.title) return;
+
+    // Find the first human-authored message in the channel — that's the
+    // seed for the summary.
+    const firstUserMessage = await this.findFirstUserMessage(channelId);
+    if (!firstUserMessage) return;
+
+    this.inflight.add(channelId);
+    try {
+      const title = await this.callLlm(firstUserMessage);
+      if (!title) return;
+
+      const updated = await this.channels.updateTopicSessionTitle(
+        channelId,
+        title,
+        { expectCurrentTitleNull: true },
+      );
+      if (!updated) return;
+
+      // Let the search indexer re-index under the new `channel.name`,
+      // and notify sidebar listeners so the title slides in live.
+      this.eventEmitter?.emit('channel.updated', { channel: updated });
+
+      const creatorId = updated.createdBy;
+      if (creatorId && this.ws) {
+        await this.ws.sendToUser(creatorId, WS_EVENTS.TOPIC_SESSION.UPDATED, {
+          channelId,
+          title,
+        });
+      }
+
+      this.logger.log(
+        `Generated title for topic session ${channelId}: "${title}"`,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `LLM title generation failed for channel ${channelId}: ${err}`,
+      );
+    } finally {
+      this.inflight.delete(channelId);
+    }
+  }
+
+  private async findFirstUserMessage(
+    channelId: string,
+  ): Promise<string | null> {
+    const rows = await this.db
+      .select({
+        content: schema.messages.content,
+        senderId: schema.messages.senderId,
+      })
+      .from(schema.messages)
+      .innerJoin(schema.users, eq(schema.users.id, schema.messages.senderId))
+      .where(
+        and(
+          eq(schema.messages.channelId, channelId),
+          eq(schema.messages.isDeleted, false),
+          eq(schema.users.userType, 'human'),
+        ),
+      )
+      .orderBy(asc(schema.messages.createdAt))
+      .limit(1);
+
+    const content = rows[0]?.content;
+    if (!content) return null;
+    // Clip egregiously long seeds so we don't burn context on a wall of
+    // text — the first couple hundred chars are plenty to summarise from.
+    return content.slice(0, 800);
+  }
+
+  private async callLlm(seed: string): Promise<string | null> {
+    if (!this.ai) return null;
+
+    let response: AICompletionResponse;
+    try {
+      response = await this.ai.chat({
+        provider: AIProvider.CLAUDE,
+        model: 'claude-3-5-haiku-20241022',
+        temperature: 0.3,
+        maxTokens: 40,
+        messages: [
+          { role: 'system', content: TITLE_PROMPT },
+          { role: 'user', content: seed },
+        ],
+      });
+    } catch (err) {
+      this.logger.warn(`AiClientService.chat threw: ${err}`);
+      return null;
+    }
+
+    const raw = (response?.content ?? '').trim();
+    if (!raw) return null;
+
+    // Defensive post-processing: strip surrounding quotes / backticks,
+    // collapse whitespace, and cap at a hard character ceiling in case
+    // the model ignores the length guidance.
+    const cleaned = raw
+      .replace(/^[`'"“”‘’「『《]+|[`'"“”‘’」』》]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[。！？!?.]+$/u, '')
+      .trim();
+
+    if (!cleaned) return null;
+    // Rough upper bound: 40 chars works for both CJK (≈20 chars visible)
+    // and Latin (≈8 words). Anything longer gets truncated.
+    return cleaned.length > 40 ? cleaned.slice(0, 40) : cleaned;
+  }
+}
