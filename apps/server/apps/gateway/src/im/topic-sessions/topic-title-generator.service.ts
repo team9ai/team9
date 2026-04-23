@@ -14,14 +14,10 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import {
-  AiClientService,
-  AIProvider,
-  type AICompletionResponse,
-} from '@team9/ai-client';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
+import { CapabilityHubClient } from '../../deep-research/capability-hub.client.js';
 
 interface MessageCreatedPayload {
   message: {
@@ -63,7 +59,7 @@ export class TopicTitleGeneratorService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-    @Optional() private readonly ai?: AiClientService,
+    @Optional() private readonly hub?: CapabilityHubClient,
     @Inject(forwardRef(() => ChannelsService))
     private readonly channels?: ChannelsService,
     @Inject(forwardRef(() => WebsocketGateway))
@@ -92,7 +88,7 @@ export class TopicTitleGeneratorService {
     const channelId = payload?.message?.channelId;
     const senderId = payload?.message?.senderId;
     if (!channelId || !senderId) return;
-    if (!this.ai || !this.channels) return; // module wired without deps
+    if (!this.hub || !this.channels) return; // module wired without deps
     if (this.inflight.has(channelId)) return;
 
     // Only fire on bot-authored messages. If the sender info wasn't
@@ -124,6 +120,20 @@ export class TopicTitleGeneratorService {
       )?.topicSession ?? {};
     if (ts.title) return;
 
+    // capability-hub needs a billable identity (userId + tenantId) on
+    // every LLM call so it can pre-authorize and then record usage
+    // against the right workspace ledger. Skip generation cleanly when
+    // the channel is missing either — no title is better than an
+    // orphaned LLM charge or a blown-up fetch call.
+    const creatorId = channel.createdBy;
+    const tenantId = channel.tenantId;
+    if (!creatorId || !tenantId) {
+      this.logger.warn(
+        `Skipping title gen for channel ${channelId}: missing createdBy or tenantId`,
+      );
+      return;
+    }
+
     // Find the first human-authored message in the channel — that's the
     // seed for the summary.
     const firstUserMessage = await this.findFirstUserMessage(channelId);
@@ -131,7 +141,10 @@ export class TopicTitleGeneratorService {
 
     this.inflight.add(channelId);
     try {
-      const title = await this.callLlm(firstUserMessage);
+      const title = await this.callLlm(firstUserMessage, {
+        userId: creatorId,
+        tenantId,
+      });
       if (!title) return;
 
       const updated = await this.channels.updateTopicSessionTitle(
@@ -145,8 +158,7 @@ export class TopicTitleGeneratorService {
       // and notify sidebar listeners so the title slides in live.
       this.eventEmitter?.emit('channel.updated', { channel: updated });
 
-      const creatorId = updated.createdBy;
-      if (creatorId && this.ws) {
+      if (this.ws) {
         await this.ws.sendToUser(creatorId, WS_EVENTS.TOPIC_SESSION.UPDATED, {
           channelId,
           title,
@@ -157,7 +169,7 @@ export class TopicTitleGeneratorService {
         `Generated title for topic session ${channelId}: "${title}"`,
       );
     } catch (err) {
-      this.logger.warn(
+      this.logger.error(
         `LLM title generation failed for channel ${channelId}: ${err}`,
       );
     } finally {
@@ -192,27 +204,63 @@ export class TopicTitleGeneratorService {
     return content.slice(0, 800);
   }
 
-  private async callLlm(seed: string): Promise<string | null> {
-    if (!this.ai) return null;
+  private async callLlm(
+    seed: string,
+    identity: { userId: string; tenantId: string },
+  ): Promise<string | null> {
+    if (!this.hub) return null;
 
-    let response: AICompletionResponse;
+    // Route through capability-hub's llm-proxy, not the platform's
+    // Anthropic SDK. That's the path agent-pi already uses and the
+    // only one wired into pre-authorize / record / billing-hub —
+    // calling Anthropic directly would bypass usage accounting.
+    // OpenRouter-compatible OpenAI chat/completions body works
+    // because capability-hub forwards unchanged.
+    let response: Response;
     try {
-      response = await this.ai.chat({
-        provider: AIProvider.CLAUDE,
-        model: 'claude-3-5-haiku-20241022',
-        temperature: 0.3,
-        maxTokens: 40,
-        messages: [
-          { role: 'system', content: TITLE_PROMPT },
-          { role: 'user', content: seed },
-        ],
-      });
+      response = await this.hub.request(
+        'POST',
+        '/proxy/openrouter/chat/completions',
+        {
+          headers: {
+            ...this.hub.serviceHeaders(identity),
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'openai/gpt-4o-mini',
+            max_tokens: 40,
+            temperature: 0.3,
+            messages: [
+              { role: 'system', content: TITLE_PROMPT },
+              { role: 'user', content: seed },
+            ],
+          }),
+        },
+      );
     } catch (err) {
-      this.logger.warn(`AiClientService.chat threw: ${err}`);
+      this.logger.warn(`capability-hub fetch failed: ${err}`);
       return null;
     }
 
-    const raw = (response?.content ?? '').trim();
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      this.logger.warn(
+        `capability-hub llm-proxy returned ${response.status}: ${body.slice(0, 200)}`,
+      );
+      return null;
+    }
+
+    let data: {
+      choices?: Array<{ message?: { content?: string | null } }>;
+    };
+    try {
+      data = (await response.json()) as typeof data;
+    } catch (err) {
+      this.logger.warn(`capability-hub response not JSON: ${err}`);
+      return null;
+    }
+
+    const raw = (data.choices?.[0]?.message?.content ?? '').trim();
     if (!raw) return null;
 
     // Defensive post-processing: strip surrounding quotes / backticks,

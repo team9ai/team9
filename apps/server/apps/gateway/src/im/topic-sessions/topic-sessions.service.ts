@@ -280,6 +280,14 @@ export class TopicSessionsService {
     perAgent: number,
   ): Promise<TopicSessionGroup[]> {
     // Find all topic-session channels the user is a member of.
+    // The rest of the codebase uses `tenantId ? eq(...) : undefined`
+    // (see channels.service.ts) — undefined is dropped by drizzle's
+    // and() so an absent tenantId simply doesn't filter. An earlier
+    // version of this query used `isNull(channels.tenantId)` in the
+    // undefined branch, which (in community edition where the
+    // CurrentTenantId decorator can legitimately be undefined)
+    // excluded every tenanted channel and made the grouped sidebar
+    // return empty. Mirror the codebase pattern here.
     const topicChannels = await this.db
       .select({
         channelId: schema.channels.id,
@@ -298,9 +306,7 @@ export class TopicSessionsService {
           eq(schema.channels.isArchived, false),
           eq(schema.channelMembers.userId, userId),
           isNull(schema.channelMembers.leftAt),
-          tenantId
-            ? eq(schema.channels.tenantId, tenantId)
-            : isNull(schema.channels.tenantId),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
         ),
       );
 
@@ -413,9 +419,7 @@ export class TopicSessionsService {
           eq(schema.channels.isArchived, false),
           inArray(schema.channelMembers.userId, botUserIds),
           isNull(schema.channelMembers.leftAt),
-          tenantId
-            ? eq(schema.channels.tenantId, tenantId)
-            : isNull(schema.channels.tenantId),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
         ),
       );
     // Keep only channels that also contain the caller (real 1:1).
@@ -668,9 +672,7 @@ export class TopicSessionsService {
           eq(schema.channels.isArchived, false),
           eq(schema.users.userType, 'bot'),
           isNull(schema.channelMembers.leftAt),
-          tenantId
-            ? eq(schema.channels.tenantId, tenantId)
-            : isNull(schema.channels.tenantId),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
         ),
       );
     if (directRows.length === 0) return [];
