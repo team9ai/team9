@@ -9,10 +9,27 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { ClawHiveService } from '@team9/claw-hive';
 import { GatewayMQService } from '@team9/rabbitmq';
-import { TopicSessionsService } from './topic-sessions.service.js';
-import { ChannelsService } from '../channels/channels.service.js';
-import { WebsocketGateway } from '../websocket/websocket.gateway.js';
-import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+
+// Mock WebsocketGateway before any module that transitively imports it is
+// evaluated. The real WebsocketGateway uses `@WebSocketGateway({ cors: {
+// origin: env.CORS_ORIGIN ... } })` which reads env.CORS_ORIGIN at
+// module-load time — that throws in CI where the env var isn't set, and
+// the failure propagates up through every module that imports the file.
+// TopicSessionsService + ChannelsService both have a (forward-ref'd)
+// dependency on WebsocketGateway, so stubbing once here keeps both specs
+// off the real decorator path. Matches the pattern in
+// channels.controller.spec.ts et al.
+jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+
+// Dynamic imports after the mock so the mocked module is in place by the
+// time TopicSessionsService's module graph is evaluated.
+const { TopicSessionsService } = await import('./topic-sessions.service.js');
+const { ChannelsService } = await import('../channels/channels.service.js');
+const { WebsocketGateway } = await import('../websocket/websocket.gateway.js');
+const { ImWorkerGrpcClientService } =
+  await import('../services/im-worker-grpc-client.service.js');
 
 // --------------------------------------------------------------------
 // Test helpers
