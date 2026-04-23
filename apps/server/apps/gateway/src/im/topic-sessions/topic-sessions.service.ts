@@ -41,10 +41,13 @@ import type {
  *   1. Validate bot is an active hive-managed agent; extract agentId.
  *   2. Check DM permission gate (personal-staff visibility).
  *   3. Pre-generate channelId (UUIDv7) + session id.
- *      sessionId = `team9/{tenant}/{agentId}/topic/{channelId}` — the
- *      contract with agent-pi — so the scopeId == channelId invariant
- *      holds at construction time without a follow-up write.
- *   4. Create the agent-pi session (with team9Context.scopeType='topic').
+ *      sessionId = `team9/{tenant}/{agentId}/dm/{channelId}` — topic
+ *      sessions share the 'dm' scope with direct and routine-session
+ *      because they are indistinguishable at the agent runtime layer.
+ *      team9 keeps `channels.type='topic-session'` for IM-layer reads
+ *      (sidebar / search / title gen); the wire-level payload uses the
+ *      4-value agent-pi EventChannelType.
+ *   4. Create the agent-pi session (with team9Context.scopeType='dm').
  *      On failure, abort early — no local state leaked yet.
  *   5. Create the topic-session channel + members atomically in team9 DB.
  *      On failure, compensate: delete the agent-pi session.
@@ -125,6 +128,13 @@ export class TopicSessionsService {
     const sessionId = this.buildSessionId(tenantId, agentId, channelId);
 
     // --- Step 4: create agent-pi session ---
+    // scopeType='dm' because at the agent runtime layer, a topic
+    // session is indistinguishable from a DM — one-on-one, plain-text
+    // streaming, no Reply-tool round-trip. agent-pi's Team9Component
+    // only understands the 4-value EventChannelType enum
+    // ('channel' | 'dm' | 'task' | 'tracking'); IM-level concepts like
+    // topic-session / routine-session live on `channels.type` in team9
+    // and don't leak to the runtime. Same mapping routine-session uses.
     try {
       await this.clawHive.createSession(
         agentId,
@@ -134,7 +144,7 @@ export class TopicSessionsService {
           ...(model ? { model } : {}),
           team9Context: {
             source: 'team9',
-            scopeType: 'topic',
+            scopeType: 'dm',
             scopeId: channelId,
             peerUserId: creatorId,
           },
@@ -193,7 +203,7 @@ export class TopicSessionsService {
     }
 
     // Fire post-broadcast task synchronously: unread fan-out + agent
-    // forwarding via pushToHiveBots (scope='topic'). We await the publish
+    // forwarding via pushToHiveBots (scope='dm'). We await the publish
     // (not the downstream processing) so a failure to hand off to MQ
     // surfaces as a 5xx to the caller — otherwise the user sees the
     // channel appear but the agent never replies, and we silently lose
@@ -581,7 +591,14 @@ export class TopicSessionsService {
     agentId: string,
     channelId: string,
   ): string {
-    return `team9/${tenantId ?? ''}/${agentId}/topic/${channelId}`;
+    // Use the 'dm' scope so the id matches what post-broadcast
+    // derives on subsequent messages in the same channel — otherwise
+    // createSession would register under `.../topic/...` and sendInput
+    // would later target `.../dm/...`, fragmenting the conversation
+    // across two agent-pi sessions. channelId is UUIDv7-unique so
+    // there's no collision with legacy direct / routine-session ids
+    // that also live under the dm/ scope.
+    return `team9/${tenantId ?? ''}/${agentId}/dm/${channelId}`;
   }
 
   /**

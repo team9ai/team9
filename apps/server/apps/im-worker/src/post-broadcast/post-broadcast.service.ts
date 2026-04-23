@@ -661,7 +661,10 @@ export class PostBroadcastService {
       const isRoutineSession = channel.type === 'routine-session';
       // topic-session channels: one ephemeral conversation per user×agent×
       // topic. Every message in the channel maps 1:1 to a single agent-pi
-      // session keyed by the channel id (scope='topic'). They are always
+      // session keyed by the channel id. They share the 'dm' wire scope
+      // with routine-session because the agent behaviour is identical;
+      // team9 still keeps them as a distinct `channels.type` for IM
+      // layer concerns (sidebar, search, title generation). Always
       // forwarded and never spawn a tracking channel, same as DM.
       const isTopicSession = channel.type === 'topic-session';
       const alwaysForward =
@@ -704,15 +707,23 @@ export class PostBroadcastService {
       }
 
       // Build the recursive MessageLocation for the event payload.
-      // routine-session channels report as 'dm' so bot context mirrors
-      // the kickoff-event location (which uses the `dm/` session scope).
-      // topic-session channels report as 'topic' — same shape as 'dm' from
-      // the bot's perspective (one-on-one conversation), but distinct so
-      // components can disambiguate if they need to.
+      //
+      // Three team9 channel types collapse into agent-pi's 'dm' bucket:
+      //   - direct:          one-on-one with a human
+      //   - routine-session: one-on-one creation/reflection meta-chat
+      //   - topic-session:   one-on-one scoped to a single topic
+      // They all have the same agent runtime behaviour (plain text
+      // streams back to the user, no Reply tool, no tracking mirror),
+      // and agent-pi's EventChannelType is a closed 4-value enum
+      // ('channel' | 'dm' | 'task' | 'tracking'); anything else lands
+      // in the `else → channelType = undefined` branch of
+      // Team9Component.updateEventLocationFromLocation and the agent's
+      // reply gets swallowed. team9 keeps `channels.type='topic-session'`
+      // as the IM abstraction (sidebar grouping, search, title gen);
+      // the mapping to 'dm' only happens at the wire.
       const channelLocation: Record<string, unknown> = {
-        type: isTopicSession
-          ? 'topic'
-          : isDm || isRoutineSession
+        type:
+          isDm || isRoutineSession || isTopicSession
             ? 'dm'
             : isTracking
               ? 'tracking'
@@ -767,17 +778,19 @@ export class PostBroadcastService {
         }
 
         // Session ID:
-        //   topic-session:        team9/{tenant}/{agent}/topic/{channelId}
-        //   DM / routine-session: team9/{tenant}/{agent}/dm/{channelId}
-        //   Group @mention:       team9/{tenant}/{agent}/tracking/{newTrackingChannelId}
-        //   Tracking guidance:    team9/{tenant}/{agent}/tracking/{existingChannelId}
-        const scope: 'topic' | 'dm' | 'tracking' = isTopicSession
-          ? 'topic'
-          : isDm || isRoutineSession
-            ? 'dm'
-            : 'tracking';
+        //   DM / routine-session / topic-session:
+        //     team9/{tenant}/{agent}/dm/{channelId}
+        //   Group @mention: team9/{tenant}/{agent}/tracking/{newTrackingChannelId}
+        //   Tracking guidance: team9/{tenant}/{agent}/tracking/{existingChannelId}
+        //
+        // All three DM-like team9 channel types share the 'dm' scope —
+        // channelId is UUIDv7-unique so there is no id collision across
+        // direct / routine-session / topic-session sessions for the
+        // same (tenant, agent) pair.
+        const scope: 'dm' | 'tracking' =
+          isDm || isRoutineSession || isTopicSession ? 'dm' : 'tracking';
         const scopeId =
-          isTopicSession || isDm || isRoutineSession
+          isDm || isRoutineSession || isTopicSession
             ? channel.id
             : (trackingChannelId ?? channel.id);
         const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
@@ -930,25 +943,23 @@ export class PostBroadcastService {
     sender: Pick<schema.User, 'id'>;
   }): {
     source: 'team9';
-    scopeType: 'dm' | 'channel' | 'task' | 'topic';
+    scopeType: 'dm' | 'channel' | 'task';
     scopeId: string;
     peerUserId: string;
     isMentorDm: boolean;
   } {
     const { channel, bot, sender } = params;
-    // routine-session channels report as 'dm' for bot context because
-    // their session id uses the dm/ scope. topic-session channels get
-    // their own 'topic' scope to mirror the session id path. isMentorDm
-    // only fires for real direct channels — creation/topic sessions are
-    // not mentor-directed.
+    // direct, routine-session, and topic-session are all one-on-one
+    // in agent-pi's eyes, so they share the 'dm' scopeType. team9
+    // channel-type distinctions live in the IM layer (sidebar / search
+    // / title gen) and intentionally don't leak into agent runtime.
+    // isMentorDm only fires for real direct channels — creation and
+    // topic sessions are not mentor-directed.
     const isDirect = channel.type === 'direct';
     const isRoutineSession = channel.type === 'routine-session';
     const isTopicSession = channel.type === 'topic-session';
-    const scopeType: 'dm' | 'channel' | 'task' | 'topic' = isTopicSession
-      ? 'topic'
-      : isDirect || isRoutineSession
-        ? 'dm'
-        : 'channel';
+    const scopeType: 'dm' | 'channel' | 'task' =
+      isDirect || isRoutineSession || isTopicSession ? 'dm' : 'channel';
     const isMentorDm =
       isDirect && bot.mentorId !== null && sender.id === bot.mentorId;
     return {

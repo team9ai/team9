@@ -1153,7 +1153,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(createTrackingSpy).not.toHaveBeenCalled();
   });
 
-  it('routes topic-session channel message to topic/ scope with channel id', async () => {
+  it('routes topic-session channel message to dm/ scope (shared with routine-session and direct)', async () => {
     const bot = makeHiveBot('claude');
     setupDbForHivePush({
       bots: [bot],
@@ -1168,11 +1168,16 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       any,
       string,
     ];
+    // topic sessions collapse into agent-pi's 'dm' bucket: runtime
+    // behaviour is identical to DM (plain-text stream, no Reply tool),
+    // and agent-pi's EventChannelType is a closed 4-value enum. team9
+    // distinguishes them via `channels.type='topic-session'`, not on
+    // the wire. Channel id disambiguates from legacy direct channels.
     expect(sessionId).toBe(
-      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/topic/${CHANNEL_ID}`,
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/dm/${CHANNEL_ID}`,
     );
-    expect(event.payload.location.type).toBe('topic');
-    expect(event.payload.team9Context.scopeType).toBe('topic');
+    expect(event.payload.location.type).toBe('dm');
+    expect(event.payload.team9Context.scopeType).toBe('dm');
     expect(event.payload.team9Context.scopeId).toBe(CHANNEL_ID);
     // No tracking channel spawned for topic sessions — same as DM.
     expect(event.payload.trackingChannelId).toBeUndefined();

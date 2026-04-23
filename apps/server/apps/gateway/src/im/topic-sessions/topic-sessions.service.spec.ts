@@ -178,8 +178,11 @@ describe('TopicSessionsService', () => {
 
       expect(result.agentId).toBe(AGENT_ID);
       expect(result.botUserId).toBe(BOT_USER_ID);
+      // Topic sessions share the 'dm' wire scope with direct and
+      // routine-session (agent-pi's EventChannelType is a closed enum;
+      // the topic-session distinction lives on team9 channels.type).
       expect(result.sessionId).toBe(
-        `team9/${TENANT_ID}/${AGENT_ID}/topic/${result.channelId}`,
+        `team9/${TENANT_ID}/${AGENT_ID}/dm/${result.channelId}`,
       );
       expect(result.title).toBeNull();
 
@@ -194,7 +197,7 @@ describe('TopicSessionsService', () => {
           userId: CREATOR_ID,
           sessionId: result.sessionId,
           team9Context: expect.objectContaining({
-            scopeType: 'topic',
+            scopeType: 'dm',
             scopeId: result.channelId,
           }),
         }),
@@ -281,7 +284,7 @@ describe('TopicSessionsService', () => {
       expect(clawHive.deleteSession).toHaveBeenCalledTimes(1);
       const [sessionIdArg] = clawHive.deleteSession.mock.calls[0] ?? [];
       expect(sessionIdArg).toMatch(
-        new RegExp(`^team9/${TENANT_ID}/${AGENT_ID}/topic/`),
+        new RegExp(`^team9/${TENANT_ID}/${AGENT_ID}/dm/`),
       );
     });
 
@@ -318,7 +321,7 @@ describe('TopicSessionsService', () => {
 
   describe('delete', () => {
     const CHANNEL_ID = '00000000-0000-0000-0000-0000000000aa';
-    const SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/topic/${CHANNEL_ID}`;
+    const SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`;
 
     it('archives the channel and best-effort deletes the agent-pi session', async () => {
       db.limit.mockResolvedValueOnce([
