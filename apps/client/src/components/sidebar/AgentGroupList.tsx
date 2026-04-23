@@ -2,7 +2,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, MessageSquare, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import type { TopicSessionGroup } from "@/services/api/im";
@@ -212,38 +212,34 @@ function AgentGroup({
 
       {expanded && (
         <div className="ml-[14px] mt-0.5 mb-1 space-y-px border-l border-nav-border/60 pl-2">
-          {group.recentSessions.length === 0 && !group.legacyDirectChannelId ? (
+          {group.recentSessions.length === 0 ? (
             <p className="text-[0.7rem] italic text-nav-foreground-faint px-2 py-1">
               {t("topicSessionsEmpty", {
                 ns: "navigation" as const,
                 defaultValue: "暂无话题",
               })}
             </p>
-          ) : null}
-
-          {group.recentSessions.map((s) => (
-            <TopicSessionRow
-              key={s.channelId}
-              channelId={s.channelId}
-              title={s.title}
-              unreadCount={s.unreadCount}
-              isSelected={s.channelId === selectedChannelId}
-              linkPrefix={linkPrefix}
-              fallbackLabel={t("topicSessionUntitled", {
-                ns: "navigation" as const,
-                defaultValue: "(未命名话题)",
-              })}
-            />
-          ))}
-
-          {group.legacyDirectChannelId &&
-          group.legacyDirectChannelId !== selectedChannelId ? (
-            <LegacyDirectChannelRow
-              channelId={group.legacyDirectChannelId}
-              isSelected={group.legacyDirectChannelId === selectedChannelId}
-              linkPrefix={linkPrefix}
-            />
-          ) : null}
+          ) : (
+            group.recentSessions.map((s) => (
+              <TopicSessionRow
+                key={s.channelId}
+                channelId={s.channelId}
+                title={s.title}
+                unreadCount={s.unreadCount}
+                isSelected={s.channelId === selectedChannelId}
+                linkPrefix={linkPrefix}
+                fallbackLabel={t("topicSessionUntitled", {
+                  ns: "navigation" as const,
+                  defaultValue: "(未命名话题)",
+                })}
+              />
+            ))
+          )}
+          {/* NOTE: no row for legacyDirectChannelId — clicking the
+              agent header already routes to it (per product decision
+              D4). An extra "Direct Messages" child row was showing up
+              here and overlapping semantically with the sibling
+              "Direct Messages" section below, causing confusion. */}
         </div>
       )}
     </div>
@@ -287,37 +283,6 @@ function TopicSessionRow({
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       ) : null}
-    </button>
-  );
-}
-
-function LegacyDirectChannelRow({
-  channelId,
-  isSelected,
-  linkPrefix,
-}: {
-  channelId: string;
-  isSelected: boolean;
-  linkPrefix: LinkPrefix;
-}) {
-  const navigate = useNavigate();
-  const { t } = useTranslation(["navigation"]);
-
-  return (
-    <button
-      type="button"
-      onClick={() => navigateToChannel(navigate, linkPrefix, channelId)}
-      className={cn(
-        "flex w-full items-center gap-2 h-7 px-2 rounded-md text-left text-[0.75rem] italic",
-        "text-nav-foreground-faint hover:bg-nav-hover hover:text-nav-foreground",
-        isSelected &&
-          "bg-nav-active text-nav-foreground-strong not-italic hover:bg-nav-active",
-      )}
-    >
-      <MessageSquare size={11} className="shrink-0 opacity-70" />
-      <span className="truncate flex-1">
-        {t("directMessages", { defaultValue: "Direct message" })}
-      </span>
     </button>
   );
 }
