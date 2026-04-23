@@ -234,7 +234,10 @@ describe("HomeMainContent", () => {
     expect(mockDeepResearchStartInChannel).not.toHaveBeenCalled();
   });
 
-  it("hides the model control for base-model agents", () => {
+  it("shows a non-interactive model label for base-model agents", () => {
+    // base-model agents cannot switch models, so the composer displays the
+    // fixed model name rather than a picker button. Verifies the gate path
+    // that renders the read-only label in RichTextEditor.
     mockUseDashboardAgents.mockReturnValue({
       agents: [
         {
@@ -258,15 +261,18 @@ describe("HomeMainContent", () => {
 
     renderWithProviders(<HomeMainContent />);
 
-    expect(screen.queryByText("Claude Sonnet 4.6")).not.toBeInTheDocument();
+    expect(screen.getByText("Claude Sonnet 4.6")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /claude sonnet 4\.6/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it("hides the model control for switchable agents", () => {
+  it("shows the model picker button for switchable agents", () => {
     renderWithProviders(<HomeMainContent />);
 
     expect(
-      screen.queryByRole("button", { name: /gpt-4.1/i }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: /gpt-4\.1/i }),
+    ).toBeInTheDocument();
   });
 
   it("defaults to the personal-staff agent when one exists", () => {
