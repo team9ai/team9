@@ -592,6 +592,75 @@ describe('MessagesController', () => {
 
       expect(channelsService.assertMentionsAllowed).not.toHaveBeenCalled();
     });
+
+    describe('clientContext top-level field', () => {
+      it('merges macapp clientContext into metadata.clientContext', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          clientContext: { kind: 'macapp', deviceId: 'dev-abc' },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: { clientContext: { kind: 'macapp', deviceId: 'dev-abc' } },
+          }),
+        );
+      });
+
+      it('merges web clientContext into metadata.clientContext', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          clientContext: { kind: 'web' },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: { clientContext: { kind: 'web' } },
+          }),
+        );
+      });
+
+      it('preserves existing metadata fields when merging clientContext', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          metadata: { source: 'api', trackingId: 't1' },
+          clientContext: { kind: 'macapp', deviceId: null },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: {
+              source: 'api',
+              trackingId: 't1',
+              clientContext: { kind: 'macapp', deviceId: null },
+            },
+          }),
+        );
+      });
+
+      it('leaves metadata untouched when clientContext is absent', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          metadata: { source: 'api' },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ metadata: { source: 'api' } }),
+        );
+      });
+    });
   });
 
   describe('startDeepResearch', () => {
