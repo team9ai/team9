@@ -92,6 +92,7 @@ The backend follows a modular NestJS architecture with two main applications:
   - Audit: change audit logging for channels, messages, and properties
   - WebSocket: Socket.io gateway for real-time events
 - **Workspace Module** ([apps/server/apps/gateway/src/workspace](apps/server/apps/gateway/src/workspace)): Multi-tenant workspace management
+- **Wikis Module** ([apps/server/apps/gateway/src/wikis](apps/server/apps/gateway/src/wikis)): folder9-backed knowledge base. `workspace_wikis` table tracks the per-workspace wiki catalog with per-role permissions (human/agent × read/propose/write) and `auto`/`review` approval modes. Reviewable commits flow through folder9 proposals; webhook ingress (`/api/folder9/webhook`) rebroadcasts events to the workspace room.
 - **Edition Module** ([apps/server/apps/gateway/src/edition](apps/server/apps/gateway/src/edition)): Dynamic feature loading for Community vs Enterprise editions
 
 **Edition System:**
@@ -103,6 +104,7 @@ The codebase supports Community and Enterprise editions via environment variable
 - Schemas organized by domain in [apps/server/libs/database/schemas](apps/server/libs/database/schemas):
   - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status, channel_property_definitions, message_properties, audit_logs, channel_views, channel_tabs
   - **tenant/**: tenants, tenant_members, workspace_invitations
+  - **wiki/**: workspace_wikis (Team9 pointer to folder9-backed wikis with permission + approval mode)
 - All migrations managed via `pnpm db:migrate`
 - Schema changes pushed via `pnpm db:push` (dev) or `pnpm db:generate` + `pnpm db:migrate` (prod)
 
@@ -113,9 +115,10 @@ The codebase supports Community and Enterprise editions via environment variable
 **State Management:**
 
 - **Zustand** for UI state: theme, user profile, loading states
-  - App store: [apps/client/src/stores/app.ts](apps/client/src/stores/app.ts)
-  - Workspace store: [apps/client/src/stores/workspace.ts](apps/client/src/stores/workspace.ts)
-  - Home store: [apps/client/src/stores/home.ts](apps/client/src/stores/home.ts)
+  - App store: [apps/client/src/stores/useAppStore.ts](apps/client/src/stores/useAppStore.ts)
+  - Workspace store: [apps/client/src/stores/useWorkspaceStore.ts](apps/client/src/stores/useWorkspaceStore.ts)
+  - Home store: [apps/client/src/stores/useHomeStore.ts](apps/client/src/stores/useHomeStore.ts)
+  - Wiki store: [apps/client/src/stores/useWikiStore.ts](apps/client/src/stores/useWikiStore.ts)
 - **TanStack React Query** for server state: messages, channels, users (caching, invalidation)
 - Local component state for UI-only interactions
 
@@ -168,6 +171,12 @@ Views & Tabs:
 
 - `view_created`, `view_updated`, `view_deleted`: View CRUD
 - `tab_created`, `tab_updated`, `tab_deleted`: Tab CRUD
+
+Wiki System:
+
+- `wiki_created`, `wiki_updated`, `wiki_archived`: Wiki lifecycle (service-emitted from `WikisService` mutations)
+- `wiki_page_updated`: Page content changed (webhook-emitted from folder9 `ref.updated`)
+- `wiki_proposal_created`, `wiki_proposal_approved`, `wiki_proposal_rejected`: Proposal lifecycle in review mode (webhook-emitted from folder9)
 
 **Message Features:**
 
@@ -242,3 +251,4 @@ Views & Tabs:
 - PostgreSQL (local or remote)
 - Redis (for caching/sessions)
 - RabbitMQ (for message queuing)
+- folder9 service (optional — required for Wiki feature; set `FOLDER9_API_URL`/`PSK`/`WEBHOOK_SECRET`)
