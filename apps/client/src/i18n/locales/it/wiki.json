@@ -179,5 +179,10 @@
       "rejectForbidden": "Non hai il permesso di rifiutare questa proposta.",
       "rejectFailed": "Rifiuto fallito. Riprova."
     }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki non trovato — potrebbe essere stato archiviato.",
+    "boundaryMessage": "Qualcosa è andato storto — riprova.",
+    "boundaryRetry": "Riprova"
   }
 }

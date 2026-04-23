@@ -179,5 +179,10 @@
       "rejectForbidden": "Je hebt geen rechten om dit voorstel af te wijzen.",
       "rejectFailed": "Afwijzen mislukt. Probeer het opnieuw."
     }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki niet gevonden — mogelijk gearchiveerd.",
+    "boundaryMessage": "Er is iets misgegaan — probeer het opnieuw.",
+    "boundaryRetry": "Opnieuw proberen"
   }
 }

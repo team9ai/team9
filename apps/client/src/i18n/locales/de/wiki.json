@@ -179,5 +179,10 @@
       "rejectForbidden": "Sie haben keine Berechtigung, diesen Vorschlag abzulehnen.",
       "rejectFailed": "Ablehnen fehlgeschlagen. Bitte erneut versuchen."
     }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki nicht gefunden — es wurde möglicherweise archiviert.",
+    "boundaryMessage": "Etwas ist schiefgelaufen — bitte erneut versuchen.",
+    "boundaryRetry": "Erneut versuchen"
   }
 }

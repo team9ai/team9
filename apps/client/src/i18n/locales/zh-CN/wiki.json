@@ -179,5 +179,10 @@
       "rejectForbidden": "你没有拒绝此提案的权限。",
       "rejectFailed": "拒绝失败，请重试。"
     }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki 未找到 — 可能已被归档。",
+    "boundaryMessage": "出现了一些问题 — 请重试。",
+    "boundaryRetry": "重试"
   }
 }

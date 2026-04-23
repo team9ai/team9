@@ -179,5 +179,10 @@
       "rejectForbidden": "この提案を拒否する権限がありません。",
       "rejectFailed": "拒否に失敗しました。もう一度お試しください。"
     }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki が見つかりません — アーカイブされた可能性があります。",
+    "boundaryMessage": "問題が発生しました — もう一度お試しください。",
+    "boundaryRetry": "再試行"
   }
 }

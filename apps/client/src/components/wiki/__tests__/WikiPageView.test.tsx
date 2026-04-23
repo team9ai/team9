@@ -121,9 +121,22 @@ describe("WikiPageView", () => {
     expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
   });
 
-  it("shows loading cue when the wiki id isn't in the fetched list yet", () => {
+  it("shows the not-found empty state when the wikis list resolves without the selected wiki (e.g. archived mid-session)", () => {
     mockUseWikiPage.mockReturnValue({ data: page, isLoading: false });
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md" />);
+    // The loading cue must NOT render — previously this condition produced
+    // an infinite loading state; now we render the empty-state copy so the
+    // user can recover.
+    expect(screen.queryByTestId("wiki-page-loading")).toBeNull();
+    expect(
+      screen.getByText(/not found/i, { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows loading cue when the wiki list is resolved but the page hasn't loaded yet", () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
     expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
   });

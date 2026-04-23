@@ -4,6 +4,7 @@ import { useWikiPage } from "@/hooks/useWikiPage";
 import { useWikis } from "@/hooks/useWikis";
 import { useSubmittedProposal } from "@/stores/useWikiStore";
 import { WikiCover } from "./WikiCover";
+import { WikiEmptyState } from "./WikiEmptyState";
 import { WikiPageHeader } from "./WikiPageHeader";
 import { WikiPageEditor } from "./WikiPageEditor";
 import { WikiProposalBanner } from "./WikiProposalBanner";
@@ -44,7 +45,25 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   const wiki = wikis?.find((w) => w.id === wikiId);
   const pendingProposalId = useSubmittedProposal(wikiId, path);
 
-  if (pageLoading || wikisLoading || !page || !wiki) {
+  // Split the loading / missing-wiki / missing-page checks.
+  //
+  // Previously the combined `|| !wiki` condition would render the loading
+  // spinner forever whenever the wikis query had finished but the selected
+  // wiki wasn't in the response (e.g. it was archived by another user
+  // mid-session). Now we surface an explicit "not found" empty state
+  // when the wikis list has resolved without the target id, so the user
+  // can recover by picking another wiki from the sidebar.
+  if (pageLoading || wikisLoading) {
+    return (
+      <div data-testid="wiki-page-loading" className="p-8">
+        {t("page.loading")}
+      </div>
+    );
+  }
+  if (!wiki) {
+    return <WikiEmptyState message={t("errors.wikiNotFound")} />;
+  }
+  if (!page) {
     return (
       <div data-testid="wiki-page-loading" className="p-8">
         {t("page.loading")}
