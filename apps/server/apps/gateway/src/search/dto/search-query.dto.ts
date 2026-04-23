@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsIn,
+  IsUUID,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class SearchQueryDto {
@@ -21,4 +29,9 @@ export class SearchQueryDto {
   @IsOptional()
   @IsIn(['message', 'channel', 'user', 'file'])
   type?: 'message' | 'channel' | 'user' | 'file';
+
+  /** Restrict message search to a specific channel (for message_ref scope=same_channel) */
+  @IsOptional()
+  @IsUUID()
+  channelId?: string;
 }

@@ -18,7 +18,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getErrorMessage } from "@/services/http";
 import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
 import { useTeam9PostHog } from "@/analytics/posthog/provider";
-import { captureWithBridge } from "@/analytics/posthog/capture";
+import {
+  captureWithBridge,
+  pushGtmConversion,
+} from "@/analytics/posthog/capture";
 import { EVENTS } from "@/analytics/posthog/events";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
@@ -568,7 +571,9 @@ function WebLoginView() {
           code,
         });
         if (authResponse.isNewUser) {
-          captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+          // PostHog capture now happens server-side in AuthService; frontend
+          // only pushes to GTM dataLayer for Google Ads conversion tracking.
+          pushGtmConversion(EVENTS.SIGNUP_COMPLETED, {
             signup_method: "email",
           });
         }
@@ -672,7 +677,8 @@ function WebLoginView() {
         code,
       });
       if (authResponse.isNewUser) {
-        captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+        // PostHog capture happens server-side; see doVerify above.
+        pushGtmConversion(EVENTS.SIGNUP_COMPLETED, {
           signup_method: "email",
         });
       }
@@ -727,7 +733,8 @@ function WebLoginView() {
         signupSource: invite ? "invite" : "self",
       });
       if (result.isNewUser) {
-        captureWithBridge(phClient, EVENTS.SIGNUP_COMPLETED, {
+        // PostHog capture happens server-side; see doVerify above.
+        pushGtmConversion(EVENTS.SIGNUP_COMPLETED, {
           signup_method: "google",
         });
       }

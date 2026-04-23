@@ -9,6 +9,7 @@ import { SectionsModule } from './sections/sections.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { PropertiesModule } from './properties/properties.module.js';
 import { ViewsModule } from './views/views.module.js';
+import { BotMessagingModule } from './bot/bot-messaging.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ViewsModule } from './views/views.module.js';
     AuditModule,
     PropertiesModule,
     ViewsModule,
+    BotMessagingModule,
   ],
   exports: [
     AuthModule,

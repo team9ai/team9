@@ -16,11 +16,12 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+const { messages, channelPropertyDefinitions } = schema;
 import type {
   NewMessageProperty,
   MessageProperty,
 } from '@team9/database/schemas';
-import type { PropertyValueType } from '@team9/shared';
+import type { PropertyValueType, MessageRefConfig } from '@team9/shared';
 import { WS_EVENTS } from '@team9/shared';
 import {
   PropertyDefinitionsService,
@@ -29,6 +30,7 @@ import {
 import { AuditService } from '../audit/audit.service.js';
 import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import { MessageRelationsService } from './message-relations.service.js';
 
 /** Allowed message types for properties */
 const ALLOWED_MESSAGE_TYPES = new Set(['text', 'long_text', 'file', 'image']);
@@ -43,6 +45,7 @@ export class MessagePropertiesService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly auditService: AuditService,
+    private readonly relationsService: MessageRelationsService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -71,6 +74,177 @@ export class MessagePropertiesService {
   }
 
   /**
+   * Inspect all relation edges for a given message.
+   * Returns both outgoing (parent chain + related targets) and
+   * incoming (children + relatedBy sources).
+   */
+  async getRelationsInspection(
+    messageId: string,
+    opts: {
+      kind?: 'parent' | 'related' | 'all';
+      direction?: 'outgoing' | 'incoming' | 'both';
+      depth?: number;
+    } = {},
+  ): Promise<{
+    outgoing: {
+      parent: {
+        messageId: string;
+        depth: number;
+        propertyDefinitionId: string;
+        parentSource: 'relation' | 'thread';
+      }[];
+      related: { messageId: string; propertyDefinitionId: string }[];
+    };
+    incoming: {
+      children: {
+        messageId: string;
+        depth: number;
+        propertyDefinitionId: string;
+        parentSource: 'relation' | 'thread';
+      }[];
+      relatedBy: { messageId: string; propertyDefinitionId: string }[];
+    };
+  }> {
+    const kind = opts.kind ?? 'all';
+    const direction = opts.direction ?? 'both';
+    const depth = Math.min(Math.max(opts.depth ?? 1, 1), 10);
+
+    const emptyResult = {
+      outgoing: { parent: [], related: [] },
+      incoming: { children: [], relatedBy: [] },
+    };
+
+    // Look up the message's channel
+    const [msg] = await this.db
+      .select({ channelId: messages.channelId })
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+
+    if (!msg) return emptyResult;
+
+    const result = {
+      outgoing: {
+        parent: [] as {
+          messageId: string;
+          depth: number;
+          propertyDefinitionId: string;
+          parentSource: 'relation' | 'thread';
+        }[],
+        related: [] as { messageId: string; propertyDefinitionId: string }[],
+      },
+      incoming: {
+        children: [] as {
+          messageId: string;
+          depth: number;
+          propertyDefinitionId: string;
+          parentSource: 'relation' | 'thread';
+        }[],
+        relatedBy: [] as { messageId: string; propertyDefinitionId: string }[],
+      },
+    };
+
+    // Fetch all property definitions for this channel
+    const defs = await this.db
+      .select({
+        id: channelPropertyDefinitions.id,
+        config: channelPropertyDefinitions.config,
+      })
+      .from(channelPropertyDefinitions)
+      .where(eq(channelPropertyDefinitions.channelId, msg.channelId));
+
+    const parentDefs = defs.filter(
+      (d) => (d.config as MessageRefConfig | null)?.relationKind === 'parent',
+    );
+    const relatedDefs = defs.filter(
+      (d) => (d.config as MessageRefConfig | null)?.relationKind === 'related',
+    );
+
+    // Outgoing parent: follow parent chain up to `depth` levels
+    if (
+      (kind === 'parent' || kind === 'all') &&
+      (direction === 'outgoing' || direction === 'both')
+    ) {
+      for (const def of parentDefs) {
+        let cur: string | null = messageId;
+        let d = 1;
+        while (cur && d <= depth) {
+          const eff = await this.relationsService.getEffectiveParent(
+            cur,
+            def.id,
+          );
+          if (!eff) break;
+          result.outgoing.parent.push({
+            messageId: eff.id,
+            depth: d,
+            propertyDefinitionId: def.id,
+            parentSource: eff.source,
+          });
+          cur = eff.id;
+          d++;
+        }
+      }
+    }
+
+    // Outgoing related targets
+    if (
+      (kind === 'related' || kind === 'all') &&
+      (direction === 'outgoing' || direction === 'both')
+    ) {
+      for (const def of relatedDefs) {
+        const targets = await this.relationsService.getOutgoingTargets(
+          messageId,
+          def.id,
+        );
+        for (const t of targets) {
+          result.outgoing.related.push({
+            messageId: t,
+            propertyDefinitionId: def.id,
+          });
+        }
+      }
+    }
+
+    // Incoming children (messages that point to messageId as parent)
+    if (
+      (kind === 'parent' || kind === 'all') &&
+      (direction === 'incoming' || direction === 'both')
+    ) {
+      const sources = await this.relationsService.getIncomingSources(
+        messageId,
+        'parent',
+      );
+      for (const s of sources) {
+        result.incoming.children.push({
+          messageId: s.sourceMessageId,
+          depth: 1,
+          propertyDefinitionId: s.propertyDefinitionId,
+          parentSource: 'relation',
+        });
+      }
+    }
+
+    // Incoming relatedBy (messages that point to messageId as related)
+    if (
+      (kind === 'related' || kind === 'all') &&
+      (direction === 'incoming' || direction === 'both')
+    ) {
+      const sources = await this.relationsService.getIncomingSources(
+        messageId,
+        'related',
+      );
+      for (const s of sources) {
+        result.incoming.relatedBy.push({
+          messageId: s.sourceMessageId,
+          propertyDefinitionId: s.propertyDefinitionId,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Get all properties for a message as a key-value map.
    * Keys are the property definition keys, values are the extracted values.
    */
@@ -93,7 +267,11 @@ export class MessagePropertiesService {
       const def = definitions.get(row.propertyDefinitionId);
       if (!def) continue;
       if (opts?.excludeHidden && def.showInChatPolicy === 'hide') continue;
-      result[def.key] = this.extractValue(row, def.valueType);
+      result[def.key] = await this.extractValueWithRelations(
+        messageId,
+        row,
+        def,
+      );
     }
     return result;
   }
@@ -127,6 +305,30 @@ export class MessagePropertiesService {
         )
       : definitions;
 
+    // Pre-fetch all relation targets in batch, grouped by definition, to avoid N+1 queries.
+    // For each visible relationKind definition, issue one query covering all source message IDs.
+    const relationTargetMaps = new Map<string, Map<string, string[]>>();
+    for (const [defId, def] of visibleDefs) {
+      const cfg =
+        def.valueType === 'message_ref'
+          ? (def.config as MessageRefConfig | null)
+          : null;
+      if (!cfg?.relationKind) continue;
+
+      // Collect source message IDs that have a property row for this definition
+      const sourceIds = rows
+        .filter((r) => r.propertyDefinitionId === defId)
+        .map((r) => r.messageId);
+
+      if (sourceIds.length > 0) {
+        const map = await this.relationsService.getOutgoingTargetsForMany(
+          sourceIds,
+          defId,
+        );
+        relationTargetMaps.set(defId, map);
+      }
+    }
+
     const result: Record<string, Record<string, unknown>> = {};
     for (const row of rows) {
       const def = visibleDefs.get(row.propertyDefinitionId);
@@ -135,7 +337,27 @@ export class MessagePropertiesService {
       if (!result[row.messageId]) {
         result[row.messageId] = {};
       }
-      result[row.messageId][def.key] = this.extractValue(row, def.valueType);
+
+      const cfg =
+        def.valueType === 'message_ref'
+          ? (def.config as MessageRefConfig | null)
+          : null;
+
+      if (cfg?.relationKind) {
+        // Check for explicit clear sentinel
+        const cleared = row.jsonValue as { explicitlyCleared?: boolean } | null;
+        if (cleared?.explicitlyCleared === true) {
+          result[row.messageId][def.key] =
+            cfg.cardinality === 'single' ? null : [];
+        } else {
+          const targets =
+            relationTargetMaps.get(def.id)?.get(row.messageId) ?? [];
+          result[row.messageId][def.key] =
+            cfg.cardinality === 'single' ? (targets[0] ?? null) : targets;
+        }
+      } else {
+        result[row.messageId][def.key] = this.extractValue(row, def.valueType);
+      }
     }
     return result;
   }
@@ -159,6 +381,24 @@ export class MessagePropertiesService {
       throw new BadRequestException(
         'Property definition does not belong to this channel',
       );
+    }
+
+    // Branch: relationKind definitions route to message_relations table
+    const relConfig =
+      definition.valueType === 'message_ref'
+        ? (definition.config as MessageRefConfig | null)
+        : null;
+    if (relConfig?.relationKind) {
+      return this.setRelationKindProperty({
+        message,
+        definition: {
+          id: definition.id,
+          key: definition.key,
+          config: relConfig,
+        },
+        value,
+        userId,
+      });
     }
 
     const mappedValues = this.validateAndMapValue(definition.valueType, value);
@@ -237,6 +477,24 @@ export class MessagePropertiesService {
       );
     }
 
+    // Branch: relationKind definitions delegate removal to relations service
+    const relConfig =
+      definition.valueType === 'message_ref'
+        ? (definition.config as MessageRefConfig | null)
+        : null;
+    if (relConfig?.relationKind) {
+      return this.setRelationKindProperty({
+        message,
+        definition: {
+          id: definition.id,
+          key: definition.key,
+          config: relConfig,
+        },
+        value: null,
+        userId,
+      });
+    }
+
     const existing = await this.findExisting(messageId, definitionId);
     if (!existing) {
       throw new NotFoundException('Property value not found');
@@ -313,8 +571,10 @@ export class MessagePropertiesService {
       }
     }
 
-    // Phase 1: Resolve all definitions outside the transaction
+    // Phase 1: Resolve all definitions outside the transaction.
     // (findOrCreate may create definitions, which is a separate concern)
+    // relationKind properties are routed to setRelationKindProperty immediately —
+    // they manage their own transaction, audit, and WS events.
     const resolvedDefinitions: {
       key: string;
       value: unknown;
@@ -333,12 +593,36 @@ export class MessagePropertiesService {
         effectiveUserId,
         allowCreate,
       );
+
+      // Route relationKind properties through the dedicated handler which
+      // enforces scope, cycle detection, cardinality, and emits the correct WS events.
+      const relConfig =
+        definition.valueType === 'message_ref'
+          ? (definition.config as MessageRefConfig | null)
+          : null;
+      if (relConfig?.relationKind) {
+        await this.setRelationKindProperty({
+          message,
+          definition: {
+            id: definition.id,
+            key: definition.key,
+            config: relConfig,
+          },
+          value,
+          userId: effectiveUserId,
+        });
+        continue; // skip jsonValue write and batch audit for this property
+      }
+
       const mappedValues = this.validateAndMapValue(
         definition.valueType,
         value,
       );
       resolvedDefinitions.push({ key, value, definition, mappedValues });
     }
+
+    // If all properties were relationKind, there is nothing left to write.
+    if (resolvedDefinitions.length === 0) return;
 
     // Phase 2: Perform all message property writes atomically in a transaction
     // Collect audit entries to write after the transaction commits
@@ -435,17 +719,196 @@ export class MessagePropertiesService {
       }
     }
 
-    // Single WebSocket broadcast for the entire batch
+    // Single WebSocket broadcast for non-relationKind properties in the batch.
+    // (relationKind properties already emit their own targeted events via setRelationKindProperty)
+    if (Object.keys(setMap).length > 0) {
+      await this.wsGateway.sendToChannelMembers(
+        message.channelId,
+        WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
+        {
+          channelId: message.channelId,
+          messageId,
+          properties: { set: setMap, removed: [] },
+          performedBy: effectiveUserId,
+        },
+      );
+    }
+  }
+
+  // ==================== RelationKind routing ====================
+
+  /**
+   * Route a write for a `message_ref` property whose config has `relationKind` set.
+   * - Delegates target edge management to MessageRelationsService.
+   * - Upserts a sentinel row in message_properties (null = has targets, { explicitlyCleared:true } = cleared).
+   * - Writes an audit entry with addedTargetIds / removedTargetIds.
+   */
+  private async setRelationKindProperty(params: {
+    message: { id: string; channelId: string };
+    definition: { id: string; key: string; config: MessageRefConfig };
+    value: unknown;
+    userId: string;
+  }): Promise<void> {
+    const { message, definition, value, userId } = params;
+    const config = definition.config;
+
+    const explicitClear = value === null || value === undefined;
+    const targetIds: string[] = explicitClear
+      ? []
+      : Array.isArray(value)
+        ? (value as string[])
+        : [value as string];
+
+    // Wrap setRelationTargets + sentinel upsert in a single outer transaction (spec §2.5)
+    const diff = await this.db.transaction(async (tx) => {
+      const d = await this.relationsService.setRelationTargets(
+        {
+          sourceMessageId: message.id,
+          targetMessageIds: targetIds,
+          definition: {
+            id: definition.id,
+            channelId: message.channelId,
+            config,
+          },
+          actorId: userId,
+        },
+        tx,
+      );
+
+      // Upsert sentinel row: null means "managed by relations", { explicitlyCleared:true } means "cleared"
+      const jsonValue = explicitClear ? { explicitlyCleared: true } : null;
+      const now = new Date();
+
+      const existing = await tx
+        .select()
+        .from(schema.messageProperties)
+        .where(
+          and(
+            eq(schema.messageProperties.messageId, message.id),
+            eq(schema.messageProperties.propertyDefinitionId, definition.id),
+          ),
+        )
+        .limit(1)
+        .then((rows) => rows[0] ?? null);
+
+      if (existing) {
+        await tx
+          .update(schema.messageProperties)
+          .set({ jsonValue, updatedBy: userId, updatedAt: now })
+          .where(eq(schema.messageProperties.id, existing.id));
+      } else {
+        await tx.insert(schema.messageProperties).values({
+          id: uuidv7(),
+          messageId: message.id,
+          propertyDefinitionId: definition.id,
+          textValue: null,
+          numberValue: null,
+          booleanValue: null,
+          dateValue: null,
+          jsonValue,
+          fileKey: null,
+          fileMetadata: null,
+          createdBy: userId,
+          updatedBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      return d;
+    });
+
+    // Audit log after txn commits — best effort, consistent with existing pattern
+    await this.auditService.log({
+      channelId: message.channelId,
+      entityType: 'message',
+      entityId: message.id,
+      action: explicitClear ? 'property_removed' : 'property_set',
+      changes: {
+        [definition.key]: {
+          old: diff.removedTargetIds,
+          new: diff.addedTargetIds,
+        },
+      },
+      performedBy: userId,
+      metadata: {
+        definitionId: definition.id,
+        valueType: 'message_ref',
+        relationKind: config.relationKind,
+        addedTargetIds: diff.addedTargetIds,
+        removedTargetIds: diff.removedTargetIds,
+        ...(explicitClear ? { explicitlyCleared: true } : {}),
+      },
+    });
+
+    // Determine the action type for the relation-changed event
+    const action: 'added' | 'removed' | 'replaced' =
+      diff.removedTargetIds.length > 0 && diff.addedTargetIds.length > 0
+        ? 'replaced'
+        : diff.addedTargetIds.length > 0
+          ? 'added'
+          : 'removed';
+
+    // Emit message_relation_changed BEFORE message_property_changed (order guarantee)
+    await this.wsGateway.emitRelationChanged({
+      channelId: message.channelId,
+      sourceMessageId: message.id,
+      propertyDefinitionId: definition.id,
+      propertyKey: definition.key,
+      relationKind: config.relationKind!,
+      action,
+      addedTargetIds: diff.addedTargetIds,
+      removedTargetIds: diff.removedTargetIds,
+      currentTargetIds: diff.currentTargetIds,
+      performedBy: userId,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Emit the legacy message_property_changed event with relationKind marker
+    // Clients should NOT use the value (no target ids here) — they read from the relation event
     await this.wsGateway.sendToChannelMembers(
       message.channelId,
       WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
       {
         channelId: message.channelId,
-        messageId,
-        properties: { set: setMap, removed: [] },
-        performedBy: effectiveUserId,
+        messageId: message.id,
+        properties: { set: { [definition.key]: null }, removed: [] },
+        relationKind: config.relationKind,
+        ...(explicitClear ? { explicitlyCleared: true } : {}),
+        performedBy: userId,
       },
     );
+  }
+
+  /**
+   * Extract the value for a property, routing relation-kind definitions to the
+   * message_relations table instead of jsonValue.
+   */
+  private async extractValueWithRelations(
+    messageId: string,
+    row: MessageProperty,
+    def: PropertyDefinitionRow,
+  ): Promise<unknown> {
+    const cfg =
+      def.valueType === 'message_ref'
+        ? (def.config as MessageRefConfig | null)
+        : null;
+
+    if (cfg?.relationKind) {
+      // Check for explicit clear sentinel
+      const cleared = row.jsonValue as { explicitlyCleared?: boolean } | null;
+      if (cleared?.explicitlyCleared === true) {
+        return cfg.cardinality === 'single' ? null : [];
+      }
+      // Assemble from relations table
+      const targets = await this.relationsService.getOutgoingTargets(
+        messageId,
+        def.id,
+      );
+      return cfg.cardinality === 'single' ? (targets[0] ?? null) : targets;
+    }
+
+    return this.extractValue(row, def.valueType);
   }
 
   // ==================== Validation Helpers ====================

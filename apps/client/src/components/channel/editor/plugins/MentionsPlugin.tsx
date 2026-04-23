@@ -38,6 +38,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { IMUser } from "@/types/im";
+import {
+  isImeCompositionEvent,
+  useIsComposingRef,
+} from "./CompositionStatePlugin";
 
 const PUNCTUATION =
   "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\!%'\"~=<>_:;";
@@ -149,6 +153,7 @@ interface MentionsPluginProps {
 
 export function MentionsPlugin({ channelId }: MentionsPluginProps) {
   const [editor] = useLexicalComposerContext();
+  const isComposingRef = useIsComposingRef();
   const { t } = useTranslation("channel");
   const [queryString, setQueryString] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -392,6 +397,12 @@ export function MentionsPlugin({ channelId }: MentionsPluginProps) {
       editor.registerCommand(
         KEY_ENTER_COMMAND,
         (event) => {
+          // Enter during IME composition should commit the candidate word,
+          // not pick a mention suggestion. See CompositionStatePlugin for
+          // the WKWebView-specific event ordering this guards against.
+          if (isImeCompositionEvent(event, isComposingRef)) {
+            return false;
+          }
           if (suggestions.length > 0) {
             event?.preventDefault();
             handleSelectUser(suggestions[selectedIndex]);
@@ -423,7 +434,14 @@ export function MentionsPlugin({ channelId }: MentionsPluginProps) {
         COMMAND_PRIORITY_HIGH,
       ),
     );
-  }, [editor, showDropdown, suggestions, selectedIndex, handleSelectUser]);
+  }, [
+    editor,
+    showDropdown,
+    suggestions,
+    selectedIndex,
+    handleSelectUser,
+    isComposingRef,
+  ]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

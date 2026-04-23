@@ -59,6 +59,8 @@ import {
   type TabCreatedEvent,
   type TabUpdatedEvent,
   type TabDeletedEvent,
+  type MessageRelationChangedEvent,
+  type MessageRelationsPurgedEvent,
 } from "@/types/ws-events";
 
 type EventCallback<TEvent = unknown> = (event: TEvent) => void;
@@ -846,6 +848,72 @@ class WebSocketService {
 
   offTabDeleted(callback: (event: TabDeletedEvent) => void): void {
     this.off<TabDeletedEvent>(WS_EVENTS.TAB.DELETED, callback);
+  }
+
+  // ── Relation Events ──────────────────────────────────
+
+  onRelationChanged(
+    callback: (event: MessageRelationChangedEvent) => void,
+  ): () => void {
+    const listener = callback as EventCallback;
+    if (!this.socket?.connected) {
+      this.pendingListeners.push({
+        event: WS_EVENTS.PROPERTY.RELATION_CHANGED,
+        callback: listener,
+      });
+      return () =>
+        this.off<MessageRelationChangedEvent>(
+          WS_EVENTS.PROPERTY.RELATION_CHANGED,
+          callback,
+        );
+    }
+    this.socket.on(WS_EVENTS.PROPERTY.RELATION_CHANGED, listener);
+    return () =>
+      this.off<MessageRelationChangedEvent>(
+        WS_EVENTS.PROPERTY.RELATION_CHANGED,
+        callback,
+      );
+  }
+
+  offRelationChanged(
+    callback: (event: MessageRelationChangedEvent) => void,
+  ): void {
+    this.off<MessageRelationChangedEvent>(
+      WS_EVENTS.PROPERTY.RELATION_CHANGED,
+      callback,
+    );
+  }
+
+  onRelationsPurged(
+    callback: (event: MessageRelationsPurgedEvent) => void,
+  ): () => void {
+    const listener = callback as EventCallback;
+    if (!this.socket?.connected) {
+      this.pendingListeners.push({
+        event: WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+        callback: listener,
+      });
+      return () =>
+        this.off<MessageRelationsPurgedEvent>(
+          WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+          callback,
+        );
+    }
+    this.socket.on(WS_EVENTS.PROPERTY.RELATIONS_PURGED, listener);
+    return () =>
+      this.off<MessageRelationsPurgedEvent>(
+        WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+        callback,
+      );
+  }
+
+  offRelationsPurged(
+    callback: (event: MessageRelationsPurgedEvent) => void,
+  ): void {
+    this.off<MessageRelationsPurgedEvent>(
+      WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+      callback,
+    );
   }
 }
 

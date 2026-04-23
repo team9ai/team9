@@ -25,3 +25,18 @@ export function captureWithBridge(
     window.dataLayer.push({ event: gtmEvent, ...properties });
   }
 }
+
+/**
+ * Push a conversion event to window.dataLayer only, without firing PostHog.
+ * Use when PostHog capture already happens server-side and the client just
+ * needs to signal ad platforms via GTM (e.g. Google Ads conversion tracking).
+ */
+export function pushGtmConversion(
+  event: string,
+  properties?: Record<string, unknown>,
+): void {
+  const gtmEvent = GTM_BRIDGE_EVENTS[event];
+  if (!gtmEvent || typeof window === "undefined") return;
+  window.dataLayer = window.dataLayer ?? [];
+  window.dataLayer.push({ event: gtmEvent, ...properties });
+}
