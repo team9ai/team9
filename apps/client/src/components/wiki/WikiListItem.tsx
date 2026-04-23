@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { useWikiTree } from "@/hooks/useWikiTree";
 import {
-  useExpandedDirectories,
   useSelectedWikiId,
+  useWikiStore,
   wikiActions,
 } from "@/stores/useWikiStore";
 import { buildTree } from "@/lib/wiki-tree";
@@ -83,9 +83,10 @@ function archiveErrorMessage(error: unknown): string {
  */
 export function WikiListItem({ wiki }: WikiListItemProps) {
   const { t } = useTranslation("wiki");
-  const expanded = useExpandedDirectories();
   const expandKey = `wiki:${wiki.id}`;
-  const isOpen = expanded.has(expandKey);
+  // Scoped per-wiki selector: only re-renders this row when its own
+  // expansion state flips, not when any other wiki toggles.
+  const isOpen = useWikiStore((s) => s.expandedDirectories.has(expandKey));
 
   const { data: entries } = useWikiTree(isOpen ? wiki.id : null);
   const tree = useMemo(() => (entries ? buildTree(entries) : []), [entries]);

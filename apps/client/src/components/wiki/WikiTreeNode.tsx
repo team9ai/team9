@@ -2,8 +2,8 @@ import { ChevronDown, ChevronRight, FileText, Folder } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import {
-  useExpandedDirectories,
   useSelectedPagePath,
+  useWikiStore,
   wikiActions,
 } from "@/stores/useWikiStore";
 import type { WikiTreeNodeData } from "@/lib/wiki-tree";
@@ -23,10 +23,12 @@ interface WikiTreeNodeProps {
  */
 export function WikiTreeNode({ node, wikiSlug, depth }: WikiTreeNodeProps) {
   const navigate = useNavigate();
-  const expanded = useExpandedDirectories();
+  // Per-key selector subscription: instead of pulling the entire Set and
+  // re-rendering on ANY expansion change, we subscribe only to this node's
+  // boolean. With thousands of tree nodes this limits the re-render churn
+  // when the user toggles one directory to only the affected subtree.
+  const isExpanded = useWikiStore((s) => s.expandedDirectories.has(node.path));
   const selectedPath = useSelectedPagePath();
-
-  const isExpanded = expanded.has(node.path);
   const isActive = node.type === "file" && selectedPath === node.path;
 
   const handleClick = () => {
