@@ -706,6 +706,27 @@ export interface MessageRelationsPurgedEvent {
 
 // ==================== Tab Event Types ====================
 
+export interface MessageRelationChangedEvent {
+  channelId: string;
+  sourceMessageId: string;
+  propertyDefinitionId: string;
+  propertyKey: string;
+  relationKind: "parent" | "related";
+  action: "added" | "removed" | "replaced";
+  addedTargetIds: string[];
+  removedTargetIds: string[];
+  currentTargetIds: string[];
+  performedBy: string;
+  timestamp: string;
+}
+
+/** Message relations purged event — broadcast when a message is soft-deleted */
+export interface MessageRelationsPurgedEvent {
+  channelId: string;
+  deletedMessageId: string;
+  affectedSourceIds: string[];
+}
+
 /** Tab created event */
 export interface TabCreatedEvent {
   channelId: string;
@@ -803,4 +824,7 @@ export interface ServerToClientEvents {
   tab_created: TabCreatedEvent;
   tab_updated: TabUpdatedEvent;
   tab_deleted: TabDeletedEvent;
+  // Message relations
+  message_relation_changed: MessageRelationChangedEvent;
+  message_relations_purged: MessageRelationsPurgedEvent;
 }

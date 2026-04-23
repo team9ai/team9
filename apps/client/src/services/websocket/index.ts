@@ -925,6 +925,18 @@ class WebSocketService {
       callback,
     );
   }
+
+  // ── ahand Room ───────────────────────────────────
+
+  joinAhandRoom(room: string): void {
+    if (!this.socket) return;
+    this.socket.emit("ahand:join_room", { room });
+  }
+
+  leaveAhandRoom(room: string): void {
+    if (!this.socket) return;
+    this.socket.emit("ahand:leave_room", { room });
+  }
 }
 
 // Create singleton instance
