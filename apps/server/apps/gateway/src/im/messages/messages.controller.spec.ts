@@ -595,7 +595,9 @@ describe('MessagesController', () => {
 
     describe('clientContext top-level field', () => {
       it('merges macapp clientContext into metadata.clientContext', async () => {
-        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
 
         await controller.createMessage(USER_ID, CHANNEL_ID, {
           clientMsgId: CLIENT_MSG_ID,
@@ -605,13 +607,17 @@ describe('MessagesController', () => {
 
         expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
           expect.objectContaining({
-            metadata: { clientContext: { kind: 'macapp', deviceId: 'dev-abc' } },
+            metadata: {
+              clientContext: { kind: 'macapp', deviceId: 'dev-abc' },
+            },
           }),
         );
       });
 
       it('merges web clientContext into metadata.clientContext', async () => {
-        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
 
         await controller.createMessage(USER_ID, CHANNEL_ID, {
           clientMsgId: CLIENT_MSG_ID,
@@ -627,7 +633,9 @@ describe('MessagesController', () => {
       });
 
       it('preserves existing metadata fields when merging clientContext', async () => {
-        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
 
         await controller.createMessage(USER_ID, CHANNEL_ID, {
           clientMsgId: CLIENT_MSG_ID,
@@ -648,7 +656,9 @@ describe('MessagesController', () => {
       });
 
       it('leaves metadata untouched when clientContext is absent', async () => {
-        messagesService.getMessageWithDetails.mockResolvedValueOnce(makeMessage());
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
 
         await controller.createMessage(USER_ID, CHANNEL_ID, {
           clientMsgId: CLIENT_MSG_ID,

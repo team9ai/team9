@@ -122,9 +122,7 @@ function makeEventsGateway() {
 function sign(body: string, timestamp: string): string {
   return (
     'sha256=' +
-    createHmac('sha256', SECRET)
-      .update(`${timestamp}.${body}`)
-      .digest('hex')
+    createHmac('sha256', SECRET).update(`${timestamp}.${body}`).digest('hex')
   );
 }
 
@@ -196,7 +194,11 @@ describe('AhandWebhookService', () => {
 
     it('rejects legacy body-only HMAC (must be {ts}.{body})', () => {
       expect(() =>
-        svc.verifySignature(body, signLegacyBodyOnly(body.toString()), nowSec()),
+        svc.verifySignature(
+          body,
+          signLegacyBodyOnly(body.toString()),
+          nowSec(),
+        ),
       ).toThrow(UnauthorizedException);
     });
 
