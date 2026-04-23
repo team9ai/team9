@@ -12,10 +12,12 @@ import {
   useRejectProposal,
   useWikiProposals,
 } from "@/hooks/useWikiProposals";
+import { useWikiWebSocketSync } from "@/hooks/useWikiWebSocketSync";
 import i18n from "@/i18n";
 import { getHttpErrorStatus } from "@/lib/http-error";
 import { resolveClientPermission } from "@/lib/wiki-permission";
 import type { ProposalDiffEntry, ProposalDto, WikiDto } from "@/types/wiki";
+import { WikiErrorBoundary } from "./WikiErrorBoundary";
 
 export interface ProposalDiffViewProps {
   wiki: WikiDto;
@@ -171,6 +173,11 @@ function rejectErrorMessage(error: unknown): string {
  * lands on a freshly-pruned queue.
  */
 export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
+  // Mount WS listener for this route — `/wiki/:slug/-/review/:proposalId`
+  // isn't rendered through WikiMainContent, so without this the detail view
+  // wouldn't react to `wiki_proposal_approved`/`_rejected`/`_page_updated`
+  // events while the reviewer is looking at the diff.
+  useWikiWebSocketSync();
   const { t } = useTranslation("wiki");
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
@@ -233,184 +240,186 @@ export function ProposalDiffView({ wiki, proposalId }: ProposalDiffViewProps) {
   };
 
   return (
-    <div
-      className="flex-1 flex flex-col min-h-0"
-      data-testid="proposal-diff-view"
-    >
-      <header className="px-6 pt-6 pb-4 border-b border-border">
-        <button
-          type="button"
-          onClick={goBackToList}
-          className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          data-testid="proposal-diff-back"
-        >
-          <ArrowLeft size={12} aria-hidden />
-          {t("proposalDiff.back")}
-        </button>
-        <div className="flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <h1
-              className="text-lg font-semibold truncate"
-              data-testid="proposal-diff-title"
-            >
-              {proposal?.title ||
-                t("proposalDiff.proposalFallbackTitle", { id: proposalId })}
-            </h1>
-            {proposal?.description ? (
-              <p
-                className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap"
-                data-testid="proposal-diff-description"
+    <WikiErrorBoundary>
+      <div
+        className="flex-1 flex flex-col min-h-0"
+        data-testid="proposal-diff-view"
+      >
+        <header className="px-6 pt-6 pb-4 border-b border-border">
+          <button
+            type="button"
+            onClick={goBackToList}
+            className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            data-testid="proposal-diff-back"
+          >
+            <ArrowLeft size={12} aria-hidden />
+            {t("proposalDiff.back")}
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <h1
+                className="text-lg font-semibold truncate"
+                data-testid="proposal-diff-title"
               >
-                {proposal.description}
-              </p>
-            ) : null}
-            {proposal ? (
-              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge
-                  variant="outline"
-                  className="text-[10px] uppercase tracking-wide"
+                {proposal?.title ||
+                  t("proposalDiff.proposalFallbackTitle", { id: proposalId })}
+              </h1>
+              {proposal?.description ? (
+                <p
+                  className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap"
+                  data-testid="proposal-diff-description"
                 >
-                  {proposal.status}
-                </Badge>
-                <span>
-                  {proposal.authorType === "agent"
-                    ? t("proposalDiff.authorAgent")
-                    : t("proposalDiff.authorUser")}{" "}
-                  {proposal.authorId}
-                </span>
-                <span aria-hidden>·</span>
-                <span>{new Date(proposal.createdAt).toLocaleString()}</span>
+                  {proposal.description}
+                </p>
+              ) : null}
+              {proposal ? (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] uppercase tracking-wide"
+                  >
+                    {proposal.status}
+                  </Badge>
+                  <span>
+                    {proposal.authorType === "agent"
+                      ? t("proposalDiff.authorAgent")
+                      : t("proposalDiff.authorUser")}{" "}
+                    {proposal.authorId}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <span>{new Date(proposal.createdAt).toLocaleString()}</span>
+                </div>
+              ) : null}
+            </div>
+
+            {canReview && proposal?.status === "pending" && (
+              <div
+                className="flex items-center gap-2 shrink-0"
+                data-testid="proposal-diff-actions"
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowRejectForm((open) => !open)}
+                  disabled={approve.isPending || reject.isPending}
+                  data-testid="proposal-diff-reject-toggle"
+                >
+                  <X size={14} className="mr-1" aria-hidden />
+                  {t("proposalDiff.reject")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleApprove()}
+                  disabled={approve.isPending || reject.isPending}
+                  data-testid="proposal-diff-approve"
+                >
+                  {approve.isPending ? (
+                    <Loader2
+                      size={14}
+                      className="mr-1 animate-spin"
+                      aria-hidden
+                    />
+                  ) : (
+                    <Check size={14} className="mr-1" aria-hidden />
+                  )}
+                  {t("proposalDiff.approve")}
+                </Button>
               </div>
-            ) : null}
+            )}
           </div>
 
-          {canReview && proposal?.status === "pending" && (
+          {showRejectForm && canReview && (
             <div
-              className="flex items-center gap-2 shrink-0"
-              data-testid="proposal-diff-actions"
+              className="mt-3 p-3 rounded border border-border bg-muted/20 space-y-2"
+              data-testid="proposal-diff-reject-form"
             >
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setShowRejectForm((open) => !open)}
-                disabled={approve.isPending || reject.isPending}
-                data-testid="proposal-diff-reject-toggle"
+              <label
+                htmlFor="proposal-diff-reject-reason"
+                className="block text-xs font-medium"
               >
-                <X size={14} className="mr-1" aria-hidden />
-                {t("proposalDiff.reject")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void handleApprove()}
-                disabled={approve.isPending || reject.isPending}
-                data-testid="proposal-diff-approve"
-              >
-                {approve.isPending ? (
-                  <Loader2
-                    size={14}
-                    className="mr-1 animate-spin"
-                    aria-hidden
-                  />
-                ) : (
-                  <Check size={14} className="mr-1" aria-hidden />
-                )}
-                {t("proposalDiff.approve")}
-              </Button>
+                {t("proposalDiff.rejectReasonLabel")}
+              </label>
+              <textarea
+                id="proposal-diff-reject-reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+                className="w-full resize-y rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder={t("proposalDiff.rejectReasonPlaceholder")}
+                data-testid="proposal-diff-reject-reason"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowRejectForm(false);
+                    setRejectReason("");
+                  }}
+                  disabled={reject.isPending}
+                  data-testid="proposal-diff-reject-cancel"
+                >
+                  {t("proposalDiff.rejectCancel")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => void handleReject()}
+                  disabled={reject.isPending || approve.isPending}
+                  data-testid="proposal-diff-reject-confirm"
+                >
+                  {reject.isPending ? (
+                    <Loader2
+                      size={14}
+                      className="mr-1 animate-spin"
+                      aria-hidden
+                    />
+                  ) : null}
+                  {t("proposalDiff.rejectConfirm")}
+                </Button>
+              </div>
             </div>
           )}
-        </div>
+        </header>
 
-        {showRejectForm && canReview && (
-          <div
-            className="mt-3 p-3 rounded border border-border bg-muted/20 space-y-2"
-            data-testid="proposal-diff-reject-form"
-          >
-            <label
-              htmlFor="proposal-diff-reject-reason"
-              className="block text-xs font-medium"
+        <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
+          {diffLoading && (
+            <p
+              className="text-xs text-muted-foreground"
+              data-testid="proposal-diff-loading"
             >
-              {t("proposalDiff.rejectReasonLabel")}
-            </label>
-            <textarea
-              id="proposal-diff-reject-reason"
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              rows={3}
-              className="w-full resize-y rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder={t("proposalDiff.rejectReasonPlaceholder")}
-              data-testid="proposal-diff-reject-reason"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setShowRejectForm(false);
-                  setRejectReason("");
-                }}
-                disabled={reject.isPending}
-                data-testid="proposal-diff-reject-cancel"
-              >
-                {t("proposalDiff.rejectCancel")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                onClick={() => void handleReject()}
-                disabled={reject.isPending || approve.isPending}
-                data-testid="proposal-diff-reject-confirm"
-              >
-                {reject.isPending ? (
-                  <Loader2
-                    size={14}
-                    className="mr-1 animate-spin"
-                    aria-hidden
-                  />
-                ) : null}
-                {t("proposalDiff.rejectConfirm")}
-              </Button>
-            </div>
-          </div>
-        )}
-      </header>
+              {t("proposalDiff.diffLoading")}
+            </p>
+          )}
 
-      <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
-        {diffLoading && (
-          <p
-            className="text-xs text-muted-foreground"
-            data-testid="proposal-diff-loading"
-          >
-            {t("proposalDiff.diffLoading")}
-          </p>
-        )}
+          {diffError && (
+            <p
+              className="text-xs text-destructive"
+              role="alert"
+              data-testid="proposal-diff-error"
+            >
+              {t("proposalDiff.diffLoadFailed")}
+            </p>
+          )}
 
-        {diffError && (
-          <p
-            className="text-xs text-destructive"
-            role="alert"
-            data-testid="proposal-diff-error"
-          >
-            {t("proposalDiff.diffLoadFailed")}
-          </p>
-        )}
+          {!diffLoading && !diffError && diff && diff.length === 0 && (
+            <p
+              className="text-xs text-muted-foreground"
+              data-testid="proposal-diff-empty"
+            >
+              {t("proposalDiff.diffEmpty")}
+            </p>
+          )}
 
-        {!diffLoading && !diffError && diff && diff.length === 0 && (
-          <p
-            className="text-xs text-muted-foreground"
-            data-testid="proposal-diff-empty"
-          >
-            {t("proposalDiff.diffEmpty")}
-          </p>
-        )}
-
-        {diff?.map((entry) => (
-          <FileDiff key={entry.Path} entry={entry} />
-        ))}
+          {diff?.map((entry) => (
+            <FileDiff key={entry.Path} entry={entry} />
+          ))}
+        </div>
       </div>
-    </div>
+    </WikiErrorBoundary>
   );
 }

@@ -38,6 +38,12 @@ vi.mock("@/hooks/useWikiProposals", () => ({
   }),
 }));
 
+const mockUseWikiWebSocketSync = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/useWikiWebSocketSync", () => ({
+  useWikiWebSocketSync: (...args: unknown[]) =>
+    mockUseWikiWebSocketSync(...args),
+}));
+
 function buildWiki(overrides: Partial<WikiDto> = {}): WikiDto {
   return {
     id: "wiki-1",
@@ -245,6 +251,17 @@ describe("FileDiff", () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("ProposalDiffView", () => {
+  it("subscribes to the wiki WebSocket sync hook when mounted", () => {
+    mockUseWikiProposals.mockReturnValue({ data: [buildProposal()] });
+    mockUseProposalDiff.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+    render(<ProposalDiffView wiki={buildWiki()} proposalId="prop-1" />);
+    expect(mockUseWikiWebSocketSync).toHaveBeenCalled();
+  });
+
   it("renders the diff files after the diff query resolves", () => {
     mockUseWikiProposals.mockReturnValue({ data: [buildProposal()] });
     mockUseProposalDiff.mockReturnValue({

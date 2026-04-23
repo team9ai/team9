@@ -4,9 +4,15 @@ import { ReviewPanel } from "../ReviewPanel";
 import type { ProposalDto, WikiDto } from "@/types/wiki";
 
 const mockUseWikiProposals = vi.hoisted(() => vi.fn());
+const mockUseWikiWebSocketSync = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiProposals", () => ({
   useWikiProposals: (...args: unknown[]) => mockUseWikiProposals(...args),
+}));
+
+vi.mock("@/hooks/useWikiWebSocketSync", () => ({
+  useWikiWebSocketSync: (...args: unknown[]) =>
+    mockUseWikiWebSocketSync(...args),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -67,6 +73,17 @@ function buildProposal(overrides: Partial<ProposalDto> = {}): ProposalDto {
 describe("ReviewPanel", () => {
   beforeEach(() => {
     mockUseWikiProposals.mockReset();
+    mockUseWikiWebSocketSync.mockReset();
+  });
+
+  it("subscribes to the wiki WebSocket sync hook when mounted", () => {
+    mockUseWikiProposals.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+    });
+    render(<ReviewPanel wiki={buildWiki()} />);
+    expect(mockUseWikiWebSocketSync).toHaveBeenCalled();
   });
 
   it("renders the wiki name in the heading", () => {
