@@ -1486,6 +1486,75 @@ describe("WikiPageEditor", () => {
       expect(lastCall[0].body.startsWith("server body")).toBe(true);
     });
 
+    it("image upload completing after frontmatter change uses the latest frontmatter (latestFrontmatterRef)", async () => {
+      // Reproduces the bug fixed in Issue #5: handleImageUpload used to
+      // capture `frontmatter` from the render at the moment the paste
+      // started. If the user edited frontmatter (e.g. set an icon) while
+      // the upload was in flight, the upload's `setDraft` would write the
+      // STALE frontmatter back, clobbering the user's fresh edits.
+      //
+      // With latestFrontmatterRef, the final setDraft must carry the
+      // post-edit frontmatter.
+      const setDraft = vi.fn();
+      // Hold the upload in a pending state until we resolve it manually.
+      let resolveUpload: (path: string) => void = () => {};
+      imageUploadHook.upload.mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUpload = resolve;
+          }),
+      );
+      draftHook.state = makeDraftState({ setDraft });
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+
+      // 1. User pastes an image — this kicks off an async upload.
+      const zone = screen.getByTestId("wiki-page-editor-drop-zone");
+      const file = makeFile("late.png");
+      await act(async () => {
+        fireEvent.paste(zone, {
+          clipboardData: clipboardWithItems([
+            { kind: "file", type: "image/png", file },
+          ]),
+        });
+      });
+
+      // 2. User edits the frontmatter while the upload is still pending
+      // (clicking the mock icon picker sets icon → "🎨").
+      await click(screen.getByTestId("mock-icon-picker"));
+
+      // The icon-change write must reflect the new icon.
+      const iconCall = setDraft.mock.calls.find(
+        (c) =>
+          (c[0] as { frontmatter: Record<string, unknown> }).frontmatter
+            .icon === "🎨",
+      );
+      expect(iconCall).toBeDefined();
+
+      // 3. Upload resolves.
+      await act(async () => {
+        resolveUpload("attachments/late.png");
+      });
+
+      // The final setDraft (from the upload completion) must carry the
+      // user's NEW icon, not the original. Without latestFrontmatterRef
+      // this assertion fails — the upload closure's stale `frontmatter`
+      // would overwrite the icon back to the original "🚀".
+      await vi.waitFor(() => {
+        const last = setDraft.mock.calls[setDraft.mock.calls.length - 1];
+        expect(
+          (last[0] as { frontmatter: Record<string, unknown> }).frontmatter
+            .icon,
+        ).toBe("🎨");
+      });
+    });
+
     it("paste into an empty body writes the markdown directly (no leading newlines)", async () => {
       const setDraft = vi.fn();
       draftHook.state = makeDraftState({ setDraft });

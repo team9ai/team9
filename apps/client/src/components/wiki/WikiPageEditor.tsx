@@ -171,10 +171,21 @@ export function WikiPageEditor({
   // stays mounted and the Lexical cursor/focus is preserved.
   const editorKey = `${path}-${seedGen}`;
 
+  // Latest-frontmatter ref mirrors the pattern of latestBodyRef. Needed so
+  // the async image-upload closure (which captures its environment the
+  // moment the paste/drop starts) can compose the final setDraft call on
+  // top of whatever frontmatter the user has edited while the upload was
+  // in flight — without this ref, an image upload completing after a
+  // frontmatter edit would silently overwrite the user's new frontmatter.
+  const latestFrontmatterRef = useRef(frontmatter);
+  useEffect(() => {
+    latestFrontmatterRef.current = frontmatter;
+  }, [frontmatter]);
+
   function handleBodyChange(md: string) {
     if (readOnly) return;
     setBody(md);
-    setDraft({ body: md, frontmatter });
+    setDraft({ body: md, frontmatter: latestFrontmatterRef.current });
   }
 
   function handleFrontmatterChange(next: Record<string, unknown>) {
