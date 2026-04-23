@@ -13,7 +13,7 @@ import type { Request } from 'express';
 import { AhandWebhookService } from './ahand-webhook.service.js';
 import { WebhookEventDto } from './dto/webhook-event.dto.js';
 
-@Controller({ path: 'ahand/hub-webhook', version: '1' })
+@Controller('ahand/hub-webhook')
 export class AhandHubWebhookController {
   private readonly logger = new Logger(AhandHubWebhookController.name);
 

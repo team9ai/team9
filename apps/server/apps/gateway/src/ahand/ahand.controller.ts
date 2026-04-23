@@ -27,7 +27,7 @@ import {
 import { PatchDeviceDto } from './dto/patch-device.dto.js';
 
 @UseGuards(AuthGuard)
-@Controller({ path: 'ahand/devices', version: '1' })
+@Controller('ahand/devices')
 export class AhandController {
   constructor(private readonly svc: AhandDevicesService) {}
 
