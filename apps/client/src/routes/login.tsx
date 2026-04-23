@@ -537,6 +537,7 @@ function WebLoginView() {
 
   useEffect(() => {
     if (pageViewFiredRef.current) return;
+    if (!phClient) return;
     pageViewFiredRef.current = true;
     captureWithBridge(phClient, EVENTS.SIGNUP_PAGE_VIEWED, {
       page_key: "signup",

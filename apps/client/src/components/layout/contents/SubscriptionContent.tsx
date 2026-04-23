@@ -265,6 +265,7 @@ export function SubscriptionContent({
   useEffect(() => {
     const key = effectiveEntrySource;
     if (pageViewedFiredRef.current === key) return;
+    if (!phClient) return;
     pageViewedFiredRef.current = key;
 
     captureWithBridge(phClient, EVENTS.SUBSCRIPTION_PLAN_PAGE_VIEWED, {
