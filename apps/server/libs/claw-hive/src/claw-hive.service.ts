@@ -285,34 +285,6 @@ export class ClawHiveService {
     }
   }
 
-  /**
-   * Set (or clear) the user-facing session title on agent-pi.
-   * The server is intentionally unrestricted — overwrite/idempotency
-   * policy is team9's job. Callers typically only write when they
-   * know the session has no title yet (first-turn title generation),
-   * but the endpoint tolerates repeat calls safely.
-   */
-  async updateSessionTitle(
-    sessionId: string,
-    title: string | null,
-    tenantId?: string,
-  ): Promise<void> {
-    const res = await fetch(
-      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
-      {
-        method: 'PATCH',
-        headers: this.headers(tenantId),
-        body: JSON.stringify({ title }),
-      },
-    );
-    // 404 is tolerated — session may have been deleted concurrently
-    // (e.g. user archived the topic before title generation completed).
-    if (!res.ok && res.status !== 404) {
-      const text = await res.text();
-      throw new Error(`Failed to update session title: ${res.status} ${text}`);
-    }
-  }
-
   /** Delete (terminate) a session. Swallows 404 (session already gone). */
   async deleteSession(sessionId: string, tenantId?: string): Promise<void> {
     const res = await fetch(
