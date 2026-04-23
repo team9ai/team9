@@ -47,7 +47,7 @@ import {
   usePublicChannels,
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
-import { useTopicSessionsGrouped } from "@/hooks/useTopicSessions";
+import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
 import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
 import {
   useSections,
@@ -305,8 +305,8 @@ export function HomeSubSidebar() {
   } = useChannelsByType();
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
-  const { data: agentGroups = [], isLoading: isLoadingAgents } =
-    useTopicSessionsGrouped(5);
+  const { groups: agentGroups, isLoading: isLoadingAgents } =
+    useAgentGroupsForSidebar(5);
   const setSidebarVisibility = useSetSidebarVisibility();
   const { data: sections = [] } = useSections();
   const moveChannel = useMoveChannel();

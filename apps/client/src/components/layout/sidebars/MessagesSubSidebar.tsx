@@ -17,7 +17,7 @@ import {
   useCreateDirectChannel,
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
-import { useTopicSessionsGrouped } from "@/hooks/useTopicSessions";
+import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
@@ -38,8 +38,8 @@ export function MessagesSubSidebar() {
     isLoading: isLoadingChannels,
   } = useChannelsByType();
   const setSidebarVisibility = useSetSidebarVisibility();
-  const { data: agentGroups = [], isLoading: isLoadingAgents } =
-    useTopicSessionsGrouped(5);
+  const { groups: agentGroups, isLoading: isLoadingAgents } =
+    useAgentGroupsForSidebar(5);
   // Use selected workspace or fallback to first workspace
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
