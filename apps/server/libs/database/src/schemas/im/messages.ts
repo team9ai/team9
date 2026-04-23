@@ -39,6 +39,13 @@ export const messages = pgTable(
     parentId: uuid('parent_id'),
     rootId: uuid('root_id'),
     content: text('content'),
+    // Lexical serialized EditorState. New messages from the rich-text composer
+    // populate this alongside a plaintext `content` fallback; the client
+    // renders content_ast directly as React elements (no dangerouslySetInnerHTML),
+    // which eliminates the XSS sink. Older rows and non-Lexical ingress paths
+    // (bot/system/OpenClaw) leave this null and render via the HTML/Markdown
+    // fallback.
+    contentAst: jsonb('content_ast').$type<Record<string, unknown>>(),
     type: messageTypeEnum('type').default('text').notNull(),
     metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     isPinned: boolean('is_pinned').default(false).notNull(),
