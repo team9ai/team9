@@ -220,7 +220,10 @@ export class TopicTitleGeneratorService {
     try {
       response = await this.hub.request(
         'POST',
-        '/proxy/openrouter/chat/completions',
+        // capability-hub sets app.setGlobalPrefix('api'), so llm-proxy
+        // lives at /api/proxy/:provider/*path (same convention as
+        // /api/deep-research/tasks that DeepResearchController uses).
+        '/api/proxy/openrouter/chat/completions',
         {
           headers: {
             ...this.hub.serviceHeaders(identity),
