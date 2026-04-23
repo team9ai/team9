@@ -3,6 +3,7 @@ import { MessageSquare, Hash, User, FileText, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
+import { sanitizeSearchHighlight } from "@/lib/sanitize";
 import type { CombinedSearchResponse } from "@/hooks/useSearch";
 
 interface SearchResultsProps {
@@ -121,7 +122,9 @@ export function SearchResults({
               </div>
               <div
                 className="text-sm line-clamp-2 [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                dangerouslySetInnerHTML={{ __html: item.highlight }}
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeSearchHighlight(item.highlight),
+                }}
               />
             </button>
           ))}
@@ -145,7 +148,9 @@ export function SearchResults({
                 <Hash className="h-4 w-4 text-muted-foreground" />
                 <span
                   className="font-medium [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                  dangerouslySetInnerHTML={{ __html: item.highlight }}
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeSearchHighlight(item.highlight),
+                  }}
                 />
                 <span className="text-xs text-muted-foreground">
                   {item.data.memberCount}{" "}
@@ -184,7 +189,9 @@ export function SearchResults({
                 />
                 <span
                   className="font-medium [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                  dangerouslySetInnerHTML={{ __html: item.highlight }}
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeSearchHighlight(item.highlight),
+                  }}
                 />
                 <span className="text-xs text-muted-foreground">
                   @{item.data.username}
@@ -212,7 +219,9 @@ export function SearchResults({
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span
                   className="font-medium truncate [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                  dangerouslySetInnerHTML={{ __html: item.highlight }}
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeSearchHighlight(item.highlight),
+                  }}
                 />
               </div>
               <div className="text-xs text-muted-foreground mt-1 pl-6">

@@ -9,7 +9,8 @@ import {
   MaxLength,
   IsNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { sanitizeMessageContent } from '../utils/sanitize-content.js';
 
 export class AttachmentDto {
   @IsString()
@@ -34,6 +35,9 @@ export class CreateMessageDto {
 
   @IsString()
   @MaxLength(100000)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? sanitizeMessageContent(value) : value,
+  )
   content: string;
 
   @IsUUID()
@@ -57,4 +61,13 @@ export class CreateMessageDto {
   @IsObject()
   @IsOptional()
   properties?: Record<string, unknown>;
+
+  // Lexical serialized EditorState produced by the rich-text composer. When
+  // present, the client renders this directly via React elements (no HTML
+  // sink); `content` is kept as plaintext for search, notifications, and
+  // older clients. The service layer re-derives `content` from the AST on
+  // write to guarantee they stay in sync.
+  @IsObject()
+  @IsOptional()
+  contentAst?: Record<string, unknown>;
 }

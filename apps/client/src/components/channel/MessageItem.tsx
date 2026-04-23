@@ -71,7 +71,10 @@ export interface MessageItemProps {
   /** Whether the edit save is in progress */
   isEditSaving?: boolean;
   /** Callback when edit is saved with new content */
-  onEditSave?: (content: string) => Promise<void>;
+  onEditSave?: (payload: {
+    content: string;
+    contentAst?: Record<string, unknown>;
+  }) => Promise<void>;
   /** Callback when edit is cancelled */
   onEditCancel?: () => void;
   /** Reaction handlers */
@@ -433,12 +436,13 @@ export function MessageItem({
               <RichTextEditor
                 channelId={message.channelId}
                 compact
+                initialAst={message.contentAst ?? undefined}
                 initialHtml={editHtml}
                 clearOnSubmit={false}
                 disabled={isEditSaving}
                 submitLabel={t("message:editSave")}
-                onSubmit={async (content) => {
-                  await onEditSave?.(content);
+                onSubmit={async (payload) => {
+                  await onEditSave?.(payload);
                 }}
                 onCancel={onEditCancel}
                 placeholder={t("message:edit")}

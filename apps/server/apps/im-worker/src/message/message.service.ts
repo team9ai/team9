@@ -478,6 +478,7 @@ export class MessageService {
           channelId: dto.channelId,
           senderId: dto.senderId,
           content: dto.content,
+          contentAst: dto.contentAst,
           parentId: dto.parentId,
           rootId,
           type: dto.type,

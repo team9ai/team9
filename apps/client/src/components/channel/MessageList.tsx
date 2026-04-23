@@ -118,9 +118,15 @@ export function MessageList({
   }, []);
 
   const handleEditSave = useCallback(
-    async (messageId: string, content: string) => {
+    async (
+      messageId: string,
+      payload: { content: string; contentAst?: Record<string, unknown> },
+    ) => {
       try {
-        await updateMessage.mutateAsync({ messageId, data: { content } });
+        await updateMessage.mutateAsync({
+          messageId,
+          data: { content: payload.content, contentAst: payload.contentAst },
+        });
         // Invalidate full-content cache so edited long_text messages refetch
         queryClient.removeQueries({
           queryKey: ["message-full-content", messageId],
@@ -774,7 +780,10 @@ function ChannelMessageItem({
   editingMessageId: string | null;
   isEditSaving: boolean;
   onEditStart: (messageId: string) => void;
-  onEditSave: (messageId: string, content: string) => Promise<void>;
+  onEditSave: (
+    messageId: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
+  ) => Promise<void>;
   onEditCancel: () => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
@@ -865,7 +874,7 @@ function ChannelMessageItem({
         canDelete={canDelete}
         isEditing={isEditing}
         isEditSaving={isEditing && isEditSaving}
-        onEditSave={(content) => onEditSave(message.id, content)}
+        onEditSave={(payload) => onEditSave(message.id, payload)}
         onEditCancel={onEditCancel}
         supportsProperties={supportsProperties}
       />

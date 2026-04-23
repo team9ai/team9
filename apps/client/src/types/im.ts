@@ -178,6 +178,10 @@ export interface Message {
   parentId?: string;
   rootId?: string;
   content: string;
+  // Lexical serialized EditorState. Present for messages authored in the
+  // rich-text composer; renderer uses this over `content` to avoid the HTML
+  // sink entirely. Null/undefined = legacy HTML or bot/system/markdown.
+  contentAst?: Record<string, unknown> | null;
   type: MessageType;
   metadata?: Record<string, unknown>;
   isPinned: boolean;
@@ -279,10 +283,12 @@ export interface CreateMessageDto {
   parentId?: string;
   attachments?: AttachmentDto[];
   metadata?: Record<string, unknown>;
+  contentAst?: Record<string, unknown>;
 }
 
 export interface UpdateMessageDto {
   content: string;
+  contentAst?: Record<string, unknown>;
 }
 
 export interface AddMemberDto {

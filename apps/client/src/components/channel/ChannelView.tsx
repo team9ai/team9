@@ -521,15 +521,16 @@ export function ChannelView({
   }, [threadPanelCount, threadPanelWidth]);
 
   const handleSendMessage = async (
-    content: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
     attachments?: AttachmentDto[],
   ) => {
+    const { content, contentAst } = payload;
     // Allow sending if there's content or attachments
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     startBotThinking(content);
     try {
-      await sendMessage.mutateAsync({ content, attachments });
+      await sendMessage.mutateAsync({ content, contentAst, attachments });
     } catch {
       // Clear thinking indicators on send failure to avoid stale state
       setThinkingBotIds([]);

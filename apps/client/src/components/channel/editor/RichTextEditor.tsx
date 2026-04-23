@@ -33,7 +33,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { hasContent } from "./utils/exportContent";
 import { CHAT_MARKDOWN_TRANSFORMERS } from "./utils/markdownTransformers";
-import { submitEditorContent } from "./utils/submitEditorContent";
+import {
+  submitEditorContent,
+  type EditorSubmitPayload,
+} from "./utils/submitEditorContent";
 
 import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
@@ -50,7 +53,7 @@ import type { UploadingFile } from "@/hooks/useFileUpload";
 interface RichTextEditorProps {
   /** Channel ID for bot membership check in mentions */
   channelId?: string;
-  onSubmit: (content: string) => Promise<void>;
+  onSubmit: (payload: EditorSubmitPayload) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -69,8 +72,14 @@ interface RichTextEditorProps {
   isUploading?: boolean;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
-  /** HTML content to pre-fill in the editor (for edit mode) */
+  /** HTML content to pre-fill in the editor (for edit mode, legacy messages) */
   initialHtml?: string;
+  /**
+   * Lexical serialized EditorState to pre-fill in the editor (for edit mode).
+   * Preferred over `initialHtml` when available — round-trips cleanly without
+   * going through HTML parsing, and matches what the renderer shows.
+   */
+  initialAst?: Record<string, unknown>;
   /** Callback when Escape is pressed (for edit mode) */
   onCancel?: () => void;
   /**
@@ -207,7 +216,7 @@ function AutoSendDraftPlugin({
   channelId?: string;
   draft?: string;
   enabled?: boolean;
-  onSubmit: (content: string) => Promise<void>;
+  onSubmit: (payload: EditorSubmitPayload) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
   onAutoSent?: () => void;
@@ -287,6 +296,26 @@ function InitialHtmlPlugin({ html }: { html?: string }) {
   return null;
 }
 
+function InitialAstPlugin({ ast }: { ast?: Record<string, unknown> }) {
+  const [editor] = useLexicalComposerContext();
+  const hasApplied = useRef(false);
+
+  useEffect(() => {
+    if (!ast || hasApplied.current) return;
+    hasApplied.current = true;
+    try {
+      const state = editor.parseEditorState(
+        ast as unknown as Parameters<typeof editor.parseEditorState>[0],
+      );
+      editor.setEditorState(state);
+    } catch (err) {
+      console.warn("[InitialAstPlugin] failed to parse AST:", err);
+    }
+  }, [editor, ast]);
+
+  return null;
+}
+
 function EscapePlugin({ onCancel }: { onCancel?: () => void }) {
   const [editor] = useLexicalComposerContext();
 
@@ -312,7 +341,7 @@ function SendButton({
   clearOnSubmit = true,
   submitLabel,
 }: {
-  onSubmit: (content: string) => Promise<void>;
+  onSubmit: (payload: EditorSubmitPayload) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
   clearOnSubmit?: boolean;
@@ -382,6 +411,7 @@ export function RichTextEditor({
   isUploading = false,
   initialDraft,
   initialHtml,
+  initialAst,
   onCancel,
   clearOnSubmit = true,
   submitLabel,
@@ -456,7 +486,11 @@ export function RichTextEditor({
             <EditablePlugin editable={!disabled} />
             <EditorRefPlugin editorRef={editorRef} />
             <InitialDraftPlugin channelId={channelId} draft={initialDraft} />
-            <InitialHtmlPlugin html={initialHtml} />
+            {initialAst ? (
+              <InitialAstPlugin ast={initialAst} />
+            ) : (
+              <InitialHtmlPlugin html={initialHtml} />
+            )}
             <EscapePlugin onCancel={onCancel} />
             <AutoSendDraftPlugin
               channelId={channelId}

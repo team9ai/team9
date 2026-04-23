@@ -1,3 +1,6 @@
+// Must come before anything that can touch innerHTML — registers Trusted
+// Types policies for the CSP report-only header advertised by the server.
+import "./lib/trusted-types";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";

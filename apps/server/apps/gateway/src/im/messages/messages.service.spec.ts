@@ -109,6 +109,7 @@ function makeMessageResponse(
     parentId: null,
     rootId: null,
     content: 'hello',
+    contentAst: null,
     type: 'text',
     isPinned: false,
     isEdited: false,
@@ -281,6 +282,95 @@ describe('MessagesService', () => {
         updatedAt: new Date('2026-04-02T10:30:00.000Z'),
       }),
     );
+  });
+
+  describe('update — contentAst branches', () => {
+    // The edit path must mirror create: if contentAst is provided, it's the
+    // source of truth and `content` is re-derived from it; if omitted, the
+    // stored contentAst column stays untouched; if explicitly null, it clears.
+
+    const validAst = {
+      root: {
+        type: 'root',
+        version: 1,
+        children: [
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', text: 'edited via AST' }],
+          },
+        ],
+      },
+    };
+
+    it('re-derives content from AST when contentAst is provided', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+      jest
+        .spyOn(service, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse());
+
+      await service.update('message-1', 'user-1', {
+        content: 'stale',
+        contentAst: validAst,
+      } as never);
+
+      const updatePayload = db.chains.updateSet.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(updatePayload.content).toBe('edited via AST');
+      expect(updatePayload.contentAst).toBeDefined();
+    });
+
+    it('leaves contentAst untouched when the caller omits it (legacy edit)', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+      jest
+        .spyOn(service, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse());
+
+      await service.update('message-1', 'user-1', {
+        content: 'plain edit',
+      } as never);
+
+      const updatePayload = db.chains.updateSet.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(updatePayload.content).toBe('plain edit');
+      // Undefined key means drizzle `set` won't touch the column.
+      expect('contentAst' in updatePayload).toBe(false);
+    });
+
+    it('clears contentAst when caller passes null explicitly', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+      jest
+        .spyOn(service, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse());
+
+      await service.update('message-1', 'user-1', {
+        content: 'now plain',
+        contentAst: null,
+      } as never);
+
+      const updatePayload = db.chains.updateSet.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(updatePayload.contentAst).toBeNull();
+    });
+
+    it('rejects a malformed contentAst instead of writing junk to DB', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+
+      await expect(
+        service.update('message-1', 'user-1', {
+          content: 'x',
+          contentAst: { root: 'not-an-object' },
+        } as never),
+      ).rejects.toThrow();
+
+      // DB must not be touched when validation fails.
+      expect(db.chains.updateSet).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects delete when the message is missing or owned by another sender', async () => {
