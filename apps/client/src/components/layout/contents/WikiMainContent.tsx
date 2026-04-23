@@ -1,5 +1,6 @@
 import { useSelectedPagePath, useSelectedWikiId } from "@/stores/useWikiStore";
 import { WikiEmptyState } from "@/components/wiki/WikiEmptyState";
+import { WikiErrorBoundary } from "@/components/wiki/WikiErrorBoundary";
 import { WikiPageView } from "@/components/wiki/WikiPageView";
 import { useWikiWebSocketSync } from "@/hooks/useWikiWebSocketSync";
 
@@ -21,8 +22,16 @@ export function WikiMainContent() {
   useWikiWebSocketSync();
 
   if (!wikiId || !pagePath) {
-    return <WikiEmptyState />;
+    return (
+      <WikiErrorBoundary>
+        <WikiEmptyState />
+      </WikiErrorBoundary>
+    );
   }
 
-  return <WikiPageView wikiId={wikiId} path={pagePath} />;
+  return (
+    <WikiErrorBoundary>
+      <WikiPageView wikiId={wikiId} path={pagePath} />
+    </WikiErrorBoundary>
+  );
 }

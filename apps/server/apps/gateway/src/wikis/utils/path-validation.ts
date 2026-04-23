@@ -55,6 +55,16 @@ export function validateWikiPath(path: string): void {
     throw new BadRequestException('path must be a non-empty string');
   }
 
+  // Defense-in-depth length cap. 500 is generous relative to realistic wiki
+  // paths (filesystem MAX_PATH on POSIX is already 4096 and folder9's own
+  // limits are looser) but tight enough to block pathological inputs that
+  // could inflate audit logs / filesystem calls. Checked before the
+  // character-level rules below so a malicious megabyte-long path doesn't
+  // hit the regex/split work.
+  if (path.length > 500) {
+    throw new BadRequestException('wiki path exceeds 500 characters');
+  }
+
   // Rule 2: null bytes + control chars. Checked before anything else — a
   // null byte in the path means we can't trust the rest of the string.
   // eslint-disable-next-line no-control-regex

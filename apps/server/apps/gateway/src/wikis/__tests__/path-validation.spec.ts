@@ -42,6 +42,27 @@ describe('validateWikiPath', () => {
     });
   });
 
+  // ── Length cap (defense in depth) ─────────────────────────────────────
+  describe('rejects overly long paths', () => {
+    it('accepts paths exactly 500 characters long', () => {
+      // 500 single-char segments joined by the dot would include segment
+      // separators. Pick a plain filename-shaped string of exactly 500
+      // characters so only the length check matters.
+      const path = 'a'.repeat(500);
+      expect(() => validateWikiPath(path)).not.toThrow();
+    });
+
+    it('rejects a 501-char path', () => {
+      const path = 'a'.repeat(501);
+      expect(() => validateWikiPath(path)).toThrow(BadRequestException);
+    });
+
+    it('rejects a pathological megabyte-long input', () => {
+      const path = 'a/'.repeat(500_001); // > 500 chars
+      expect(() => validateWikiPath(path)).toThrow(BadRequestException);
+    });
+  });
+
   // ── Rule 2: control characters ────────────────────────────────────────
   describe('rejects control characters', () => {
     it('rejects a null byte', () => {

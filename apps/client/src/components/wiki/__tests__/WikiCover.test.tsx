@@ -37,7 +37,7 @@ describe("WikiCover", () => {
 
     await waitFor(() => {
       const el = screen.getByTestId("wiki-cover-image");
-      expect(el).toHaveStyle("background-image: url(blob:cover)");
+      expect(el).toHaveStyle('background-image: url("blob:cover")');
     });
     expect(mockGetRawObjectUrl).toHaveBeenCalledWith("wiki-1", "cover.png");
   });
@@ -137,7 +137,7 @@ describe("WikiCover", () => {
 
     await waitFor(() => {
       const el = screen.getByTestId("wiki-cover-image");
-      expect(el).toHaveStyle("background-image: url(blob:good)");
+      expect(el).toHaveStyle('background-image: url("blob:good")');
     });
     expect(mockGetRawObjectUrl).toHaveBeenLastCalledWith("wiki-1", "good.jpg");
   });
