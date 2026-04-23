@@ -8,6 +8,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { tenants } from '../tenant/tenants.js';
 
 export const wikiApprovalModeEnum = pgEnum('wiki_approval_mode', [
@@ -52,10 +53,14 @@ export const workspaceWikis = pgTable(
     archivedAt: timestamp('archived_at'),
   },
   (table) => [
-    uniqueIndex('workspace_wikis_workspace_slug_unique').on(
-      table.workspaceId,
-      table.slug,
-    ),
+    // Partial unique — only active (non-archived) rows are constrained. An
+    // archived wiki releases its slug so a new wiki with the same slug can
+    // be created in the workspace. See migration 0042 for the authored SQL
+    // and `wikis.service.ts#createWiki` for the matching application-level
+    // uniqueness pre-check.
+    uniqueIndex('workspace_wikis_workspace_slug_unique')
+      .on(table.workspaceId, table.slug)
+      .where(sql`${table.archivedAt} IS NULL`),
     uniqueIndex('workspace_wikis_folder9_unique').on(table.folder9FolderId),
     index('workspace_wikis_workspace_idx').on(table.workspaceId),
   ],

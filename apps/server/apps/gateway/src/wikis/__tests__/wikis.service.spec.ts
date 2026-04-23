@@ -296,6 +296,25 @@ describe('WikisService', () => {
       expect(db.insert).not.toHaveBeenCalled();
     });
 
+    it('allows reusing a slug that only exists on archived rows (partial unique)', async () => {
+      // Service filters the pre-check by `archived_at IS NULL`, so an
+      // archived wiki with the same slug must not block creation. We mock
+      // an empty result (i.e. no *active* row matches) and expect the flow
+      // to proceed through folder9 + DB insert.
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([makeWikiRow()]);
+
+      const result = await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: 'public', slug: 'public' },
+      );
+      expect(result.id).toBe('wiki-1');
+      expect(f9.createFolder).toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalled();
+    });
+
     it('derives slug from name "Hello World!" → "hello-world"', async () => {
       f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
       db.limit.mockResolvedValueOnce([]);

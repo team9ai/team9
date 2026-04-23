@@ -295,6 +295,13 @@
       "when": 1776500000000,
       "tag": "0041_wiki_workspace_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1777100000000,
+      "tag": "0042_wiki_slug_partial_unique",
+      "breakpoints": true
     }
   ]
 }

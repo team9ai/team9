@@ -288,6 +288,11 @@ export class WikisService {
 
     const slug = dto.slug ?? deriveSlug(dto.name);
 
+    // Match the partial unique index (migration 0042): only active
+    // (non-archived) rows reserve a slug. An archived wiki that used the
+    // same slug must not block a re-creation — users who archive
+    // `team-handbook` and create a new wiki under the same name expect the
+    // slug to be free again.
     const existing = (await this.db
       .select()
       .from(schema.workspaceWikis)
@@ -295,6 +300,7 @@ export class WikisService {
         and(
           eq(schema.workspaceWikis.workspaceId, workspaceId),
           eq(schema.workspaceWikis.slug, slug),
+          isNull(schema.workspaceWikis.archivedAt),
         ),
       )
       .limit(1)) as WikiRow[];
@@ -375,6 +381,7 @@ export class WikisService {
     requirePermission(wiki, user, 'write');
 
     if (dto.slug !== undefined && dto.slug !== wiki.slug) {
+      // Only active rows reserve a slug (mirrors createWiki + migration 0042).
       const dup = (await this.db
         .select()
         .from(schema.workspaceWikis)
@@ -382,6 +389,7 @@ export class WikisService {
           and(
             eq(schema.workspaceWikis.workspaceId, workspaceId),
             eq(schema.workspaceWikis.slug, dto.slug),
+            isNull(schema.workspaceWikis.archivedAt),
           ),
         )
         .limit(1)) as WikiRow[];
