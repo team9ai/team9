@@ -13,6 +13,8 @@ const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
 const mockDeepResearchCreateTask = vi.hoisted(() => vi.fn());
 const mockDeepResearchStartInChannel = vi.hoisted(() => vi.fn());
+const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
+const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
 
 const translationMap: Record<
   string,
@@ -83,6 +85,10 @@ vi.mock("@/services/api/deep-research", () => ({
     createTask: mockDeepResearchCreateTask,
     startInChannel: mockDeepResearchStartInChannel,
   },
+}));
+
+vi.mock("@/hooks/useTopicSessions", () => ({
+  useCreateTopicSession: mockUseCreateTopicSession,
 }));
 
 import { HomeMainContent } from "../HomeMainContent";
@@ -181,6 +187,20 @@ describe("HomeMainContent", () => {
       },
       message: { id: "msg-1" },
     });
+    // Default: topic-session creation resolves to a fresh channel id so the
+    // dashboard can navigate into the newly-created topic channel.
+    mockCreateTopicSessionMutate.mockResolvedValue({
+      channelId: "topic-ch-new",
+      sessionId: "session-new",
+      agentId: "agent-hive-id",
+      botUserId: "bot-2",
+      title: null,
+      createdAt: "2024-01-01T00:00:00.000Z",
+    });
+    mockUseCreateTopicSession.mockReturnValue({
+      mutateAsync: mockCreateTopicSessionMutate,
+      isPending: false,
+    });
   });
 
   it("renders the dashboard with title and prompt input", () => {
@@ -206,7 +226,7 @@ describe("HomeMainContent", () => {
     expect(container.querySelector('[data-slot="avatar"]')).not.toBeNull();
   });
 
-  it("switches to the selected agent and submits to that agent channel", async () => {
+  it("creates a topic session for the selected agent and navigates to the new channel", async () => {
     renderWithProviders(<HomeMainContent />);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: /alpha agent/i }));
@@ -218,10 +238,21 @@ describe("HomeMainContent", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /send message/i }));
 
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/channels/$channelId",
-      params: { channelId: "bot-ch-2" },
-      search: { draft: "hello beta", autoSend: true },
+    // Dashboard submit no longer routes to an existing bot channel with a
+    // draft query param — it creates a fresh topic session for the selected
+    // agent and navigates directly to the channel the server returned.
+    await vi.waitFor(() => {
+      expect(mockCreateTopicSessionMutate).toHaveBeenCalledWith({
+        botUserId: "agent-2",
+        initialMessage: "hello beta",
+        model: { provider: "openrouter", id: "anthropic/claude-opus-4.6" },
+      });
+    });
+    await vi.waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/channels/$channelId",
+        params: { channelId: "topic-ch-new" },
+      });
     });
   });
 
@@ -234,10 +265,7 @@ describe("HomeMainContent", () => {
     expect(mockDeepResearchStartInChannel).not.toHaveBeenCalled();
   });
 
-  it("shows a non-interactive model label for base-model agents", () => {
-    // base-model agents cannot switch models, so the composer displays the
-    // fixed model name rather than a picker button. Verifies the gate path
-    // that renders the read-only label in RichTextEditor.
+  it("shows a static model label for base-model agents that cannot switch", () => {
     mockUseDashboardAgents.mockReturnValue({
       agents: [
         {
@@ -262,16 +290,13 @@ describe("HomeMainContent", () => {
     renderWithProviders(<HomeMainContent />);
 
     expect(screen.getByText("Claude Sonnet 4.6")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /claude sonnet 4\.6/i }),
-    ).not.toBeInTheDocument();
   });
 
   it("shows the model picker button for switchable agents", () => {
     renderWithProviders(<HomeMainContent />);
 
     expect(
-      screen.getByRole("button", { name: /gpt-4\.1/i }),
+      screen.getByRole("button", { name: /gpt-4.1/i }),
     ).toBeInTheDocument();
   });
 

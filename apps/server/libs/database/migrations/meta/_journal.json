@@ -313,8 +313,15 @@
     {
       "idx": 44,
       "version": "7",
-      "when": 1777171200000,
-      "tag": "0044_message_content_ast",
+      "when": 1777300000000,
+      "tag": "0044_topic_session_channel_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1777400000000,
+      "tag": "0045_message_content_ast",
       "breakpoints": true
     }
   ]

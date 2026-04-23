@@ -299,6 +299,21 @@ export const WS_EVENTS = {
     /** Tab deleted - broadcast by server */
     DELETED: 'tab_deleted',
   },
+
+  // ==================== Topic Sessions ====================
+  /**
+   * Topic session events — one ephemeral user×agent conversation per topic.
+   * Distinct from CHANNEL.* even though a topic session is a channel under
+   * the hood, because the sidebar treats the agent-group as its own entity.
+   */
+  TOPIC_SESSION: {
+    /** Topic session created - broadcast by server to creator + bot */
+    CREATED: 'topic_session_created',
+    /** Topic session metadata (title, lastMessageAt) updated - broadcast by server */
+    UPDATED: 'topic_session_updated',
+    /** Topic session deleted - broadcast by server */
+    DELETED: 'topic_session_deleted',
+  },
 } as const;
 
 /**
@@ -323,4 +338,5 @@ export type WsEventName =
   | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING]
   | (typeof WS_EVENTS.PROPERTY)[keyof typeof WS_EVENTS.PROPERTY]
   | (typeof WS_EVENTS.VIEW)[keyof typeof WS_EVENTS.VIEW]
-  | (typeof WS_EVENTS.TAB)[keyof typeof WS_EVENTS.TAB];
+  | (typeof WS_EVENTS.TAB)[keyof typeof WS_EVENTS.TAB]
+  | (typeof WS_EVENTS.TOPIC_SESSION)[keyof typeof WS_EVENTS.TOPIC_SESSION];
