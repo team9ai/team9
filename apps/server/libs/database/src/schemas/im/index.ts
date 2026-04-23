@@ -23,4 +23,5 @@ export * from './message-properties.js';
 export * from './audit-logs.js';
 export * from './channel-views.js';
 export * from './channel-tabs.js';
+export * from './message-relations.js';
 export * from './relations.js';

@@ -41,6 +41,43 @@ export interface SelectOption {
   color?: string;
 }
 
+// ==================== Message Reference Config ====================
+
+/**
+ * Scope for message reference properties
+ */
+export type MessageRefScope = 'same_channel' | 'any';
+
+/**
+ * Cardinality for message reference properties
+ */
+export type MessageRefCardinality = 'single' | 'multi';
+
+/**
+ * Kind of relation between messages
+ */
+export type RelationKind = 'parent' | 'related';
+
+/**
+ * Configuration for message_ref property type
+ */
+export interface MessageRefConfig {
+  /** Scope of allowed target messages */
+  scope: MessageRefScope;
+  /** Whether multiple targets are allowed */
+  cardinality: MessageRefCardinality;
+  /** Kind of relation (parent/related); optional for backward compatibility */
+  relationKind?: RelationKind;
+}
+
+/**
+ * Default configuration for message_ref properties
+ */
+export const DEFAULT_MESSAGE_REF_CONFIG: MessageRefConfig = {
+  scope: 'any',
+  cardinality: 'multi',
+};
+
 // ==================== Property Definition ====================
 
 /**
@@ -168,6 +205,10 @@ export interface ViewConfig {
   defaultCalendarView?: string;
   /** Whether to show recurring events in calendar views */
   showRecurring?: boolean;
+  /** Enable hierarchy (parent-child tree) mode in table view */
+  hierarchyMode?: boolean;
+  /** Default expand depth when hierarchy mode is active (0–5) */
+  hierarchyDefaultDepth?: number;
 }
 
 /**

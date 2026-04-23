@@ -21,11 +21,13 @@ import { usePropertyDefinitions } from "@/hooks/usePropertyDefinitions";
 import { useUpdateView } from "@/hooks/useChannelViews";
 import { useSetProperty } from "@/hooks/useMessageProperties";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useTreeLoader } from "@/hooks/useTreeLoader";
 import { messagesApi } from "@/services/api/im";
 import { PropertyValue } from "@/components/channel/properties/PropertyValue";
 import { PropertyEditor } from "@/components/channel/properties/PropertyEditor";
 import { AiAutoFillButton } from "@/components/channel/properties/AiAutoFillButton";
 import { ViewConfigPanel } from "./ViewConfigPanel";
+import { TableHierarchyToolbar } from "./TableHierarchyToolbar";
 import { cn } from "@/lib/utils";
 import type {
   ChannelView,
@@ -35,11 +37,48 @@ import type {
   ViewSort,
   ViewSortDirection,
 } from "@/types/properties";
+import type { TreeNode } from "@/types/relations";
 
 export interface TableViewProps {
   channelId: string;
   view: ChannelView;
   onJumpToMessage?: (messageId: string) => void;
+}
+
+// ==================== Tree walking utility ====================
+
+/**
+ * Returns visible nodes in DFS order, respecting the expanded set.
+ * Collapsed subtrees are excluded entirely (not DOM-hidden).
+ */
+export function walkVisible(
+  allNodes: TreeNode[],
+  expandedSet: Set<string>,
+): TreeNode[] {
+  // Build parent → children map.  Root nodes have effectiveParentId === null.
+  const byParent = new Map<string | null, TreeNode[]>();
+  for (const n of allNodes) {
+    const key = n.effectiveParentId ?? null;
+    const list = byParent.get(key) ?? [];
+    list.push(n);
+    byParent.set(key, list);
+  }
+
+  const out: TreeNode[] = [];
+
+  function walk(parentId: string | null) {
+    const children = byParent.get(parentId) ?? [];
+    for (const n of children) {
+      out.push(n);
+      // Only recurse into expanded nodes
+      if (expandedSet.has(n.messageId)) {
+        walk(n.messageId);
+      }
+    }
+  }
+
+  walk(null);
+  return out;
 }
 
 // ==================== Inline Cell Editor ====================
@@ -90,6 +129,8 @@ function CellEditor({
         onChange={handleChange}
         disabled={setProperty.isPending}
         inline
+        channelId={channelId}
+        currentMessageId={messageId}
       />
     </div>
   );
@@ -210,6 +251,160 @@ function TableRow({
                     messageId={message.id}
                     definition={def}
                     value={value}
+                    channelId={channelId}
+                    onClose={() => setEditingCell(null)}
+                  />
+                </PopoverContent>
+              )}
+            </Popover>
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+// ==================== Hierarchy Table Row ====================
+
+function HierarchyTableRow({
+  node,
+  visibleDefs,
+  channelId,
+  currentUserId,
+  columnWidths,
+  isAncestor,
+  isExpanded,
+  onExpand,
+  onCollapse,
+  onJumpToMessage,
+}: {
+  node: TreeNode;
+  visibleDefs: PropertyDefinition[];
+  channelId: string;
+  currentUserId: string | undefined;
+  columnWidths: Record<string, number>;
+  isAncestor: boolean;
+  isExpanded: boolean;
+  onExpand: (id: string) => void;
+  onCollapse: (id: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
+}) {
+  const [editingCell, setEditingCell] = useState<string | null>(null);
+  const indentPx = node.depth * 16 + 8;
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+      if (e.key === "ArrowRight" && node.hasChildren && !isExpanded) {
+        e.preventDefault();
+        onExpand(node.messageId);
+      } else if (e.key === "ArrowLeft" && isExpanded) {
+        e.preventDefault();
+        onCollapse(node.messageId);
+      }
+    },
+    [node.messageId, node.hasChildren, isExpanded, onExpand, onCollapse],
+  );
+
+  return (
+    <tr
+      tabIndex={0}
+      className={cn(
+        "group border-b border-border hover:bg-muted/50 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary",
+        isAncestor && "bg-gray-50 border-l-2 border-l-gray-300",
+      )}
+      onKeyDown={handleKeyDown}
+    >
+      <td
+        className="py-2 text-sm"
+        style={{
+          paddingLeft: `${indentPx}px`,
+          paddingRight: "12px",
+          width: columnWidths["__content"] ?? undefined,
+          maxWidth: columnWidths["__content"] ?? 320,
+        }}
+      >
+        <div className="flex items-center justify-between gap-2 w-full">
+          <span className="inline-flex items-center gap-1 flex-1 min-w-0">
+            {node.hasChildren ? (
+              <button
+                aria-label={isExpanded ? "collapse" : "expand"}
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors w-4 text-center"
+                onClick={() => {
+                  if (isExpanded) {
+                    onCollapse(node.messageId);
+                  } else {
+                    onExpand(node.messageId);
+                  }
+                }}
+              >
+                {isExpanded ? "▾" : "▸"}
+              </button>
+            ) : (
+              <span className="inline-block w-4 flex-shrink-0" />
+            )}
+            <span className="line-clamp-2 text-xs text-muted-foreground">
+              {node.messageId}
+            </span>
+          </span>
+          {onJumpToMessage && (
+            <button
+              type="button"
+              aria-label="open in chat"
+              title="open in chat"
+              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border rounded px-1.5 py-0.5 bg-background"
+              onClick={(e) => {
+                e.stopPropagation();
+                onJumpToMessage(node.messageId);
+              }}
+            >
+              <PanelRight className="h-3 w-3" />
+              <span>OPEN</span>
+            </button>
+          )}
+        </div>
+      </td>
+
+      {visibleDefs.map((def) => {
+        // We don't have ViewMessageItem here (only TreeNode with messageId).
+        // Render a placeholder for property cells in hierarchy mode.
+        const isEditing = editingCell === def.id;
+        const canEdit = currentUserId !== undefined;
+
+        return (
+          <td
+            key={def.id}
+            className="px-3 py-2 text-sm"
+            style={{
+              width: columnWidths[def.key] ?? undefined,
+            }}
+          >
+            <Popover
+              open={isEditing}
+              onOpenChange={(open) => {
+                if (!open) setEditingCell(null);
+              }}
+            >
+              <PopoverTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full text-left rounded px-1 py-0.5 min-h-[24px] transition-colors",
+                    canEdit && "hover:bg-muted cursor-pointer",
+                    !canEdit && "cursor-default",
+                  )}
+                  onClick={() => {
+                    if (canEdit) setEditingCell(def.id);
+                  }}
+                  disabled={!canEdit}
+                >
+                  <span className="text-muted-foreground/50">-</span>
+                </button>
+              </PopoverTrigger>
+              {isEditing && (
+                <PopoverContent align="start" className="w-auto p-0">
+                  <CellEditor
+                    messageId={node.messageId}
+                    definition={def}
+                    value={undefined}
                     channelId={channelId}
                     onClose={() => setEditingCell(null)}
                   />
@@ -419,21 +614,46 @@ export function TableView({
   onJumpToMessage,
 }: TableViewProps) {
   const { data: definitions = [] } = usePropertyDefinitions(channelId);
+  const hierarchyMode = !!view.config.hierarchyMode;
+
+  // Flat (non-hierarchy) data
   const {
     data: infiniteData,
-    isLoading,
+    isLoading: flatIsLoading,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
   } = useViewMessagesInfinite(channelId, view.id);
+
+  // Hierarchy data (only active when hierarchyMode is on)
+  const tree = useTreeLoader({
+    channelId,
+    viewId: view.id,
+    filter: view.config.filters,
+    sort: view.config.sorts,
+    defaultDepth: view.config.hierarchyDefaultDepth ?? 3,
+  });
+
+  const isLoading = hierarchyMode ? tree.isLoading : flatIsLoading;
+
   const updateView = useUpdateView(channelId);
   const { data: currentUser } = useCurrentUser();
 
-  // Flatten pages into a single messages array
+  // Flatten pages into a single messages array (flat mode)
   const messages = useMemo<ViewMessageItem[]>(() => {
     if (!infiniteData?.pages) return [];
     return infiniteData.pages.flatMap((page) => page.messages);
   }, [infiniteData]);
+
+  // Hierarchy mode: ancestor set and visible (DFS-ordered) nodes
+  const ancestorSet = useMemo(
+    () => new Set(tree.ancestorsIncluded),
+    [tree.ancestorsIncluded],
+  );
+  const visibleNodes = useMemo(
+    () => walkVisible(tree.nodes, tree.expandedSet),
+    [tree.nodes, tree.expandedSet],
+  );
 
   // Column widths from view config (persisted)
   const columnWidths = useMemo<Record<string, number>>(
@@ -630,6 +850,39 @@ export function TableView({
     [updateView, view.id],
   );
 
+  const queryClient = useQueryClient();
+
+  const handleHierarchyChange = useCallback(
+    (
+      patch: Partial<{
+        hierarchyMode: boolean;
+        hierarchyDefaultDepth: number;
+        groupBy: string | undefined;
+      }>,
+    ) => {
+      const newConfig: ViewConfig = { ...view.config, ...patch };
+      // When hierarchyMode is enabled, clear groupBy
+      if (patch.hierarchyMode) {
+        newConfig.groupBy = undefined;
+      }
+      // When groupBy is explicitly set, disable hierarchyMode
+      if (patch.groupBy !== undefined) {
+        newConfig.hierarchyMode = false;
+      }
+      updateView.mutate(
+        { viewId: view.id, data: { config: newConfig } },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({
+              queryKey: ["view-tree", channelId],
+            });
+          },
+        },
+      );
+    },
+    [updateView, view, channelId, queryClient],
+  );
+
   const totalColumns = 1 + visibleDefs.length;
 
   return (
@@ -639,6 +892,23 @@ export function TableView({
         definitions={definitions}
         onUpdateConfig={handleUpdateConfig}
       />
+
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/20">
+        <TableHierarchyToolbar
+          config={view.config}
+          onChange={handleHierarchyChange}
+          onExpandAll={
+            hierarchyMode
+              ? () => tree.nodes.forEach((n) => tree.expand(n.messageId))
+              : undefined
+          }
+          onCollapseAll={
+            hierarchyMode
+              ? () => tree.nodes.forEach((n) => tree.collapse(n.messageId))
+              : undefined
+          }
+        />
+      </div>
 
       <div className="flex-1 overflow-auto">
         {isLoading ? (
@@ -677,35 +947,68 @@ export function TableView({
               </tr>
             </thead>
             <tbody>
-              {messages.map((msg) => (
-                <TableRow
-                  key={msg.id}
-                  message={msg}
-                  visibleDefs={visibleDefs}
-                  channelId={channelId}
-                  currentUserId={currentUser?.id}
-                  columnWidths={effectiveWidths}
-                  onJumpToMessage={onJumpToMessage}
-                />
-              ))}
+              {hierarchyMode
+                ? visibleNodes.map((node) => (
+                    <HierarchyTableRow
+                      key={node.messageId}
+                      node={node}
+                      visibleDefs={visibleDefs}
+                      channelId={channelId}
+                      currentUserId={currentUser?.id}
+                      columnWidths={effectiveWidths}
+                      isAncestor={ancestorSet.has(node.messageId)}
+                      isExpanded={tree.expandedSet.has(node.messageId)}
+                      onExpand={tree.expand}
+                      onCollapse={tree.collapse}
+                      onJumpToMessage={onJumpToMessage}
+                    />
+                  ))
+                : messages.map((msg) => (
+                    <TableRow
+                      key={msg.id}
+                      message={msg}
+                      visibleDefs={visibleDefs}
+                      channelId={channelId}
+                      currentUserId={currentUser?.id}
+                      columnWidths={effectiveWidths}
+                      onJumpToMessage={onJumpToMessage}
+                    />
+                  ))}
               <NewMessageRow channelId={channelId} colSpan={totalColumns} />
             </tbody>
           </table>
         )}
 
-        {/* T25: Sentinel for infinite scroll */}
-        <div ref={sentinelRef} className="h-1" />
-        {isFetchingNextPage && (
+        {/* T25: Sentinel for infinite scroll (flat mode only) */}
+        {!hierarchyMode && <div ref={sentinelRef} className="h-1" />}
+        {!hierarchyMode && isFetchingNextPage && (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {!isLoading && messages.length === 0 && (
-          <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            No messages match the current view configuration.
+        {/* Hierarchy mode: load more roots button */}
+        {hierarchyMode && tree.nodes.length > 0 && (
+          <div className="flex items-center justify-center py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground gap-1"
+              onClick={tree.loadMoreRoots}
+            >
+              Load more
+            </Button>
           </div>
         )}
+
+        {!isLoading &&
+          (hierarchyMode
+            ? visibleNodes.length === 0
+            : messages.length === 0) && (
+            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+              No messages match the current view configuration.
+            </div>
+          )}
       </div>
     </div>
   );

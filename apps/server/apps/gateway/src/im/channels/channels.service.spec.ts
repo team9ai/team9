@@ -6,9 +6,13 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ChannelsService } from './channels.service.js';
+import {
+  ChannelsService,
+  defaultDmOutboundPolicy,
+  isTargetAllowed,
+} from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
-import type { BotExtra } from '@team9/database/schemas';
+import type { BotExtra, DmOutboundPolicy } from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { TabsService } from '../views/tabs.service.js';
@@ -2496,6 +2500,389 @@ describe('ChannelsService', () => {
       expect(warnSpy.mock.calls[0][0]).toContain('u1');
 
       warnSpy.mockRestore();
+    });
+  });
+
+  // ── assertBotCanDm ────────────────────────────────────────────────────
+
+  describe('assertBotCanDm', () => {
+    // Helpers to set up the sequential db.limit mock resolutions used by
+    // assertBotCanDm:
+    //   1st call → bot row
+    //   2nd call → target user row
+    //   3rd call → tenant_members membership row
+
+    const BOT_TENANT_ID = 'tenant-abc';
+
+    function mockBotRow(
+      override: Partial<{
+        userId: string;
+        ownerId: string | null;
+        mentorId: string | null;
+        extra: BotExtra;
+      }> = {},
+    ) {
+      return {
+        userId: 'bot-1',
+        ownerId: 'owner-1',
+        mentorId: null,
+        extra: {} as BotExtra,
+        ...override,
+      };
+    }
+
+    function mockTargetRow(
+      override: Partial<{
+        id: string;
+        isBot: boolean;
+      }> = {},
+    ) {
+      return {
+        id: 'user-2',
+        isBot: false,
+        ...override,
+      };
+    }
+
+    /** Stub the tenant_members lookup to return a matching membership row. */
+    function stubMembershipFound(userId = 'user-2') {
+      db.limit.mockResolvedValueOnce([{ userId }] as any);
+    }
+
+    /** Stub the tenant_members lookup to return an empty result (cross-tenant). */
+    function stubMembershipNotFound() {
+      db.limit.mockResolvedValueOnce([] as any);
+    }
+
+    it('throws BadRequestException(SELF_DM) when botUserId === targetUserId', async () => {
+      await expect(
+        service.assertBotCanDm('bot-1', 'bot-1', BOT_TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'bot-1', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'SELF_DM' });
+
+      // Self-DM guard must short-circuit before any DB calls
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException(BOT_NOT_FOUND) when bot row is missing', async () => {
+      // Bot lookup returns nothing
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-missing', 'user-2', BOT_TENANT_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        (async () => {
+          db.limit.mockResolvedValueOnce([] as any);
+          await service.assertBotCanDm('bot-missing', 'user-2', BOT_TENANT_ID);
+        })(),
+      ).rejects.toMatchObject({ message: 'BOT_NOT_FOUND' });
+    });
+
+    it('throws NotFoundException(USER_NOT_FOUND) when target user row is missing', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-missing', BOT_TENANT_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-missing', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'USER_NOT_FOUND' });
+    });
+
+    it('throws ForbiddenException(DM_NOT_ALLOWED) when target is itself a bot', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ isBot: true })] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'another-bot', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ isBot: true })] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'another-bot', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
+    });
+
+    it('throws BadRequestException(CROSS_TENANT) when target is not a tenant member', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'user-2' })] as any);
+      stubMembershipNotFound();
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-2', BOT_TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'user-2' })] as any);
+      stubMembershipNotFound();
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-2', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'CROSS_TENANT' });
+    });
+
+    it('default policy: personalStaff bot → owner-only, allows the owner', async () => {
+      const extra: BotExtra = { personalStaff: {} };
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'owner-1' })] as any);
+      stubMembershipFound('owner-1');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'owner-1', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('default policy: personalStaff bot → owner-only, rejects non-owner', async () => {
+      const extra: BotExtra = { personalStaff: {} };
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'user-other' }),
+      ] as any);
+      stubMembershipFound('user-other');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-other', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'user-other' }),
+      ] as any);
+      stubMembershipFound('user-other');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-other', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
+    });
+
+    it('default policy: commonStaff bot → same-tenant, allows any non-bot tenant member', async () => {
+      const extra: BotExtra = { commonStaff: {} };
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: null, extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'user-any' }),
+      ] as any);
+      stubMembershipFound('user-any');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-any', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('default policy: unclassified bot → owner-only, rejects non-owner', async () => {
+      const extra: BotExtra = {}; // no personalStaff, no commonStaff
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'random-user' }),
+      ] as any);
+      stubMembershipFound('random-user');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'random-user', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('explicit whitelist policy: allows a listed user', async () => {
+      const extra: BotExtra = {
+        dmOutboundPolicy: {
+          mode: 'whitelist',
+          userIds: ['allowed-1', 'allowed-2'],
+        },
+      };
+      db.limit.mockResolvedValueOnce([mockBotRow({ extra })] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'allowed-1' }),
+      ] as any);
+      stubMembershipFound('allowed-1');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'allowed-1', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('explicit whitelist policy: rejects an unlisted user', async () => {
+      const extra: BotExtra = {
+        dmOutboundPolicy: { mode: 'whitelist', userIds: ['allowed-1'] },
+      };
+      db.limit.mockResolvedValueOnce([mockBotRow({ extra })] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'not-listed' }),
+      ] as any);
+      stubMembershipFound('not-listed');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'not-listed', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('explicit anyone policy: allows any same-tenant user', async () => {
+      const extra: BotExtra = {
+        dmOutboundPolicy: { mode: 'anyone' },
+      };
+      db.limit.mockResolvedValueOnce([mockBotRow({ extra })] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'any-user' }),
+      ] as any);
+      stubMembershipFound('any-user');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'any-user', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  // ── defaultDmOutboundPolicy (module-level helper) ─────────────────────
+
+  describe('defaultDmOutboundPolicy', () => {
+    it('returns owner-only for personalStaff bots', () => {
+      const extra: BotExtra = { personalStaff: {} };
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'owner-only' });
+    });
+
+    it('returns same-tenant for commonStaff bots', () => {
+      const extra: BotExtra = { commonStaff: {} };
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'same-tenant' });
+    });
+
+    it('returns owner-only when neither personalStaff nor commonStaff is set', () => {
+      const extra: BotExtra = {};
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'owner-only' });
+    });
+
+    it('personalStaff takes precedence over commonStaff when both are present', () => {
+      // This is an unexpected/corrupted state, but personalStaff is checked
+      // first so it wins (mirrors the existing corruption logic in service).
+      const extra: BotExtra = { personalStaff: {}, commonStaff: {} };
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'owner-only' });
+    });
+  });
+
+  // ── isTargetAllowed (module-level helper) ─────────────────────────────
+
+  describe('isTargetAllowed', () => {
+    it('owner-only: returns true when target is the owner', () => {
+      const policy: DmOutboundPolicy = { mode: 'owner-only' };
+      expect(isTargetAllowed(policy, { ownerId: 'owner-1' }, 'owner-1')).toBe(
+        true,
+      );
+    });
+
+    it('owner-only: returns false when target is not the owner', () => {
+      const policy: DmOutboundPolicy = { mode: 'owner-only' };
+      expect(
+        isTargetAllowed(policy, { ownerId: 'owner-1' }, 'other-user'),
+      ).toBe(false);
+    });
+
+    it('owner-only: returns false when ownerId is null', () => {
+      const policy: DmOutboundPolicy = { mode: 'owner-only' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(
+        false,
+      );
+    });
+
+    it('same-tenant: always returns true', () => {
+      const policy: DmOutboundPolicy = { mode: 'same-tenant' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(true);
+      expect(
+        isTargetAllowed(policy, { ownerId: 'owner-1' }, 'other-user'),
+      ).toBe(true);
+    });
+
+    it('whitelist: returns true when targetId is in userIds', () => {
+      const policy: DmOutboundPolicy = {
+        mode: 'whitelist',
+        userIds: ['u1', 'u2'],
+      };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'u1')).toBe(true);
+      expect(isTargetAllowed(policy, { ownerId: null }, 'u2')).toBe(true);
+    });
+
+    it('whitelist: returns false when targetId is not in userIds', () => {
+      const policy: DmOutboundPolicy = { mode: 'whitelist', userIds: ['u1'] };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'u-not-listed')).toBe(
+        false,
+      );
+    });
+
+    it('whitelist: returns false when userIds is undefined', () => {
+      const policy: DmOutboundPolicy = { mode: 'whitelist' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(
+        false,
+      );
+    });
+
+    it('anyone: always returns true', () => {
+      const policy: DmOutboundPolicy = { mode: 'anyone' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(true);
+      expect(
+        isTargetAllowed(policy, { ownerId: 'owner-1' }, 'someone-else'),
+      ).toBe(true);
+    });
+  });
+
+  // ── filterBotUserIds ─────────────────────────────────────────────
+
+  describe('filterBotUserIds', () => {
+    it('returns an empty Set when given an empty array (no DB query)', async () => {
+      const result = await service.filterBotUserIds([]);
+      expect(result).toEqual(new Set());
+      // No DB call should occur for an empty input
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('returns a Set containing only the userIds that appear in im_bots', async () => {
+      // Simulate: two of the three supplied IDs are bots
+      db.where.mockResolvedValueOnce([
+        { userId: 'bot-1' },
+        { userId: 'bot-2' },
+      ] as any);
+
+      const result = await service.filterBotUserIds([
+        'bot-1',
+        'human-1',
+        'bot-2',
+      ]);
+
+      expect(result).toEqual(new Set(['bot-1', 'bot-2']));
+      expect(db.select).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns an empty Set when none of the supplied userIds are bots', async () => {
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.filterBotUserIds(['human-1', 'human-2']);
+
+      expect(result).toEqual(new Set());
+    });
+
+    it('handles a single userId that is a bot', async () => {
+      db.where.mockResolvedValueOnce([{ userId: 'bot-only' }] as any);
+
+      const result = await service.filterBotUserIds(['bot-only']);
+
+      expect(result).toEqual(new Set(['bot-only']));
     });
   });
 });

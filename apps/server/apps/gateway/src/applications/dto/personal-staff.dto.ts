@@ -7,6 +7,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DmOutboundPolicyDto } from './dm-outbound-policy.dto.js';
 
 class ModelDto {
   @IsString()
@@ -73,4 +74,9 @@ export class UpdatePersonalStaffDto {
   @ValidateNested()
   @Type(() => VisibilityDto)
   visibility?: VisibilityDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DmOutboundPolicyDto)
+  dmOutboundPolicy?: DmOutboundPolicyDto;
 }

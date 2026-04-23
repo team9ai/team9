@@ -106,6 +106,8 @@ import type {
   PropertyDefinitionUpdatedEvent,
   PropertyDefinitionDeletedEvent,
   MessagePropertyChangedEvent,
+  MessageRelationChangedEvent,
+  MessageRelationsPurgedEvent,
   // View
   ViewCreatedEvent,
   ViewUpdatedEvent,
@@ -210,6 +212,8 @@ export interface ServerToClientEvents {
   property_definition_updated: PropertyDefinitionUpdatedEvent;
   property_definition_deleted: PropertyDefinitionDeletedEvent;
   message_property_changed: MessagePropertyChangedEvent;
+  message_relation_changed: MessageRelationChangedEvent;
+  message_relations_purged: MessageRelationsPurgedEvent;
   // View
   view_created: ViewCreatedEvent;
   view_updated: ViewUpdatedEvent;
