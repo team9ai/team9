@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import wsService from "@/services/websocket";
 import type { ChannelWithUnread, Message } from "@/types/im";
+import type { TopicSessionGroup } from "@/services/api/im";
 import type {
   ReadStatusUpdatedEvent,
   UserOnlineEvent,
@@ -153,6 +154,36 @@ export function useWebSocketEvents() {
             }
             return channel;
           });
+        },
+      );
+
+      // Also zero the badge on the topic-session sidebar view.
+      // topic-sessions-grouped carries its own `recentSessions[].unreadCount`
+      // snapshot — without this update, the channels query gets patched
+      // but the sidebar AgentGroupList keeps rendering the stale badge
+      // until a full refetch. Use setQueriesData (not setQueryData) because
+      // the query key includes `perAgent`, so multiple variants may be
+      // cached and all of them need the patch applied.
+      queryClient.setQueriesData<TopicSessionGroup[]>(
+        { queryKey: ["topic-sessions-grouped", workspaceId] },
+        (old) => {
+          if (!old) return old;
+          let changed = false;
+          const next = old.map((group) => {
+            if (
+              !group.recentSessions.some((s) => s.channelId === event.channelId)
+            ) {
+              return group;
+            }
+            changed = true;
+            return {
+              ...group,
+              recentSessions: group.recentSessions.map((s) =>
+                s.channelId === event.channelId ? { ...s, unreadCount: 0 } : s,
+              ),
+            };
+          });
+          return changed ? next : old;
         },
       );
     };
