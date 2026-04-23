@@ -229,8 +229,8 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("\u2714")).toBeInTheDocument();
     });
 
-    it("shows failure cross for failed result", () => {
-      const { container } = render(
+    it("shows failure cross and a red wrench icon for failed result", () => {
+      render(
         <ToolCallBlock
           callMetadata={makeCallMeta("RunScript")}
           resultMetadata={makeResultMeta("failed")}
@@ -239,7 +239,9 @@ describe("ToolCallBlock", () => {
       );
 
       expect(screen.getByText("\u2718")).toBeInTheDocument();
-      expect(container.querySelector(".bg-red-500")).toBeInTheDocument();
+      const icon = screen.getByTestId("event-icon");
+      expect(icon).toHaveClass("text-red-500");
+      expect(icon).not.toHaveClass("animate-pulse");
     });
 
     it("does NOT show a result indicator while still running", () => {
@@ -255,8 +257,8 @@ describe("ToolCallBlock", () => {
       expect(screen.queryByText("\u2718")).not.toBeInTheDocument();
     });
 
-    it("uses a green dot for successful result", () => {
-      const { container } = render(
+    it("uses an emerald wrench icon for successful result", () => {
+      render(
         <ToolCallBlock
           callMetadata={makeCallMeta("Tool")}
           resultMetadata={makeResultMeta("completed")}
@@ -264,12 +266,14 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(container.querySelector(".bg-emerald-500")).toBeInTheDocument();
-      expect(container.querySelector(".bg-red-500")).not.toBeInTheDocument();
+      const icon = screen.getByTestId("event-icon");
+      expect(icon).toHaveClass("text-emerald-500");
+      expect(icon).not.toHaveClass("text-red-500");
+      expect(icon).not.toHaveClass("animate-pulse");
     });
 
-    it("uses an animated green dot while running", () => {
-      const { container } = render(
+    it("pulses a yellow wrench icon while running", () => {
+      render(
         <ToolCallBlock
           callMetadata={makeCallMeta("Tool")}
           resultMetadata={makeResultMeta("running")}
@@ -277,9 +281,9 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(
-        container.querySelector(".bg-emerald-500.animate-pulse"),
-      ).toBeInTheDocument();
+      const icon = screen.getByTestId("event-icon");
+      expect(icon).toHaveClass("text-yellow-400");
+      expect(icon).toHaveClass("animate-pulse");
     });
   });
 

@@ -197,7 +197,6 @@ export const useAppStore = create<AppState>()(
           lastVisitedPaths: state.lastVisitedPaths,
           activeSidebar: state.activeSidebar,
           sidebarCollapsed: state.sidebarCollapsed,
-          user: state.user,
         }),
       },
     ),

@@ -9,6 +9,7 @@ import {
   and,
   like,
   aliasedTable,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -74,6 +75,8 @@ export interface BotAuthValidationContext {
   botId: string;
   userId: string;
   tenantId: string;
+  email: string;
+  username: string;
 }
 
 interface ValidatedBotTokenMatch {
@@ -573,11 +576,25 @@ export class BotService implements OnModuleInit {
         return null;
       }
 
+      const [user] = await this.db
+        .select({
+          email: schema.users.email,
+          username: schema.users.username,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.id, match.userId))
+        .limit(1);
+      if (!user) {
+        return null;
+      }
+
       return {
         context: {
           botId: match.botId,
           userId: match.userId,
           tenantId: match.tenantId,
+          email: user.email,
+          username: user.username,
         },
         version: match.authVersion,
       };
@@ -1074,6 +1091,51 @@ export class BotService implements OnModuleInit {
 
     const storedHash = storedAccessToken.slice(separatorIndex + 1);
     return bcrypt.compare(rawHex, storedHash);
+  }
+
+  /**
+   * Look up a bot's mentorId and isActive flag by its userId. Returns null
+   * when no bot row exists.
+   */
+  async getBotMentorId(
+    botUserId: string,
+  ): Promise<{ mentorId: string | null; isActive: boolean } | null> {
+    const [row] = await this.db
+      .select({
+        mentorId: schema.bots.mentorId,
+        isActive: schema.bots.isActive,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.userId, botUserId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * List every active bot mentored by the given user, scoped to a tenant.
+   * Filters out bots whose tenant membership has been revoked
+   * (tenantMembers.leftAt IS NOT NULL) so a bot whose owning user left the
+   * tenant cannot keep producing mentor-derived permissions.
+   */
+  async findActiveBotsByMentorId(
+    mentorId: string,
+    tenantId: string,
+  ): Promise<{ botUserId: string }[]> {
+    return this.db
+      .select({ botUserId: schema.bots.userId })
+      .from(schema.bots)
+      .innerJoin(
+        schema.tenantMembers,
+        eq(schema.bots.userId, schema.tenantMembers.userId),
+      )
+      .where(
+        and(
+          eq(schema.bots.mentorId, mentorId),
+          eq(schema.bots.isActive, true),
+          eq(schema.tenantMembers.tenantId, tenantId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
   }
 }
 

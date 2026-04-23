@@ -143,12 +143,17 @@ export const env = {
     return getRequiredEnv('API_URL');
   },
 
-  // Billing Hub (required for subscription management)
-  get BILLING_HUB_BASE_URL() {
-    return getRequiredEnv('BILLING_HUB_BASE_URL');
+  // Billing Hub (optional — when unset, BillingHubService operates in bypass mode)
+  get BILLING_HUB_BASE_URL(): string | undefined {
+    return process.env.BILLING_HUB_BASE_URL || undefined;
   },
-  get BILLING_HUB_SERVICE_KEY() {
-    return getRequiredEnv('BILLING_HUB_SERVICE_KEY');
+  get BILLING_HUB_SERVICE_KEY(): string | undefined {
+    return process.env.BILLING_HUB_SERVICE_KEY || undefined;
+  },
+  // Shared secret validating inbound webhooks from billing-hub
+  // (e.g. payment_succeeded → PostHog). Leave unset to disable the endpoint.
+  get BILLING_HUB_WEBHOOK_SECRET(): string | undefined {
+    return process.env.BILLING_HUB_WEBHOOK_SECRET || undefined;
   },
 
   // Application Environment
@@ -229,6 +234,11 @@ export const env = {
   // Google OAuth (optional - Google login disabled if not set)
   get GOOGLE_CLIENT_ID() {
     return process.env.GOOGLE_CLIENT_ID;
+  },
+
+  // Cloudflare Turnstile (optional in non-production; required in production)
+  get CLOUDFLARE_TURNSTILE_SECRET_KEY(): string | undefined {
+    return process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY || undefined;
   },
 
   // Email (Resend)

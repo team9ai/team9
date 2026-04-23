@@ -17,6 +17,7 @@
   "wiki": "Libreria",
   "createWiki": "Crea biblioteca",
   "reviewProposals": "Rivedi proposte",
+  "library": "Libreria",
   "application": "App",
   "more": "Altro",
   "noWorkspace": "Nessun workspace",
@@ -105,6 +106,7 @@
   "dashboardUsageValue": "1.280",
   "dashboardPlan": "Piano gratuito",
   "dashboardUpgrade": "Passa a un piano superiore",
+  "dashboardCreditsLowTitle": "Crediti bassi. Fai clic per ricaricare.",
   "dashboardTitle": "Con cosa posso aiutarti oggi?",
   "dashboardPromptPlaceholder": "Scrivi alla dashboard...",
   "dashboardActionDeepResearch": "Ricerca approfondita",
@@ -144,5 +146,8 @@
   "uninstallConfirmTitle": "Disinstallare {{name}}?",
   "uninstallConfirmDescription": "Questa operazione rimuoverà l'app dal tuo workspace. Qualsiasi dato associato a questa app potrebbe andare perso.",
   "dangerZone": "Zona pericolosa",
-  "hideConversation": "Nascondi conversazione"
+  "hideConversation": "Nascondi conversazione",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Assistente personale",
+  "agentPillModel": "Modello"
 }

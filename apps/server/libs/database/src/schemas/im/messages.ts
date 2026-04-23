@@ -40,7 +40,7 @@ export const messages = pgTable(
     rootId: uuid('root_id'),
     content: text('content'),
     type: messageTypeEnum('type').default('text').notNull(),
-    metadata: jsonb('metadata'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>(),
     isPinned: boolean('is_pinned').default(false).notNull(),
     isEdited: boolean('is_edited').default(false).notNull(),
     isDeleted: boolean('is_deleted').default(false).notNull(),

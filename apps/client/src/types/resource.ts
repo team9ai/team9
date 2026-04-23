@@ -1,6 +1,16 @@
 // ── Enums ────────────────────────────────────────────────────────
 
-export type ResourceType = "agent_computer" | "api";
+export type ResourceType =
+  | "agent_computer"
+  | "api"
+  | "llm"
+  | "mcp"
+  | "database"
+  | "browser"
+  | "knowledge_base"
+  | "sandbox"
+  | "webhook"
+  | "mail_calendar";
 
 export type ResourceStatus = "online" | "offline" | "error" | "configuring";
 
@@ -21,7 +31,65 @@ export interface ApiResourceConfig {
   model?: string;
 }
 
-export type ResourceConfig = AgentComputerConfig | ApiResourceConfig;
+export interface LlmResourceConfig {
+  provider: "openai" | "anthropic" | "google" | "deepseek" | "ollama" | string;
+  model: string;
+  contextLength?: number;
+  apiKey?: string;
+}
+
+export interface McpResourceConfig {
+  endpoint: string;
+  transport: "stdio" | "sse" | "http";
+  tools?: number;
+}
+
+export interface DatabaseResourceConfig {
+  engine: "postgres" | "mysql" | "mongodb" | "redis";
+  host: string;
+  port?: number;
+  database?: string;
+}
+
+export interface BrowserResourceConfig {
+  kind: "playwright" | "remote" | "cdp";
+  version?: string;
+  endpoint?: string;
+}
+
+export interface KnowledgeBaseResourceConfig {
+  store: "pinecone" | "qdrant" | "pgvector" | "local";
+  docs?: number;
+  dimensions?: number;
+}
+
+export interface SandboxResourceConfig {
+  provider: "e2b" | "modal" | "fly" | "custom";
+  runtime: "python" | "node" | "bash" | "deno";
+}
+
+export interface WebhookResourceConfig {
+  method: "GET" | "POST" | "PUT" | "DELETE";
+  url: string;
+  secret?: string;
+}
+
+export interface MailCalendarResourceConfig {
+  service: "gmail" | "outlook" | "google_calendar" | "ical";
+  account: string;
+}
+
+export type ResourceConfig =
+  | AgentComputerConfig
+  | ApiResourceConfig
+  | LlmResourceConfig
+  | McpResourceConfig
+  | DatabaseResourceConfig
+  | BrowserResourceConfig
+  | KnowledgeBaseResourceConfig
+  | SandboxResourceConfig
+  | WebhookResourceConfig
+  | MailCalendarResourceConfig;
 
 // ── Authorization ────────────────────────────────────────────────
 

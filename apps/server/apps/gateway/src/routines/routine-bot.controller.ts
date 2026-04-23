@@ -7,6 +7,8 @@ import {
   Param,
   UseGuards,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
@@ -18,6 +20,7 @@ import {
   UpdateStatusDto,
   AddDeliverableDto,
   UpdateRoutineDto,
+  CompleteCreationDto,
 } from './dto/index.js';
 
 @Controller({
@@ -60,6 +63,22 @@ export class RoutineBotController {
     @CurrentTenantId() tenantId: string,
   ) {
     return this.routineBotService.updateRoutine(
+      routineId,
+      dto,
+      botUserId,
+      tenantId,
+    );
+  }
+
+  @Post(':routineId/complete-creation')
+  @HttpCode(HttpStatus.OK)
+  async completeCreation(
+    @Param('routineId', ParseUUIDPipe) routineId: string,
+    @Body() dto: CompleteCreationDto,
+    @CurrentUser('sub') botUserId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routineBotService.completeCreation(
       routineId,
       dto,
       botUserId,

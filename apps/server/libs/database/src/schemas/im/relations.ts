@@ -14,6 +14,8 @@ import {
   channelNotificationMutes,
 } from './notification-preferences.js';
 import { bots } from './bots.js';
+import { messageRelations } from './message-relations.js';
+import { channelPropertyDefinitions } from './channel-property-definitions.js';
 import { tenants } from '../tenant/tenants.js';
 import { tenantMembers } from '../tenant/tenant-members.js';
 
@@ -216,3 +218,35 @@ export const botsRelations = relations(bots, ({ one }) => ({
     relationName: 'botMentor',
   }),
 }));
+
+export const messageRelationsRelations = relations(
+  messageRelations,
+  ({ one }) => ({
+    source: one(messages, {
+      fields: [messageRelations.sourceMessageId],
+      references: [messages.id],
+      relationName: 'relation_source',
+    }),
+    target: one(messages, {
+      fields: [messageRelations.targetMessageId],
+      references: [messages.id],
+      relationName: 'relation_target',
+    }),
+    definition: one(channelPropertyDefinitions, {
+      fields: [messageRelations.propertyDefinitionId],
+      references: [channelPropertyDefinitions.id],
+    }),
+    channel: one(channels, {
+      fields: [messageRelations.channelId],
+      references: [channels.id],
+    }),
+    tenant: one(tenants, {
+      fields: [messageRelations.tenantId],
+      references: [tenants.id],
+    }),
+    creator: one(users, {
+      fields: [messageRelations.createdBy],
+      references: [users.id],
+    }),
+  }),
+);

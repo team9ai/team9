@@ -231,6 +231,7 @@ describe('InstalledApplicationsController', () => {
       install: jest.fn<any>().mockResolvedValue({ id: 'installed-1' }),
       update: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
       uninstall: jest.fn<any>().mockResolvedValue(undefined),
+      ensureAutoInstallApps: jest.fn<any>().mockResolvedValue(undefined),
     };
     applicationsService = {
       findAll: jest.fn<any>().mockReturnValue([]),

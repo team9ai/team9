@@ -6,8 +6,19 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
+import { RedisService } from '@team9/redis';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { ApplicationsService } from './applications.service.js';
+
+const makeRedisMock = () =>
+  ({
+    get: jest.fn<any>().mockResolvedValue(null),
+    set: jest.fn<any>().mockResolvedValue(undefined),
+    del: jest.fn<any>().mockResolvedValue(undefined),
+    invalidate: jest.fn<any>().mockResolvedValue(undefined),
+    acquireLock: jest.fn<any>().mockResolvedValue('lock-token'),
+    releaseLock: jest.fn<any>().mockResolvedValue(undefined),
+  }) as unknown as RedisService;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,6 +106,7 @@ describe('InstalledApplicationsService — install', () => {
         InstalledApplicationsService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: ApplicationsService, useValue: applicationsService },
+        { provide: RedisService, useValue: makeRedisMock() },
         { provide: 'APPLICATION_HANDLERS', useValue: [handler] },
       ],
     }).compile();
@@ -179,6 +191,26 @@ describe('InstalledApplicationsService — install', () => {
       }),
     ).rejects.toThrow(NotFoundException);
   });
+
+  // ── hidden guard ────────────────────────────────────────────────────────────
+
+  it('throws ForbiddenException when installing a hidden app, without touching the DB', async () => {
+    applicationsService.findById.mockReturnValueOnce({
+      id: APP_ID,
+      name: 'Base Model Staff',
+      type: 'custom',
+      singleton: true,
+      enabled: true,
+      hidden: true,
+    });
+
+    await expect(
+      service.install(TENANT_ID, INSTALLED_BY, { applicationId: APP_ID }),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(handler.onInstall).not.toHaveBeenCalled();
+  });
 });
 
 describe('InstalledApplicationsService — uninstall', () => {
@@ -215,6 +247,7 @@ describe('InstalledApplicationsService — uninstall', () => {
         InstalledApplicationsService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: ApplicationsService, useValue: applicationsService },
+        { provide: RedisService, useValue: makeRedisMock() },
         { provide: 'APPLICATION_HANDLERS', useValue: [handler] },
       ],
     }).compile();
@@ -233,6 +266,25 @@ describe('InstalledApplicationsService — uninstall', () => {
     await service.uninstall(INSERTED_RECORD.id, TENANT_ID);
 
     expect(handler.onUninstall).toHaveBeenCalled();
+  });
+
+  it('still uninstalls a hidden app (soft-retire allows uninstall)', async () => {
+    applicationsService.findById.mockReturnValueOnce({
+      id: APP_ID,
+      name: 'Base Model Staff',
+      type: 'custom',
+      singleton: true,
+      enabled: true,
+      hidden: true,
+    });
+    db.where.mockResolvedValueOnce([
+      { ...INSERTED_RECORD, applicationId: APP_ID },
+    ]);
+
+    await service.uninstall(INSERTED_RECORD.id, TENANT_ID);
+
+    expect(handler.onUninstall).toHaveBeenCalled();
+    expect(db.delete).toHaveBeenCalled();
   });
 
   it('throws ForbiddenException when uninstalling a managed app', async () => {

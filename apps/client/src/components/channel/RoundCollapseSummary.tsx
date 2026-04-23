@@ -37,11 +37,11 @@ export function RoundCollapseSummary({
       type="button"
       onClick={onClick}
       className={cn(
-        "ml-4 flex items-center gap-1.5 w-full text-left",
-        "border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md",
+        "ml-2 mr-4 flex items-center gap-1.5 w-[calc(100%-1.5rem)] text-left",
+        "border-l-2 border-border bg-muted/30 rounded-r-md",
         "py-1.5 pr-4",
         "text-xs text-muted-foreground",
-        "hover:bg-emerald-500/[0.06] hover:text-foreground",
+        "hover:bg-muted/50 hover:text-foreground",
         "transition-colors duration-150 cursor-pointer",
       )}
       style={{ paddingLeft: "13px" }}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useCurrentUser } from "@/hooks/useAuth";
 import {
   Camera,
   Check,
@@ -14,6 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MemoryTab } from "@/components/ai-staff/memory/MemoryTab";
+import { WorkfileTab } from "@/components/ai-staff/workfile/WorkfileTab";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,8 +45,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { DmOutboundPolicyBlock } from "@/components/ai-staff/DmOutboundPolicyBlock";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
+import type { DmOutboundPolicy } from "@/types/bot-dm-policy";
+import type { UserOption } from "@/components/ai-staff/MultiUserPicker";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
 import { formatDateTime } from "@/lib/date-format";
@@ -95,6 +102,19 @@ export function PersonalStaffDetailSection({
   const [pendingVisibilityField, setPendingVisibilityField] = useState<
     "allowMention" | "allowDirectMessage" | null
   >(null);
+
+  const { data: currentUser } = useCurrentUser();
+
+  // DM outbound policy state
+  const effectiveDmPolicy: DmOutboundPolicy = bot.dmOutboundPolicy ?? {
+    mode: "owner-only",
+  };
+  const [dmPolicyWhitelistUsers, setDmPolicyWhitelistUsers] = useState<
+    UserOption[]
+  >([]);
+
+  // Current user is the owner of their personal staff — they are always the "mentor"
+  const isOwner = !!currentUser && bot.ownerId === currentUser.id;
 
   const displayName = bot.displayName || "Personal Assistant";
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -256,6 +276,10 @@ export function PersonalStaffDetailSection({
   const handleCancelVisibility = () => {
     setVisibilityDialogOpen(false);
     setPendingVisibilityField(null);
+  };
+
+  const handleDmPolicyChange = (next: DmOutboundPolicy) => {
+    updateMutation.mutate({ dmOutboundPolicy: next });
   };
 
   return (
@@ -457,131 +481,149 @@ export function PersonalStaffDetailSection({
 
       {/* Staff Details Section */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Staff Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Persona */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">
-                Persona
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs gap-1"
-                disabled={isGeneratingPersona || savingField === "persona"}
-                onClick={() => {
-                  void handleGeneratePersona();
-                }}
-              >
-                {isGeneratingPersona ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Wand2 size={12} />
-                )}
-                AI Generate
-              </Button>
-            </div>
-            {editingPersona ? (
+        <Tabs defaultValue="details">
+          <CardHeader className="pb-0">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="details">Staff Details</TabsTrigger>
+              <TabsTrigger value="memory">Memory</TabsTrigger>
+              <TabsTrigger value="workfile">Workfile</TabsTrigger>
+            </TabsList>
+          </CardHeader>
+          <TabsContent value="details">
+            <CardContent className="space-y-5">
+              {/* Persona */}
               <div className="space-y-1.5">
-                <Textarea
-                  value={personaInput}
-                  onChange={(e) => setPersonaInput(e.target.value)}
-                  className="text-sm min-h-[120px] resize-y"
-                  placeholder="Describe your personal assistant's persona..."
-                  autoFocus
-                />
-                <div className="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={savingField === "persona"}
-                    onClick={handleSavePersona}
-                  >
-                    {savingField === "persona" ? (
-                      <Loader2 size={12} className="animate-spin mr-1" />
-                    ) : (
-                      <Check size={12} className="mr-1" />
-                    )}
-                    Save
-                  </Button>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-foreground">
+                    Persona
+                  </label>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setEditingPersona(false)}
+                    className="h-7 px-2 text-xs gap-1"
+                    disabled={isGeneratingPersona || savingField === "persona"}
+                    onClick={() => {
+                      void handleGeneratePersona();
+                    }}
                   >
-                    Cancel
+                    {isGeneratingPersona ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={12} />
+                    )}
+                    AI Generate
                   </Button>
                 </div>
-              </div>
-            ) : (
-              <div
-                className="group relative cursor-pointer rounded-md border border-transparent hover:border-border p-2 -mx-2 transition-colors"
-                onClick={() => {
-                  setPersonaInput(bot.persona ?? "");
-                  setEditingPersona(true);
-                }}
-              >
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {bot.persona || (
-                    <span className="italic">Click to add persona...</span>
-                  )}
-                </p>
-                <Pencil
-                  size={11}
-                  className="absolute top-2 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Model */}
-          <div className="flex items-center justify-between gap-4">
-            <label className="text-sm font-medium text-foreground shrink-0">
-              Model
-            </label>
-            <Select
-              value={currentModelValue}
-              onValueChange={handleModelChange}
-              disabled={savingField === "model"}
-            >
-              <SelectTrigger className="w-52 h-8 text-sm">
-                <SelectValue placeholder="Select model..." />
-              </SelectTrigger>
-              <SelectContent>
-                {COMMON_STAFF_MODELS.map((m) => (
-                  <SelectItem
-                    key={`${m.provider}::${m.id}`}
-                    value={`${m.provider}::${m.id}`}
+                {editingPersona ? (
+                  <div className="space-y-1.5">
+                    <Textarea
+                      value={personaInput}
+                      onChange={(e) => setPersonaInput(e.target.value)}
+                      className="text-sm min-h-[120px] resize-y"
+                      placeholder="Describe your personal assistant's persona..."
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={savingField === "persona"}
+                        onClick={handleSavePersona}
+                      >
+                        {savingField === "persona" ? (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        ) : (
+                          <Check size={12} className="mr-1" />
+                        )}
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setEditingPersona(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="group relative cursor-pointer rounded-md border border-transparent hover:border-border p-2 -mx-2 transition-colors"
+                    onClick={() => {
+                      setPersonaInput(bot.persona ?? "");
+                      setEditingPersona(true);
+                    }}
                   >
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {bot.persona || (
+                        <span className="italic">Click to add persona...</span>
+                      )}
+                    </p>
+                    <Pencil
+                      size={11}
+                      className="absolute top-2 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  </div>
+                )}
+              </div>
 
-          {/* Job Description (read-only) */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">
-              Job Description
-            </label>
-            <p className="text-sm text-muted-foreground p-2 -mx-2">
-              Personal AI assistant
-            </p>
-          </div>
+              {/* Model */}
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm font-medium text-foreground shrink-0">
+                  Model
+                </label>
+                <Select
+                  value={currentModelValue}
+                  onValueChange={handleModelChange}
+                  disabled={savingField === "model"}
+                >
+                  <SelectTrigger className="w-52 h-8 text-sm">
+                    <SelectValue placeholder="Select model..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMMON_STAFF_MODELS.map((m) => (
+                      <SelectItem
+                        key={`${m.provider}::${m.id}`}
+                        value={`${m.provider}::${m.id}`}
+                      >
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Created At */}
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-muted-foreground">Created</span>
-            <span className="text-xs text-muted-foreground">
-              {formatDate(bot.createdAt)}
-            </span>
-          </div>
-        </CardContent>
+              {/* Job Description (read-only) */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">
+                  Job Description
+                </label>
+                <p className="text-sm text-muted-foreground p-2 -mx-2">
+                  Personal AI assistant
+                </p>
+              </div>
+
+              {/* Created At */}
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Created</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(bot.createdAt)}
+                </span>
+              </div>
+            </CardContent>
+          </TabsContent>
+          <TabsContent value="memory">
+            <CardContent>
+              <MemoryTab />
+            </CardContent>
+          </TabsContent>
+          <TabsContent value="workfile">
+            <CardContent>
+              <WorkfileTab />
+            </CardContent>
+          </TabsContent>
+        </Tabs>
       </Card>
 
       {/* Visibility Section */}
@@ -639,6 +681,18 @@ export function PersonalStaffDetailSection({
               onCheckedChange={(checked) =>
                 handleVisibilityToggle("allowDirectMessage", checked)
               }
+            />
+          </div>
+
+          {/* DM Outbound Policy */}
+          <div className="border-t pt-4">
+            <DmOutboundPolicyBlock
+              value={effectiveDmPolicy}
+              onChange={handleDmPolicyChange}
+              hideOwnerOnly={false}
+              disabled={!isOwner || updateMutation.isPending}
+              whitelistUsers={dmPolicyWhitelistUsers}
+              onWhitelistUsersChange={setDmPolicyWhitelistUsers}
             />
           </div>
         </CardContent>

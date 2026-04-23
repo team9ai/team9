@@ -1092,3 +1092,15 @@
 .dark .token-important {
   color: #ffa657;
 }
+
+/* KaTeX overrides for chat messages */
+.katex {
+  font-size: 1em;
+}
+.math-block {
+  display: block;
+  margin: 0.25em 0;
+}
+.katex-display {
+  margin: 0.25em 0;
+}

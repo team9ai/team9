@@ -1,9 +1,11 @@
+import { isDeepStrictEqual } from 'node:util';
 import {
   Injectable,
   Inject,
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
@@ -18,6 +20,7 @@ import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { StaffService, type StaffBotResult } from './staff.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
@@ -45,6 +48,7 @@ export class CommonStaffService {
     private readonly channelsService: ChannelsService,
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly staffService: StaffService,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
@@ -172,6 +176,13 @@ export class CommonStaffService {
     if (dto.agenticBootstrap && effectiveMentorId) {
       if (mentorDmChannel) {
         try {
+          // Read the mentor's persisted locale/timezone preferences so the
+          // agent can greet them in the right language and format times in
+          // the right zone. Both columns are nullable; when unset the agent
+          // falls back to English + no zone hint.
+          const locale =
+            await this.usersService.getLocalePreferences(effectiveMentorId);
+
           const sessionId = `team9/${tenantId}/${result.agentId}/dm/${mentorDmChannel.id}`;
           await this.clawHiveService.sendInput(
             sessionId,
@@ -192,6 +203,8 @@ export class CommonStaffService {
                   scopeId: mentorDmChannel.id,
                   peerUserId: effectiveMentorId,
                   isMentorDm: true,
+                  ...(locale.language ? { language: locale.language } : {}),
+                  ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
                 },
               },
             },
@@ -228,13 +241,15 @@ export class CommonStaffService {
    * Steps:
    * 1. Verify installed application is common-staff type
    * 2. Verify bot belongs to this installed application
-   * 3. Update bot + sync to claw-hive via StaffService
+   * 3. Authorize: caller must be bot's mentor OR workspace admin/owner
+   * 4. Update bot + sync to claw-hive via StaffService
    */
   async updateStaff(
     installedApplicationId: string,
     tenantId: string,
     botId: string,
     dto: UpdateCommonStaffDto,
+    actorUserId: string,
   ): Promise<void> {
     // 1. Verify app is common-staff type
     const app = await this.installedApplicationsService.findById(
@@ -277,6 +292,16 @@ export class CommonStaffService {
       );
     }
 
+    // 3. Authorize: caller must be the bot's mentor OR a workspace admin/owner
+    if (bot.mentorId !== actorUserId) {
+      const isAdmin = await this.isWorkspaceAdmin(actorUserId, tenantId);
+      if (!isAdmin) {
+        throw new ForbiddenException(
+          'Only the mentor or workspace admin can update this staff',
+        );
+      }
+    }
+
     // Validate mentor is a workspace member (only when a non-empty mentorId is provided)
     if (dto.mentorId !== undefined && dto.mentorId) {
       const mentorMember = await this.db
@@ -300,6 +325,12 @@ export class CommonStaffService {
     // 3. Build merged BotExtra and delegate to StaffService
     const existingExtra = (bot.extra as BotExtra) ?? {};
     const existingCommonStaff = existingExtra.commonStaff ?? {};
+
+    // dm outbound policy: partial-update semantics — undefined means no change
+    const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
+    const nextPolicy = dto.dmOutboundPolicy;
+    let policyChanged = false;
+
     const updatedExtra: BotExtra = {
       ...existingExtra,
       commonStaff: {
@@ -311,7 +342,16 @@ export class CommonStaffService {
           : {}),
         ...(dto.model !== undefined ? { model: dto.model } : {}),
       },
+      ...(nextPolicy !== undefined
+        ? {
+            dmOutboundPolicy: nextPolicy,
+          }
+        : {}),
     };
+
+    if (nextPolicy !== undefined) {
+      policyChanged = !isDeepStrictEqual(currentPolicy, nextPolicy);
+    }
 
     await this.staffService.updateBotAndAgent({
       agentIdPrefix: 'common-staff',
@@ -325,6 +365,18 @@ export class CommonStaffService {
       botExtra: updatedExtra,
       currentMentorId: bot.mentorId ?? null,
     });
+
+    if (policyChanged) {
+      this.logger.log({
+        event: 'bot_dm_outbound_policy_changed',
+        botId: bot.botId,
+        botUserId: bot.userId,
+        actorUserId,
+        from: currentPolicy,
+        to: nextPolicy,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**
@@ -384,6 +436,26 @@ export class CommonStaffService {
       agentIdPrefix: 'common-staff',
       botId,
     });
+  }
+
+  /**
+   * Check if a user is a workspace admin or owner.
+   */
+  private async isWorkspaceAdmin(
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const [member] = await this.db
+      .select({ role: schema.tenantMembers.role })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          eq(schema.tenantMembers.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+    return member?.role === 'admin' || member?.role === 'owner';
   }
 
   /**

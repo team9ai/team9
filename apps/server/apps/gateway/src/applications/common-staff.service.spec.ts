@@ -1,5 +1,11 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
+// StaffService.createLlmProvider() is called even when streamText is
+// mocked, and it throws when neither OPENROUTER_API_KEY nor
+// CAPABILITY_HUB_URL is set. Provide a stub value up-front so tests
+// don't crash in minimal CI environments.
+process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
+
 const mockStreamText = jest.fn<any>();
 
 const mockOutputObject = jest.fn<any>().mockReturnValue('mock-output-spec');
@@ -12,7 +18,11 @@ jest.unstable_mockModule('ai', () => ({
 const { CommonStaffService } = await import('./common-staff.service.js');
 const { StaffService } = await import('./staff.service.js');
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
 
 import { BotService } from '../bot/bot.service.js';
@@ -20,6 +30,7 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
@@ -29,6 +40,8 @@ import type {
   GenerateAvatarDto,
   GenerateCandidatesDto,
 } from './dto/generate-persona.dto.js';
+import { DmOutboundPolicyDto } from './dto/dm-outbound-policy.dto.js';
+import { validate } from 'class-validator';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -199,10 +212,19 @@ function mockStreamTextReturn(chunks: string[]) {
 function mockStreamTextWithOutputReturn(
   partials: unknown[],
   finalObj: unknown,
+  finishReason:
+    | 'stop'
+    | 'length'
+    | 'content-filter'
+    | 'tool-calls'
+    | 'error'
+    | 'other'
+    | 'unknown' = 'stop',
 ) {
   return {
     partialOutputStream: makeAsyncIterable(partials),
     output: Promise.resolve(finalObj),
+    finishReason: Promise.resolve(finishReason),
   };
 }
 
@@ -244,6 +266,8 @@ describe('CommonStaffService', () => {
   };
   let channelsService: { createDirectChannel: MockFn };
   let installedApplicationsService: { findById: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
+  let staffService: { createBotWithAgent: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -278,6 +302,12 @@ describe('CommonStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
+
     // Default: streamText returns text stream (for generatePersona)
     // Candidate tests override with mockStreamTextWithOutputReturn
     mockStreamText.mockReset();
@@ -296,6 +326,7 @@ describe('CommonStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        { provide: UsersService, useValue: usersService },
         {
           provide: RedisService,
           useValue: {
@@ -309,6 +340,13 @@ describe('CommonStaffService', () => {
     }).compile();
 
     service = module.get<CommonStaffService>(CommonStaffService);
+    const injectedStaffService = module.get<StaffService>(StaffService);
+    staffService = {
+      createBotWithAgent: jest.spyOn(
+        injectedStaffService,
+        'createBotWithAgent',
+      ),
+    };
   });
 
   // ── createStaff ──────────────────────────────────────────────────────────────
@@ -352,6 +390,16 @@ describe('CommonStaffService', () => {
       });
       await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
+      // Verify roleTitle flows through to staffService.createBotWithAgent
+      expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          botExtra: expect.objectContaining({
+            commonStaff: expect.objectContaining({ roleTitle: 'Dev' }),
+          }),
+        }),
+      );
+
+      // Also verify it reaches botService.updateBotExtra
       expect(botService.updateBotExtra).toHaveBeenCalledWith(
         BOT_ID,
         expect.objectContaining({
@@ -506,6 +554,56 @@ describe('CommonStaffService', () => {
           peerUserId: MENTOR_ID,
           isMentorDm: true,
         });
+      });
+
+      it("includes the mentor's persisted language + timeZone in team9Context when set", async () => {
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'pt-BR',
+          timeZone: 'America/Sao_Paulo',
+        });
+
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        // The service must call getLocalePreferences with the MENTOR id, not the
+        // owner — common-staff mentor can differ from the creator of the bot.
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(
+          MENTOR_ID,
+        );
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toMatchObject({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: MENTOR_ID,
+          isMentorDm: true,
+          language: 'pt-BR',
+          timeZone: 'America/Sao_Paulo',
+        });
+      });
+
+      it('omits language and timeZone from team9Context when the mentor has no preferences', async () => {
+        // Default mock already returns { language: null, timeZone: null } —
+        // no override needed.
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).not.toHaveProperty('language');
+        expect(event.payload.team9Context).not.toHaveProperty('timeZone');
       });
 
       it('does not trigger sendInput when agenticBootstrap=false', async () => {
@@ -792,7 +890,13 @@ describe('CommonStaffService', () => {
 
     it('updates bot display name when provided', async () => {
       const dto = makeUpdateDto({ displayName: 'New Name' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotDisplayName).toHaveBeenCalledWith(
         BOT_ID,
@@ -802,14 +906,26 @@ describe('CommonStaffService', () => {
 
     it('does not update display name when not provided', async () => {
       const dto = makeUpdateDto({ displayName: undefined });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotDisplayName).not.toHaveBeenCalled();
     });
 
     it('updates mentor when mentorId is provided', async () => {
       const dto = makeUpdateDto({ mentorId: 'new-mentor-id' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotMentor).toHaveBeenCalledWith(
         BOT_ID,
@@ -823,13 +939,19 @@ describe('CommonStaffService', () => {
 
       const dto = makeUpdateDto({ mentorId: 'non-member-user' });
       await expect(
-        service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto),
+        service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto, OWNER_ID),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('skips mentor validation when mentorId is empty string (clearing mentor)', async () => {
       const dto = makeUpdateDto({ mentorId: '' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       // Mentor cleared — no validation needed, sets to null
       expect(botService.updateBotMentor).toHaveBeenCalledWith(BOT_ID, null);
@@ -837,14 +959,26 @@ describe('CommonStaffService', () => {
 
     it('sets mentor to null when mentorId is empty string', async () => {
       const dto = makeUpdateDto({ mentorId: '' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotMentor).toHaveBeenCalledWith(BOT_ID, null);
     });
 
     it('does not update mentor when mentorId not in dto', async () => {
       const dto: UpdateCommonStaffDto = {};
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotMentor).not.toHaveBeenCalled();
     });
@@ -862,7 +996,13 @@ describe('CommonStaffService', () => {
       botService.getBotById.mockResolvedValueOnce(existingBot); // first call for verification
 
       const dto = makeUpdateDto({ roleTitle: 'New Role' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(botService.updateBotExtra).toHaveBeenCalledWith(
         BOT_ID,
@@ -880,7 +1020,13 @@ describe('CommonStaffService', () => {
         displayName: 'New Name',
         model: { provider: 'openrouter', id: 'openai/gpt-4o' },
       });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(clawHiveService.updateAgent).toHaveBeenCalledWith(
         AGENT_ID,
@@ -898,7 +1044,13 @@ describe('CommonStaffService', () => {
         persona: 'New Persona',
         jobDescription: 'New Desc',
       });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       const call = clawHiveService.updateAgent.mock.calls[0][1] as Record<
         string,
@@ -909,7 +1061,13 @@ describe('CommonStaffService', () => {
 
     it('does not pass common-staff-agent componentConfig to updateAgent', async () => {
       const dto = makeUpdateDto({ displayName: 'New Name' });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       const call = clawHiveService.updateAgent.mock.calls[0][1] as Record<
         string,
@@ -930,6 +1088,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -945,6 +1104,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -958,6 +1118,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -973,6 +1134,7 @@ describe('CommonStaffService', () => {
           TENANT_ID,
           BOT_ID,
           makeUpdateDto(),
+          OWNER_ID,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -981,13 +1143,270 @@ describe('CommonStaffService', () => {
       const dto = makeUpdateDto({
         avatarUrl: 'https://example.com/new-avatar.png',
       });
-      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
 
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({
           avatarUrl: 'https://example.com/new-avatar.png',
         }),
       );
+    });
+
+    // ── dmOutboundPolicy ────────────────────────────────────────────────────────
+
+    describe('dmOutboundPolicy', () => {
+      it('persists a new policy into extra.dmOutboundPolicy', async () => {
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'anyone' },
+        });
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
+
+        expect(botService.updateBotExtra).toHaveBeenCalledWith(
+          BOT_ID,
+          expect.objectContaining({
+            dmOutboundPolicy: { mode: 'anyone' },
+          }),
+        );
+      });
+
+      it('emits structured log when policy is changed (actorUserId = caller, not bot.mentorId fallback)', async () => {
+        const MENTOR_ID = 'mentor-uuid-9999';
+        const botWithMentor = {
+          ...makeBotResult().bot,
+          mentorId: MENTOR_ID,
+          extra: null,
+        };
+        botService.getBotById.mockResolvedValueOnce(botWithMentor);
+
+        const logSpy = jest.spyOn(
+          service['logger'] as unknown as { log: (...args: unknown[]) => void },
+          'log',
+        );
+
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'owner-only' },
+        });
+        // Actor is the mentor — passes auth check directly, no admin lookup needed
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          MENTOR_ID,
+        );
+
+        expect(logSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            event: 'bot_dm_outbound_policy_changed',
+            botId: BOT_ID,
+            botUserId: BOT_USER_ID,
+            actorUserId: MENTOR_ID,
+            from: null,
+            to: { mode: 'owner-only' },
+          }),
+        );
+      });
+
+      it('does NOT emit log when policy is deep-equal to existing', async () => {
+        const existingPolicy = { mode: 'same-tenant' as const };
+        const botWithPolicy = {
+          ...makeBotResult().bot,
+          extra: {
+            commonStaff: { roleTitle: 'Dev' },
+            dmOutboundPolicy: existingPolicy,
+          },
+        };
+        botService.getBotById.mockResolvedValueOnce(botWithPolicy);
+
+        const logSpy = jest.spyOn(
+          service['logger'] as unknown as { log: (...args: unknown[]) => void },
+          'log',
+        );
+
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'same-tenant' },
+        });
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
+
+        const policyChangedCalls = logSpy.mock.calls.filter(
+          (args) =>
+            typeof args[0] === 'object' &&
+            args[0] !== null &&
+            (args[0] as Record<string, unknown>).event ===
+              'bot_dm_outbound_policy_changed',
+        );
+        expect(policyChangedCalls).toHaveLength(0);
+      });
+
+      it('does NOT update extra.dmOutboundPolicy when field is omitted (partial-update semantics)', async () => {
+        const dto = makeUpdateDto({ roleTitle: 'New Role' });
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
+
+        const call = (botService.updateBotExtra.mock.calls as unknown[][])[0];
+        const updatedExtra = call[1] as Record<string, unknown>;
+        expect(updatedExtra).not.toHaveProperty('dmOutboundPolicy');
+      });
+
+      it('persists whitelist policy with userIds', async () => {
+        const userIds = [
+          '00000000-0000-0000-0000-000000000001',
+          '00000000-0000-0000-0000-000000000002',
+        ];
+        const dto = makeUpdateDto({
+          dmOutboundPolicy: { mode: 'whitelist', userIds },
+        });
+        await service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          dto,
+          OWNER_ID,
+        );
+
+        expect(botService.updateBotExtra).toHaveBeenCalledWith(
+          BOT_ID,
+          expect.objectContaining({
+            dmOutboundPolicy: { mode: 'whitelist', userIds },
+          }),
+        );
+      });
+
+      // ── shared DTO validation (one test covers both services) ─────────────────
+
+      it('DmOutboundPolicyDto rejects whitelist with 51 userIds (WHITELIST_TOO_LARGE)', async () => {
+        const dto = new DmOutboundPolicyDto();
+        dto.mode = 'whitelist';
+        dto.userIds = Array.from(
+          { length: 51 },
+          (_, i) =>
+            `00000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`,
+        );
+
+        const errors = await validate(dto);
+        const messages = errors.flatMap((e) =>
+          Object.values(e.constraints ?? {}),
+        );
+        expect(messages).toContain('WHITELIST_TOO_LARGE');
+      });
+
+      it('DmOutboundPolicyDto rejects whitelist mode with no userIds (WHITELIST_USERIDS_REQUIRED)', async () => {
+        const dto = new DmOutboundPolicyDto();
+        dto.mode = 'whitelist';
+        // userIds is deliberately absent
+
+        const errors = await validate(dto);
+        const messages = errors.flatMap((e) =>
+          Object.values(e.constraints ?? {}),
+        );
+        expect(messages).toContain('WHITELIST_USERIDS_REQUIRED');
+      });
+
+      it('DmOutboundPolicyDto accepts non-whitelist mode with no userIds', async () => {
+        for (const mode of ['owner-only', 'same-tenant', 'anyone'] as const) {
+          const dto = new DmOutboundPolicyDto();
+          dto.mode = mode;
+
+          const errors = await validate(dto);
+          expect(errors).toHaveLength(0);
+        }
+      });
+    });
+
+    // ── authorization ───────────────────────────────────────────────────────────
+
+    describe('authorization', () => {
+      const ACTOR_MENTOR_ID = OWNER_ID; // default bot has mentorId = OWNER_ID
+
+      it('updateStaff — mentor can update', async () => {
+        // Actor equals bot.mentorId → no admin lookup required
+        const dto = makeUpdateDto({ displayName: 'By Mentor' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            ACTOR_MENTOR_ID,
+          ),
+        ).resolves.toBeUndefined();
+      });
+
+      it('updateStaff — workspace admin can update', async () => {
+        const ADMIN_USER_ID = 'user-uuid-admin';
+        // Actor is not the mentor, but has admin role → allowed
+        // isWorkspaceAdmin uses db.limit(1); return admin role
+        db.limit.mockResolvedValueOnce([{ role: 'admin' }]);
+
+        const dto = makeUpdateDto({ displayName: 'By Admin' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            ADMIN_USER_ID,
+          ),
+        ).resolves.toBeUndefined();
+      });
+
+      it('updateStaff — workspace owner can update', async () => {
+        const OWNER_USER_ID = 'user-uuid-owner';
+        // Actor is not the mentor, but has owner role → allowed
+        // isWorkspaceAdmin uses db.limit(1); return owner role
+        db.limit.mockResolvedValueOnce([{ role: 'owner' }]);
+
+        const dto = makeUpdateDto({ displayName: 'By Owner' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            OWNER_USER_ID,
+          ),
+        ).resolves.toBeUndefined();
+      });
+
+      it('updateStaff — non-mentor non-admin is rejected', async () => {
+        const MEMBER_USER_ID = 'user-uuid-member';
+        // Actor is not the mentor and has member role → forbidden
+        db.limit.mockResolvedValueOnce([{ role: 'member' }]);
+
+        const dto = makeUpdateDto({ displayName: 'By Member' });
+        await expect(
+          service.updateStaff(
+            INSTALLED_APP_ID,
+            TENANT_ID,
+            BOT_ID,
+            dto,
+            MEMBER_USER_ID,
+          ),
+        ).rejects.toThrow(ForbiddenException);
+      });
     });
   });
 
@@ -1539,6 +1958,10 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           temperature: 0.95,
           output: 'mock-output-spec',
+          // Regression: 3 candidates × ~300-word persona + JSON overhead
+          // easily blows past the provider default (~1024 for Claude via
+          // OpenRouter), truncating the last persona. Must stay explicit.
+          maxOutputTokens: 4096,
         }),
       );
       // Verify Output.object was called with the Zod schema
@@ -1547,6 +1970,39 @@ describe('CommonStaffService', () => {
         schema: { shape: Record<string, unknown> };
       };
       expect(schemaArg.schema).toBeDefined();
+    });
+
+    it("throws when the LLM stops for 'length' (truncation) so the client surfaces an error instead of saving a truncated persona", async () => {
+      // Regression for the 三选一 persona truncation bug: when the LLM
+      // exhausts the token budget mid-generation, Vercel AI SDK still
+      // resolves `result.output` with the partial object (personas cut
+      // off mid-sentence). We must inspect finishReason and throw so the
+      // frontend falls into its error path instead of persisting garbage.
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn(
+          [],
+          {
+            candidates: [
+              {
+                candidateIndex: 1,
+                displayName: 'Alex',
+                roleTitle: 'Ops',
+                persona: 'Alex is a meticulous operator who — ',
+                summary: 'Truncated mid-sentence',
+              },
+            ],
+          },
+          'length',
+        ),
+      );
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(/max_tokens limit/);
     });
 
     it('includes jobTitle and jobDescription in the prompt', async () => {
@@ -1671,11 +2127,15 @@ describe('CommonStaffService', () => {
     });
 
     it('propagates errors from result.output when stream completes but output rejects', async () => {
+      // Attach a no-op catch to prevent the rejection from firing an
+      // unhandled-rejection crash before the test consumer awaits it.
+      const outputRejection = Promise.reject(new Error('Validation failed'));
+      outputRejection.catch(() => {});
       mockStreamText.mockReturnValueOnce({
         partialOutputStream: makeAsyncIterable([
           { candidates: [{ candidateIndex: 1, displayName: 'A' }] },
         ]),
-        output: Promise.reject(new Error('Validation failed')),
+        output: outputRejection,
       });
 
       const gen = service.generateCandidates(

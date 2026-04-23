@@ -7,6 +7,7 @@ import type {
   AuditLogParams,
   AuditLogsResponse,
 } from "@/types/properties";
+import type { RelationInspectionResult, TreeSnapshot } from "@/types/relations";
 
 // Property Definitions API
 export const propertyDefinitionsApi = {
@@ -69,15 +70,16 @@ export const propertyDefinitionsApi = {
 
 // AI Auto-Fill API
 export const aiAutoFillApi = {
-  // Trigger AI auto-fill for message properties (returns HTTP 202 Accepted)
+  // Trigger AI auto-fill for message properties. Runs synchronously — the
+  // response contains the fields the AI actually filled and any skipped keys.
   autoFill: async (
     messageId: string,
     options?: { fields?: string[]; preserveExisting?: boolean },
-  ): Promise<{ status: string }> => {
-    const response = await http.post<{ status: string }>(
-      `/v1/im/messages/${messageId}/properties/auto-fill`,
-      options ?? {},
-    );
+  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> => {
+    const response = await http.post<{
+      filled: Record<string, unknown>;
+      skipped: string[];
+    }>(`/v1/im/messages/${messageId}/properties/auto-fill`, options ?? {});
     return response.data;
   },
 };
@@ -146,12 +148,75 @@ export const auditLogsApi = {
   },
 };
 
+// Message Relations API
+
+export interface GetMessageRelationsParams {
+  kind?: "parent" | "related" | "all";
+  direction?: "outgoing" | "incoming" | "both";
+  depth?: number;
+}
+
+export interface GetViewTreeParams {
+  maxDepth?: number;
+  expandedIds?: string[];
+  cursor?: string | null;
+  limit?: number;
+  filter?: unknown;
+  sort?: unknown;
+}
+
+export const messageRelationsApi = {
+  /**
+   * GET /v1/im/messages/:messageId/properties/relations
+   * Inspect all relation edges (incoming + outgoing) for a message.
+   */
+  getMessageRelations: async (
+    messageId: string,
+    params: GetMessageRelationsParams = {},
+  ): Promise<RelationInspectionResult> => {
+    const qs = new URLSearchParams();
+    if (params.kind) qs.set("kind", params.kind);
+    if (params.direction) qs.set("direction", params.direction);
+    if (params.depth != null) qs.set("depth", String(params.depth));
+    const query = qs.toString();
+    const response = await http.get<RelationInspectionResult>(
+      `/v1/im/messages/${messageId}/properties/relations${query ? `?${query}` : ""}`,
+    );
+    return response.data;
+  },
+
+  /**
+   * GET /v1/im/channels/:channelId/views/:viewId/tree
+   * Returns a hierarchy tree snapshot for the view.
+   */
+  getViewTree: async (
+    channelId: string,
+    viewId: string,
+    params: GetViewTreeParams = {},
+  ): Promise<TreeSnapshot> => {
+    const qs = new URLSearchParams();
+    if (params.maxDepth != null) qs.set("maxDepth", String(params.maxDepth));
+    if (params.expandedIds?.length)
+      qs.set("expandedIds", params.expandedIds.join(","));
+    if (params.cursor) qs.set("cursor", params.cursor);
+    if (params.limit != null) qs.set("limit", String(params.limit));
+    if (params.filter) qs.set("filter", JSON.stringify(params.filter));
+    if (params.sort) qs.set("sort", JSON.stringify(params.sort));
+    const query = qs.toString();
+    const response = await http.get<TreeSnapshot>(
+      `/v1/im/channels/${channelId}/views/${viewId}/tree${query ? `?${query}` : ""}`,
+    );
+    return response.data;
+  },
+};
+
 // Combined properties API export
 export const propertiesApi = {
   definitions: propertyDefinitionsApi,
   messageProperties: messagePropertiesApi,
   aiAutoFill: aiAutoFillApi,
   auditLogs: auditLogsApi,
+  relations: messageRelationsApi,
 };
 
 export default propertiesApi;

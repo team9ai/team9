@@ -71,12 +71,16 @@ describe('WorkspaceBillingController', () => {
   });
 
   it('delegates checkout creation to BillingHubService', async () => {
-    await controller.createCheckout('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
-      priceId: 'price_pro_monthly',
-      type: 'subscription',
-      view: 'credits',
-      amountCents: 5500,
-    });
+    await controller.createCheckout(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      {
+        priceId: 'price_pro_monthly',
+        type: 'subscription',
+        view: 'credits',
+        amountCents: 5500,
+      },
+      'user-123',
+    );
 
     expect(billingHubService.createWorkspaceCheckout).toHaveBeenCalledWith(
       '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
@@ -86,6 +90,7 @@ describe('WorkspaceBillingController', () => {
       5500,
       undefined,
       undefined,
+      'user-123',
     );
   });
 
@@ -101,22 +106,61 @@ describe('WorkspaceBillingController', () => {
     );
   });
 
-  it('delegates overview loading to BillingHubService', async () => {
-    await controller.getOverview('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14');
-
-    expect(billingHubService.getWorkspaceOverview).toHaveBeenCalledWith(
+  it('forwards the requesting workspace role to BillingHubService for overview', async () => {
+    await controller.getOverview('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
+      workspaceRole: 'owner',
+    });
+    expect(billingHubService.getWorkspaceOverview).toHaveBeenLastCalledWith(
       '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'owner',
+    );
+
+    await controller.getOverview('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
+      workspaceRole: 'admin',
+    });
+    expect(billingHubService.getWorkspaceOverview).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'admin',
+    );
+
+    await controller.getOverview('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
+      workspaceRole: 'member',
+    });
+    expect(billingHubService.getWorkspaceOverview).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'member',
+    );
+
+    await controller.getOverview('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
+      workspaceRole: 'guest',
+    });
+    expect(billingHubService.getWorkspaceOverview).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'guest',
     );
   });
 
-  it('marks overview, checkout and portal endpoints as owner/admin only', () => {
+  it('forwards undefined role when workspaceRole is missing from the request', async () => {
+    await controller.getOverview(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      {} as { workspaceRole?: string },
+    );
+    expect(billingHubService.getWorkspaceOverview).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      undefined,
+    );
+  });
+
+  it('does not gate overview reads behind owner/admin metadata', () => {
     expect(
       Reflect.getMetadata(
         WORKSPACE_ROLES_KEY,
         WorkspaceBillingController.prototype.getOverview,
       ),
-    ).toEqual(['owner', 'admin']);
+    ).toBeUndefined();
+  });
 
+  it('still restricts checkout and portal mutations to owners and admins', () => {
     expect(
       Reflect.getMetadata(
         WORKSPACE_ROLES_KEY,

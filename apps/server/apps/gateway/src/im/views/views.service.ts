@@ -13,12 +13,17 @@ import {
   desc,
   lt,
   isNull,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { ChannelView } from '@team9/database/schemas';
 import type { ViewConfig, ViewFilter, ViewSort } from '@team9/shared';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
+import {
+  MessageRelationsService,
+  type SubtreeNode,
+} from '../properties/message-relations.service.js';
 import { CreateViewDto } from './dto/create-view.dto.js';
 import { UpdateViewDto } from './dto/update-view.dto.js';
 
@@ -34,6 +39,7 @@ export class ViewsService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly messagePropertiesService: MessagePropertiesService,
+    private readonly relationsService: MessageRelationsService,
   ) {}
 
   // ==================== CRUD ====================
@@ -77,6 +83,12 @@ export class ViewsService {
       );
     }
 
+    if (dto.config?.hierarchyMode && dto.config?.groupBy) {
+      throw new BadRequestException(
+        'hierarchyMode is mutually exclusive with groupBy',
+      );
+    }
+
     const maxOrder = await this.getMaxOrder(channelId);
 
     const config: ViewConfig = dto.config ?? { filters: [], sorts: [] };
@@ -99,6 +111,12 @@ export class ViewsService {
 
   async update(viewId: string, dto: UpdateViewDto): Promise<ChannelView> {
     await this.findByIdOrThrow(viewId);
+
+    if (dto.config?.hierarchyMode && dto.config?.groupBy) {
+      throw new BadRequestException(
+        'hierarchyMode is mutually exclusive with groupBy',
+      );
+    }
 
     const updateSet: Record<string, unknown> = { updatedAt: new Date() };
     if (dto.name !== undefined) updateSet.name = dto.name;
@@ -199,16 +217,186 @@ export class ViewsService {
         : null;
 
     return {
-      messages: page.map((m) => ({
-        ...m,
-        properties: propsMap[m.id] ?? {},
-      })),
+      messages: page.map((m) =>
+        this.serializeMessageForView(m, propsMap[m.id] ?? {}),
+      ),
       total: filtered.length,
       cursor: nextCursor,
     };
   }
 
+  // ==================== Hierarchy Tree ====================
+
+  /**
+   * Build a hierarchy tree snapshot for the given view + channel.
+   * Returns a flat list of SubtreeNodes (roots + ancestors + children),
+   * a cursor for next-page, and the set of ancestor IDs that were included
+   * purely for structural context (not in the direct hit set).
+   */
+  async getTreeSnapshot(params: {
+    channelId: string;
+    viewId: string;
+    filter?: unknown;
+    sort?: unknown;
+    maxDepth: number;
+    expandedIds: string[];
+    cursor: string | null;
+    limit: number;
+  }): Promise<{
+    nodes: SubtreeNode[];
+    nextCursor: string | null;
+    ancestorsIncluded: string[];
+  }> {
+    // 1) Find the channel's parent-kind definition
+    const [parentDef] = await this.db
+      .select({ id: schema.channelPropertyDefinitions.id })
+      .from(schema.channelPropertyDefinitions)
+      .where(
+        and(
+          eq(schema.channelPropertyDefinitions.channelId, params.channelId),
+          sql`${schema.channelPropertyDefinitions.config}->>'relationKind' = 'parent'`,
+        ),
+      )
+      .limit(1);
+
+    if (!parentDef) {
+      return { nodes: [], nextCursor: null, ancestorsIncluded: [] };
+    }
+
+    // 2) Load a page of message IDs from this channel/view
+    const hitIds = await this.findMessageIdsForView(params);
+
+    // 3) Walk ancestors for each hit and collect into a set
+    // TODO(perf): N+1 — getEffectiveParent is called once per message in the
+    // universe (hits + ancestors). For large pages this becomes O(n * depth)
+    // round-trips. Follow-up: replace with a single batch CTE that resolves
+    // the full ancestor chain for all hits in one query.
+    const ancestorSet = new Set<string>();
+    for (const id of hitIds) {
+      let cur: string | null = id;
+      while (cur) {
+        const parent = await this.relationsService.getEffectiveParent(
+          cur,
+          parentDef.id,
+        );
+        if (!parent) break;
+        if (ancestorSet.has(parent.id)) break;
+        ancestorSet.add(parent.id);
+        cur = parent.id;
+      }
+    }
+
+    // 4) Identify roots: nodes in (hits ∪ ancestors) whose effective parent is null
+    const universe = Array.from(new Set([...hitIds, ...ancestorSet]));
+    const roots: string[] = [];
+    for (const id of universe) {
+      const p = await this.relationsService.getEffectiveParent(
+        id,
+        parentDef.id,
+      );
+      if (!p) roots.push(id);
+    }
+
+    // 5) Build subtree from roots up to maxDepth
+    const nodes = await this.relationsService.getSubtree({
+      channelId: params.channelId,
+      rootIds: roots,
+      maxDepth: params.maxDepth,
+      parentDefinitionId: parentDef.id,
+    });
+
+    // 6) Augment with extra children for explicitly expanded IDs
+    for (const id of params.expandedIds) {
+      const extra = await this.relationsService.getSubtree({
+        channelId: params.channelId,
+        rootIds: [id],
+        maxDepth: 1,
+        parentDefinitionId: parentDef.id,
+      });
+      for (const n of extra) {
+        if (!nodes.find((x) => x.messageId === n.messageId)) {
+          nodes.push(n);
+        }
+      }
+    }
+
+    // 7) Cursor pagination: return the last hit ID when the page is full
+    const nextCursor =
+      hitIds.length === params.limit ? hitIds[hitIds.length - 1] : null;
+
+    // 8) ancestorsIncluded = ancestor IDs that are not in the direct hit set
+    const hitSet = new Set(hitIds);
+    const ancestorsIncluded = [...ancestorSet].filter((id) => !hitSet.has(id));
+
+    return { nodes, nextCursor, ancestorsIncluded };
+  }
+
+  /**
+   * Fetch a paginated page of non-deleted message IDs from the channel,
+   * sorted by (createdAt DESC, id DESC). Cursor is a message ID; the cursor
+   * message's createdAt is looked up first so we can do a stable tuple comparison:
+   *   WHERE (createdAt, id) < (cursor_createdAt, cursor_id)
+   * This prevents duplicate rows when two messages share the same createdAt.
+   *
+   * Full filter/sort DSL integration is deferred; this MVP version returns all
+   * non-deleted messages and lets `getTreeSnapshot` apply structural hierarchy.
+   */
+  private async findMessageIdsForView(params: {
+    channelId: string;
+    cursor: string | null;
+    limit: number;
+  }): Promise<string[]> {
+    const conditions: ReturnType<typeof eq>[] = [
+      eq(schema.messages.channelId, params.channelId),
+      eq(schema.messages.isDeleted, false),
+    ];
+
+    if (params.cursor) {
+      // Look up the cursor message's createdAt for stable tuple pagination
+      const [cursorRow] = await this.db
+        .select({ createdAt: schema.messages.createdAt })
+        .from(schema.messages)
+        .where(eq(schema.messages.id, params.cursor))
+        .limit(1);
+
+      if (cursorRow) {
+        // Tuple comparison: (createdAt < cursor.createdAt)
+        //                OR (createdAt = cursor.createdAt AND id < cursor.id)
+        conditions.push(
+          sql`(${schema.messages.createdAt} < ${cursorRow.createdAt} OR (${schema.messages.createdAt} = ${cursorRow.createdAt} AND ${schema.messages.id} < ${params.cursor}))`,
+        );
+      }
+    }
+
+    const rows = await this.db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(and(...conditions))
+      .orderBy(desc(schema.messages.createdAt), desc(schema.messages.id))
+      .limit(params.limit);
+
+    return rows.map((r) => r.id);
+  }
+
   // ==================== Private Helpers ====================
+
+  /**
+   * Serialize a message row for view responses. Drops seq_id because it is
+   * a PostgreSQL bigint that Drizzle returns as a JS BigInt — Express's
+   * JSON.stringify cannot serialize BigInt, and view clients do not consume
+   * the field anyway (ViewMessageItem has no seqId).
+   */
+  private serializeMessageForView(
+    m: typeof schema.messages.$inferSelect,
+    properties: Record<string, unknown>,
+  ) {
+    const { seqId: _seqId, ...rest } = m;
+    void _seqId;
+    return {
+      ...rest,
+      properties,
+    };
+  }
 
   /**
    * Safely convert an unknown value to a string for comparison/grouping.
@@ -368,10 +556,9 @@ export class ViewsService {
         groups: [
           {
             key: params.group,
-            messages: page.map((m) => ({
-              ...m,
-              properties: propsMap[m.id] ?? {},
-            })),
+            messages: page.map((m) =>
+              this.serializeMessageForView(m, propsMap[m.id] ?? {}),
+            ),
             total: groupMessages.length,
             cursor: nextCursor,
           },
@@ -391,10 +578,9 @@ export class ViewsService {
 
         return {
           key,
-          messages: page.map((m) => ({
-            ...m,
-            properties: propsMap[m.id] ?? {},
-          })),
+          messages: page.map((m) =>
+            this.serializeMessageForView(m, propsMap[m.id] ?? {}),
+          ),
           total: groupMessages.length,
           cursor: nextCursor,
         };

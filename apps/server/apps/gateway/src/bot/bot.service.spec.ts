@@ -9,10 +9,34 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClawHiveService } from '@team9/claw-hive';
-import { BotService } from './bot.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
-import { DATABASE_CONNECTION } from '@team9/database';
+
+// ── drizzle-orm helper spies ──────────────────────────────────────────
+// jest.unstable_mockModule must be called before any dynamic import of the
+// module being mocked (and before the service that transitively imports it).
+
+const mockEq = jest.fn((col: unknown, val: unknown) => ({ __eq: [col, val] }));
+const mockAnd = jest.fn((...args: unknown[]) => ({ __and: args }));
+const mockIsNull = jest.fn((col: unknown) => ({ __isNull: col }));
+const mockLike = jest.fn((col: unknown, pat: unknown) => ({
+  __like: [col, pat],
+}));
+const mockAliasedTable = jest.fn((table: unknown, alias: unknown) => ({
+  __aliasedTable: [table, alias],
+}));
+
+jest.unstable_mockModule('@team9/database', () => ({
+  DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION_mock'),
+  eq: mockEq,
+  and: mockAnd,
+  isNull: mockIsNull,
+  like: mockLike,
+  aliasedTable: mockAliasedTable,
+}));
+
+const { BotService } = await import('./bot.service.js');
+const { DATABASE_CONNECTION } = await import('@team9/database');
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -102,6 +126,9 @@ describe('BotService', () => {
   };
 
   beforeEach(async () => {
+    mockEq.mockClear();
+    mockAnd.mockClear();
+    mockIsNull.mockClear();
     db = mockDb();
     channelsService = {
       createDirectChannel: jest.fn<any>().mockResolvedValue({}),
@@ -647,6 +674,12 @@ describe('BotService', () => {
           tenantId: 'tenant-1',
           authVersion: 3,
         });
+      // The loader now does an extra user lookup to populate email/username
+      // in the cached context — mock it here so the loader returns a full
+      // versioned context instead of short-circuiting to null.
+      db.limit.mockResolvedValueOnce([
+        { email: 'bot-1@example.com', username: 'bot-1' },
+      ]);
       botAuthCache.getOrSetValidation.mockImplementation(
         async (_rawToken: string, resolve: () => Promise<any>) => resolve(),
       );
@@ -658,6 +691,8 @@ describe('BotService', () => {
           botId: 'bot-1',
           userId: 'user-1',
           tenantId: 'tenant-1',
+          email: 'bot-1@example.com',
+          username: 'bot-1',
         },
         version: 3,
       });
@@ -667,6 +702,26 @@ describe('BotService', () => {
         token,
         expect.any(Function),
       );
+    });
+
+    it('returns null when the bot user row is missing during context loading', async () => {
+      const token = `t9bot_${'d'.repeat(96)}`;
+      jest
+        .spyOn(service as any, 'findValidatedAccessTokenMatch')
+        .mockResolvedValue({
+          botId: 'bot-missing',
+          userId: 'user-missing',
+          tenantId: 'tenant-missing',
+          authVersion: 1,
+        });
+      db.limit.mockResolvedValueOnce([]);
+      botAuthCache.getOrSetValidation.mockImplementation(
+        async (_rawToken: string, resolve: () => Promise<any>) => resolve(),
+      );
+
+      await expect(
+        service.validateAccessTokenWithContext(token),
+      ).resolves.toBeNull();
     });
   });
 
@@ -819,6 +874,133 @@ describe('BotService', () => {
           updatedAt: expect.any(Date),
         }),
       );
+    });
+  });
+
+  // ── getBotMentorId ────────────────────────────────────────────────
+
+  describe('getBotMentorId', () => {
+    it('returns { mentorId, isActive } when the bot exists', async () => {
+      db.limit.mockResolvedValueOnce([
+        { mentorId: 'mentor-1', isActive: true },
+      ] as any);
+
+      const result = await service.getBotMentorId('bot-user-1');
+
+      expect(result).toEqual({ mentorId: 'mentor-1', isActive: true });
+      expect(db.select).toHaveBeenCalled();
+      expect(db.from).toHaveBeenCalled();
+      expect(db.where).toHaveBeenCalled();
+      expect(db.limit).toHaveBeenCalledWith(1);
+    });
+
+    it('returns null when no bot row exists for the given botUserId', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      const result = await service.getBotMentorId('nonexistent-user');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns the row with isActive: false for a disabled bot', async () => {
+      db.limit.mockResolvedValueOnce([
+        { mentorId: 'mentor-2', isActive: false },
+      ] as any);
+
+      const result = await service.getBotMentorId('inactive-bot-user');
+
+      expect(result).toEqual({ mentorId: 'mentor-2', isActive: false });
+    });
+  });
+
+  // ── findActiveBotsByMentorId ──────────────────────────────────────
+
+  describe('findActiveBotsByMentorId', () => {
+    it('returns [] when the mentor has no active bots in the tenant', async () => {
+      // findActiveBotsByMentorId does not call .limit(), it resolves from the
+      // last chained method (.where()). Patch .where() to return a resolved
+      // promise for this test only.
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual([]);
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      // Ensure active-membership predicate (tenantMembers.leftAt IS NULL) is
+      // applied — stale tenant members must not grant mentor-derived access.
+      expect(mockIsNull).toHaveBeenCalled();
+      expect(mockAnd).toHaveBeenCalled();
+    });
+
+    it('returns all active bots for a mentor in the given tenant', async () => {
+      db.where.mockResolvedValueOnce([
+        { botUserId: 'bot-user-a' },
+        { botUserId: 'bot-user-b' },
+      ] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual([
+        { botUserId: 'bot-user-a' },
+        { botUserId: 'bot-user-b' },
+      ]);
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      // Ensure active-membership predicate (tenantMembers.leftAt IS NULL) is
+      // applied — stale tenant members must not grant mentor-derived access.
+      expect(mockIsNull).toHaveBeenCalled();
+      expect(mockAnd).toHaveBeenCalled();
+    });
+
+    it('filters out inactive bots (only active bots are returned by the query)', async () => {
+      // The query itself applies the isActive=true filter in the WHERE clause.
+      // Returning only active rows from the mock simulates correct DB behavior.
+      db.where.mockResolvedValueOnce([{ botUserId: 'bot-user-active' }] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual([{ botUserId: 'bot-user-active' }]);
+      // Verify the query chain was invoked (innerJoin was called).
+      expect(db.innerJoin).toHaveBeenCalled();
+      expect(db.where).toHaveBeenCalled();
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'tenant-1');
+      // Ensure active-membership predicate (tenantMembers.leftAt IS NULL) is
+      // applied — stale tenant members must not grant mentor-derived access.
+      expect(mockIsNull).toHaveBeenCalled();
+      expect(mockAnd).toHaveBeenCalled();
+    });
+
+    it('returns [] when bots belong to a different tenant', async () => {
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.findActiveBotsByMentorId(
+        'mentor-1',
+        'other-tenant',
+      );
+
+      expect(result).toEqual([]);
+      // Assert that the mentor, active, and tenant filters were applied.
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'mentor-1');
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), true);
+      expect(mockEq).toHaveBeenCalledWith(expect.anything(), 'other-tenant');
+      expect(mockAnd).toHaveBeenCalled();
     });
   });
 });

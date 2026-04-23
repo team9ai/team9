@@ -1,10 +1,10 @@
 {
   "home": "Accueil",
-  "dms": "Messages",
+  "dms": "Chats",
   "activity": "Activité",
   "files": "Fichiers",
   "aiStaff": "IA",
-  "staff": "Personnel",
+  "staff": "Équipe",
   "myPersonalStaff": "Mon personnel privé",
   "aiStaffSection": "Personnel IA",
   "membersSection": "Membres",
@@ -17,6 +17,7 @@
   "wiki": "Bibliothèque",
   "createWiki": "Créer une bibliothèque",
   "reviewProposals": "Examiner les propositions",
+  "library": "Bibliothèque",
   "application": "Apps",
   "more": "Plus",
   "noWorkspace": "Aucun espace de travail",
@@ -105,6 +106,7 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "Crédits faibles. Cliquez pour recharger.",
   "dashboardTitle": "Que puis-je faire pour vous aujourd'hui ?",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "Recherche approfondie",
@@ -144,5 +146,8 @@
   "uninstallConfirmTitle": "Désinstaller {{name}} ?",
   "uninstallConfirmDescription": "Cela supprimera l'application de votre espace de travail. Les données associées à cette application pourraient être perdues.",
   "dangerZone": "Zone de danger",
-  "hideConversation": "Masquer la conversation"
+  "hideConversation": "Masquer la conversation",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "Assistant personnel",
+  "agentPillModel": "Modèle"
 }

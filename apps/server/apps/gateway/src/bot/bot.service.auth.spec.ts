@@ -106,6 +106,17 @@ function createRedisMock() {
   const values = new Map<string, string>();
   const sets = new Map<string, Set<string>>();
 
+  // A trivial EventEmitter-like subscriber so BotAuthCacheService can wire
+  // its L1 pub/sub listeners. The tests in this spec never fire messages
+  // through it — we only need `subscribe()` to resolve successfully so the
+  // L1 positive cache is enabled end-to-end (l1CrossNodeReady = true).
+  const subscriber = {
+    on: jest.fn<any>(),
+    removeAllListeners: jest.fn<any>(),
+    subscribe: jest.fn<any>().mockResolvedValue(['bot-auth:invalidate', 1]),
+    quit: jest.fn<any>().mockResolvedValue('OK'),
+  };
+
   return {
     get: jest.fn(async (key: string) => values.get(key) ?? null),
     set: jest.fn(async (key: string, value: string) => {
@@ -134,6 +145,8 @@ function createRedisMock() {
       const deletedSet = sets.delete(key);
       return deletedValue || deletedSet ? 1 : 0;
     }),
+    publish: jest.fn<any>().mockResolvedValue(1),
+    createSubscriber: jest.fn<any>().mockReturnValue(subscriber),
   };
 }
 
@@ -178,6 +191,13 @@ describe('BotService auth validation', () => {
     }).compile();
 
     service = module.get(BotService);
+    // Test.createTestingModule().compile() does not run lifecycle hooks.
+    // Kick BotAuthCacheService.onModuleInit manually so its subscriber is
+    // wired up and L1 writes actually land — otherwise the tests below
+    // that exercise repeat-call caching would silently fall back to the
+    // Redis-only path and mask regressions in the L1 layer.
+    const botAuthCache = module.get(BotAuthCacheService);
+    await botAuthCache.onModuleInit();
   });
 
   it('returns botId, userId, and tenantId for a valid active token and preserves legacy validation output', async () => {
@@ -205,6 +225,11 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot@example.com', username: 'bot-user' },
+      ]),
+    );
 
     const context = await service.validateAccessTokenWithContext(rawToken);
 
@@ -212,6 +237,8 @@ describe('BotService auth validation', () => {
       botId: 'bot-1',
       userId: 'user-1',
       tenantId: 'tenant-1',
+      email: 'bot@example.com',
+      username: 'bot-user',
     });
 
     db.__queueSelect(
@@ -351,6 +378,11 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-cache@example.com', username: 'bot-cache' },
+      ]),
+    );
 
     const first = await service.validateAccessTokenWithContext(rawToken);
     const second = await service.validateAccessTokenWithContext(rawToken);
@@ -359,11 +391,14 @@ describe('BotService auth validation', () => {
       botId: 'bot-cache',
       userId: 'user-cache',
       tenantId: 'tenant-cache',
+      email: 'bot-cache@example.com',
+      username: 'bot-cache',
     });
     expect(second).toEqual(first);
-    expect(db.select).toHaveBeenCalledTimes(2);
+    // First call: 2 selects for token match + 1 select for user lookup.
+    // Second call hits the L1 memory cache and touches neither DB nor Redis.
+    expect(db.select).toHaveBeenCalledTimes(3);
     expect(redis.set).toHaveBeenCalled();
-    expect(redis.get).toHaveBeenCalledTimes(5);
   });
 
   it('does not return or cache a positive strict context when the bot token changes before final confirmation', async () => {
@@ -406,7 +441,7 @@ describe('BotService auth validation', () => {
 
     expect(db.select).toHaveBeenCalledTimes(2);
     expect(redis.set).toHaveBeenLastCalledWith(
-      expect.stringMatching(/^auth:bot-token:[a-f0-9]{64}$/),
+      expect.stringMatching(/^auth:bot-token:v2:[a-f0-9]{64}$/),
       JSON.stringify({ invalid: true }),
       5,
     );
@@ -437,12 +472,19 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-revoke@example.com', username: 'bot-revoke' },
+      ]),
+    );
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toEqual({
       botId: 'bot-revoke',
       userId: 'user-revoke',
       tenantId: 'tenant-revoke',
+      email: 'bot-revoke@example.com',
+      username: 'bot-revoke',
     });
 
     db.__queueSelect(
@@ -459,7 +501,10 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(4);
+    // 3 (first validate: 2 match + 1 user) + 1 (revoke getStoredAccessToken)
+    // + 1 (second validate after revoke: token match lookup only; empty result
+    // short-circuits before the user lookup).
+    expect(db.select).toHaveBeenCalledTimes(5);
     const invalidationOrder =
       redis.incr.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER;
     const revokeMutationOrder =
@@ -501,6 +546,11 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-generate@example.com', username: 'bot-generate' },
+      ]),
+    );
     await service.validateAccessTokenWithContext(rawToken);
 
     db.__queueSelect(
@@ -528,7 +578,9 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(4);
+    // 3 (first validate: 2 match + 1 user) + 1 (generate: getStoredAccessToken)
+    // + 1 (second validate: empty match short-circuits before user lookup).
+    expect(db.select).toHaveBeenCalledTimes(5);
     expect(redis.smembers).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-generate',
     );
@@ -557,6 +609,11 @@ describe('BotService auth validation', () => {
           tenantId: 'tenant-delete',
           accessToken: `cccccccc:${hash}`,
         },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        { email: 'bot-delete@example.com', username: 'bot-delete' },
       ]),
     );
     await service.validateAccessTokenWithContext(rawToken);

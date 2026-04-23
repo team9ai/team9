@@ -62,7 +62,20 @@ export class UsersController {
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateUserDto,
   ): Promise<UserResponse> {
-    return this.usersService.update(userId, dto);
+    const updated = await this.usersService.update(userId, dto);
+
+    // Broadcast profile update to all workspaces the user belongs to
+    const workspaceIds =
+      await this.workspaceService.getWorkspaceIdsByUserId(userId);
+    for (const workspaceId of workspaceIds) {
+      await this.websocketGateway.broadcastToWorkspace(
+        workspaceId,
+        WS_EVENTS.USER.UPDATED,
+        { userId },
+      );
+    }
+
+    return updated;
   }
 
   @Patch('me/status')

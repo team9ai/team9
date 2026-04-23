@@ -8,7 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@team9/auth';
+import { AuthGuard, CurrentUser } from '@team9/auth';
 import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 import { WorkspaceGuard } from './guards/workspace.guard.js';
 import {
@@ -49,10 +49,22 @@ export class WorkspaceBillingController {
   }
 
   @Get(':workspaceId/billing/overview')
-  @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
-  @WorkspaceRoles('owner', 'admin')
-  async getOverview(@Param('workspaceId', ParseUUIDPipe) workspaceId: string) {
-    return this.billingHubService.getWorkspaceOverview(workspaceId);
+  @UseGuards(AuthGuard, WorkspaceGuard)
+  async getOverview(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Req() request: { workspaceRole?: string },
+  ) {
+    // Every workspace member can read the overview; the service filters
+    // audit-sensitive fields (transaction history) for non-managers.
+    return this.billingHubService.getWorkspaceOverview(
+      workspaceId,
+      request.workspaceRole as
+        | 'owner'
+        | 'admin'
+        | 'member'
+        | 'guest'
+        | undefined,
+    );
   }
 
   @Post(':workspaceId/billing/checkout')
@@ -61,6 +73,7 @@ export class WorkspaceBillingController {
   async createCheckout(
     @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Body() dto: CreateWorkspaceBillingCheckoutDto,
+    @CurrentUser('sub') userId: string,
   ) {
     return this.billingHubService.createWorkspaceCheckout(
       workspaceId,
@@ -70,6 +83,7 @@ export class WorkspaceBillingController {
       dto.amountCents,
       dto.successPath,
       dto.cancelPath,
+      userId,
     );
   }
 

@@ -10,6 +10,7 @@ import {
   HttpStatus,
   Header,
   Res,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthGuard, CurrentUser } from '@team9/auth';
@@ -32,6 +33,8 @@ import {
 })
 @UseGuards(AuthGuard, WorkspaceGuard)
 export class CommonStaffController {
+  private readonly logger = new Logger(CommonStaffController.name);
+
   constructor(private readonly commonStaffService: CommonStaffService) {}
 
   /**
@@ -50,15 +53,23 @@ export class CommonStaffController {
 
   /**
    * Update an existing common-staff bot.
+   * Caller must be the bot's current mentor OR a workspace admin/owner.
    */
   @Patch('staff/:botId')
   async updateStaff(
     @Param('id') appId: string,
     @Param('botId') botId: string,
     @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') actorUserId: string,
     @Body() dto: UpdateCommonStaffDto,
   ) {
-    await this.commonStaffService.updateStaff(appId, tenantId, botId, dto);
+    await this.commonStaffService.updateStaff(
+      appId,
+      tenantId,
+      botId,
+      dto,
+      actorUserId,
+    );
   }
 
   /**
@@ -104,8 +115,13 @@ export class CommonStaffController {
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       }
       res.write('data: [DONE]\n\n');
-    } catch (_error) {
-      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `generatePersona stream error: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
     } finally {
       res.end();
     }
@@ -157,8 +173,13 @@ export class CommonStaffController {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
       }
       res.write('data: [DONE]\n\n');
-    } catch (_error) {
-      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `generateCandidates stream error: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
     } finally {
       res.end();
     }

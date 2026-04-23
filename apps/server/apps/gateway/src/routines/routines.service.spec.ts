@@ -1,6 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { RoutinesService } from './routines.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
@@ -9,11 +13,13 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import {
   AmqpConnection,
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
+import { UsersService } from '../im/users/users.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -73,18 +79,23 @@ describe('RoutinesService — TaskCast integration', () => {
   let routineTriggersService: {
     createBatch: MockFn;
     replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
-    createDirectChannel: MockFn;
+    createRoutineSessionChannel: MockFn;
+    hardDeleteRoutineSessionChannel: MockFn;
   };
   let clawHiveService: {
     deleteAgent: MockFn;
     registerAgent: MockFn;
     sendInput: MockFn;
     createSession: MockFn;
+    deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
+  let wsGateway: { broadcastToWorkspace: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -92,13 +103,16 @@ describe('RoutinesService — TaskCast integration', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
       update: jest.fn<any>().mockResolvedValue(undefined),
-      getById: jest
-        .fn<any>()
-        .mockResolvedValue({ id: 'doc-1', content: 'some content' }),
+      getById: jest.fn<any>().mockResolvedValue({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
@@ -106,9 +120,12 @@ describe('RoutinesService — TaskCast integration', () => {
     };
     channelsService = {
       archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
-      createDirectChannel: jest
+      createRoutineSessionChannel: jest
         .fn<any>()
         .mockResolvedValue({ id: 'channel-1' }),
+      hardDeleteRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
     clawHiveService = {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
@@ -117,9 +134,18 @@ describe('RoutinesService — TaskCast integration', () => {
       createSession: jest
         .fn<any>()
         .mockResolvedValue({ sessionId: 'pre-created-session' }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
+    };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -133,6 +159,8 @@ describe('RoutinesService — TaskCast integration', () => {
         { provide: ChannelsService, useValue: channelsService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: BotService, useValue: botsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -541,6 +569,40 @@ describe('RoutinesService — TaskCast integration', () => {
         'tenant-1',
       );
     });
+
+    // ── A-I5: create flow must emit ZERO broadcasts (regression) ──────
+    it('does NOT emit routine:updated when creating a routine with N triggers (A-C1 regression)', async () => {
+      const createdTask = {
+        id: 'task-new',
+        tenantId: 'tenant-1',
+        creatorId: 'user-1',
+        title: 'New task',
+        documentId: 'doc-new',
+      };
+      const triggers = [
+        { type: 'manual' },
+        { type: 'manual' },
+        { type: 'manual' },
+      ];
+
+      documentsService.create.mockResolvedValueOnce({ id: 'doc-new' } as any);
+      db.returning.mockResolvedValueOnce([createdTask] as any);
+
+      await service.create(
+        {
+          title: 'New task',
+          botId: 'bot-1',
+          triggers,
+        } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      // RoutinesService.create itself must NOT emit (it's a create, not
+      // update), and since createBatch bypasses the public create()
+      // wrapper post A-C1, the nested calls must not emit either.
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
   });
 
   describe('update', () => {
@@ -598,6 +660,124 @@ describe('RoutinesService — TaskCast integration', () => {
         }),
       );
     });
+
+    it('broadcasts routine:updated to the workspace on successful update', async () => {
+      const task = {
+        ...BASE_TASK,
+        creatorId: 'user-1',
+        tenantId: 'tenant-1',
+      };
+      const updatedTask = { ...task, title: 'Renamed' };
+
+      db.limit.mockResolvedValueOnce([task] as any);
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      await service.update(
+        'task-1',
+        { title: 'Renamed' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
+
+    it('does not broadcast when the caller is not the creator', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-2',
+        },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'Updated title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does not broadcast when a rejected status transition is requested', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-1',
+          status: 'draft' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'in_progress' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        "Cannot change routine status from 'draft' to 'in_progress'",
+      );
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does not broadcast when the routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'Updated title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('Routine not found');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    // ── A-I4: triggers replace path emits exactly once ────────────────
+    it('emits routine:updated exactly once when dto.triggers is provided (replaceAllForRoutine path)', async () => {
+      const task = {
+        ...BASE_TASK,
+        creatorId: 'user-1',
+        tenantId: 'tenant-1',
+      };
+      const updatedTask = { ...task };
+      db.limit.mockResolvedValueOnce([task] as any);
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      const triggers = [{ type: 'manual' }];
+      await service.update(
+        'task-1',
+        { triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      // Triggers were replaced via the dedicated service
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'task-1',
+        triggers,
+      );
+      // And only ONE broadcast happened (from the outer update's tail —
+      // replaceAllForRoutine itself must not emit).
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
   });
 
   describe('delete', () => {
@@ -632,6 +812,97 @@ describe('RoutinesService — TaskCast integration', () => {
       ).resolves.toEqual({ success: true });
 
       expect(db.delete).toHaveBeenCalledTimes(1);
+    });
+
+    // ── A-I9: delete broadcasts routine:updated ───────────────────────
+    it('broadcasts routine:updated to the workspace on successful delete', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          id: 'task-1',
+          tenantId: 'tenant-1',
+          creatorId: 'user-1',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await service.delete('task-1', 'user-1', 'tenant-1');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
+    });
+
+    it('does NOT broadcast when delete is rejected (non-creator)', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'other-user',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when delete is rejected (active routine)', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-1',
+          status: 'in_progress' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Cannot delete routine in in_progress status');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when the routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.delete('task-missing', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Routine not found');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('uses the DB-verified tenantId (not the param) for the broadcast', async () => {
+      // Routine lives in tenant-1 but caller passes some other tenantId —
+      // the getRoutineOrThrow will of course reject cross-tenant lookups,
+      // but here we verify that when the DB row is found, its tenantId
+      // (not the param) is used. Shape: DB row has tenantId set explicitly.
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          id: 'task-1',
+          tenantId: 'tenant-verified',
+          creatorId: 'user-1',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await service.delete('task-1', 'user-1', 'tenant-verified');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-verified',
+        'routine:updated',
+        { routineId: 'task-1' },
+      );
     });
   });
 
@@ -1784,7 +2055,7 @@ describe('RoutinesService — TaskCast integration', () => {
       creationChannelId: 'channel-1',
     };
 
-    it('deletes the routine row directly without clone or channel cleanup', async () => {
+    it('hard-deletes the creation channel when deleting a draft with creationChannelId set', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
 
       await expect(
@@ -1793,10 +2064,12 @@ describe('RoutinesService — TaskCast integration', () => {
 
       expect(db.delete).toHaveBeenCalledTimes(1);
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
-      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith('channel-1', 'tenant-1');
     });
 
-    it('deletes draft without creationChannelId just as cleanly', async () => {
+    it('does not call hardDeleteRoutineSessionChannel when draft has no creationChannelId', async () => {
       const draftWithoutChannel = {
         ...DRAFT_WITH_CHANNEL,
         creationChannelId: null,
@@ -1808,7 +2081,66 @@ describe('RoutinesService — TaskCast integration', () => {
       ).resolves.toEqual({ success: true });
 
       expect(db.delete).toHaveBeenCalledTimes(1);
-      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('still deletes the routine row when hardDeleteRoutineSessionChannel throws', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
+
+      channelsService.hardDeleteRoutineSessionChannel.mockRejectedValueOnce(
+        new Error('cascade failed'),
+      );
+
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.delete(ROUTINE_ID, 'user-1', 'tenant-1');
+
+      expect(result).toEqual({ success: true });
+      expect(db.delete).toHaveBeenCalled();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to hard-delete creation channel'),
+      );
+    });
+
+    it('hard-deletes the creation channel for non-draft routines too', async () => {
+      // The creation channel remains linked to the routine even after it
+      // transitions to upcoming (archived, but row still exists). Deleting
+      // the routine must also drop the channel — the FK ON DELETE SET NULL
+      // goes the other direction (channel→routine column), not routine→channel.
+      db.limit.mockResolvedValueOnce([
+        {
+          ...DRAFT_WITH_CHANNEL,
+          status: 'upcoming' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith('channel-1', 'tenant-1');
+      expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('does not call hardDeleteRoutineSessionChannel for non-draft routines without creationChannelId', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...DRAFT_WITH_CHANNEL,
+          status: 'upcoming' as const,
+          creationChannelId: null,
+        },
+      ] as any);
+
+      await service.delete(ROUTINE_ID, 'user-1', 'tenant-1');
+
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+      expect(db.delete).toHaveBeenCalled();
     });
   });
 
@@ -1841,12 +2173,13 @@ describe('RoutinesService — TaskCast integration', () => {
       } as any);
     });
 
-    it('transitions draft → upcoming without archiving channel or deleting clone', async () => {
+    it('transitions draft → upcoming and archives the creation channel', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       const result = await service.completeCreation(
@@ -1861,7 +2194,10 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'upcoming' }),
       );
-      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'channel-1',
+        'tenant-1',
+      );
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
     });
 
@@ -1884,7 +2220,11 @@ describe('RoutinesService — TaskCast integration', () => {
     });
 
     it('is idempotent — returns current routine when already upcoming', async () => {
-      const upcomingRoutine = { ...DRAFT_ROUTINE, status: 'upcoming' as const };
+      const upcomingRoutine = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: null,
+      };
       db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
 
       const result = await service.completeCreation(
@@ -1896,6 +2236,55 @@ describe('RoutinesService — TaskCast integration', () => {
 
       expect(result).toEqual(upcomingRoutine);
       expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('retries archive on idempotent-upcoming path when creationChannelId still set', async () => {
+      // Earlier completeCreation call succeeded status-flip but failed
+      // archive — the routine is now upcoming AND creationChannelId is
+      // still set. A retry should re-attempt archival.
+      const upcomingWithChannel = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: 'ch-1',
+      };
+      db.limit.mockResolvedValueOnce([upcomingWithChannel] as any);
+      channelsService.archiveCreationChannel.mockResolvedValueOnce(undefined);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(upcomingWithChannel);
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'ch-1',
+        'tenant-1',
+      );
+      // Status flip is NOT re-executed (idempotent path)
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('idempotent-upcoming archive failure is non-fatal', async () => {
+      const upcomingWithChannel = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: 'ch-1',
+      };
+      db.limit.mockResolvedValueOnce([upcomingWithChannel] as any);
+      channelsService.archiveCreationChannel.mockRejectedValueOnce(
+        new Error('transient'),
+      );
+
+      // Still returns the routine without throwing
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result).toEqual(upcomingWithChannel);
     });
 
     it('throws 400 when status is not draft or upcoming (e.g. completed)', async () => {
@@ -1914,7 +2303,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.limit.mockResolvedValueOnce([{ ...DRAFT_ROUTINE, title: '' }] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       await expect(
@@ -1933,7 +2323,8 @@ describe('RoutinesService — TaskCast integration', () => {
       ] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       await expect(
@@ -1950,7 +2341,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: '',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: '' },
       } as any);
 
       await expect(
@@ -1963,12 +2355,13 @@ describe('RoutinesService — TaskCast integration', () => {
       });
     });
 
-    it('does not call archiveCreationChannel even when creationChannelId is set', async () => {
+    it('calls archiveCreationChannel with the correct channel and tenant when creationChannelId is set', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       const result = await service.completeCreation(
@@ -1979,6 +2372,57 @@ describe('RoutinesService — TaskCast integration', () => {
       );
 
       expect(result).toEqual(UPDATED_ROUTINE);
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'channel-1',
+        'tenant-1',
+      );
+    });
+
+    it('logs a warning but still returns the updated routine when archiveCreationChannel fails', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+
+      channelsService.archiveCreationChannel.mockRejectedValueOnce(
+        new Error('disk full'),
+      );
+
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.completeCreation(
+        'routine-1',
+        { notes: undefined },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result.status).toBe('upcoming');
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to archive creation channel'),
+      );
+    });
+
+    it('does not call archiveCreationChannel when creationChannelId is null', async () => {
+      const draftWithoutChannel = {
+        ...DRAFT_ROUTINE,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
+      db.returning.mockResolvedValueOnce([
+        { ...UPDATED_ROUTINE, creationChannelId: null },
+      ] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
       expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
     });
 
@@ -1987,7 +2431,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
 
       const result = await service.completeCreation(
@@ -2005,7 +2450,8 @@ describe('RoutinesService — TaskCast integration', () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
-        content: 'some content',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
       } as any);
       botsService.getBotById.mockResolvedValue(null as any);
 
@@ -2052,6 +2498,285 @@ describe('RoutinesService — TaskCast integration', () => {
         },
       });
     });
+
+    // ── documentContent shape + tenant-guard tests ────────────────────
+
+    it('completeCreation: tenant mismatch on document treats content as empty (rejects with documentContent required)', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'other-tenant',
+        currentVersion: { versionIndex: 1, content: 'foo' },
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
+
+    it('completeCreation: validates documentContent via doc.currentVersion.content (real shape)', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'real content' },
+      } as any);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result.status).toBe('upcoming');
+    });
+
+    // ── A-I3: completeCreation broadcasts routine:updated ─────────────
+
+    it('broadcasts routine:updated on successful draft → upcoming transition', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    it('still broadcasts even when the non-fatal channel archive step fails', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+      // Archive fails after the DB update — broadcast is emitted BEFORE
+      // the archive attempt, so it still fires.
+      channelsService.archiveCreationChannel.mockRejectedValueOnce(
+        new Error('disk full'),
+      );
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result.status).toBe('upcoming');
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledTimes(1);
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-1',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    it('does NOT broadcast when routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.completeCreation('missing-id', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Routine not found');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when caller is not the creator', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, creatorId: 'other-user' },
+      ] as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast on idempotent-upcoming path (no status flip)', async () => {
+      // Already upcoming — early return without DB update.
+      const upcomingRoutine = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+      // Only the row update triggers a broadcast; idempotent path skips
+      // the DB update entirely, so no emit.
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when validation fails (e.g. empty title)', async () => {
+      db.limit.mockResolvedValueOnce([{ ...DRAFT_ROUTINE, title: '' }] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: { message: 'Missing required fields' },
+      });
+
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('uses the DB-verified tenantId (from the fetched routine) for the broadcast', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, tenantId: 'tenant-verified' },
+      ] as any);
+      db.returning.mockResolvedValueOnce([
+        { ...UPDATED_ROUTINE, tenantId: 'tenant-verified' },
+      ] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-verified',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-verified',
+      );
+
+      expect(wsGateway.broadcastToWorkspace).toHaveBeenCalledWith(
+        'tenant-verified',
+        'routine:updated',
+        { routineId: 'routine-1' },
+      );
+    });
+
+    // ── autoRunFirst ─────────────────────────────────────────────────
+
+    const setupDraftFixture = () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      } as any);
+    };
+
+    it('dispatches one manual execution when autoRunFirst is true', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: true },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(startSpy).toHaveBeenCalledWith(
+        'routine-1',
+        'user-1',
+        'tenant-1',
+        expect.objectContaining({ message: expect.any(String) }),
+      );
+      startSpy.mockRestore();
+    });
+
+    it('does NOT dispatch when autoRunFirst is omitted', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+      expect(startSpy).not.toHaveBeenCalled();
+      startSpy.mockRestore();
+    });
+
+    it('does NOT dispatch when autoRunFirst is false', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: false },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(startSpy).not.toHaveBeenCalled();
+      startSpy.mockRestore();
+    });
+
+    it('logs warn but does NOT throw when autoRunFirst dispatch fails', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockRejectedValue(new Error('dispatch boom'));
+      const loggerWarn = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: true },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toBeDefined(); // Did NOT throw
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('autoRunFirst dispatch failed'),
+      );
+      startSpy.mockRestore();
+      loggerWarn.mockRestore();
+    });
+
+    it('does NOT dispatch in idempotent path when status already upcoming', async () => {
+      const upcomingRoutine = {
+        ...DRAFT_ROUTINE,
+        status: 'upcoming' as const,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockResolvedValue({ success: true } as any);
+
+      await service.completeCreation(
+        'routine-1',
+        { autoRunFirst: true }, // Even with true, must not dispatch
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(startSpy).not.toHaveBeenCalled();
+      startSpy.mockRestore();
+    });
   });
 
   // ── createWithCreationTask ────────────────────────────────────────
@@ -2094,11 +2819,13 @@ describe('RoutinesService — TaskCast integration', () => {
      * Set up happy-path mocks for createWithCreationTask.
      *
      * Call sequence in the service:
-     *   1. getBotById
+     *   1. getBotById (wrapper pre-flight)
      *   2. db bot-tenant validation: where().limit()
      *   3. db count query: where() → resolves directly
      *   4. draft-conflict check: where().limit()  (before create — no orphan risk)
      *   5. create() → documentsService.create() + db.insert().values().returning()
+     *   6. startCreationSession → getRoutineOrThrow: db.select().from().where().limit()
+     *   7. startCreationSession → getBotById (inner re-validation)
      */
     function setupHappyPath(
       overrides: {
@@ -2113,29 +2840,46 @@ describe('RoutinesService — TaskCast integration', () => {
         draftRoutine = DRAFT_NEW_ROUTINE,
       } = overrides;
 
+      // Outer createWithCreationTask wrapper:
+      //   1. getBotById (bot lookup for pre-flight)
       botsService.getBotById.mockResolvedValueOnce(botResult as any);
 
-      // Bot-tenant validation: db.select().from().leftJoin().where().limit()
+      //   2. Bot-tenant validation: db.select().from().leftJoin().where().limit()
       db.where.mockReturnValueOnce(db as any);
       db.limit.mockResolvedValueOnce(
         botTenantRow ? [botTenantRow] : ([] as any),
       );
 
-      // Count query: db.select().from().where() — terminal, must return Promise
+      //   3. Count query: db.select().from().where() — terminal Promise
       db.where.mockResolvedValueOnce([{ count: 0 }] as any);
 
-      // Draft-conflict check: db.select().from().where().limit() → no existing draft
-      db.limit.mockResolvedValueOnce([] as any);
-
-      // create() → documentsService.create() + db.insert().values().returning()
+      //   4. create() → documentsService.create() + db.insert().values().returning()
       documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
       db.returning.mockResolvedValueOnce([draftRoutine] as any);
+
+      // Inner startCreationSession:
+      //   5. getRoutineOrThrow: db.select().from().where().limit() → draft
+      db.limit.mockResolvedValueOnce([draftRoutine] as any);
+
+      //   6. Bot-tenant re-validation inside startCreationSession
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce(
+        botTenantRow ? [botTenantRow] : ([] as any),
+      );
+
+      //   7. getBotById (inner) for bot.userId
+      botsService.getBotById.mockResolvedValueOnce(botResult as any);
+
+      //   8. Atomic claim UPDATE with .returning() → 1-row array means won
+      db.returning.mockResolvedValueOnce([
+        { id: draftRoutine.id } as any,
+      ] as any);
     }
 
     it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
 
@@ -2152,11 +2896,13 @@ describe('RoutinesService — TaskCast integration', () => {
         creationSessionId: `team9/tenant-1/source-agent-id/dm/channel-42`,
       });
 
-      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
-        'user-1',
-        'bot-user-1',
-        'tenant-1',
-      );
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        routineId: 'routine-new-1',
+        purpose: 'creation',
+      });
 
       // No clone agent registration
       expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
@@ -2180,7 +2926,7 @@ describe('RoutinesService — TaskCast integration', () => {
     it('auto-generates title "Routine #N" based on existing routine count', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
 
@@ -2210,7 +2956,9 @@ describe('RoutinesService — TaskCast integration', () => {
       ).rejects.toThrow(NotFoundException);
 
       expect(db.insert).not.toHaveBeenCalled();
-      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
     });
 
     it('throws 400 when bot belongs to a different tenant', async () => {
@@ -2246,39 +2994,43 @@ describe('RoutinesService — TaskCast integration', () => {
       ).rejects.toThrow('Bot is not a managed hive agent');
     });
 
-    it('throws 400 when there is already a draft in progress for this bot — before creating new draft', async () => {
-      botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+    // Regression guard: we deliberately allow multiple concurrent draft
+    // creations per (user, bot). The previous implementation rejected the
+    // second call with a 400 and "Complete or delete it first", which was
+    // both semantically wrong (drafts are a first-class entity and a user
+    // can plausibly be building several routines with the same assistant
+    // at once) and a one-way trap: one stuck draft blocked ALL subsequent
+    // creations against that bot with no in-UI recovery path. If this
+    // test ever flips to expect a 400, someone reintroduced the bad
+    // check — preserve the comment and the user-reported pathology.
+    it('creates a new draft even when the user already has an in-progress draft for the same bot', async () => {
+      setupHappyPath();
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
+        id: 'channel-concurrent',
+      } as any);
+      clawHiveService.sendInput.mockResolvedValueOnce(undefined as any);
 
-      // Bot-tenant validation succeeds
-      db.where.mockReturnValueOnce(db as any);
-      db.limit.mockResolvedValueOnce([{ tenantId: 'tenant-1' }] as any);
-
-      // Count query
-      db.where.mockResolvedValueOnce([{ count: 1 }] as any);
-
-      // Draft-conflict check returns an existing draft (checked BEFORE create)
-      db.limit.mockResolvedValueOnce([{ id: 'existing-draft' }] as any);
-
-      await expect(
-        service.createWithCreationTask(
-          { agentId: 'bot-1' },
-          'user-1',
-          'tenant-1',
-        ),
-      ).rejects.toThrow(
-        'You already have a draft routine being created with this agent',
+      const result = await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
       );
 
-      // No draft was created because conflict check runs first
-      expect(db.insert).not.toHaveBeenCalled();
-      expect(documentsService.create).not.toHaveBeenCalled();
-      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(result.routineId).toBe(DRAFT_NEW_ROUTINE.id);
+      expect(result.creationChannelId).toBe('channel-concurrent');
+      // A second draft was actually created — not short-circuited by a
+      // pre-flight "already exists" check.
+      expect(documentsService.create).toHaveBeenCalledTimes(1);
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
     });
 
-    it('rolls back draft if channel creation fails', async () => {
+    it('rolls back draft if startCreationSession fails during channel creation', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockRejectedValueOnce(
+      channelsService.createRoutineSessionChannel.mockRejectedValueOnce(
         new Error('channel creation failed') as any,
       );
 
@@ -2293,14 +3045,14 @@ describe('RoutinesService — TaskCast integration', () => {
       // No clone to delete (never registered)
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
 
-      // Draft routine should be deleted
+      // Draft routine should be deleted by outer rollback
       expect(db.delete).toHaveBeenCalled();
     });
 
     it('rolls back draft if sendInput fails', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
       clawHiveService.sendInput.mockRejectedValueOnce(
@@ -2318,21 +3070,26 @@ describe('RoutinesService — TaskCast integration', () => {
       // No clone was ever created — deleteAgent must not be called
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
 
-      // Draft routine should be deleted
+      // Inner rollback: startCreationSession deletes the channel
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith('channel-42', 'tenant-1');
+
+      // Outer rollback: createWithCreationTask deletes the draft routine row
       expect(db.delete).toHaveBeenCalled();
     });
 
     it('logs error but still throws original error when rollback delete fails', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
 
       const sendError = new Error('send failed');
       clawHiveService.sendInput.mockRejectedValueOnce(sendError as any);
 
-      // Simulate rollback delete also failing
+      // Simulate outer rollback draft-delete also failing
       const deleteError = new Error('db unavailable');
       db.delete.mockReturnValueOnce({
         where: jest.fn<any>().mockRejectedValueOnce(deleteError),
@@ -2353,5 +3110,1084 @@ describe('RoutinesService — TaskCast integration', () => {
         expect.stringContaining('failed to delete draft routine'),
       );
     });
+  });
+
+  describe('startCreationSession', () => {
+    const ROUTINE_ID = 'routine-1';
+    const USER_ID = 'user-1';
+    const TENANT_ID = 'tenant-1';
+    const BOT_ID = 'bot-1';
+    const BOT_USER_ID = 'bot-user-1';
+    const AGENT_ID = 'agent-1';
+    const CHANNEL_ID = 'channel-1';
+
+    /**
+     * Mock the sequence of DB calls that startCreationSession performs
+     * when it needs to actually materialize a creation session.
+     *
+     * Flow:
+     *   1. getRoutineOrThrow: db.select().from().where().limit()
+     *   2. [fast-idempotent check: inline, no db call if short-circuit]
+     *   3. Bot-tenant validation: db.select().from().leftJoin().where().limit()
+     *   4. Atomic claim UPDATE: db.update().set().where().returning()
+     *      (returning 1 row = won, 0 rows = lost race)
+     */
+    function mockGetRoutine(
+      overrides: Record<string, unknown> = {},
+      opts: {
+        botTenantRow?: { tenantId: string } | null;
+        claimResult?: { id: string }[];
+      } = {},
+    ) {
+      const routine = {
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        creatorId: USER_ID,
+        botId: BOT_ID,
+        status: 'draft',
+        title: 'Test Draft',
+        creationChannelId: null,
+        creationSessionId: null,
+        ...overrides,
+      };
+      const {
+        botTenantRow = { tenantId: TENANT_ID },
+        claimResult = [{ id: ROUTINE_ID }],
+      } = opts;
+
+      // Step 1: getRoutineOrThrow — db.select().from().where().limit()
+      // We prime one db.where.mockReturnValueOnce(db) so that .where() returns
+      // the chain, allowing .limit() to resolve via the limit queue.
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([routine]);
+
+      // Step 3: bot-tenant validation — db.select().from().leftJoin().where().limit()
+      // A second db.where.mockReturnValueOnce(db) keeps .where() chainable so
+      // .limit() can resolve via the limit queue.
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce(
+        botTenantRow ? [botTenantRow] : ([] as any),
+      );
+
+      // Step 5: inline trigger fetch — db.select().from().where() resolves directly.
+      // No tenantId column on routineTriggers; scoped by routineId only.
+      db.where.mockResolvedValueOnce([] as any);
+
+      // Step 6: atomic claim UPDATE returning()
+      db.returning.mockResolvedValueOnce(claimResult as any);
+
+      return routine;
+    }
+
+    beforeEach(() => {
+      botsService.getBotById.mockResolvedValue({
+        id: BOT_ID,
+        userId: BOT_USER_ID,
+        managedMeta: { agentId: AGENT_ID },
+      });
+      channelsService.createRoutineSessionChannel.mockResolvedValue({
+        id: CHANNEL_ID,
+      });
+      channelsService.hardDeleteRoutineSessionChannel.mockResolvedValue(
+        undefined,
+      );
+      clawHiveService.sendInput.mockResolvedValue({ messages: [] });
+    });
+
+    it('creates channel, derives session id, persists, and sends kickoff event', async () => {
+      mockGetRoutine();
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+        creatorId: USER_ID,
+        botUserId: BOT_USER_ID,
+        tenantId: TENANT_ID,
+        routineId: ROUTINE_ID,
+        purpose: 'creation',
+      });
+      expect(result.creationChannelId).toBe(CHANNEL_ID);
+      expect(result.creationSessionId).toBe(
+        `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+      );
+      expect(clawHiveService.createSession).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+        result.creationSessionId,
+        expect.objectContaining({
+          type: 'team9:routine-creation.start',
+          payload: expect.objectContaining({
+            routineId: ROUTINE_ID,
+            creatorUserId: USER_ID,
+            tenantId: TENANT_ID,
+          }),
+        }),
+        TENANT_ID,
+      );
+      // createSession must be called before sendInput
+      const createSessionOrder = (clawHiveService.createSession as jest.Mock)
+        .mock.invocationCallOrder[0];
+      const sendInputOrder = (clawHiveService.sendInput as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(createSessionOrder).toBeLessThan(sendInputOrder);
+    });
+
+    it('is idempotent when creationChannelId already set AND channel is routine-session', async () => {
+      // Step 1: getRoutineOrThrow returns a draft with both fields set
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          creationChannelId: 'existing-channel',
+          creationSessionId: 'existing-session',
+        },
+      ]);
+
+      // Step 2: channel type lookup returns 'routine-session' → trust the
+      // persisted ids and short-circuit before bot-tenant query / claim.
+      db.limit.mockResolvedValueOnce([{ type: 'routine-session' }]);
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        creationChannelId: 'existing-channel',
+        creationSessionId: 'existing-session',
+      });
+    });
+
+    it('clears legacy direct-channel ids and materializes a fresh routine-session', async () => {
+      // Step 1: getRoutineOrThrow returns a draft pointing at a legacy
+      // Phase 1 'direct' DM channel (stale back-reference)
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Legacy draft',
+          creationChannelId: 'legacy-direct-channel',
+          creationSessionId: 'legacy-session',
+        },
+      ]);
+
+      // Step 2: channel type lookup returns 'direct' → clear ids + fall through
+      db.limit.mockResolvedValueOnce([{ type: 'direct' }]);
+
+      // Step 3: after the null-clearing UPDATE, fall through to the
+      // bot-tenant validation leftJoin query (returns draft-tenant match)
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }]);
+
+      // Step 4: atomic claim UPDATE returning 1 row = won
+      db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }]);
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      // Materialized a fresh channel
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+        creatorId: USER_ID,
+        botUserId: BOT_USER_ID,
+        tenantId: TENANT_ID,
+        routineId: ROUTINE_ID,
+        purpose: 'creation',
+      });
+      expect(result.creationChannelId).toBe(CHANNEL_ID);
+      expect(result.creationSessionId).toBe(
+        `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+      );
+    });
+
+    it('rejects non-draft routines with BadRequestException', async () => {
+      // Only getRoutineOrThrow is consumed before the guard throws
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'upcoming',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects non-creator with ForbiddenException', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: 'someone-else',
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects drafts with null botId', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: null,
+          status: 'draft',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(botsService.getBotById).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the bound bot belongs to a different tenant', async () => {
+      // Routine loads successfully
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'x',
+          creationChannelId: null,
+          creationSessionId: null,
+        },
+      ]);
+      // Bot-tenant validation returns wrong tenant
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: 'other-tenant' }] as any);
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('rejects bots without managedMeta.agentId', async () => {
+      mockGetRoutine();
+      botsService.getBotById.mockResolvedValue({
+        id: BOT_ID,
+        userId: BOT_USER_ID,
+        managedMeta: null,
+      });
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rolls back the channel AND clears routine fields when sendInput fails', async () => {
+      mockGetRoutine();
+      clawHiveService.sendInput.mockRejectedValue(new Error('hive down'));
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('hive down');
+
+      // Channel rolled back
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+
+      // Explicit cleanup UPDATE cleared both columns (fix #6)
+      // The db.set call should include both fields set to null
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creationChannelId: null,
+          creationSessionId: null,
+        }),
+      );
+
+      // createSession had succeeded → Hive session must also be cleaned up
+      expect(clawHiveService.deleteSession).toHaveBeenCalledWith(
+        expect.stringContaining(CHANNEL_ID),
+        TENANT_ID,
+      );
+    });
+
+    it('loses the race and returns winner ids when atomic claim returns 0 rows', async () => {
+      // mockGetRoutine with claimResult=[] means the conditional UPDATE
+      // claimed nothing (a concurrent caller won)
+      mockGetRoutine({}, { claimResult: [] });
+
+      // After the race loss, the service re-reads the routine to get the
+      // winner's ids. Enqueue that read.
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          creationChannelId: 'winner-channel',
+          creationSessionId: 'winner-session',
+        },
+      ]);
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      // Speculative channel was cleaned up
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+      // Kickoff was NOT sent (we're not the winner)
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+      // Returned the winner's ids
+      expect(result).toEqual({
+        creationChannelId: 'winner-channel',
+        creationSessionId: 'winner-session',
+      });
+    });
+
+    it('calls createSession with team9Context before sendInput', async () => {
+      const SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`;
+      mockGetRoutine();
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      expect(clawHiveService.createSession).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.createSession).toHaveBeenCalledWith(
+        AGENT_ID,
+        expect.objectContaining({
+          sessionId: SESSION_ID,
+          userId: USER_ID,
+          team9Context: expect.objectContaining({
+            routineId: ROUTINE_ID,
+            creatorUserId: USER_ID,
+            creationChannelId: CHANNEL_ID,
+            isCreationChannel: true,
+          }),
+        }),
+        TENANT_ID,
+      );
+      // Must be called before sendInput
+      const createSessionOrder = (clawHiveService.createSession as jest.Mock)
+        .mock.invocationCallOrder[0];
+      const sendInputOrder = (clawHiveService.sendInput as jest.Mock).mock
+        .invocationCallOrder[0];
+      expect(createSessionOrder).toBeLessThan(sendInputOrder);
+    });
+
+    it('kickoff payload includes the enriched draft fields when doc is present', async () => {
+      const DOCUMENT_ID = 'doc-42';
+      mockGetRoutine({
+        description: 'My routine description',
+        documentId: DOCUMENT_ID,
+        botId: BOT_ID,
+      });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        currentVersion: { versionIndex: 1, content: 'draft doc content' },
+      });
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const sendInputCall = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      const payload = sendInputCall[1].payload;
+      expect(payload.routineId).toBe(ROUTINE_ID);
+      expect(payload.creatorUserId).toBe(USER_ID);
+      expect(payload.tenantId).toBe(TENANT_ID);
+      expect(payload.creationChannelId).toBe(CHANNEL_ID);
+      expect(payload.title).toBe('Test Draft');
+      expect(payload.description).toBe('My routine description');
+      expect(payload.documentContent).toBe('draft doc content');
+      expect(payload.botId).toBe(BOT_ID);
+      expect(payload.triggers).toEqual([]);
+    });
+
+    it('payload uses null for missing optional fields when draft has none', async () => {
+      // Default mockGetRoutine has no description and no documentId
+      mockGetRoutine({ description: null, documentId: null });
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const sendInputCall = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      const payload = sendInputCall[1].payload;
+      expect(payload.description).toBeNull();
+      expect(payload.documentContent).toBeNull();
+      expect(payload.triggers).toEqual([]);
+    });
+
+    it('runs rollback when createSession rejects', async () => {
+      mockGetRoutine();
+      clawHiveService.createSession.mockRejectedValueOnce(
+        new Error('hive createSession boom'),
+      );
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('hive createSession boom');
+
+      // Channel hard-deleted (rollback)
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+
+      // Routine creation columns cleared (claimed = true before createSession throws)
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creationChannelId: null,
+          creationSessionId: null,
+        }),
+      );
+
+      // sendInput was never reached
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+
+      // createSession itself rejected → sessionCreated is still false → NO deleteSession call
+      expect(clawHiveService.deleteSession).not.toHaveBeenCalled();
+    });
+
+    it('rolls back the Hive session when sendInput fails after createSession succeeded', async () => {
+      mockGetRoutine();
+      clawHiveService.sendInput.mockRejectedValueOnce(
+        new Error('sendInput exploded'),
+      );
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('sendInput exploded');
+
+      // createSession succeeded, so deleteSession must be called for cleanup
+      expect(clawHiveService.deleteSession).toHaveBeenCalledWith(
+        expect.stringContaining(CHANNEL_ID),
+        TENANT_ID,
+      );
+
+      // Channel hard-deleted and DB columns cleared (claimed = true)
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creationChannelId: null,
+          creationSessionId: null,
+        }),
+      );
+    });
+
+    it('logs error but does not throw when deleteSession rollback fails (non-404)', async () => {
+      mockGetRoutine();
+      clawHiveService.sendInput.mockRejectedValueOnce(
+        new Error('sendInput failed'),
+      );
+      clawHiveService.deleteSession.mockRejectedValueOnce(
+        new Error('500 internal server error'),
+      );
+      const loggerError = jest
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      // Original error must propagate; deleteSession failure must not re-throw
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('sendInput failed');
+
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('failed to roll back Hive session'),
+      );
+    });
+
+    it('logs warn and uses null documentContent when documentsService.getById throws', async () => {
+      const DOCUMENT_ID = 'doc-fail';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockRejectedValueOnce(
+        new Error('doc fetch boom'),
+      );
+      const loggerWarn = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      // Should resolve successfully despite getById failure
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('failed to fetch draft documentContent'),
+      );
+
+      // documentContent in the payload should be null
+      const payload = (
+        (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
+          string,
+          { payload: Record<string, unknown> },
+          string,
+        ]
+      )[1].payload;
+      expect(payload.documentContent).toBeNull();
+
+      loggerWarn.mockRestore();
+    });
+
+    it('kickoff payload includes draft triggers from inline DB select', async () => {
+      const expectedTriggers = [
+        {
+          id: 't-1',
+          type: 'manual',
+          config: {},
+          enabled: true,
+          routineId: ROUTINE_ID,
+        },
+      ];
+      // Three db.where() calls in startCreationSession before atomic claim:
+      //   #1 getRoutineOrThrow, #2 bot-tenant, #3 trigger fetch
+      const DRAFT = {
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        creatorId: USER_ID,
+        botId: BOT_ID,
+        status: 'draft',
+        title: 'Test Draft',
+        creationChannelId: null,
+        creationSessionId: null,
+      };
+
+      // #1 getRoutineOrThrow
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([DRAFT]);
+      // #2 bot-tenant leftJoin
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+      // #3 inline trigger fetch — returns our expected triggers
+      db.where.mockResolvedValueOnce(expectedTriggers as any);
+      // atomic claim
+      db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (
+        (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
+          string,
+          { payload: Record<string, unknown> },
+          string,
+        ]
+      )[1].payload;
+      expect(payload.triggers).toEqual(expectedTriggers);
+    });
+
+    it('kickoff payload triggers defaults to [] when inline trigger select throws', async () => {
+      const DRAFT = {
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        creatorId: USER_ID,
+        botId: BOT_ID,
+        status: 'draft',
+        title: 'Test Draft',
+        creationChannelId: null,
+        creationSessionId: null,
+      };
+
+      // #1 getRoutineOrThrow
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([DRAFT]);
+      // #2 bot-tenant leftJoin
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }] as any);
+      // #3 inline trigger fetch — throws synchronously so the surrounding
+      // try/catch in the service handles it gracefully
+      db.where.mockImplementationOnce(() => {
+        throw new Error('triggers fetch boom');
+      });
+      // atomic claim
+      db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+
+      const loggerWarn = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (
+        (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
+          string,
+          { payload: Record<string, unknown> },
+          string,
+        ]
+      )[1].payload;
+      expect(payload.triggers).toEqual([]);
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('failed to fetch draft triggers'),
+      );
+
+      loggerWarn.mockRestore();
+    });
+
+    // ── documentContent enrichment tests ──────────────────────────────
+
+    it('startCreationSession: kickoff payload includes documentContent from doc.currentVersion.content', async () => {
+      const DOCUMENT_ID = 'doc-1';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        currentVersion: { versionIndex: 1, content: 'doc body' },
+      } as any);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      expect(payload[1].payload.documentContent).toBe('doc body');
+    });
+
+    it('startCreationSession: documentContent stays null when doc tenantId mismatches', async () => {
+      const DOCUMENT_ID = 'doc-1';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: 'other-tenant',
+        currentVersion: { versionIndex: 1, content: 'leaked' },
+      } as any);
+      const loggerWarn = jest.spyOn((service as any).logger, 'warn');
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      expect(payload[1].payload.documentContent).toBeNull();
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining('tenant mismatch'),
+      );
+      loggerWarn.mockRestore();
+    });
+
+    it('startCreationSession: documentContent stays null when currentVersion is null', async () => {
+      const DOCUMENT_ID = 'doc-1';
+      mockGetRoutine({ documentId: DOCUMENT_ID });
+      documentsService.getById.mockResolvedValueOnce({
+        id: DOCUMENT_ID,
+        tenantId: TENANT_ID,
+        currentVersion: null,
+      } as any);
+
+      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+      const payload = (clawHiveService.sendInput as jest.Mock).mock
+        .calls[0] as [string, { payload: Record<string, unknown> }, string];
+      expect(payload[1].payload.documentContent).toBeNull();
+    });
+
+    describe('creator language propagation', () => {
+      it("includes creator's language + timeZone in team9Context when both are set", async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const createSessionCall = (clawHiveService.createSession as jest.Mock)
+          .mock.calls[0];
+        const sessionArgs = createSessionCall[1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).toMatchObject({
+          language: 'zh-CN',
+          timeZone: 'Asia/Shanghai',
+        });
+        expect(usersService.getLocalePreferences).toHaveBeenCalledWith(USER_ID);
+      });
+
+      it('omits language when only timeZone is set', async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: null,
+          timeZone: 'Asia/Shanghai',
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const sessionArgs = (clawHiveService.createSession as jest.Mock).mock
+          .calls[0][1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).not.toHaveProperty('language');
+        expect(sessionArgs.team9Context).toMatchObject({
+          timeZone: 'Asia/Shanghai',
+        });
+      });
+
+      it('omits timeZone when only language is set', async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: 'zh-CN',
+          timeZone: null,
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const sessionArgs = (clawHiveService.createSession as jest.Mock).mock
+          .calls[0][1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).toMatchObject({ language: 'zh-CN' });
+        expect(sessionArgs.team9Context).not.toHaveProperty('timeZone');
+      });
+
+      it('omits both language and timeZone when creator has neither set', async () => {
+        mockGetRoutine();
+        usersService.getLocalePreferences.mockResolvedValue({
+          language: null,
+          timeZone: null,
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        const sessionArgs = (clawHiveService.createSession as jest.Mock).mock
+          .calls[0][1] as {
+          team9Context: Record<string, unknown>;
+        };
+        expect(sessionArgs.team9Context).not.toHaveProperty('language');
+        expect(sessionArgs.team9Context).not.toHaveProperty('timeZone');
+        // Existing fields remain intact.
+        expect(sessionArgs.team9Context).toMatchObject({
+          routineId: expect.any(String),
+          creatorUserId: expect.any(String),
+          creationChannelId: expect.any(String),
+          isCreationChannel: true,
+        });
+      });
+
+      it('rolls back claim + channel when getLocalePreferences rejects', async () => {
+        mockGetRoutine();
+        // Claim succeeds, but the locale read throws (transient DB issue).
+        usersService.getLocalePreferences.mockRejectedValue(
+          new Error('db down'),
+        );
+
+        await expect(
+          service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+        ).rejects.toThrow('db down');
+
+        // Speculative channel must be hard-deleted.
+        expect(
+          channelsService.hardDeleteRoutineSessionChannel,
+        ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+
+        // Routine creation columns cleared (claimed = true before getLocalePreferences throws)
+        expect(db.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            creationChannelId: null,
+            creationSessionId: null,
+          }),
+        );
+
+        // Kickoff MUST NOT have happened — the locale read runs after the
+        // claim but before createSession/sendInput.
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+      });
+    });
+  });
+});
+
+// ── completeCreation race-condition tests (I2) ────────────────────────
+// These are separate describe blocks to keep the main completeCreation
+// fixtures clean, while testing the conditional UPDATE race gate.
+
+describe('RoutinesService — completeCreation race guard', () => {
+  type MockFn = jest.Mock<(...args: any[]) => any>;
+
+  function mockDb() {
+    const chain: Record<string, MockFn> = {};
+    const methods = [
+      'select',
+      'from',
+      'where',
+      'limit',
+      'insert',
+      'values',
+      'returning',
+      'update',
+      'set',
+      'and',
+      'orderBy',
+      'desc',
+      'delete',
+      'leftJoin',
+      'innerJoin',
+    ];
+    for (const m of methods) {
+      chain[m] = jest.fn<any>().mockReturnValue(chain);
+    }
+    chain.limit.mockResolvedValue([]);
+    chain.returning.mockResolvedValue([]);
+    return chain;
+  }
+
+  const DRAFT_ROUTINE = {
+    id: 'routine-1',
+    tenantId: 'tenant-1',
+    status: 'draft' as const,
+    creatorId: 'user-1',
+    botId: 'bot-1',
+    title: 'My Routine',
+    documentId: 'doc-1',
+    creationChannelId: 'channel-1',
+    scheduleType: 'once',
+    scheduleConfig: null,
+    description: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    currentExecutionId: null,
+  };
+
+  let service: RoutinesService;
+  let db: ReturnType<typeof mockDb>;
+  let botsService: { getBotById: MockFn };
+  let documentsService: { create: MockFn; update: MockFn; getById: MockFn };
+  let routineTriggersService: {
+    createBatch: MockFn;
+    replaceAllForRoutine: MockFn;
+    listByRoutine: MockFn;
+  };
+  let channelsService: {
+    archiveCreationChannel: MockFn;
+    createRoutineSessionChannel: MockFn;
+    hardDeleteRoutineSessionChannel: MockFn;
+  };
+  let clawHiveService: {
+    deleteAgent: MockFn;
+    registerAgent: MockFn;
+    sendInput: MockFn;
+    createSession: MockFn;
+    deleteSession: MockFn;
+  };
+  let amqpConnection: { publish: MockFn };
+  let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
+  let wsGateway: { broadcastToWorkspace: MockFn };
+  let usersService: { getLocalePreferences: MockFn };
+
+  beforeEach(async () => {
+    db = mockDb();
+    amqpConnection = { publish: jest.fn<any>().mockResolvedValue(undefined) };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    documentsService = {
+      create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
+      update: jest.fn<any>().mockResolvedValue(undefined),
+      getById: jest.fn<any>().mockResolvedValue({
+        id: 'doc-1',
+        tenantId: 'tenant-1',
+        currentVersion: { versionIndex: 1, content: 'some content' },
+      }),
+    };
+    routineTriggersService = {
+      createBatch: jest.fn<any>().mockResolvedValue(undefined),
+      replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
+    };
+    taskCastService = {
+      transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
+      publishEvent: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    channelsService = {
+      archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
+      createRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'channel-1' }),
+      hardDeleteRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
+    };
+    clawHiveService = {
+      deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+      registerAgent: jest.fn<any>().mockResolvedValue(undefined),
+      sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      createSession: jest
+        .fn<any>()
+        .mockResolvedValue({ sessionId: 'pre-created-session' }),
+      deleteSession: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    botsService = {
+      getBotById: jest
+        .fn<any>()
+        .mockResolvedValue({ botId: 'bot-1', userId: 'user-1' }),
+    };
+    usersService = {
+      getLocalePreferences: jest
+        .fn<any>()
+        .mockResolvedValue({ language: null, timeZone: null }),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RoutinesService,
+        { provide: DATABASE_CONNECTION, useValue: db },
+        { provide: AmqpConnection, useValue: amqpConnection },
+        { provide: DocumentsService, useValue: documentsService },
+        { provide: RoutineTriggersService, useValue: routineTriggersService },
+        { provide: TaskCastService, useValue: taskCastService },
+        { provide: ChannelsService, useValue: channelsService },
+        { provide: ClawHiveService, useValue: clawHiveService },
+        { provide: BotService, useValue: botsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
+      ],
+    }).compile();
+
+    service = module.get<RoutinesService>(RoutinesService);
+  });
+
+  it('race-loss: returns winner state without dispatching autoRunFirst', async () => {
+    // Initial read: sees status='draft'
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    // Bot validation
+    botsService.getBotById.mockResolvedValueOnce({
+      botId: 'bot-1',
+      userId: 'user-1',
+    } as any);
+    // Doc content check
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-1',
+      tenantId: 'tenant-1',
+      currentVersion: { versionIndex: 1, content: 'some content' },
+    } as any);
+    // Conditional UPDATE returns empty (lost the race)
+    db.returning.mockResolvedValueOnce([] as any);
+    // Re-fetch via getRoutineOrThrow returns the winner's upcoming state
+    db.limit.mockResolvedValueOnce([
+      { ...DRAFT_ROUTINE, status: 'upcoming' },
+    ] as any);
+
+    const startSpy = jest
+      .spyOn(service, 'start')
+      .mockResolvedValue({ success: true } as any);
+
+    const result = await service.completeCreation(
+      'routine-1',
+      { autoRunFirst: true }, // even with true, race-loser must NOT dispatch
+      'user-1',
+      'tenant-1',
+    );
+
+    expect(result.status).toBe('upcoming');
+    expect(startSpy).not.toHaveBeenCalled();
+    // Archive was still attempted on race-loss path (winner's channel)
+    expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+      'channel-1',
+      'tenant-1',
+    );
+
+    startSpy.mockRestore();
+  });
+
+  it('race-loss: archives channel best-effort even when archiveCreationChannel throws', async () => {
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    botsService.getBotById.mockResolvedValueOnce({
+      botId: 'bot-1',
+      userId: 'user-1',
+    } as any);
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-1',
+      tenantId: 'tenant-1',
+      currentVersion: { versionIndex: 1, content: 'some content' },
+    } as any);
+    db.returning.mockResolvedValueOnce([] as any);
+    db.limit.mockResolvedValueOnce([
+      { ...DRAFT_ROUTINE, status: 'upcoming' },
+    ] as any);
+
+    channelsService.archiveCreationChannel.mockRejectedValueOnce(
+      new Error('archive boom'),
+    );
+    const loggerWarn = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    // Should NOT throw even if archive fails
+    const result = await service.completeCreation(
+      'routine-1',
+      {},
+      'user-1',
+      'tenant-1',
+    );
+
+    expect(result.status).toBe('upcoming');
+    expect(loggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining('race-loss'),
+    );
+
+    loggerWarn.mockRestore();
+  });
+
+  it('winner: still dispatches autoRunFirst when conditional UPDATE returns a row', async () => {
+    const UPDATED = { ...DRAFT_ROUTINE, status: 'upcoming' as const };
+
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    botsService.getBotById.mockResolvedValueOnce({
+      botId: 'bot-1',
+      userId: 'user-1',
+    } as any);
+    documentsService.getById.mockResolvedValueOnce({
+      id: 'doc-1',
+      tenantId: 'tenant-1',
+      currentVersion: { versionIndex: 1, content: 'some content' },
+    } as any);
+    // Conditional UPDATE returns a row (we are the winner)
+    db.returning.mockResolvedValueOnce([UPDATED] as any);
+
+    const startSpy = jest
+      .spyOn(service, 'start')
+      .mockResolvedValue({ success: true } as any);
+
+    await service.completeCreation(
+      'routine-1',
+      { autoRunFirst: true },
+      'user-1',
+      'tenant-1',
+    );
+
+    expect(startSpy).toHaveBeenCalledTimes(1);
+
+    startSpy.mockRestore();
   });
 });

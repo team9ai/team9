@@ -7,8 +7,6 @@ import {
 import * as Sentry from "@sentry/react";
 import { invoke } from "@tauri-apps/api/core";
 import api, {
-  type LoginRequest,
-  type RegisterRequest,
   type AuthStartRequest,
   type GoogleLoginRequest,
   type VerifyCodeRequest,
@@ -23,6 +21,21 @@ import {
   notificationActions,
 } from "@/stores";
 import { setAuthTokens } from "@/services/auth-session";
+
+function clearPrefixedLocalStorage(prefix: string) {
+  const keysToRemove: string[] = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(prefix)) {
+      keysToRemove.push(key);
+    }
+  }
+
+  for (const key of keysToRemove) {
+    localStorage.removeItem(key);
+  }
+}
 
 // Sync user data to Zustand store and Sentry context
 export const syncCurrentUser = (
@@ -44,21 +57,6 @@ export const syncCurrentUser = (
     appActions.setUser(null);
     Sentry.setUser(null);
   }
-};
-
-export const useLogin = () => {
-  return useMutation({
-    mutationFn: (data: LoginRequest) => api.auth.login(data),
-    // Login now sends a magic link email, no tokens returned
-  });
-};
-
-export const useRegister = () => {
-  return useMutation({
-    mutationFn: (data: RegisterRequest) => api.auth.register(data),
-    // No longer auto-login after registration
-    // User needs to verify email first
-  });
 };
 
 export const useVerifyEmail = () => {
@@ -179,12 +177,17 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: () => api.auth.logout(),
-    onSuccess: () => {
+    onSettled: () => {
       // Tokens are already removed in api.auth.logout
       queryClient.clear();
 
       // Clear Sentry user context
       Sentry.setUser(null);
+
+      // Clear transient auth-flow state that should not survive logout.
+      localStorage.removeItem("pending_invite_code");
+      localStorage.removeItem("pending_desktop_session_id");
+      clearPrefixedLocalStorage("doc-draft-");
 
       // Reset all Zustand stores to prevent stale data on next login
       appActions.reset();

@@ -23,6 +23,7 @@ import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
 import { useChannelTabs } from "@/hooks/useChannelTabs";
 import { useChannelViews } from "@/hooks/useChannelViews";
+import { useMessageJump } from "@/hooks/useMessageJump";
 import { TableView } from "./views/TableView";
 import { BoardView } from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
@@ -168,7 +169,7 @@ interface ChannelViewProps {
   channelId: string;
   // Initial thread ID from URL - opens thread panel when set
   initialThreadId?: string;
-  // Initial message ID from URL - for scrolling/highlighting (future use)
+  // Initial message ID from URL - used as the initial anchor/highlight target
   initialMessageId?: string;
   // Draft text to pre-fill in the message input
   initialDraft?: string;
@@ -251,6 +252,8 @@ export function ChannelView({
     return undefined;
   }, [isPreviewMode, memberChannel]);
 
+  const initialAnchorMessageId = initialMessageId ?? unreadAnchor;
+
   const {
     data: messagesData,
     isLoading: messagesLoading,
@@ -260,7 +263,9 @@ export function ChannelView({
     hasPreviousPage,
     isFetchingPreviousPage,
     fetchPreviousPage,
-  } = useChannelMessages(channelId, { anchorMessageId: unreadAnchor });
+  } = useChannelMessages(channelId, {
+    anchorMessageId: initialAnchorMessageId,
+  });
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
   const dmOtherUser = (memberChannel as ChannelWithUnread | undefined)
@@ -307,7 +312,7 @@ export function ChannelView({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
-  const [threadPanelWidth, setThreadPanelWidth] = useState(640);
+  const [threadPanelWidth, setThreadPanelWidth] = useState(600);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
@@ -325,6 +330,14 @@ export function ChannelView({
     isPreviewMode ? undefined : channelId,
   );
   const [activeTabId, setActiveTabId] = useState<string>("");
+
+  // Message jump: click OPEN on a table-view row to switch to messages tab and
+  // scroll+highlight the target message. seq forces remount on repeat jumps.
+  const {
+    jumpToMessage,
+    highlightId: jumpHighlightId,
+    seq: jumpSeq,
+  } = useMessageJump(channelTabs, setActiveTabId);
 
   // Auto-select the first tab (messages) when tabs load, or reset on channel change
   useEffect(() => {
@@ -518,10 +531,11 @@ export function ChannelView({
           <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
         )}
 
-        {/* Channel tabs - only show for non-direct, non-preview channels */}
+        {/* Channel tabs - only show for non-direct, non-preview channels.
+            The backend lazily seeds Messages + Files tabs on first read, so
+            the tabs list is only empty for genuinely unsupported channels. */}
         {!isPreviewMode &&
-          channel.type !== "direct" &&
-          channelTabs.length > 0 && (
+          (channel.type === "public" || channel.type === "private") && (
             <ChannelTabs
               channelId={channelId}
               activeTabId={activeTabId}
@@ -546,7 +560,13 @@ export function ChannelView({
             }
             switch (view.type) {
               case "table":
-                return <TableView channelId={channelId} view={view} />;
+                return (
+                  <TableView
+                    channelId={channelId}
+                    view={view}
+                    onJumpToMessage={jumpToMessage}
+                  />
+                );
               case "board":
                 return <BoardView channelId={channelId} view={view} />;
               case "calendar":
@@ -589,7 +609,8 @@ export function ChannelView({
             }}
             hasNewer={hasPreviousPage}
             isLoadingNewer={isFetchingPreviousPage}
-            highlightMessageId={initialMessageId}
+            highlightMessageId={jumpHighlightId ?? initialMessageId}
+            highlightSeq={jumpSeq}
             readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
             members={members}

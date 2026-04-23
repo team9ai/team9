@@ -7,10 +7,10 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
   ParseUUIDPipe,
-  HttpCode,
-  Logger,
+  ParseIntPipe,
   ForbiddenException,
 } from '@nestjs/common';
 import { MessagePropertiesService } from './message-properties.service.js';
@@ -35,8 +35,6 @@ import { ChannelsService } from '../channels/channels.service.js';
 })
 @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
 export class MessagePropertiesController {
-  private readonly logger = new Logger(MessagePropertiesController.name);
-
   constructor(
     private readonly messagePropertiesService: MessagePropertiesService,
     private readonly aiAutoFillService: AiAutoFillService,
@@ -57,6 +55,33 @@ export class MessagePropertiesController {
     await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagePropertiesService.getProperties(messageId, {
       excludeHidden: true,
+    });
+  }
+
+  /**
+   * GET /v1/im/messages/:messageId/properties/relations
+   * Inspect all relation edges for a message (incoming + outgoing).
+   *
+   * Query params:
+   *   kind       – 'parent' | 'related' | 'all' (default: 'all')
+   *   direction  – 'outgoing' | 'incoming' | 'both' (default: 'both')
+   *   depth      – 1–10, how deep to walk the parent chain (default: 1)
+   */
+  @Get('relations')
+  async getRelations(
+    @CurrentUser('sub') userId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Query('kind') kind?: 'parent' | 'related' | 'all',
+    @Query('direction') direction?: 'outgoing' | 'incoming' | 'both',
+    @Query('depth', new ParseIntPipe({ optional: true })) depth?: number,
+  ) {
+    const channelId =
+      await this.messagePropertiesService.getMessageChannelId(messageId);
+    await this.channelsService.assertReadAccess(channelId, userId);
+    return this.messagePropertiesService.getRelationsInspection(messageId, {
+      kind,
+      direction,
+      depth,
     });
   }
 
@@ -139,34 +164,27 @@ export class MessagePropertiesController {
 
   /**
    * POST /v1/im/messages/:messageId/properties/auto-fill
-   * Trigger AI auto-fill for message properties.
-   * This is a background-style operation: it returns immediately with an accepted
-   * status, and the actual fill happens asynchronously (results broadcast via WS).
+   * Trigger AI auto-fill for message properties. Runs synchronously so the
+   * caller sees the actual outcome (filled values, skipped fields, or errors)
+   * rather than a silent 202 that hides empty returns and AI failures.
    */
   @Post('auto-fill')
-  @HttpCode(202)
   @WorkspaceRoles('member')
   async autoFill(
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: AutoFillDto,
-  ): Promise<{ status: string }> {
+  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> {
     const channelId =
       await this.messagePropertiesService.getMessageChannelId(messageId);
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
       throw new ForbiddenException('Not a member of this channel');
     }
-    // Fire and forget — results are broadcast via WebSocket
-    this.aiAutoFillService
-      .autoFill(messageId, userId, tenantId, {
-        fields: dto.fields,
-        preserveExisting: dto.preserveExisting,
-      })
-      .catch((err: Error) => {
-        this.logger.warn(`AI auto-fill failed: ${err.message}`);
-      });
-    return { status: 'accepted' };
+    return this.aiAutoFillService.autoFill(messageId, userId, tenantId, {
+      fields: dto.fields,
+      preserveExisting: dto.preserveExisting,
+    });
   }
 }

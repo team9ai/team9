@@ -39,6 +39,33 @@ export interface RoutineStatusChangedEvent {
 }
 
 /**
+ * Routine updated event
+ *
+ * Emitted when a routine row (title / description / schedule / triggers /
+ * document / status via completeCreation / etc.) is updated, or when the
+ * routine is deleted.
+ *
+ * Payload is ID-only — the client refetches via the authoritative REST
+ * endpoint to get the full updated/deleted state.
+ *
+ * @event routine:updated
+ * @direction Server -> Client
+ *
+ * @example
+ * ```typescript
+ * socket.on('routine:updated', (event: RoutineUpdatedEvent) => {
+ *   // Invalidate routine queries to refetch authoritative state
+ *   queryClient.invalidateQueries({ queryKey: ['routines'] });
+ *   queryClient.invalidateQueries({ queryKey: ['routine', event.routineId] });
+ * });
+ * ```
+ */
+export interface RoutineUpdatedEvent {
+  /** Routine ID */
+  routineId: string;
+}
+
+/**
  * Routine execution created event
  *
  * Sent by the server when a new execution is created for a routine.

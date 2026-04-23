@@ -17,9 +17,31 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getErrorMessage } from "@/services/http";
 import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
+import { useTeam9PostHog } from "@/analytics/posthog/provider";
+import {
+  captureWithBridge,
+  pushGtmConversion,
+} from "@/analytics/posthog/capture";
+import { EVENTS } from "@/analytics/posthog/events";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+const TURNSTILE_SITE_KEY = import.meta.env
+  .VITE_CLOUDFLARE_TURNSTILE_SITE_KEY as string | undefined;
+
+// Map app i18n language to Turnstile's supported language tags.
+// Turnstile accepts: ar-eg, de, en, es, fa, fr, id, it, ja, ko, nl, pl,
+// pt-br, ru, tr, uk, zh-cn, zh-tw (see Cloudflare Turnstile docs).
+function toTurnstileLanguage(lng: string): string {
+  const lower = lng.toLowerCase();
+  if (lower.startsWith("zh-hans")) return "zh-cn";
+  if (lower.startsWith("zh-hant")) return "zh-tw";
+  if (lower === "zh-cn" || lower === "zh-tw") return lower;
+  if (lower.startsWith("pt")) return "pt-br";
+  return lower.split("-")[0];
+}
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
@@ -405,7 +427,11 @@ type AuthState =
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function WebLoginView() {
-  const { t } = useTranslation("auth");
+  const { t, i18n } = useTranslation("auth");
+  const turnstileLanguage = useMemo(
+    () => toTurnstileLanguage(i18n.language || "en"),
+    [i18n.language],
+  );
   const navigate = useNavigate();
   const { redirect, invite, desktopSessionId } = Route.useSearch();
 
@@ -417,9 +443,15 @@ function WebLoginView() {
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [countdown, setCountdown] = useState(0);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const authCompletedInSession = useRef(false);
   const lastAutoVerifyAttempt = useRef<string | null>(null);
   const authMethodRef = useRef<"email" | "google">("email");
+  const postAuthRedirectMode = useRef<"default" | "home">("default");
+  const pageViewFiredRef = useRef(false);
+
+  const { client: phClient } = useTeam9PostHog();
 
   const authStart = useAuthStart();
   const verifyCode = useVerifyCode();
@@ -428,29 +460,38 @@ function WebLoginView() {
   const { data: currentUser, isLoading } = useCurrentUser();
   const { data: invitationInfo } = useInvitationInfo(invite);
 
-  const navigateToPostAuthDestination = useCallback(() => {
-    if (invite) {
-      navigate({ to: "/invite/$code", params: { code: invite } });
-    } else {
-      navigate({ to: redirect || "/" });
-    }
-  }, [invite, navigate, redirect]);
+  const navigateToPostAuthDestination = useCallback(
+    (options?: { preferHome?: boolean }) => {
+      if (invite) {
+        navigate({
+          to: "/invite/$code",
+          params: { code: invite },
+          replace: true,
+        });
+        return;
+      }
+
+      // Navigating to "/" forces a double pass through _authenticated's
+      // beforeLoad (via _authenticated/index.tsx's redirect to /channels),
+      // which mutates Zustand mid-transition and races the router state
+      // machine. Skip it when there's no explicit deep link.
+      const hasDeepLink = redirect && redirect !== "/";
+      const destination =
+        options?.preferHome || !hasDeepLink ? "/channels" : redirect;
+      navigate({
+        to: destination as never,
+        replace: true,
+      });
+    },
+    [invite, navigate, redirect],
+  );
 
   const navigateAfterAuth = useCallback(async () => {
-    authCompletedInSession.current = true;
-
-    try {
-      const { default: posthog } = await import("posthog-js");
-      if (posthog.__loaded) {
-        posthog.capture("sign_up_completed", {
-          method: authMethodRef.current,
-          has_invite: !!invite,
-          is_desktop_flow: !!desktopSessionId,
-        });
-      }
-    } catch {
-      // Analytics should never block auth flow
+    if (authCompletedInSession.current) {
+      return;
     }
+
+    authCompletedInSession.current = true;
 
     if (desktopSessionId) {
       try {
@@ -464,18 +505,28 @@ function WebLoginView() {
       return;
     }
 
-    navigateToPostAuthDestination();
-  }, [
-    completeDesktop,
-    desktopSessionId,
-    invite,
-    navigateToPostAuthDestination,
-  ]);
+    setAuthState("authenticated");
+  }, [completeDesktop, desktopSessionId]);
 
   useEffect(() => {
+    if (!localStorage.getItem("auth_token")) return;
     if (!currentUser || isLoading || authCompletedInSession.current) return;
     void navigateAfterAuth();
   }, [currentUser, isLoading, navigateAfterAuth]);
+
+  useEffect(() => {
+    if (authState !== "authenticated" || desktopSessionId) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      navigateToPostAuthDestination({
+        preferHome: postAuthRedirectMode.current === "home",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [authState, desktopSessionId, navigateToPostAuthDestination]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -483,6 +534,14 @@ function WebLoginView() {
       return () => clearTimeout(timer);
     }
   }, [countdown]);
+
+  useEffect(() => {
+    if (pageViewFiredRef.current) return;
+    pageViewFiredRef.current = true;
+    captureWithBridge(phClient, EVENTS.SIGNUP_PAGE_VIEWED, {
+      page_key: "signup",
+    });
+  }, [phClient]);
 
   const autoVerifyAttemptKey = useMemo(() => {
     if (code.length !== 6 || !challengeId) return null;
@@ -504,13 +563,20 @@ function WebLoginView() {
     const doVerify = async () => {
       setError("");
       try {
+        postAuthRedirectMode.current = "home";
         setAuthState("verifying_code");
-        await verifyCode.mutateAsync({
+        const authResponse = await verifyCode.mutateAsync({
           email,
           challengeId: currentChallengeId,
           code,
         });
-        setAuthState("authenticated");
+        if (authResponse.isNewUser) {
+          // PostHog capture now happens server-side in AuthService; frontend
+          // only pushes to GTM dataLayer for Google Ads conversion tracking.
+          pushGtmConversion(EVENTS.SIGNUP_COMPLETED, {
+            signup_method: "email",
+          });
+        }
         await navigateAfterAuth();
       } catch (err: unknown) {
         setAuthState("code_sent");
@@ -526,12 +592,15 @@ function WebLoginView() {
     code,
     email,
     navigateAfterAuth,
+    phClient,
     t,
     verifyCode,
   ]);
 
   const handleContinueInBrowser = () => {
-    navigateToPostAuthDestination();
+    navigateToPostAuthDestination({
+      preferHome: postAuthRedirectMode.current === "home",
+    });
   };
 
   useEffect(() => {
@@ -556,6 +625,14 @@ function WebLoginView() {
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    captureWithBridge(phClient, EVENTS.SIGNUP_BUTTON_CLICKED, {
+      signup_method: "email",
+    });
+
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError(t("turnstileNotReady"));
+      return;
+    }
 
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
@@ -566,6 +643,7 @@ function WebLoginView() {
         email,
         ...(authState === "need_display_name" ? { displayName } : {}),
         signupSource: invite ? "invite" : "self",
+        ...(turnstileToken ? { turnstileToken } : {}),
       });
 
       if (result.action === "need_display_name") {
@@ -578,6 +656,9 @@ function WebLoginView() {
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("loginFailed")));
+    } finally {
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
   };
 
@@ -588,13 +669,19 @@ function WebLoginView() {
     if (!challengeId) return;
 
     try {
+      postAuthRedirectMode.current = "home";
       setAuthState("verifying_code");
-      await verifyCode.mutateAsync({
+      const authResponse = await verifyCode.mutateAsync({
         email,
         challengeId,
         code,
       });
-      setAuthState("authenticated");
+      if (authResponse.isNewUser) {
+        // PostHog capture happens server-side; see doVerify above.
+        pushGtmConversion(EVENTS.SIGNUP_COMPLETED, {
+          signup_method: "email",
+        });
+      }
       await navigateAfterAuth();
     } catch (err: unknown) {
       setAuthState("code_sent");
@@ -604,6 +691,8 @@ function WebLoginView() {
 
   const handleResendCode = async () => {
     setError("");
+    // Backend recognizes the email's prior Turnstile verification via Redis
+    // cache, so resend does not need a fresh widget token.
     try {
       const result = await authStart.mutateAsync({
         email,
@@ -624,6 +713,9 @@ function WebLoginView() {
     credential?: string;
   }) => {
     if (!credentialResponse.credential) return;
+    captureWithBridge(phClient, EVENTS.SIGNUP_BUTTON_CLICKED, {
+      signup_method: "google",
+    });
     setError("");
 
     if (invite) {
@@ -631,12 +723,21 @@ function WebLoginView() {
     }
 
     authMethodRef.current = "google";
+    postAuthRedirectMode.current = "default";
 
+    // Google ID tokens are cryptographically signed and already carry
+    // Google's own bot/abuse protection, so we skip Turnstile here.
     try {
-      await googleAuth.mutateAsync({
+      const result = await googleAuth.mutateAsync({
         credential: credentialResponse.credential,
         signupSource: invite ? "invite" : "self",
       });
+      if (result.isNewUser) {
+        // PostHog capture happens server-side; see doVerify above.
+        pushGtmConversion(EVENTS.SIGNUP_COMPLETED, {
+          signup_method: "google",
+        });
+      }
       await navigateAfterAuth();
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("googleLoginFailed")));
@@ -650,6 +751,8 @@ function WebLoginView() {
     setDevCode(undefined);
     setError("");
     setDisplayName("");
+    setTurnstileToken(null);
+    postAuthRedirectMode.current = "default";
   };
 
   // Loading state
@@ -690,6 +793,26 @@ function WebLoginView() {
               {t("useInBrowser")}
             </button>
           </p>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  if (authState === "authenticated") {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary animate-spin" />
+            </div>
+            <p className="text-muted-foreground text-base font-medium">
+              {postAuthRedirectMode.current === "home" && !invite
+                ? t("redirectingHome")
+                : t("signingIn")}
+            </p>
+          </div>
         </GlassCard>
       </LoginLayout>
     );
@@ -940,13 +1063,32 @@ function WebLoginView() {
             </div>
           )}
 
+          {/* Turnstile Widget */}
+          {TURNSTILE_SITE_KEY && (
+            <div className="flex justify-center">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                options={{
+                  action: "auth-start",
+                  theme: "auto",
+                  language: turnstileLanguage,
+                }}
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken(null)}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            </div>
+          )}
+
           {/* Submit Button */}
           <Button
             type="submit"
             className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-xl"
             disabled={
               authStart.isPending ||
-              (authState === "need_display_name" && !displayName.trim())
+              (authState === "need_display_name" && !displayName.trim()) ||
+              (!!TURNSTILE_SITE_KEY && !turnstileToken)
             }
           >
             {authStart.isPending ? (

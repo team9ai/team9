@@ -37,6 +37,14 @@ export interface Application {
 
   /** If true, this application is automatically installed when a workspace is created */
   autoInstall?: boolean;
+
+  /**
+   * If true, this application is soft-retired. It is filtered out of the
+   * public list/detail endpoints for tenants that have not installed it,
+   * and new installs are rejected. Tenants that already installed it keep
+   * using it normally and may uninstall (but not reinstall).
+   */
+  hidden?: boolean;
 }
 
 export type ApplicationCategory =

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -10,6 +11,8 @@ const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
+const mockDeepResearchCreateTask = vi.hoisted(() => vi.fn());
+const mockDeepResearchStartInChannel = vi.hoisted(() => vi.fn());
 
 const translationMap: Record<
   string,
@@ -20,6 +23,7 @@ const translationMap: Record<
   dashboardModelLabel: "GPT5.4",
   dashboardPromptHint: "Press Enter to send. Use Shift+Enter for a new line.",
   dashboardActionDeepResearch: "Deep research",
+  dashboardDeepResearchPlaceholder: "Describe the topic you want to research…",
   dashboardActionGenerateImage: "Generate image",
   dashboardPlan: "Free plan",
   dashboardUpgrade: "Upgrade",
@@ -74,7 +78,24 @@ vi.mock("@/stores", () => ({
   useUser: mockUseUser,
 }));
 
+vi.mock("@/services/api/deep-research", () => ({
+  deepResearchApi: {
+    createTask: mockDeepResearchCreateTask,
+    startInChannel: mockDeepResearchStartInChannel,
+  },
+}));
+
 import { HomeMainContent } from "../HomeMainContent";
+
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe("HomeMainContent", () => {
   beforeEach(() => {
@@ -95,6 +116,7 @@ describe("HomeMainContent", () => {
       data: {
         account: {
           balance: 4321,
+          grantBalance: 999,
           effectiveQuota: 555,
         },
       },
@@ -144,10 +166,25 @@ describe("HomeMainContent", () => {
       createdAt: "2024-01-01T00:00:00.000Z",
       name: "OpenClaw",
     });
+    mockDeepResearchCreateTask.mockResolvedValue({
+      id: "task-1",
+      status: "running",
+      createdAt: "",
+      updatedAt: "",
+    });
+    mockDeepResearchStartInChannel.mockResolvedValue({
+      task: {
+        id: "task-1",
+        status: "running",
+        createdAt: "",
+        updatedAt: "",
+      },
+      message: { id: "msg-1" },
+    });
   });
 
   it("renders the dashboard with title and prompt input", () => {
-    const { container } = render(<HomeMainContent />);
+    const { container } = renderWithProviders(<HomeMainContent />);
 
     expect(
       screen.getByRole("heading", {
@@ -157,10 +194,12 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
-    expect(screen.getByText(/generate image/i)).toBeInTheDocument();
+    // Deep research / Generate image chips are temporarily hidden in
+    // production (DASHBOARD_ACTION_CHIPS is an empty array).
+    expect(screen.queryByText(/deep research/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/generate image/i)).not.toBeInTheDocument();
     expect(screen.getByText("Starter")).toBeInTheDocument();
-    expect(screen.getByText("4,876")).toBeInTheDocument();
+    expect(screen.getByText("5,875")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger.className).toContain("cursor-pointer");
@@ -168,7 +207,7 @@ describe("HomeMainContent", () => {
   });
 
   it("switches to the selected agent and submits to that agent channel", async () => {
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: /alpha agent/i }));
     fireEvent.click(
@@ -186,7 +225,16 @@ describe("HomeMainContent", () => {
     });
   });
 
-  it("renders a fixed model pill for base-model agents", () => {
+  it("keeps deep research actions hidden on the dashboard", () => {
+    renderWithProviders(<HomeMainContent />);
+
+    expect(
+      screen.queryByRole("button", { name: /deep research/i }),
+    ).not.toBeInTheDocument();
+    expect(mockDeepResearchStartInChannel).not.toHaveBeenCalled();
+  });
+
+  it("hides the model control for base-model agents", () => {
     mockUseDashboardAgents.mockReturnValue({
       agents: [
         {
@@ -208,27 +256,60 @@ describe("HomeMainContent", () => {
       updatingAgentUserId: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
-    expect(screen.getByText("Claude Sonnet 4.6")).toBeInTheDocument();
+    expect(screen.queryByText("Claude Sonnet 4.6")).not.toBeInTheDocument();
+  });
+
+  it("hides the model control for switchable agents", () => {
+    renderWithProviders(<HomeMainContent />);
+
     expect(
-      screen.queryByRole("button", { name: /claude sonnet 4.6/i }),
+      screen.queryByRole("button", { name: /gpt-4.1/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("updates the model when the selected agent supports switching", async () => {
-    render(<HomeMainContent />);
+  it("defaults to the personal-staff agent when one exists", () => {
+    mockUseDashboardAgents.mockReturnValue({
+      agents: [
+        {
+          userId: "agent-claude",
+          botId: "claude-bot",
+          channelId: "bot-ch-claude",
+          label: "Claude",
+          username: "claude_bot",
+          applicationId: "base-model-staff",
+          installedApplicationId: "app-base",
+          agentType: "base_model",
+          hasExistingChannel: true,
+          model: null,
+          managedAgentId: "base-model-claude-ws-1",
+          canSwitchModel: false,
+        },
+        {
+          userId: "agent-personal",
+          botId: "personal-bot",
+          channelId: "bot-ch-personal",
+          label: "私人秘书",
+          username: "personal_secretary",
+          applicationId: "personal-staff",
+          installedApplicationId: "app-personal",
+          agentType: null,
+          hasExistingChannel: true,
+          model: { provider: "openrouter", id: "openai/gpt-4.1" },
+          managedAgentId: null,
+          canSwitchModel: true,
+        },
+      ],
+      updateAgentModel: mockUpdateAgentModel,
+      updatingAgentUserId: null,
+    });
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: /gpt-4.1/i }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /o3/i }));
+    renderWithProviders(<HomeMainContent />);
 
-    expect(mockUpdateAgentModel).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "agent-1" }),
-      {
-        provider: "openrouter",
-        id: "openai/o3",
-      },
-    );
+    expect(
+      screen.getByRole("button", { name: /私人秘书/ }),
+    ).toBeInTheDocument();
   });
 
   it("falls back to the free plan label when no subscription exists", () => {
@@ -242,9 +323,34 @@ describe("HomeMainContent", () => {
       data: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     expect(screen.getByText("Free plan")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the workspace credit balance to non-managing members", () => {
+    // Members cannot manage billing but must still see the balance they
+    // themselves consume when sending messages or running agents.
+    mockUseWorkspaceBillingSummary.mockReturnValue({
+      data: {
+        subscription: { product: { name: "Starter" } },
+        managementAllowed: false,
+      },
+    });
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          balance: 1000,
+          grantBalance: 200,
+          effectiveQuota: 50,
+        },
+      },
+    });
+
+    renderWithProviders(<HomeMainContent />);
+
+    expect(screen.getByText("1,250")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

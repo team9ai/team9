@@ -165,6 +165,25 @@ export class RedisService {
     return this.redis.sismember(key, member);
   }
 
+  /**
+   * Publish a message to a channel. Best-effort — callers should treat pub/sub
+   * as non-authoritative (eventual consistency) and not rely on delivery for
+   * correctness.
+   */
+  async publish(channel: string, message: string): Promise<number> {
+    return this.redis.publish(channel, message);
+  }
+
+  /**
+   * Create a dedicated subscriber connection. ioredis requires separate
+   * connections for subscribe/publish — the primary client cannot issue
+   * normal commands once it enters subscribe mode. Callers own the returned
+   * connection and are responsible for `.quit()` on module destroy.
+   */
+  createSubscriber(): Redis {
+    return this.redis.duplicate();
+  }
+
   getClient(): Redis {
     return this.redis;
   }

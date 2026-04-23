@@ -6,11 +6,17 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { ChannelsService } from './channels.service.js';
+import {
+  ChannelsService,
+  defaultDmOutboundPolicy,
+  isTargetAllowed,
+} from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
+import type { BotExtra, DmOutboundPolicy } from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { TabsService } from '../views/tabs.service.js';
+import { BOT_SERVICE_TOKEN } from './channels.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -35,12 +41,21 @@ function mockDb() {
     'groupBy',
     'having',
     'delete',
+    'onConflictDoNothing',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
   }
   chain.limit.mockResolvedValue([]);
   chain.returning.mockResolvedValue([]);
+  chain.onConflictDoNothing.mockResolvedValue(undefined);
+  // Default: pass the same mock as the "tx" argument, so the same chain
+  // assertions work whether a call runs inside or outside a transaction.
+  // Tests that need to verify tx-vs-db distinction can override this via
+  // `db.transaction.mockImplementationOnce(async (cb) => cb(customTx))`.
+  chain.transaction = jest
+    .fn<any>()
+    .mockImplementation(async (cb: any) => cb(chain));
   return chain;
 }
 
@@ -76,6 +91,13 @@ describe('ChannelsService', () => {
           provide: TabsService,
           useValue: {
             seedBuiltinTabs: jest.fn<any>().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: BOT_SERVICE_TOKEN,
+          useValue: {
+            getBotMentorId: jest.fn<any>().mockResolvedValue(null),
+            findActiveBotsByMentorId: jest.fn<any>().mockResolvedValue([]),
           },
         },
       ],
@@ -273,21 +295,174 @@ describe('ChannelsService', () => {
   });
 
   describe('createDirectChannel - echo (self-chat)', () => {
-    it('creates an echo channel when userId1 === userId2 and no existing echo channel', async () => {
-      const addMemberSpy = jest
-        .spyOn(service, 'addMember')
-        .mockResolvedValue(undefined);
+    // Invariants under test (regression for "Failed to create echo channel"):
+    //
+    // 1. Atomicity — channel row + owner member row are created in the same
+    //    db.transaction, so a mid-flight failure cannot leave an orphaned
+    //    channel row behind.
+    //
+    // 2. Self-healing — the existing-channel lookup queries im_channels
+    //    directly by (type='echo', created_by=userId, tenant_id=?), NOT via
+    //    an innerJoin against im_channel_members. Previously, if a prior
+    //    attempt had leaked an orphaned channel (no member row), the
+    //    innerJoin-based lookup would skip it and the next call would keep
+    //    creating duplicates. The new lookup reuses the orphan and repairs
+    //    its membership.
+    //
+    // 3. Post-commit side effects — caches are only invalidated after the
+    //    transaction has committed, to avoid exposing in-flight state.
 
-      // No existing echo channel found
+    it('wraps fresh echo channel creation in a db.transaction and invalidates caches post-commit', async () => {
+      // No existing echo channel in im_channels.
       db.limit.mockResolvedValueOnce([] as any);
-      // New echo channel creation
+      // Inside the transaction, the channel INSERT returns the new row.
       db.returning.mockResolvedValueOnce([
         {
-          id: 'echo-1',
+          id: 'echo-new',
           tenantId: 'tenant-1',
           type: 'echo',
           createdBy: 'user-1',
         },
+      ] as any);
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(
+        expect.objectContaining({ id: 'echo-new', type: 'echo' }),
+      );
+      // Both the channel row and the member row must be inserted.
+      expect(db.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
+      // Member row payload references the freshly created channel and owner.
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'echo-new',
+          userId: 'user-1',
+          role: 'owner',
+        }),
+      );
+      // Caches must be invalidated exactly once, after the transaction.
+      expect(memberCacheService.invalidate).toHaveBeenCalledTimes(1);
+      expect(memberCacheService.invalidate).toHaveBeenCalledWith('echo-new');
+      expect(redisService.invalidate).toHaveBeenCalledTimes(1);
+      // Ordering — the transaction must complete before cache invalidation.
+      expect(db.transaction.mock.invocationCallOrder[0]).toBeLessThan(
+        memberCacheService.invalidate.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('runs both inserts via the tx callback argument, not via this.db', async () => {
+      // Regression guard for "the mock passes `chain` as tx" weakness: a
+      // future refactor that accidentally calls this.db.insert inside the
+      // transaction body must fail this test, not silently pass.
+      db.limit.mockResolvedValueOnce([] as any); // no existing echo.
+
+      const txReturning = jest
+        .fn<any>()
+        .mockResolvedValue([
+          { id: 'echo-tx', tenantId: 't-1', type: 'echo', createdBy: 'u-1' },
+        ]);
+      const txValues = jest
+        .fn<any>()
+        .mockReturnValue({ returning: txReturning });
+      const txInsert = jest.fn<any>().mockReturnValue({ values: txValues });
+      db.transaction.mockImplementationOnce(async (cb: any) =>
+        cb({ insert: txInsert }),
+      );
+
+      const outerInsertCallsBefore = db.insert.mock.calls.length;
+
+      await service.createDirectChannel('u-1', 'u-1', 't-1');
+
+      // Both the channel row and the member row must have been routed
+      // through the tx.insert argument, not the outer db.insert.
+      expect(txInsert).toHaveBeenCalledTimes(2);
+      expect(db.insert.mock.calls.length).toBe(outerInsertCallsBefore);
+    });
+
+    it('reuses an orphaned echo channel (no member row) and heals membership', async () => {
+      const orphaned = {
+        id: 'echo-orphan',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      // Existing-channel lookup: orphaned echo row found.
+      db.limit.mockResolvedValueOnce([orphaned] as any);
+      // Membership lookup: no member row exists for the owner.
+      db.limit.mockResolvedValueOnce([] as any);
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(orphaned);
+      // A member row must be inserted to heal the orphan, guarded by
+      // onConflictDoNothing to stay safe under a concurrent self-heal.
+      expect(db.insert).toHaveBeenCalled();
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'echo-orphan',
+          userId: 'user-1',
+          role: 'owner',
+        }),
+      );
+      expect(db.onConflictDoNothing).toHaveBeenCalled();
+      // Self-heal must invalidate the caches so stale reads don't linger.
+      expect(memberCacheService.invalidate).toHaveBeenCalledWith('echo-orphan');
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+
+    it('reuses a healthy echo channel without touching inserts, updates, or caches', async () => {
+      const existing = {
+        id: 'echo-existing',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      // Existing-channel lookup: channel row found.
+      db.limit.mockResolvedValueOnce([existing] as any);
+      // Membership lookup: active owner membership already present.
+      db.limit.mockResolvedValueOnce([{ id: 'member-1', leftAt: null }] as any);
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(existing);
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(db.update).not.toHaveBeenCalled();
+      expect(db.transaction).not.toHaveBeenCalled();
+      // No-op early return must not churn the caches.
+      expect(memberCacheService.invalidate).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('rejoins the owner when a previous membership was marked as left', async () => {
+      const existing = {
+        id: 'echo-existing',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      db.limit.mockResolvedValueOnce([existing] as any);
+      // Membership lookup: row exists but the user had left.
+      db.limit.mockResolvedValueOnce([
+        { id: 'member-1', leftAt: new Date('2026-01-01') },
       ] as any);
 
       const result = await service.createDirectChannel(
@@ -296,27 +471,90 @@ describe('ChannelsService', () => {
         'tenant-1',
       );
 
-      expect(result).toEqual(
-        expect.objectContaining({ id: 'echo-1', type: 'echo' }),
+      expect(result).toEqual(existing);
+      // Rejoin should UPDATE the existing member row, not INSERT a new one.
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          leftAt: null,
+          role: 'owner',
+          joinedAt: expect.any(Date),
+        }),
       );
-      expect(addMemberSpy).toHaveBeenCalledTimes(1);
-      expect(addMemberSpy).toHaveBeenCalledWith('echo-1', 'user-1', 'owner');
-
-      addMemberSpy.mockRestore();
+      expect(db.insert).not.toHaveBeenCalled();
     });
 
-    it('returns existing echo channel when userId1 === userId2', async () => {
-      const existingEcho = {
-        id: 'echo-existing',
+    it('propagates a failure raised from inside the transaction callback', async () => {
+      // No existing echo channel — force the create path.
+      db.limit.mockResolvedValueOnce([] as any);
+      // Simulate Drizzle: actually run the callback so that a failure
+      // inside it (not just a pre-callback throw) bubbles up. This is
+      // closer to the real code path than a throw-before-callback.
+      const boom = new Error('db write failed');
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(boom),
+            }),
+          }),
+        };
+        // Drizzle would rethrow on callback rejection; replicate that.
+        return await cb(pretendTx);
+      });
+
+      await expect(
+        service.createDirectChannel('user-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('db write failed');
+    });
+
+    it('recovers from a TOCTOU race by re-reading the winner row when the unique index rejects the second INSERT', async () => {
+      // Race scenario, after migration 0040 added a partial unique index
+      // on (created_by, tenant_id) WHERE type='echo' AND is_archived=false.
+      // Two concurrent requests both miss the existence check, both enter
+      // the transaction. The first INSERT wins; the second hits a Postgres
+      // unique-violation (SQLSTATE 23505), its transaction rolls back, and
+      // getOrCreateEchoChannel must re-read the existing channel (created
+      // by the winner) instead of bubbling the raw 23505 to the user.
+      const winner = {
+        id: 'echo-winner',
         tenantId: 'tenant-1',
         type: 'echo',
         createdBy: 'user-1',
+        isArchived: false,
       };
-      const addMemberSpy = jest.spyOn(service, 'addMember');
 
-      // Existing echo channel found
-      db.limit.mockResolvedValueOnce([{ channelId: 'echo-existing' }] as any);
-      db.limit.mockResolvedValueOnce([existingEcho] as any);
+      // Sequence of `.limit(1)` calls in the new code path:
+      //   1) initial existence lookup → empty (race not yet visible)
+      //   2) post-rollback re-lookup    → returns the winner row
+      //   3) ensureEchoOwnerMembership member lookup → active member
+      db.limit.mockResolvedValueOnce([] as any);
+      db.limit.mockResolvedValueOnce([winner] as any);
+      db.limit.mockResolvedValueOnce([{ id: 'member-1', leftAt: null }] as any);
+
+      // Transaction simulates Drizzle propagating a Postgres unique
+      // violation from the channel INSERT.
+      const pgUniqueErr = Object.assign(new Error('duplicate key value'), {
+        code: '23505',
+        constraint: 'idx_echo_unique_owner_tenant',
+      });
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(pgUniqueErr),
+            }),
+          }),
+        };
+        return await cb(pretendTx);
+      });
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+      // Spy on the warn log so a future regression that drops the
+      // observability hook will fail this test.
+      const loggerWarnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
 
       const result = await service.createDirectChannel(
         'user-1',
@@ -324,9 +562,48 @@ describe('ChannelsService', () => {
         'tenant-1',
       );
 
-      expect(result).toEqual(existingEcho);
-      expect(db.insert).not.toHaveBeenCalled();
-      expect(addMemberSpy).not.toHaveBeenCalled();
+      expect(result).toEqual(winner);
+      // The unique violation must NOT propagate.
+      // (If it did, `.resolves.toEqual(winner)` above would already fail.)
+      // Recovery must observe (warn log) the race for ops visibility.
+      expect(loggerWarnSpy).toHaveBeenCalledTimes(1);
+      expect(loggerWarnSpy.mock.calls[0][0]).toContain('TOCTOU');
+      // The recovery path must NOT re-enter the transaction or churn caches:
+      // the winner already invalidated them in its successful path, and
+      // ensureEchoOwnerMembership early-returns on an active member.
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(memberCacheService.invalidate).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+
+      loggerWarnSpy.mockRestore();
+    });
+
+    it('still propagates non-unique-violation database errors raised inside the transaction', async () => {
+      // Regression guard: the unique-violation recovery added above
+      // must NOT swallow other database failures (constraint checks,
+      // connection drops, etc).
+      db.limit.mockResolvedValueOnce([] as any);
+      const otherErr = Object.assign(new Error('connection lost'), {
+        code: '08006',
+      });
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(otherErr),
+            }),
+          }),
+        };
+        return await cb(pretendTx);
+      });
+
+      await expect(
+        service.createDirectChannel('user-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('connection lost');
+      // Catch must fall straight through — no re-read on non-23505 errors.
+      // (Only 1 limit call was queued; if the catch tried to re-read it
+      // would consume a non-existent second mock and explode visibly.)
+      expect(db.limit).toHaveBeenCalledTimes(1);
     });
 
     it('does not call assertDirectMessageAllowed for self-chat', async () => {
@@ -335,12 +612,11 @@ describe('ChannelsService', () => {
         'assertDirectMessageAllowed',
       );
 
-      // No existing echo channel
+      // No existing echo channel.
       db.limit.mockResolvedValueOnce([] as any);
       db.returning.mockResolvedValueOnce([
         { id: 'echo-new', type: 'echo', createdBy: 'user-1' },
       ] as any);
-      jest.spyOn(service, 'addMember').mockResolvedValue(undefined);
 
       await service.createDirectChannel('user-1', 'user-1');
 
@@ -658,6 +934,51 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('getChannelMembers', () => {
+    it('classifies a common-staff bot member into staffKind=common with roleTitle', async () => {
+      // Mocks the post-Task-2 join shape: each row carries botExtra (jsonb)
+      // plus ownerDisplayName / ownerUsername from the aliased ownerUser
+      // join. For a common-staff bot, ownerId is null so the owner-side
+      // fields come back null. This exercises the full
+      // service.getChannelMembers wiring (select shape → mapChannelUserSummary
+      // → ChannelMemberResponse) rather than calling the private mapper
+      // directly.
+      const botExtra: BotExtra = {
+        commonStaff: { roleTitle: 'HR Lead' },
+      };
+
+      db.where.mockResolvedValueOnce([
+        {
+          id: 'cm-bot-1',
+          userId: 'bot-1',
+          role: 'member',
+          isMuted: false,
+          notificationsEnabled: true,
+          joinedAt: new Date('2026-04-01T00:00:00Z'),
+          username: 'hr-bot',
+          displayName: 'HR Bot',
+          avatarUrl: null,
+          status: 'online',
+          userType: 'bot',
+          createdAt: new Date('2026-04-01T00:00:00Z'),
+          applicationId: 'common-staff',
+          managedProvider: null,
+          managedMeta: null,
+          botExtra,
+          ownerDisplayName: null,
+          ownerUsername: null,
+        },
+      ] as any);
+
+      const result = await service.getChannelMembers('channel-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].user.staffKind).toBe('common');
+      expect(result[0].user.roleTitle).toBe('HR Lead');
+      expect(result[0].user.ownerName).toBeNull();
+    });
+  });
+
   describe('getPublicChannels', () => {
     it('returns public channels with membership metadata', async () => {
       const rows = [
@@ -919,14 +1240,29 @@ describe('ChannelsService', () => {
 
   describe('assertReadAccess', () => {
     let redisService: { getOrSet: MockFn };
+    let botService: { findActiveBotsByMentorId: MockFn };
 
     beforeEach(() => {
       redisService = (service as any).redis;
+      botService = (service as any).botService;
     });
 
-    it('should pass when user is a channel member', async () => {
-      // getMemberRole → returns 'member'
-      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+    it('should pass when user is a direct channel member', async () => {
+      // assertReadAccess now calls findById first, then isChannelMember.
+      // findById → returns private channel with tenantId
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'private',
+        tenantId: 't-1',
+      });
+      // isChannelMember → getEffectiveRole → resolveEffectiveMembership:
+      // botService returns no mentored bots, but db.where returns user as direct owner
+      botService.findActiveBotsByMentorId = jest
+        .fn<any>()
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([
+        { channelId: 'ch-1', userId: 'user-1', role: 'owner' },
+      ]);
 
       await expect(
         service.assertReadAccess('ch-1', 'user-1'),
@@ -934,12 +1270,15 @@ describe('ChannelsService', () => {
     });
 
     it('should pass for public channel when user is not a member', async () => {
-      // getMemberRole → null (not a member)
+      // findById → public channel with tenantId
       redisService.getOrSet = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        // findById → public channel
         .mockResolvedValueOnce({ id: 'ch-1', type: 'public', tenantId: 't-1' });
+      // isChannelMember → getEffectiveRole → no bots, no direct membership → null
+      botService.findActiveBotsByMentorId = jest
+        .fn<any>()
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]); // no membership rows
 
       await expect(
         service.assertReadAccess('ch-1', 'user-1'),
@@ -947,16 +1286,17 @@ describe('ChannelsService', () => {
     });
 
     it('should pass for tracking channel when user is a tenant member', async () => {
-      // getMemberRole → null
-      redisService.getOrSet = jest
+      // findById → tracking channel
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'tracking',
+        tenantId: 't-1',
+      });
+      // isChannelMember → getEffectiveRole → no bots, no direct membership → null
+      botService.findActiveBotsByMentorId = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        // findById → tracking channel
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'tracking',
-          tenantId: 't-1',
-        });
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]); // no membership
       // isUserInTenant → found
       db.limit.mockResolvedValueOnce([{ id: 'member-1' }]);
 
@@ -966,14 +1306,17 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for tracking channel when user is NOT a tenant member', async () => {
-      redisService.getOrSet = jest
+      // findById → tracking channel
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'tracking',
+        tenantId: 't-1',
+      });
+      // isChannelMember → no membership
+      botService.findActiveBotsByMentorId = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'tracking',
-          tenantId: 't-1',
-        });
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]);
       // isUserInTenant → not found
       db.limit.mockResolvedValueOnce([]);
 
@@ -983,14 +1326,14 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for tracking channel with null tenantId', async () => {
-      redisService.getOrSet = jest
-        .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'tracking',
-          tenantId: null,
-        });
+      // findById → tracking channel without tenantId
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'tracking',
+        tenantId: null,
+      });
+      // isChannelMember is skipped (no tenantId); falls back to isMember → getMemberRole
+      redisService.getOrSet.mockResolvedValueOnce(null); // getMemberRole → not member
 
       await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
@@ -998,10 +1341,8 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for non-existent channel', async () => {
-      redisService.getOrSet = jest
-        .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
+      // findById → null
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce(null);
 
       await expect(
         service.assertReadAccess('nonexistent', 'user-1'),
@@ -1009,14 +1350,17 @@ describe('ChannelsService', () => {
     });
 
     it('should throw for private channel when user is not a member', async () => {
-      redisService.getOrSet = jest
+      // findById → private channel with tenantId
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce({
+        id: 'ch-1',
+        type: 'private',
+        tenantId: 't-1',
+      });
+      // isChannelMember → no bots, no direct membership → null
+      botService.findActiveBotsByMentorId = jest
         .fn<any>()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'ch-1',
-          type: 'private',
-          tenantId: 't-1',
-        });
+        .mockResolvedValueOnce([]);
+      db.where.mockResolvedValueOnce([]);
 
       await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
@@ -1088,7 +1432,9 @@ describe('ChannelsService', () => {
             managedMeta: null,
             agentType: 'openclaw',
           },
-        ] as any);
+        ] as any)
+        // resolveEffectiveMembership DB query (no derived channels since botService returns [])
+        .mockResolvedValueOnce([] as any);
 
       const result = await service.getUserChannels('user-1', 'tenant-1');
 
@@ -1135,6 +1481,8 @@ describe('ChannelsService', () => {
       };
       db.where.mockResolvedValueOnce([mockChannel] as any);
       db.where.mockResolvedValueOnce([] as any);
+      // resolveEffectiveMembership DB query (no derived channels)
+      db.where.mockResolvedValueOnce([] as any);
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', true);
     });
@@ -1162,8 +1510,87 @@ describe('ChannelsService', () => {
       db.where.mockResolvedValueOnce([mockChannel] as any);
       // Second where call: batch member fetch for direct channels
       db.where.mockResolvedValueOnce([] as any);
+      // resolveEffectiveMembership DB query (no derived channels)
+      db.where.mockResolvedValueOnce([] as any);
       const result = await service.getUserChannels('user-1', 'tenant-1');
       expect(result[0]).toHaveProperty('showInDmSidebar', false);
+    });
+
+    it('classifies a bot DM peer with commonStaff extra into staffKind=common', async () => {
+      // Mocks the post-Task-2 join shape: the per-member query now returns
+      // botExtra (jsonb) alongside ownerDisplayName / ownerUsername from
+      // the aliased ownerUser join. For a common-staff bot, ownerId is null
+      // so the owner-side fields come back null.
+      const botExtra: BotExtra = {
+        commonStaff: { roleTitle: 'HR Lead' },
+      };
+
+      db.where
+        .mockResolvedValueOnce([
+          {
+            id: 'direct-bot-1',
+            tenantId: 'tenant-1',
+            name: 'dm-with-bot',
+            description: null,
+            type: 'direct',
+            avatarUrl: null,
+            createdBy: 'user-1',
+            sectionId: null,
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            snapshot: null,
+            createdAt: new Date('2026-04-01T00:00:00Z'),
+            updatedAt: new Date('2026-04-01T00:00:00Z'),
+            unreadCount: 0,
+            lastReadMessageId: null,
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            channelId: 'direct-bot-1',
+            userId: 'user-1',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            status: 'online',
+            userType: 'human',
+            applicationId: null,
+            managedProvider: null,
+            managedMeta: null,
+            botExtra: null,
+            ownerDisplayName: null,
+            ownerUsername: null,
+          },
+          {
+            channelId: 'direct-bot-1',
+            userId: 'bot-1',
+            username: 'hr-bot',
+            displayName: 'HR Bot',
+            avatarUrl: null,
+            status: 'online',
+            userType: 'bot',
+            applicationId: 'common-staff',
+            managedProvider: null,
+            managedMeta: null,
+            botExtra,
+            ownerDisplayName: null,
+            ownerUsername: null,
+          },
+        ] as any)
+        // resolveEffectiveMembership DB query (no derived channels)
+        .mockResolvedValueOnce([] as any);
+
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+
+      const dmChannel = result.find((ch) => ch.type === 'direct');
+      expect(dmChannel?.otherUser).toMatchObject({
+        id: 'bot-1',
+        userType: 'bot',
+        staffKind: 'common',
+        roleTitle: 'HR Lead',
+        ownerName: null,
+      });
     });
   });
 
@@ -1364,7 +1791,7 @@ describe('ChannelsService', () => {
         isArchived: true,
       };
 
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('admin');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('admin');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         type: 'private',
@@ -1387,7 +1814,7 @@ describe('ChannelsService', () => {
     });
 
     it('rejects archiving direct channels', async () => {
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         type: 'direct',
@@ -1563,7 +1990,7 @@ describe('ChannelsService', () => {
     it('rejects deletion when the confirmation name does not match', async () => {
       const redisService = (service as any).redis;
 
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         name: 'expected-name',
@@ -1582,7 +2009,7 @@ describe('ChannelsService', () => {
     it('deletes a private channel for the owner and invalidates cache', async () => {
       const redisService = (service as any).redis;
 
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('owner');
       jest.spyOn(service, 'findById').mockResolvedValue({
         id: 'channel-1',
         name: 'expected-name',
@@ -1607,13 +2034,12 @@ describe('ChannelsService', () => {
       redisService = (service as any).redis;
     });
 
-    it('archives a direct channel without role/type checks', async () => {
+    it('archives a routine-session channel without role check', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-direct', type: 'direct', isArchived: false },
+        { id: 'ch-rs', type: 'routine-session', isArchived: false },
       ] as any);
-      // UPDATE's .where() doesn't need a specific return — chain default is fine
 
-      await service.archiveCreationChannel('ch-direct');
+      await service.archiveCreationChannel('ch-rs');
 
       expect(db.update).toHaveBeenCalled();
       expect(db.set).toHaveBeenCalledWith(
@@ -1622,12 +2048,23 @@ describe('ChannelsService', () => {
       expect(redisService.invalidate).toHaveBeenCalled();
     });
 
-    it('is idempotent when channel is already archived', async () => {
+    it('rejects non-routine-session channels with ForbiddenException', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-direct', type: 'direct', isArchived: true },
+        { id: 'ch-direct', type: 'direct', isArchived: false },
       ] as any);
 
-      await service.archiveCreationChannel('ch-direct');
+      await expect(service.archiveCreationChannel('ch-direct')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent when channel is already archived', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-rs', type: 'routine-session', isArchived: true },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-rs');
 
       expect(db.update).not.toHaveBeenCalled();
       expect(redisService.invalidate).not.toHaveBeenCalled();
@@ -1649,13 +2086,11 @@ describe('ChannelsService', () => {
 
     it('applies tenant filter when tenantId is provided', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-1', type: 'direct', isArchived: false },
+        { id: 'ch-1', type: 'routine-session', isArchived: false },
       ] as any);
 
       await service.archiveCreationChannel('ch-1', 'tenant-42');
 
-      // The where clause should have been called with two conditions (id + tenantId)
-      // We verify that db.update was called (meaning the tenant filter didn't block)
       expect(db.update).toHaveBeenCalled();
       expect(redisService.invalidate).toHaveBeenCalled();
     });
@@ -1727,6 +2162,105 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('createRoutineSessionChannel', () => {
+    it('inserts channel + both members inside a single transaction with purpose metadata', async () => {
+      // Arrange: channel insert returning() yields the new row
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'ch-1',
+          type: 'routine-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          propertySettings: {
+            routineSession: { purpose: 'creation', routineId: 'routine-1' },
+          },
+        },
+      ]);
+
+      const result = await service.createRoutineSessionChannel({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        routineId: 'routine-1',
+        purpose: 'creation',
+      });
+
+      // Entered a transaction
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+
+      // Inside the tx: one insert for the channel row, one insert for
+      // both channel_member rows — 2 inserts total
+      expect(db.insert).toHaveBeenCalledTimes(2);
+
+      // Channel insert values include correct type + propertySettings shape
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'routine-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          name: null,
+          propertySettings: {
+            routineSession: { purpose: 'creation', routineId: 'routine-1' },
+          },
+        }),
+      );
+
+      // Member batch insert receives both rows
+      expect(db.values).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            channelId: 'ch-1',
+            userId: 'user-1',
+            role: 'member',
+          }),
+          expect.objectContaining({
+            channelId: 'ch-1',
+            userId: 'bot-user-1',
+            role: 'member',
+          }),
+        ]),
+      );
+
+      expect(result.id).toBe('ch-1');
+      expect(result.type).toBe('routine-session');
+    });
+
+    it('rolls back channel insert when member insert fails (atomic)', async () => {
+      // First insert (channel) succeeds — returning yields a row
+      db.returning.mockResolvedValueOnce([
+        { id: 'ch-2', type: 'routine-session', tenantId: 'tenant-1' },
+      ]);
+
+      // Simulate the second insert (members batch) throwing.
+      // The default mockDb transaction helper delegates cb(chain); we
+      // override the tx delegate to make the second values() throw.
+      let insertCount = 0;
+      db.values.mockImplementation(() => {
+        insertCount += 1;
+        if (insertCount === 2) {
+          throw new Error('members insert failed');
+        }
+        return db as any;
+      });
+
+      await expect(
+        service.createRoutineSessionChannel({
+          creatorId: 'user-1',
+          botUserId: 'bot-user-1',
+          tenantId: 'tenant-1',
+          routineId: 'routine-1',
+          purpose: 'creation',
+        }),
+      ).rejects.toThrow('members insert failed');
+
+      // Post-commit cache invalidation must NOT have run because the
+      // transaction callback threw before returning
+      expect(
+        (service as any).channelMemberCacheService.invalidate,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
   describe('channel name helpers', () => {
     it('normalizes names and validates unicode-friendly channel names', () => {
       expect(ChannelsService.normalizeChannelName('  Team   Updates  ')).toBe(
@@ -1743,6 +2277,612 @@ describe('ChannelsService', () => {
         valid: false,
         error: 'Channel name must start with a letter or number',
       });
+    });
+  });
+
+  describe('hardDeleteRoutineSessionChannel', () => {
+    it('throws NotFoundException when channel missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('missing-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when channel is not routine-session', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'direct', tenantId: 't-1' },
+      ]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('ch-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when tenantId provided does not match', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'routine-session', tenantId: 'other-tenant' },
+      ]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('ch-1', 't-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deletes audit logs and channel inside a transaction, then invalidates cache', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'routine-session', tenantId: 't-1' },
+      ]);
+
+      await service.hardDeleteRoutineSessionChannel('ch-1', 't-1');
+
+      // transaction was used
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+
+      // Both deletes ran inside the transaction body — the mockDb helper
+      // passes the chain itself as the tx argument, so we assert on chain.delete.
+      // Expect at least 2 delete() invocations (auditLogs + channels).
+      expect(db.delete).toHaveBeenCalledTimes(2);
+
+      // Redis invalidation ran after the transaction
+      const redisService = (service as any).redis as {
+        invalidate: jest.Mock;
+      };
+      expect(redisService.invalidate).toHaveBeenCalledWith(
+        expect.stringContaining('ch-1'),
+      );
+    });
+  });
+
+  // ── mapChannelUserSummary ───────────────────────────────────────────
+
+  describe('mapChannelUserSummary', () => {
+    type SummaryRow = {
+      userId: string;
+      username: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+      status: 'online' | 'offline' | 'away' | 'busy';
+      userType: 'human' | 'bot' | 'system';
+      applicationId: string | null;
+      managedProvider: string | null;
+      managedMeta: Record<string, unknown> | null;
+      botExtra: BotExtra | null;
+      ownerDisplayName: string | null;
+      ownerUsername: string | null;
+    };
+
+    const baseRow: SummaryRow = {
+      userId: 'u1',
+      username: 'alice',
+      displayName: 'Alice',
+      avatarUrl: null,
+      status: 'online',
+      userType: 'bot',
+      applicationId: null,
+      managedProvider: null,
+      managedMeta: null,
+      botExtra: null,
+      ownerDisplayName: null,
+      ownerUsername: null,
+    };
+
+    const map = (row: SummaryRow) =>
+      (
+        service as unknown as {
+          mapChannelUserSummary: (r: SummaryRow) => {
+            id: string;
+            username: string;
+            displayName: string | null;
+            avatarUrl: string | null;
+            status: 'online' | 'offline' | 'away' | 'busy';
+            userType: 'human' | 'bot' | 'system';
+            agentType: string | null;
+            staffKind: 'common' | 'personal' | 'other' | null;
+            roleTitle: string | null;
+            ownerName: string | null;
+          };
+        }
+      ).mapChannelUserSummary(row);
+
+    it('common staff with roleTitle → staffKind=common, roleTitle set', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { commonStaff: { roleTitle: 'Engineer' } },
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBe('Engineer');
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('common staff without roleTitle → staffKind=common, roleTitle=null', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { commonStaff: {} },
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('personal staff with owner displayName → ownerName uses displayName', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: 'Bob Owner',
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBe('Bob Owner');
+    });
+
+    it('personal staff with only username → ownerName falls back to username', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: null,
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.ownerName).toBe('bob');
+    });
+
+    it('personal staff with missing owner row → ownerName=null', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: { personalStaff: {} },
+        ownerDisplayName: null,
+        ownerUsername: null,
+      });
+
+      expect(result.staffKind).toBe('personal');
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('bot with empty extra → staffKind=other', () => {
+      const result = map({
+        ...baseRow,
+        botExtra: {},
+      });
+
+      expect(result.staffKind).toBe('other');
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('human row → staffKind=null and other agent fields null', () => {
+      const result = map({
+        ...baseRow,
+        userType: 'human',
+        botExtra: null,
+      });
+
+      expect(result.staffKind).toBeNull();
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('system user row → staffKind=null and other agent fields null', () => {
+      const result = map({
+        ...baseRow,
+        userType: 'system',
+        botExtra: null,
+      });
+      expect(result.staffKind).toBeNull();
+      expect(result.roleTitle).toBeNull();
+      expect(result.ownerName).toBeNull();
+    });
+
+    it('bot with both commonStaff and personalStaff → common wins (and warns)', () => {
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      const result = map({
+        ...baseRow,
+        botExtra: {
+          commonStaff: { roleTitle: 'Engineer' },
+          personalStaff: {},
+        },
+        ownerDisplayName: 'Bob Owner',
+        ownerUsername: 'bob',
+      });
+
+      expect(result.staffKind).toBe('common');
+      expect(result.roleTitle).toBe('Engineer');
+      expect(result.ownerName).toBeNull();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('u1');
+
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ── assertBotCanDm ────────────────────────────────────────────────────
+
+  describe('assertBotCanDm', () => {
+    // Helpers to set up the sequential db.limit mock resolutions used by
+    // assertBotCanDm:
+    //   1st call → bot row
+    //   2nd call → target user row
+    //   3rd call → tenant_members membership row
+
+    const BOT_TENANT_ID = 'tenant-abc';
+
+    function mockBotRow(
+      override: Partial<{
+        userId: string;
+        ownerId: string | null;
+        mentorId: string | null;
+        extra: BotExtra;
+      }> = {},
+    ) {
+      return {
+        userId: 'bot-1',
+        ownerId: 'owner-1',
+        mentorId: null,
+        extra: {} as BotExtra,
+        ...override,
+      };
+    }
+
+    function mockTargetRow(
+      override: Partial<{
+        id: string;
+        isBot: boolean;
+      }> = {},
+    ) {
+      return {
+        id: 'user-2',
+        isBot: false,
+        ...override,
+      };
+    }
+
+    /** Stub the tenant_members lookup to return a matching membership row. */
+    function stubMembershipFound(userId = 'user-2') {
+      db.limit.mockResolvedValueOnce([{ userId }] as any);
+    }
+
+    /** Stub the tenant_members lookup to return an empty result (cross-tenant). */
+    function stubMembershipNotFound() {
+      db.limit.mockResolvedValueOnce([] as any);
+    }
+
+    it('throws BadRequestException(SELF_DM) when botUserId === targetUserId', async () => {
+      await expect(
+        service.assertBotCanDm('bot-1', 'bot-1', BOT_TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'bot-1', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'SELF_DM' });
+
+      // Self-DM guard must short-circuit before any DB calls
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException(BOT_NOT_FOUND) when bot row is missing', async () => {
+      // Bot lookup returns nothing
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-missing', 'user-2', BOT_TENANT_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      await expect(
+        (async () => {
+          db.limit.mockResolvedValueOnce([] as any);
+          await service.assertBotCanDm('bot-missing', 'user-2', BOT_TENANT_ID);
+        })(),
+      ).rejects.toMatchObject({ message: 'BOT_NOT_FOUND' });
+    });
+
+    it('throws NotFoundException(USER_NOT_FOUND) when target user row is missing', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-missing', BOT_TENANT_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-missing', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'USER_NOT_FOUND' });
+    });
+
+    it('throws ForbiddenException(DM_NOT_ALLOWED) when target is itself a bot', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ isBot: true })] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'another-bot', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ isBot: true })] as any);
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'another-bot', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
+    });
+
+    it('throws BadRequestException(CROSS_TENANT) when target is not a tenant member', async () => {
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'user-2' })] as any);
+      stubMembershipNotFound();
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-2', BOT_TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      db.limit.mockResolvedValueOnce([mockBotRow()] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'user-2' })] as any);
+      stubMembershipNotFound();
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-2', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'CROSS_TENANT' });
+    });
+
+    it('default policy: personalStaff bot → owner-only, allows the owner', async () => {
+      const extra: BotExtra = { personalStaff: {} };
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([mockTargetRow({ id: 'owner-1' })] as any);
+      stubMembershipFound('owner-1');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'owner-1', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('default policy: personalStaff bot → owner-only, rejects non-owner', async () => {
+      const extra: BotExtra = { personalStaff: {} };
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'user-other' }),
+      ] as any);
+      stubMembershipFound('user-other');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-other', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'user-other' }),
+      ] as any);
+      stubMembershipFound('user-other');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-other', BOT_TENANT_ID),
+      ).rejects.toMatchObject({ message: 'DM_NOT_ALLOWED' });
+    });
+
+    it('default policy: commonStaff bot → same-tenant, allows any non-bot tenant member', async () => {
+      const extra: BotExtra = { commonStaff: {} };
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: null, extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'user-any' }),
+      ] as any);
+      stubMembershipFound('user-any');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'user-any', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('default policy: unclassified bot → owner-only, rejects non-owner', async () => {
+      const extra: BotExtra = {}; // no personalStaff, no commonStaff
+      db.limit.mockResolvedValueOnce([
+        mockBotRow({ ownerId: 'owner-1', extra }),
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'random-user' }),
+      ] as any);
+      stubMembershipFound('random-user');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'random-user', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('explicit whitelist policy: allows a listed user', async () => {
+      const extra: BotExtra = {
+        dmOutboundPolicy: {
+          mode: 'whitelist',
+          userIds: ['allowed-1', 'allowed-2'],
+        },
+      };
+      db.limit.mockResolvedValueOnce([mockBotRow({ extra })] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'allowed-1' }),
+      ] as any);
+      stubMembershipFound('allowed-1');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'allowed-1', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('explicit whitelist policy: rejects an unlisted user', async () => {
+      const extra: BotExtra = {
+        dmOutboundPolicy: { mode: 'whitelist', userIds: ['allowed-1'] },
+      };
+      db.limit.mockResolvedValueOnce([mockBotRow({ extra })] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'not-listed' }),
+      ] as any);
+      stubMembershipFound('not-listed');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'not-listed', BOT_TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('explicit anyone policy: allows any same-tenant user', async () => {
+      const extra: BotExtra = {
+        dmOutboundPolicy: { mode: 'anyone' },
+      };
+      db.limit.mockResolvedValueOnce([mockBotRow({ extra })] as any);
+      db.limit.mockResolvedValueOnce([
+        mockTargetRow({ id: 'any-user' }),
+      ] as any);
+      stubMembershipFound('any-user');
+
+      await expect(
+        service.assertBotCanDm('bot-1', 'any-user', BOT_TENANT_ID),
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  // ── defaultDmOutboundPolicy (module-level helper) ─────────────────────
+
+  describe('defaultDmOutboundPolicy', () => {
+    it('returns owner-only for personalStaff bots', () => {
+      const extra: BotExtra = { personalStaff: {} };
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'owner-only' });
+    });
+
+    it('returns same-tenant for commonStaff bots', () => {
+      const extra: BotExtra = { commonStaff: {} };
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'same-tenant' });
+    });
+
+    it('returns owner-only when neither personalStaff nor commonStaff is set', () => {
+      const extra: BotExtra = {};
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'owner-only' });
+    });
+
+    it('personalStaff takes precedence over commonStaff when both are present', () => {
+      // This is an unexpected/corrupted state, but personalStaff is checked
+      // first so it wins (mirrors the existing corruption logic in service).
+      const extra: BotExtra = { personalStaff: {}, commonStaff: {} };
+      expect(defaultDmOutboundPolicy(extra)).toEqual({ mode: 'owner-only' });
+    });
+  });
+
+  // ── isTargetAllowed (module-level helper) ─────────────────────────────
+
+  describe('isTargetAllowed', () => {
+    it('owner-only: returns true when target is the owner', () => {
+      const policy: DmOutboundPolicy = { mode: 'owner-only' };
+      expect(isTargetAllowed(policy, { ownerId: 'owner-1' }, 'owner-1')).toBe(
+        true,
+      );
+    });
+
+    it('owner-only: returns false when target is not the owner', () => {
+      const policy: DmOutboundPolicy = { mode: 'owner-only' };
+      expect(
+        isTargetAllowed(policy, { ownerId: 'owner-1' }, 'other-user'),
+      ).toBe(false);
+    });
+
+    it('owner-only: returns false when ownerId is null', () => {
+      const policy: DmOutboundPolicy = { mode: 'owner-only' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(
+        false,
+      );
+    });
+
+    it('same-tenant: always returns true', () => {
+      const policy: DmOutboundPolicy = { mode: 'same-tenant' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(true);
+      expect(
+        isTargetAllowed(policy, { ownerId: 'owner-1' }, 'other-user'),
+      ).toBe(true);
+    });
+
+    it('whitelist: returns true when targetId is in userIds', () => {
+      const policy: DmOutboundPolicy = {
+        mode: 'whitelist',
+        userIds: ['u1', 'u2'],
+      };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'u1')).toBe(true);
+      expect(isTargetAllowed(policy, { ownerId: null }, 'u2')).toBe(true);
+    });
+
+    it('whitelist: returns false when targetId is not in userIds', () => {
+      const policy: DmOutboundPolicy = { mode: 'whitelist', userIds: ['u1'] };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'u-not-listed')).toBe(
+        false,
+      );
+    });
+
+    it('whitelist: returns false when userIds is undefined', () => {
+      const policy: DmOutboundPolicy = { mode: 'whitelist' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(
+        false,
+      );
+    });
+
+    it('anyone: always returns true', () => {
+      const policy: DmOutboundPolicy = { mode: 'anyone' };
+      expect(isTargetAllowed(policy, { ownerId: null }, 'any-user')).toBe(true);
+      expect(
+        isTargetAllowed(policy, { ownerId: 'owner-1' }, 'someone-else'),
+      ).toBe(true);
+    });
+  });
+
+  // ── filterBotUserIds ─────────────────────────────────────────────
+
+  describe('filterBotUserIds', () => {
+    it('returns an empty Set when given an empty array (no DB query)', async () => {
+      const result = await service.filterBotUserIds([]);
+      expect(result).toEqual(new Set());
+      // No DB call should occur for an empty input
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('returns a Set containing only the userIds that appear in im_bots', async () => {
+      // Simulate: two of the three supplied IDs are bots
+      db.where.mockResolvedValueOnce([
+        { userId: 'bot-1' },
+        { userId: 'bot-2' },
+      ] as any);
+
+      const result = await service.filterBotUserIds([
+        'bot-1',
+        'human-1',
+        'bot-2',
+      ]);
+
+      expect(result).toEqual(new Set(['bot-1', 'bot-2']));
+      expect(db.select).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns an empty Set when none of the supplied userIds are bots', async () => {
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await service.filterBotUserIds(['human-1', 'human-2']);
+
+      expect(result).toEqual(new Set());
+    });
+
+    it('handles a single userId that is a bot', async () => {
+      db.where.mockResolvedValueOnce([{ userId: 'bot-only' }] as any);
+
+      const result = await service.filterBotUserIds(['bot-only']);
+
+      expect(result).toEqual(new Set(['bot-only']));
     });
   });
 });

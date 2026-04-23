@@ -379,6 +379,41 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('does not push deep-research messages to bot webhooks', async () => {
+    const botMember = {
+      userId: 'bot-user-uuid',
+      webhookUrl: 'https://example.test/webhook',
+      webhookHeaders: {},
+      botId: 'bot-id-123',
+    };
+    const getMessageWithContext = jest
+      .spyOn(service as any, 'getMessageWithContext')
+      .mockResolvedValue({
+        message: makeMessage({
+          content: 'research this market',
+          metadata: {
+            deepResearch: {
+              taskId: 'task-1',
+              version: 1,
+            },
+          },
+        }),
+        sender: makeSender(),
+        channel: makeChannel('direct'),
+        mentions: [],
+        parentMessage: null,
+      });
+    db.where.mockResolvedValueOnce([botMember]);
+    const fetchMock = jest.spyOn(globalThis, 'fetch');
+
+    await (service as any).pushToBotWebhooks(MSG_ID, SENDER_ID, [
+      botMember.userId,
+    ]);
+
+    expect(getMessageWithContext).toHaveBeenCalledWith(MSG_ID);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('warns when a bot webhook responds with a non-ok status', async () => {
     const logger = {
       debug: jest.fn(),
@@ -500,6 +535,28 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     setupDbForHivePush({
       bots: [bot],
       sender: makeBotSender(),
+      channel: makeChannel('direct'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not trigger hive bots for deep-research messages', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      message: makeMessage({
+        content: 'research this market',
+        metadata: {
+          deepResearch: {
+            taskId: 'task-1',
+            version: 1,
+          },
+        },
+      }),
       channel: makeChannel('direct'),
     });
 
@@ -1037,6 +1094,63 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(sessionId).toBe(
       `team9/${TENANT_ID}/${bot.managedMeta.agentId}/dm/${CHANNEL_ID}`,
     );
+  });
+
+  it('routes routine-session channel message to dm/ scope without creating tracking channel', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('routine-session'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
+    const [sessionId, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    // Session id uses dm/ scope with the original channel id — the bot
+    // stays on the same session as the kickoff event.
+    expect(sessionId).toBe(
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/dm/${CHANNEL_ID}`,
+    );
+    // Channel location reports as 'dm' so bot context matches kickoff.
+    expect(event.payload.location.type).toBe('dm');
+    // Fanout happened without @mention — routine-session is alwaysForward.
+    expect(event.payload.trackingChannelId).toBeUndefined();
+  });
+
+  it('forwards routine-session message even without @mention (alwaysForward)', async () => {
+    // The default makeMessage() content has no @mention of any bot. A
+    // group channel would drop this message unless the bot is mentioned.
+    // routine-session must bypass that check entirely.
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('routine-session'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not create a tracking channel for routine-session', async () => {
+    const bot = makeHiveBot('claude');
+    const createTrackingSpy = jest.spyOn(
+      service as any,
+      'createTrackingChannel',
+    );
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('routine-session'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(createTrackingSpy).not.toHaveBeenCalled();
   });
 
   it('routes tracking channel message to same session without creating new channel', async () => {

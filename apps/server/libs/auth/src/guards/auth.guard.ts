@@ -15,6 +15,7 @@ import type { JwtPayload } from '../interfaces/jwt-payload.interface.js';
 
 type RequestWithUser = Request & {
   user?: JwtPayload;
+  tenantId?: string;
 };
 
 @Injectable()
@@ -62,6 +63,14 @@ export class AuthGuard extends PassportAuthGuard('jwt') {
       }
 
       request.user = payload;
+      // Bot tokens carry their authoritative tenant from the bot's
+      // installed application. We OVERRIDE any prior req.tenantId set by
+      // TenantMiddleware — an attacker-controlled X-Tenant-ID header must
+      // never re-scope a bot request into another tenant. For non-bot
+      // (standard JWT) paths, tenant still flows via TenantMiddleware.
+      if (payload.tenantId) {
+        request.tenantId = payload.tenantId;
+      }
       return true;
     }
 

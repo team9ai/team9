@@ -17,6 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { queryClient } from "@/lib/query-client";
 import { usePostHogAnalytics } from "@/analytics/posthog/hooks";
+import { useTeam9PostHog } from "@/analytics/posthog/provider";
+import { captureWithBridge } from "@/analytics/posthog/capture";
+import { EVENTS, ONBOARDING_STEPS } from "@/analytics/posthog/events";
+import {
+  inferPlanName,
+  inferBillingInterval,
+} from "@/analytics/posthog/billing";
 import { openExternalUrl } from "@/lib/open-external-url";
 import { getErrorMessage } from "@/services/http";
 import {
@@ -113,7 +120,7 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 function OnboardingRoute() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const { t: rawT, i18n } = useTranslation("onboarding");
+  const { t: rawT, i18n } = useTranslation(["onboarding", "workspace"]);
   const t = rawT as unknown as TranslateFn;
   const selectedWorkspaceId = useSelectedWorkspaceId();
   const { data: workspaces = [] } = useUserWorkspaces();
@@ -122,9 +129,7 @@ function OnboardingRoute() {
     search.workspaceId ?? selectedWorkspaceId ?? workspaces[0]?.id ?? undefined;
   const workspace =
     workspaces.find((item) => item.id === workspaceId) ?? workspaces[0] ?? null;
-  const language = (i18n.resolvedLanguage ?? i18n.language).startsWith("en")
-    ? "en"
-    : "zh-CN";
+  const language = i18n.language ?? i18n.resolvedLanguage ?? "en";
 
   const onboardingQuery = useWorkspaceOnboarding(workspaceId);
   const rolesQuery = useOnboardingRoles(language);
@@ -139,6 +144,7 @@ function OnboardingRoute() {
   const checkout = useCreateWorkspaceBillingCheckout(workspaceId);
   const completeOnboarding = useCompleteWorkspaceOnboarding(workspaceId);
   const { capture } = usePostHogAnalytics();
+  const { client: phClient } = useTeam9PostHog();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [roleState, setRoleState] = useState<OnboardingRoleSelection>({
@@ -182,6 +188,8 @@ function OnboardingRoute() {
   const agentInFlightSignatureRef = useRef("");
   const inviteCreationRequestedRef = useRef<string | null>(null);
   const checkoutResultRef = useRef<string | null>(null);
+  const lastViewedStepRef = useRef<number | null>(null);
+  const planPageViewFiredRef = useRef(false);
 
   useEffect(() => {
     taskInFlightSignatureRef.current = "";
@@ -189,6 +197,36 @@ function OnboardingRoute() {
     agentInFlightSignatureRef.current = "";
     inviteCreationRequestedRef.current = null;
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    if (lastViewedStepRef.current === currentStep) return;
+    lastViewedStepRef.current = currentStep;
+
+    const stepName =
+      ONBOARDING_STEPS[currentStep as keyof typeof ONBOARDING_STEPS];
+    if (!stepName) return;
+
+    captureWithBridge(phClient, EVENTS.ONBOARDING_STEP_VIEWED, {
+      step_name: stepName,
+      step_index: currentStep,
+      workspace_id: workspaceId,
+    });
+  }, [phClient, workspaceId, currentStep]);
+
+  useEffect(() => {
+    if (currentStep !== 6) {
+      planPageViewFiredRef.current = false;
+      return;
+    }
+    if (planPageViewFiredRef.current) return;
+    planPageViewFiredRef.current = true;
+
+    captureWithBridge(phClient, EVENTS.SUBSCRIPTION_PLAN_PAGE_VIEWED, {
+      entry_source: "onboarding",
+      workspace_id: workspaceId,
+    });
+  }, [phClient, workspaceId, currentStep]);
 
   useEffect(() => {
     if (workspaceId && workspaceId !== selectedWorkspaceId) {
@@ -727,14 +765,18 @@ function OnboardingRoute() {
       try {
         await persistProgress({ nextStep: 6, status: "completed" });
         const result = await completeOnboarding.mutateAsync({ lang: language });
-        capture("onboarding_completed", {
-          workspace_id: workspaceId,
-        });
         queryClient.setQueryData(["workspace-onboarding", workspaceId], result);
 
         if (result.status === "failed") {
           setPageError(t("errors.provisionFailed"));
           return;
+        }
+
+        // Fire onboarding_completed only on successful provisioning
+        if (result.status === "provisioned") {
+          captureWithBridge(phClient, EVENTS.ONBOARDING_COMPLETED, {
+            workspace_id: workspaceId,
+          });
         }
 
         await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
@@ -758,6 +800,17 @@ function OnboardingRoute() {
     if (!workspaceId) {
       return;
     }
+
+    captureWithBridge(phClient, EVENTS.SUBSCRIPTION_BUTTON_CLICKED, {
+      entry_source: "onboarding",
+      plan_name: inferPlanName(product),
+      amount_cents: product.amountCents,
+      billing_interval: inferBillingInterval(product),
+      credits_amount: product.credits ?? null,
+      stripe_price_id: product.stripePriceId,
+      button_name: product.name,
+      workspace_id: workspaceId,
+    });
 
     const nextPlan: OnboardingPlanSelection = {
       selectedPlan: product.stripePriceId,
@@ -808,6 +861,9 @@ function OnboardingRoute() {
       const result = await completeOnboarding.mutateAsync({ lang: language });
       queryClient.setQueryData(["workspace-onboarding", workspaceId], result);
       if (result.status === "provisioned") {
+        captureWithBridge(phClient, EVENTS.ONBOARDING_COMPLETED, {
+          workspace_id: workspaceId,
+        });
         await navigate({ to: "/" });
       } else {
         setPageError(t("errors.provisionFailed"));
@@ -839,10 +895,7 @@ function OnboardingRoute() {
     );
   }
 
-  if (
-    onboarding?.status === "provisioning" ||
-    (isFinishing && completeOnboarding.isPending)
-  ) {
+  if (onboarding?.status === "provisioning" || isFinishing) {
     return (
       <StatusScene
         title={t("status.provisioningTitle")}
@@ -910,20 +963,6 @@ function OnboardingRoute() {
                 {stepDescription}
               </p>
             </div>
-
-            {currentStep === 6 && (
-              <div className="mt-2 grid max-w-[320px] gap-2 rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(243,247,253,0.84))] p-5 text-slate-700 shadow-[0_18px_42px_rgba(100,116,139,0.1)]">
-                <strong className="text-base text-slate-800">
-                  {workspace?.name ?? t("workspaceFallback")}
-                </strong>
-                <p className="text-sm leading-6 text-slate-600/85">
-                  {t("plan.note")}
-                </p>
-                <span className="text-sm leading-6 text-slate-500">
-                  {t("welcome")}
-                </span>
-              </div>
-            )}
 
             {currentStep > 1 && (
               <div className="mt-auto hidden lg:flex">
@@ -1542,9 +1581,6 @@ function StepThree({
                 {preview.purpose}
               </p>
             </div>
-            <span className="rounded-full border border-white/8 bg-white/8 px-3 py-1 text-xs font-semibold text-white/75">
-              {t("channels.activeThread")}
-            </span>
           </header>
 
           <div className="grid gap-3">
@@ -1791,6 +1827,18 @@ function StepSix({
 
   return (
     <div className="grid gap-6">
+      {!checkoutCompleted ? (
+        <div className="flex w-full justify-end">
+          <GhostButton
+            onClick={onContinueWithoutPlan}
+            disabled={checkoutPending}
+            className="bg-white/86 text-slate-600"
+          >
+            {t("actions.continueWithoutPlan")}
+          </GhostButton>
+        </div>
+      ) : null}
+
       {checkoutCompleted ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
           {t("plan.success")}
@@ -1852,8 +1900,8 @@ function StepSix({
         </div>
       ) : null}
 
-      <StepActionDock>
-        {checkoutCompleted ? (
+      {checkoutCompleted ? (
+        <StepActionDock>
           <ContinueButton
             onClick={onFinish}
             disabled={checkoutPending}
@@ -1861,16 +1909,8 @@ function StepSix({
           >
             {t("actions.finish")}
           </ContinueButton>
-        ) : (
-          <GhostButton
-            onClick={onContinueWithoutPlan}
-            disabled={checkoutPending}
-            className="bg-white/86 text-slate-600"
-          >
-            {t("actions.continueWithoutPlan")}
-          </GhostButton>
-        )}
-      </StepActionDock>
+        </StepActionDock>
+      ) : null}
     </div>
   );
 }

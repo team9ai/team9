@@ -230,6 +230,16 @@ export class RoutinesController {
     return this.routinesService.completeCreation(id, dto, userId, tenantId);
   }
 
+  @Post(':id/start-creation-session')
+  @HttpCode(HttpStatus.OK)
+  async startCreationSession(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routinesService.startCreationSession(id, userId, tenantId);
+  }
+
   // ── Trigger CRUD ──────────────────────────────────────────────
 
   @Post(':routineId/triggers')

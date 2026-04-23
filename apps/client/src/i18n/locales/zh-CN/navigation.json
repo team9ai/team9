@@ -105,9 +105,12 @@
   "dashboardUsageValue": "1,280",
   "dashboardPlan": "Free plan",
   "dashboardUpgrade": "Upgrade",
+  "dashboardCreditsLowTitle": "余额不足，点击充值",
   "dashboardTitle": "今天能帮你做什么？",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "深度研究",
+  "dashboardDeepResearchPlaceholder": "描述你要研究的主题……",
+  "dashboardDeepResearchCreateFailed": "创建深度研究任务失败",
   "dashboardActionGenerateImage": "生成图片",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "按 Enter 发送，Shift+Enter 换行。",
@@ -144,5 +147,8 @@
   "uninstallConfirmTitle": "卸载 {{name}}？",
   "uninstallConfirmDescription": "这将从你的工作空间移除此应用。与此应用关联的数据可能会丢失。",
   "dangerZone": "危险操作",
-  "hideConversation": "隐藏对话"
+  "hideConversation": "隐藏对话",
+  "agentPillAi": "AI",
+  "agentPillPersonalAssistant": "个人助理",
+  "agentPillModel": "模型"
 }

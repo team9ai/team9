@@ -1,0 +1,47 @@
+{
+  "title": "深度研究",
+  "newTask": "新建研究",
+  "promptPlaceholder": "输入你的研究问题，研究代理会检索、思考并输出详尽报告。",
+  "start": "开始",
+  "status": {
+    "pending": "排队中",
+    "running": "进行中",
+    "completed": "已完成",
+    "failed": "已失败"
+  },
+  "event": {
+    "start": "研究启动",
+    "thought": "思考",
+    "complete": "研究完成",
+    "unknown": "未知事件"
+  },
+  "history": {
+    "banner": "历史任务仅保留里程碑与最终报告。",
+    "empty": "还没有研究任务。"
+  },
+  "drawer": {
+    "closedToastTitle": "任务已在后台运行",
+    "closedToastAction": "查看",
+    "insertSuccess": "报告已插入编辑器",
+    "insertFallback": "编辑器不可用 — 报告已复制到剪贴板"
+  },
+  "detail": {
+    "notFoundTitle": "任务不存在",
+    "notFoundBody": "任务不存在或你没有访问权限。",
+    "backToList": "返回列表",
+    "thoughtsTruncated": "已省略更早的 {{count}} 条思考",
+    "planningNotice": "正在深度研究中，首批内容通常需要几分钟，请耐心等待…"
+  },
+  "error": {
+    "DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED": "并发上限已达，{{retryAfterSeconds}} 秒后重试。",
+    "PARENT_NOT_FOUND": "父任务不存在或无访问权限。",
+    "PARENT_NOT_COMPLETED": "父任务未完成，无法继续追问。",
+    "PARENT_EXPIRED": "父任务超过 50 天，无法继续追问。",
+    "UPSTREAM_UNAVAILABLE": "Google 上游暂不可用，请稍后再试。",
+    "PROCESS_RESTART": "服务重启导致中断，请重新启动任务。",
+    "UPSTREAM_SSE_UNRECOVERABLE": "上游流不可恢复，任务已失败。",
+    "FINAL_REPORT_FETCH_FAILED": "最终报告生成失败，请重试。",
+    "REPORT_UPLOAD_FAILED": "最终报告上传失败，请重试。",
+    "UNKNOWN": "{{code}}: {{message}}"
+  }
+}

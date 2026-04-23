@@ -29,6 +29,7 @@ import {
   type UserOnlineEvent,
   type UserOfflineEvent,
   type UserStatusChangedEvent,
+  type UserUpdatedEvent,
   type ReactionAddedEvent,
   type ReactionRemovedEvent,
   type WorkspaceMemberJoinedEvent,
@@ -40,6 +41,7 @@ import {
   type NotificationAllReadEvent,
   type RoutineStatusChangedEvent,
   type RoutineExecutionCreatedEvent,
+  type RoutineUpdatedEvent,
   type StreamingStartEvent,
   type StreamingContentEvent,
   type StreamingThinkingContentEvent,
@@ -57,6 +59,8 @@ import {
   type TabCreatedEvent,
   type TabUpdatedEvent,
   type TabDeletedEvent,
+  type MessageRelationChangedEvent,
+  type MessageRelationsPurgedEvent,
 } from "@/types/ws-events";
 
 type EventCallback<TEvent = unknown> = (event: TEvent) => void;
@@ -517,6 +521,14 @@ class WebSocketService {
     this.on<UserStatusChangedEvent>(WS_EVENTS.USER.STATUS_CHANGED, callback);
   }
 
+  onUserUpdated(callback: (event: UserUpdatedEvent) => void): void {
+    this.on<UserUpdatedEvent>(WS_EVENTS.USER.UPDATED, callback);
+  }
+
+  offUserUpdated(callback: (event: UserUpdatedEvent) => void): void {
+    this.off<UserUpdatedEvent>(WS_EVENTS.USER.UPDATED, callback);
+  }
+
   onReactionAdded(callback: (event: ReactionAddedEvent) => void): void {
     this.on<ReactionAddedEvent>(WS_EVENTS.REACTION.ADDED, callback);
   }
@@ -638,6 +650,14 @@ class WebSocketService {
       WS_EVENTS.ROUTINE.EXECUTION_CREATED,
       callback,
     );
+  }
+
+  onRoutineUpdated(callback: (event: RoutineUpdatedEvent) => void): void {
+    this.on<RoutineUpdatedEvent>(WS_EVENTS.ROUTINE.UPDATED, callback);
+  }
+
+  offRoutineUpdated(callback: (event: RoutineUpdatedEvent) => void): void {
+    this.off<RoutineUpdatedEvent>(WS_EVENTS.ROUTINE.UPDATED, callback);
   }
 
   // Streaming events (AI bot)
@@ -828,6 +848,72 @@ class WebSocketService {
 
   offTabDeleted(callback: (event: TabDeletedEvent) => void): void {
     this.off<TabDeletedEvent>(WS_EVENTS.TAB.DELETED, callback);
+  }
+
+  // ── Relation Events ──────────────────────────────────
+
+  onRelationChanged(
+    callback: (event: MessageRelationChangedEvent) => void,
+  ): () => void {
+    const listener = callback as EventCallback;
+    if (!this.socket?.connected) {
+      this.pendingListeners.push({
+        event: WS_EVENTS.PROPERTY.RELATION_CHANGED,
+        callback: listener,
+      });
+      return () =>
+        this.off<MessageRelationChangedEvent>(
+          WS_EVENTS.PROPERTY.RELATION_CHANGED,
+          callback,
+        );
+    }
+    this.socket.on(WS_EVENTS.PROPERTY.RELATION_CHANGED, listener);
+    return () =>
+      this.off<MessageRelationChangedEvent>(
+        WS_EVENTS.PROPERTY.RELATION_CHANGED,
+        callback,
+      );
+  }
+
+  offRelationChanged(
+    callback: (event: MessageRelationChangedEvent) => void,
+  ): void {
+    this.off<MessageRelationChangedEvent>(
+      WS_EVENTS.PROPERTY.RELATION_CHANGED,
+      callback,
+    );
+  }
+
+  onRelationsPurged(
+    callback: (event: MessageRelationsPurgedEvent) => void,
+  ): () => void {
+    const listener = callback as EventCallback;
+    if (!this.socket?.connected) {
+      this.pendingListeners.push({
+        event: WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+        callback: listener,
+      });
+      return () =>
+        this.off<MessageRelationsPurgedEvent>(
+          WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+          callback,
+        );
+    }
+    this.socket.on(WS_EVENTS.PROPERTY.RELATIONS_PURGED, listener);
+    return () =>
+      this.off<MessageRelationsPurgedEvent>(
+        WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+        callback,
+      );
+  }
+
+  offRelationsPurged(
+    callback: (event: MessageRelationsPurgedEvent) => void,
+  ): void {
+    this.off<MessageRelationsPurgedEvent>(
+      WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+      callback,
+    );
   }
 }
 

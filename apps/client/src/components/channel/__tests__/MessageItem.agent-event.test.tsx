@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { MessageItem } from "../MessageItem";
 import type { Message } from "@/types/im";
 
@@ -14,7 +15,9 @@ const queryClient = new QueryClient({
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -141,6 +144,24 @@ describe("MessageItem - agent event rendering", () => {
 
     const wrapper = container.firstChild as HTMLElement;
     expect(wrapper.className).toContain("mt-1");
+  });
+
+  it("does not emit the gray wrapper for turn_separator events", () => {
+    // Regression: turn_separator rows are internal markers (not shown
+    // to users). Previously MessageItem still wrapped them in the
+    // bordered/gray container, producing an empty ~4px stripe between
+    // real rows. The fix collapses them to a 1px hidden placeholder.
+    const msg = makeMessage({
+      metadata: { agentEventType: "turn_separator", status: "completed" },
+    });
+
+    const { container } = renderWithProviders(<MessageItem message={msg} />);
+
+    const wrapper = container.firstChild as HTMLElement;
+    expect(wrapper.className).not.toContain("bg-muted/30");
+    expect(wrapper.className).not.toContain("border-border");
+    expect(wrapper.className).toContain("min-h-px");
+    expect(wrapper.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("should render tool_result as collapsible", () => {

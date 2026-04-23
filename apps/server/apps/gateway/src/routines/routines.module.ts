@@ -4,6 +4,7 @@ import { DocumentsModule } from '../documents/documents.module.js';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 import { ClawHiveModule } from '@team9/claw-hive';
+import { UsersModule } from '../im/users/users.module.js';
 import { RoutinesController } from './routines.controller.js';
 import { RoutinesService } from './routines.service.js';
 import { RoutineBotController } from './routine-bot.controller.js';
@@ -19,6 +20,7 @@ import { RoutinesStreamController } from './routines-stream.controller.js';
     forwardRef(() => WebsocketModule),
     forwardRef(() => ChannelsModule),
     ClawHiveModule,
+    forwardRef(() => UsersModule),
   ],
   controllers: [
     RoutinesController,

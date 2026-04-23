@@ -11,8 +11,10 @@ import {
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
 import { RunItem } from "./RunItem";
+import { CreationSessionRunItem } from "./CreationSessionRunItem";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import type { Routine, RoutineExecution, RoutineStatus } from "@/types/routine";
+import type { SelectedRun } from "./RoutineList";
 
 const STATUS_COLORS: Record<RoutineStatus, string> = {
   draft: "bg-yellow-400",
@@ -42,11 +44,12 @@ interface RoutineCardProps {
   routine: Routine;
   isExpanded: boolean;
   isActive: boolean;
-  selectedRunId: string | null;
+  selectedRun: SelectedRun;
   executions: RoutineExecution[];
   botName?: string | null;
   onToggleExpand: () => void;
   onSelectRun: (runId: string) => void;
+  onOpenCreationSession: (routineId: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -67,11 +70,12 @@ export function RoutineCard({
   routine,
   isExpanded,
   isActive,
-  selectedRunId,
+  selectedRun,
   executions,
   botName,
   onToggleExpand,
   onSelectRun,
+  onOpenCreationSession,
   onOpenSettings,
 }: RoutineCardProps) {
   const { t } = useTranslation("routines");
@@ -194,7 +198,8 @@ export function RoutineCard({
                 "max-h-75 overflow-y-auto",
             )}
           >
-            {executions.length === 0 ? (
+            {executions.length === 0 &&
+            !(routine.status === "draft" && routine.creationChannelId) ? (
               <p className="text-xs text-muted-foreground py-1">
                 {t("historyTab.empty", "No runs yet")}
               </p>
@@ -204,7 +209,10 @@ export function RoutineCard({
                   <RunItem
                     key={exec.id}
                     execution={exec}
-                    isSelected={exec.id === selectedRunId}
+                    isSelected={
+                      selectedRun?.kind === "execution" &&
+                      selectedRun.executionId === exec.id
+                    }
                     onClick={() => onSelectRun(exec.id)}
                   />
                 ))}
@@ -221,6 +229,15 @@ export function RoutineCard({
                       defaultValue: `↓ ${hiddenCount} earlier runs`,
                     })}
                   </button>
+                )}
+                {routine.status === "draft" && routine.creationChannelId && (
+                  <CreationSessionRunItem
+                    isSelected={
+                      selectedRun?.kind === "creation" &&
+                      selectedRun.routineId === routine.id
+                    }
+                    onClick={() => onOpenCreationSession(routine.id)}
+                  />
                 )}
               </>
             )}

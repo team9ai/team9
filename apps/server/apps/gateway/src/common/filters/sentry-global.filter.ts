@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, HttpException } from '@nestjs/common';
+import { ArgumentsHost, Catch, HttpException, Logger } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import * as Sentry from '@sentry/nestjs';
 
@@ -14,14 +14,29 @@ import * as Sentry from '@sentry/nestjs';
  * which are expected business errors (400, 401, 403, 404, etc.).
  * Everything else — including DB errors, 5xx HttpExceptions, and runtime
  * errors — gets reported.
+ *
+ * We also explicitly log the error message + stack here. NestJS's
+ * BaseExceptionFilter passes the raw exception object to `logger.error()`,
+ * which OtelLogger coerces to a `[object Object]` body — the stack is lost.
+ * Logging a string message with the stack as the second arg gives the
+ * OtelLogger a usable body + trace attribute.
  */
 @Catch()
 export class CustomSentryFilter extends BaseExceptionFilter {
+  private readonly errorLogger = new Logger('UnhandledException');
+
   catch(exception: unknown, host: ArgumentsHost) {
     const isExpectedHttpError =
       exception instanceof HttpException && exception.getStatus() < 500;
 
     if (!isExpectedHttpError) {
+      const message =
+        exception instanceof Error ? exception.message : String(exception);
+      const stack = exception instanceof Error ? exception.stack : undefined;
+      const name =
+        exception instanceof Error ? exception.constructor.name : 'Unknown';
+      this.errorLogger.error(`${name}: ${message}`, stack);
+
       Sentry.captureException(exception, {
         mechanism: {
           handled: false,

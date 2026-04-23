@@ -285,22 +285,57 @@
     {
       "idx": 40,
       "version": "7",
-      "when": 1776400000000,
-      "tag": "0040_add_wiki_icon",
+      "when": 1776211200000,
+      "tag": "0040_replace_onboarding_roles",
       "breakpoints": true
     },
     {
       "idx": 41,
       "version": "7",
-      "when": 1776500000000,
-      "tag": "0041_wiki_workspace_fk",
+      "when": 1776300000000,
+      "tag": "0041_echo_channel_unique_index",
       "breakpoints": true
     },
     {
       "idx": 42,
       "version": "7",
+      "when": 1776400000000,
+      "tag": "0042_add_wiki_icon",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1776400000000,
+      "tag": "0043_routine_session_channel_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1776480000000,
+      "tag": "0044_add_user_language_timezone",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1776500000000,
+      "tag": "0045_wiki_workspace_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1776762069343,
+      "tag": "0046_message_relations",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
       "when": 1777100000000,
-      "tag": "0042_wiki_slug_partial_unique",
+      "tag": "0047_wiki_slug_partial_unique",
       "breakpoints": true
     }
   ]

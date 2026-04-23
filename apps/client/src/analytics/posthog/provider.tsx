@@ -5,6 +5,9 @@ import type { PostHog } from "posthog-js";
 import { getPostHogBrowserClient } from "./client";
 import { isPostHogBrowserEnabled } from "./config";
 import { Team9PostHogIdentitySync } from "./sync";
+import { captureAcquisitionOnce } from "./acquisition";
+import { captureGclid } from "./gclid";
+import { captureRdtCid } from "./rdt_cid";
 
 interface Team9PostHogContextValue {
   client: PostHog | null;
@@ -31,6 +34,11 @@ export function Team9PostHogProvider({ children }: { children: ReactNode }) {
     void getPostHogBrowserClient().then((resolvedClient) => {
       if (isMounted) {
         setClient(resolvedClient);
+        if (resolvedClient) {
+          captureAcquisitionOnce(resolvedClient);
+          captureGclid(resolvedClient);
+          captureRdtCid(resolvedClient);
+        }
       }
     });
 

@@ -134,9 +134,103 @@ describe("groupMessagesByRound", () => {
       const result = groupMessagesByRound(events);
       expect(result).toHaveLength(1);
       const round = expectRound(result[0]);
-      expect(round.stepCount).toBe(types.length);
+      // stepCount counts visible rows: turn_separator renders as null so it
+      // never contributes to the displayed step count. The tool_call and
+      // tool_result here lack a matching toolCallId so they are unpaired and
+      // still render as their own rows.
+      expect(round.stepCount).toBe(types.length - 1);
       expect(round.messages).toEqual(events);
       expect(round.isLatest).toBe(true);
+    });
+  });
+
+  describe("visible stepCount rules", () => {
+    it("counts a paired tool_call + tool_result as a single visible step", () => {
+      const call = makeAgentEventMessage("call", "tool_call", {
+        metadata: {
+          agentEventType: "tool_call",
+          status: "completed",
+          toolCallId: "c-1",
+          toolName: "search",
+        },
+      });
+      const result = makeAgentEventMessage("result", "tool_result", {
+        metadata: {
+          agentEventType: "tool_result",
+          status: "completed",
+          toolCallId: "c-1",
+          toolName: "search",
+        },
+      });
+      const round = expectRound(groupMessagesByRound([call, result])[0]);
+      expect(round.messages).toEqual([call, result]);
+      // 2 messages → 1 displayed ToolCallBlock card.
+      expect(round.stepCount).toBe(1);
+    });
+
+    it("counts each paired tool_call/tool_result pair independently", () => {
+      const events = [
+        makeAgentEventMessage("think", "thinking"),
+        makeAgentEventMessage("c1", "tool_call", {
+          metadata: {
+            agentEventType: "tool_call",
+            status: "completed",
+            toolCallId: "c-1",
+            toolName: "a",
+          },
+        }),
+        makeAgentEventMessage("r1", "tool_result", {
+          metadata: {
+            agentEventType: "tool_result",
+            status: "completed",
+            toolCallId: "c-1",
+            toolName: "a",
+          },
+        }),
+        makeAgentEventMessage("c2", "tool_call", {
+          metadata: {
+            agentEventType: "tool_call",
+            status: "completed",
+            toolCallId: "c-2",
+            toolName: "b",
+          },
+        }),
+        makeAgentEventMessage("r2", "tool_result", {
+          metadata: {
+            agentEventType: "tool_result",
+            status: "completed",
+            toolCallId: "c-2",
+            toolName: "b",
+          },
+        }),
+      ];
+      const round = expectRound(groupMessagesByRound(events)[0]);
+      // thinking (1) + 2 paired tool call cards (2) = 3 visible rows.
+      expect(round.stepCount).toBe(3);
+    });
+
+    it("counts an unpaired tool_result as a visible step", () => {
+      const orphan = makeAgentEventMessage("orphan", "tool_result", {
+        metadata: {
+          agentEventType: "tool_result",
+          status: "completed",
+          toolCallId: "never-paired",
+          toolName: "x",
+        },
+      });
+      const round = expectRound(groupMessagesByRound([orphan])[0]);
+      expect(round.stepCount).toBe(1);
+    });
+
+    it("excludes turn_separator from the visible step count", () => {
+      const events = [
+        makeAgentEventMessage("start", "agent_start"),
+        makeAgentEventMessage("sep", "turn_separator"),
+        makeAgentEventMessage("end", "agent_end"),
+      ];
+      const round = expectRound(groupMessagesByRound(events)[0]);
+      // agent_start + agent_end = 2 visible; turn_separator contributes 0.
+      expect(round.stepCount).toBe(2);
     });
   });
 

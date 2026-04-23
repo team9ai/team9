@@ -33,6 +33,7 @@ import { FileModule } from './file/file.module.js';
 import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
 import { BotModule } from './bot/bot.module.js';
+import { BotChannelsModule } from './bot/channels/bot-channels.module.js';
 import { OpenclawModule } from './openclaw/openclaw.module.js';
 import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
@@ -40,6 +41,7 @@ import { DocumentsModule } from './documents/documents.module.js';
 import { RoutinesModule } from './routines/routines.module.js';
 import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
+import { DeepResearchModule } from './deep-research/deep-research.module.js';
 import { PushModule } from './push/push.module.js';
 import { WikisModule } from './wikis/wikis.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
@@ -71,6 +73,7 @@ import { AccountModule } from './account/account.module.js';
     BillingHubModule,
     ImSharedModule,
     BotModule,
+    BotChannelsModule,
     OpenclawModule,
     FileKeeperModule,
     ApplicationsModule,
@@ -86,6 +89,7 @@ import { AccountModule } from './account/account.module.js';
     RoutinesModule,
     ResourcesModule,
     SkillsModule,
+    DeepResearchModule,
     PushModule,
     WikisModule,
   ],

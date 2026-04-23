@@ -2,6 +2,9 @@ import type { HttpError } from "@/services/http/types";
 
 interface ErrorResponseBody {
   message?: string;
+  error?: {
+    message?: string;
+  };
 }
 
 function isHttpError(error: unknown): error is HttpError<ErrorResponseBody> {
@@ -16,6 +19,11 @@ export function getHttpErrorMessage(error: unknown): string | undefined {
     const responseMessage = error.response?.data?.message;
     if (typeof responseMessage === "string" && responseMessage.length > 0) {
       return responseMessage;
+    }
+
+    const nestedMessage = error.response?.data?.error?.message;
+    if (typeof nestedMessage === "string" && nestedMessage.length > 0) {
+      return nestedMessage;
     }
   }
 

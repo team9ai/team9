@@ -62,6 +62,7 @@ import type {
   UserOnlineEvent,
   UserOfflineEvent,
   UserStatusChangedEvent,
+  UserUpdatedEvent,
   UpdateUserStatusPayload,
   // Reaction
   AddReactionPayload,
@@ -93,6 +94,7 @@ import type {
   // Routine
   RoutineStatusChangedEvent,
   RoutineExecutionCreatedEvent,
+  RoutineUpdatedEvent,
   // Streaming (AI bot)
   StreamingStartEvent,
   StreamingContentEvent,
@@ -104,6 +106,8 @@ import type {
   PropertyDefinitionUpdatedEvent,
   PropertyDefinitionDeletedEvent,
   MessagePropertyChangedEvent,
+  MessageRelationChangedEvent,
+  MessageRelationsPurgedEvent,
   // View
   ViewCreatedEvent,
   ViewUpdatedEvent,
@@ -171,6 +175,7 @@ export interface ServerToClientEvents {
   user_online: UserOnlineEvent;
   user_offline: UserOfflineEvent;
   user_status_changed: UserStatusChangedEvent;
+  user_updated: UserUpdatedEvent;
   // Reaction
   reaction_added: ReactionAddedEvent;
   reaction_removed: ReactionRemovedEvent;
@@ -195,6 +200,7 @@ export interface ServerToClientEvents {
   // Routine
   'routine:status_changed': RoutineStatusChangedEvent;
   'routine:execution_created': RoutineExecutionCreatedEvent;
+  'routine:updated': RoutineUpdatedEvent;
   // Streaming (server -> client broadcast)
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;
@@ -206,6 +212,8 @@ export interface ServerToClientEvents {
   property_definition_updated: PropertyDefinitionUpdatedEvent;
   property_definition_deleted: PropertyDefinitionDeletedEvent;
   message_property_changed: MessagePropertyChangedEvent;
+  message_relation_changed: MessageRelationChangedEvent;
+  message_relations_purged: MessageRelationsPurgedEvent;
   // View
   view_created: ViewCreatedEvent;
   view_updated: ViewUpdatedEvent;

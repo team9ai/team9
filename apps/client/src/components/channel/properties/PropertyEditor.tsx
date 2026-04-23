@@ -18,10 +18,20 @@ export interface PropertyEditorProps {
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
+  /**
+   * When true, editors that normally wrap themselves in a button trigger +
+   * Popover (SelectEditor, PersonPicker) render their content directly so
+   * they can be embedded inside an outer popover without nesting.
+   */
+  inline?: boolean;
+  /** The channel the message belongs to — threaded into MessageRefPicker for scope filtering */
+  channelId?: string;
+  /** The message being edited — used by MessageRefPicker to exclude self from results */
+  currentMessageId?: string;
 }
 
 export function PropertyEditor(props: PropertyEditorProps) {
-  const { definition } = props;
+  const { definition, inline, channelId, currentMessageId } = props;
 
   switch (definition.valueType) {
     case "text":
@@ -36,10 +46,10 @@ export function PropertyEditor(props: PropertyEditorProps) {
     case "single_select":
     case "multi_select":
     case "tags":
-      return <SelectEditor {...props} />;
+      return <SelectEditor {...props} inline={inline} />;
 
     case "person":
-      return <PersonPicker {...props} />;
+      return <PersonPicker {...props} inline={inline} />;
 
     case "date":
     case "timestamp":
@@ -51,7 +61,13 @@ export function PropertyEditor(props: PropertyEditorProps) {
       return <UrlEditor {...props} />;
 
     case "message_ref":
-      return <MessageRefPicker {...props} />;
+      return (
+        <MessageRefPicker
+          {...props}
+          channelId={channelId ?? definition.channelId}
+          currentMessageId={currentMessageId}
+        />
+      );
 
     case "file":
     case "image":

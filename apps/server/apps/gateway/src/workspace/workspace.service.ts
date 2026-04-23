@@ -1087,35 +1087,10 @@ export class WorkspaceService {
       }
     }
 
-    // Auto-create personal staff for workspace owner
-    try {
-      const personalStaffApp =
-        await this.installedApplicationsService.findByApplicationId(
-          workspace.id,
-          'personal-staff',
-        );
-      if (personalStaffApp) {
-        await this.personalStaffService.createStaff(
-          personalStaffApp.id,
-          workspace.id,
-          data.ownerId,
-          {
-            model: {
-              provider: 'openrouter',
-              id: 'anthropic/claude-sonnet-4.6',
-            },
-            agenticBootstrap: true,
-          },
-        );
-        this.logger.log(
-          `Auto-created personal staff for workspace owner ${data.ownerId}`,
-        );
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Failed to auto-create personal staff for workspace owner ${data.ownerId}: ${this.getErrorMessage(error)}`,
-      );
-    }
+    // Owner's personal staff is provisioned by PersonalStaffHandler.onInstall
+    // during the auto-install loop above — do NOT duplicate-create here.
+    // A second createStaff call would race the handler and get swallowed as
+    // a ConflictException, burying the real bootstrap trigger.
 
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);
 

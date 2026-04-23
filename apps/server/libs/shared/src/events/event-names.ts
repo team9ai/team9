@@ -119,6 +119,8 @@ export const WS_EVENTS = {
     OFFLINE: 'user_offline',
     /** User status changed - broadcast by server */
     STATUS_CHANGED: 'user_status_changed',
+    /** User profile (name, avatar, etc.) updated - broadcast by server */
+    UPDATED: 'user_updated',
   },
 
   // ==================== Message Reactions ====================
@@ -214,10 +216,12 @@ export const WS_EVENTS = {
    * Routine execution and status events
    */
   ROUTINE: {
-    /** Routine status changed - broadcast by server */
+    /** Routine execution status changed - broadcast by server */
     STATUS_CHANGED: 'routine:status_changed',
     /** Routine execution created - broadcast by server */
     EXECUTION_CREATED: 'routine:execution_created',
+    /** Routine row (title/description/schedule/triggers) was updated - broadcast by server */
+    UPDATED: 'routine:updated',
   },
 
   // ==================== Tracking Channel ====================
@@ -262,6 +266,10 @@ export const WS_EVENTS = {
     DEFINITION_DELETED: 'property_definition_deleted',
     /** Message property values changed - broadcast by server */
     MESSAGE_CHANGED: 'message_property_changed',
+    /** Message relation edge changed - broadcast by server */
+    RELATION_CHANGED: 'message_relation_changed',
+    /** Message relations purged when message deleted - broadcast by server */
+    RELATIONS_PURGED: 'message_relations_purged',
   },
 
   // ==================== Views ====================

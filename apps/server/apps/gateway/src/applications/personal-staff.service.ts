@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import {
   Injectable,
   Inject,
@@ -13,11 +14,12 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type { BotExtra } from '@team9/database/schemas';
+import type { BotExtra, ManagedMeta } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { StaffService, type StaffBotResult } from './staff.service.js';
+import { UsersService } from '../im/users/users.service.js';
 import type {
   CreatePersonalStaffDto,
   UpdatePersonalStaffDto,
@@ -26,13 +28,15 @@ import type {
   GeneratePersonaDto,
   GenerateAvatarDto,
 } from './dto/generate-persona.dto.js';
+import {
+  PERSONAL_STAFF_ROLE_TITLE,
+  PERSONAL_STAFF_JOB_DESCRIPTION,
+} from './personal-staff.constants.js';
 
 export type { StaffBotResult as PersonalStaffResult };
 
 const PERSONAL_STAFF_APPLICATION_ID = 'personal-staff';
 const HIVE_BLUEPRINT_ID = 'team9-personal-staff';
-const PERSONAL_STAFF_ROLE_TITLE = 'Personal Assistant';
-const PERSONAL_STAFF_JOB_DESCRIPTION = 'Personal AI assistant';
 
 @Injectable()
 export class PersonalStaffService {
@@ -45,6 +49,7 @@ export class PersonalStaffService {
     private readonly channelsService: ChannelsService,
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly staffService: StaffService,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
@@ -64,6 +69,7 @@ export class PersonalStaffService {
     ownerId: string | null;
     mentorId: string | null;
     extra: BotExtra | null;
+    managedMeta: ManagedMeta | null;
     isActive: boolean;
   } | null> {
     const rows = await this.db
@@ -75,6 +81,7 @@ export class PersonalStaffService {
         ownerId: schema.bots.ownerId,
         mentorId: schema.bots.mentorId,
         extra: schema.bots.extra,
+        managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
       })
       .from(schema.bots)
@@ -254,40 +261,16 @@ export class PersonalStaffService {
     if (effectiveBootstrap) {
       const ownerDmChannel = dmChannelMap.get(ownerId);
       if (ownerDmChannel) {
-        try {
-          const sessionId = `team9/${tenantId}/${result.agentId}/dm/${ownerDmChannel.id}`;
-          await this.clawHiveService.sendInput(
-            sessionId,
-            {
-              type: 'team9:bootstrap.start',
-              source: 'team9',
-              timestamp: new Date().toISOString(),
-              payload: {
-                mentorId: ownerId,
-                isMentorDm: true,
-                channelId: ownerDmChannel.id,
-                // Standard session context consumed by Team9Component.onEvent.
-                // Without this, team9-staff-bootstrap cannot tell it is in the
-                // mentor DM and UpdateStaffProfile stays disabled.
-                team9Context: {
-                  source: 'team9',
-                  scopeType: 'dm',
-                  scopeId: ownerDmChannel.id,
-                  peerUserId: ownerId,
-                  isMentorDm: true,
-                },
-              },
-            },
-            tenantId,
-          );
-          this.logger.log(
-            `Triggered bootstrap session for personal staff agent ${result.agentId}`,
-          );
-        } catch (bootstrapError) {
-          this.logger.warn(
-            `Failed to trigger bootstrap session for personal staff agent ${result.agentId}, continuing`,
-            bootstrapError,
-          );
+        const sent = await this.sendBootstrapEvent({
+          tenantId,
+          agentId: result.agentId,
+          ownerId,
+          dmChannelId: ownerDmChannel.id,
+        });
+        // Stamp bootstrappedAt so any later idempotent caller (e.g. the
+        // onboarding wizard's trigger path) does not re-fire the greeting.
+        if (sent) {
+          await this.markBootstrapped(result.botId, extra);
         }
       } else {
         this.logger.warn(
@@ -302,6 +285,179 @@ export class PersonalStaffService {
       agentId: result.agentId,
       displayName: effectiveDisplayName,
     };
+  }
+
+  /**
+   * Trigger the agentic bootstrap session for a personal-staff bot that
+   * already exists. Intended for flows where `createStaff` was called with
+   * `agenticBootstrap: false` (e.g. the workspace-creation auto-install
+   * handler) and bootstrap should fire later — typically after the
+   * onboarding wizard has persisted the final display name, persona, and
+   * the user's browser-synced locale — so the agent's first greeting uses
+   * the chosen identity and language instead of English defaults.
+   *
+   * Idempotency: gated on `bot.extra.personalStaff.bootstrappedAt`. If the
+   * marker is already set, we short-circuit — this prevents
+   * onboarding retries (triggered by a later failure in the provisioning
+   * pipeline such as `provisionCommonStaff`) from re-firing the greeting
+   * and producing a duplicate proactive message. The marker is persisted
+   * *after* a successful send; if the send itself is retried it will fire
+   * once more, which is acceptable as it covers the "first send was lost
+   * in transit" recovery case.
+   *
+   * Fire-and-forget error handling: any failure is logged as a warning
+   * and swallowed — this is never worth failing the caller over.
+   */
+  async triggerBootstrapForExistingStaff(
+    installedApplicationId: string,
+    tenantId: string,
+    ownerId: string,
+  ): Promise<void> {
+    const bot = await this.findPersonalStaffBot(
+      ownerId,
+      installedApplicationId,
+    );
+    if (!bot) {
+      this.logger.warn(
+        `triggerBootstrapForExistingStaff: no personal staff bot for user ${ownerId} in app ${installedApplicationId}, skipping`,
+      );
+      return;
+    }
+
+    if (bot.extra?.personalStaff?.bootstrappedAt) {
+      this.logger.log(
+        `Skipping bootstrap for bot ${bot.botId} — already fired at ${bot.extra.personalStaff.bootstrappedAt}`,
+      );
+      return;
+    }
+
+    const agentId = bot.managedMeta?.agentId;
+    if (!agentId) {
+      this.logger.warn(
+        `triggerBootstrapForExistingStaff: bot ${bot.botId} has no claw-hive agentId in managedMeta, skipping`,
+      );
+      return;
+    }
+
+    // Re-resolve (or lazily create) the owner↔bot DM channel. Under normal
+    // flow the handler already created it during createStaff; calling
+    // `createDirectChannel` again is idempotent and returns the existing
+    // one.
+    let dmChannel: { id: string };
+    try {
+      dmChannel = await this.channelsService.createDirectChannel(
+        bot.userId,
+        ownerId,
+        tenantId,
+      );
+    } catch (dmError) {
+      this.logger.warn(
+        `triggerBootstrapForExistingStaff: failed to resolve DM channel for bot ${bot.botId} with owner ${ownerId}, skipping`,
+        dmError,
+      );
+      return;
+    }
+
+    const sent = await this.sendBootstrapEvent({
+      tenantId,
+      agentId,
+      ownerId,
+      dmChannelId: dmChannel.id,
+    });
+
+    // Only persist the marker after a successful send so that a failed
+    // first attempt retries on the next onboarding pass. Mark-write errors
+    // are fire-and-forget: the worst case is one extra greeting on a
+    // subsequent retry, which is better than silently dropping the marker
+    // path and failing the whole onboarding.
+    if (sent) {
+      await this.markBootstrapped(bot.botId, bot.extra);
+    }
+  }
+
+  private async markBootstrapped(
+    botId: string,
+    existingExtra: BotExtra | null,
+  ): Promise<void> {
+    try {
+      const existing = existingExtra ?? {};
+      const updatedExtra: BotExtra = {
+        ...existing,
+        personalStaff: {
+          ...(existing.personalStaff ?? {}),
+          bootstrappedAt: new Date().toISOString(),
+        },
+      };
+      await this.db
+        .update(schema.bots)
+        .set({ extra: updatedExtra, updatedAt: new Date() })
+        .where(eq(schema.bots.id, botId));
+    } catch (markError) {
+      this.logger.warn(
+        `Failed to persist bootstrappedAt marker for bot ${botId}; duplicate greetings possible on onboarding retry`,
+        markError,
+      );
+    }
+  }
+
+  /**
+   * Emit the `team9:bootstrap.start` event to the claw-hive agent session
+   * for a given personal-staff bot. Reads the owner's persisted locale
+   * preferences so the agent's greeting is rendered in the right language
+   * and time zone. Failures are logged as warnings and swallowed. Returns
+   * `true` when the event was successfully dispatched, `false` otherwise —
+   * callers use this to decide whether to persist an idempotency marker.
+   */
+  private async sendBootstrapEvent(params: {
+    tenantId: string;
+    agentId: string;
+    ownerId: string;
+    dmChannelId: string;
+  }): Promise<boolean> {
+    const { tenantId, agentId, ownerId, dmChannelId } = params;
+    try {
+      // Locale + timeZone columns are nullable. When unset the agent falls
+      // back to English + no zone hint.
+      const locale = await this.usersService.getLocalePreferences(ownerId);
+
+      const sessionId = `team9/${tenantId}/${agentId}/dm/${dmChannelId}`;
+      await this.clawHiveService.sendInput(
+        sessionId,
+        {
+          type: 'team9:bootstrap.start',
+          source: 'team9',
+          timestamp: new Date().toISOString(),
+          payload: {
+            mentorId: ownerId,
+            isMentorDm: true,
+            channelId: dmChannelId,
+            // Standard session context consumed by Team9Component.onEvent.
+            // Without this, team9-staff-bootstrap cannot tell it is in the
+            // mentor DM and UpdateStaffProfile stays disabled.
+            team9Context: {
+              source: 'team9',
+              scopeType: 'dm',
+              scopeId: dmChannelId,
+              peerUserId: ownerId,
+              isMentorDm: true,
+              ...(locale.language ? { language: locale.language } : {}),
+              ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
+            },
+          },
+        },
+        tenantId,
+      );
+      this.logger.log(
+        `Triggered bootstrap session for personal staff agent ${agentId}`,
+      );
+      return true;
+    } catch (bootstrapError) {
+      this.logger.warn(
+        `Failed to trigger bootstrap session for personal staff agent ${agentId}, continuing`,
+        bootstrapError,
+      );
+      return false;
+    }
   }
 
   /**
@@ -338,6 +494,11 @@ export class PersonalStaffService {
       allowDirectMessage: false,
     };
 
+    // dm outbound policy: partial-update semantics — undefined means no change
+    const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
+    const nextPolicy = dto.dmOutboundPolicy;
+    let policyChanged = false;
+
     const updatedExtra: BotExtra = {
       ...existingExtra,
       personalStaff: {
@@ -353,7 +514,16 @@ export class PersonalStaffService {
             }
           : {}),
       },
+      ...(nextPolicy !== undefined
+        ? {
+            dmOutboundPolicy: nextPolicy,
+          }
+        : {}),
     };
+
+    if (nextPolicy !== undefined) {
+      policyChanged = !isDeepStrictEqual(currentPolicy, nextPolicy);
+    }
 
     await this.staffService.updateBotAndAgent({
       agentIdPrefix: 'personal-staff',
@@ -366,6 +536,18 @@ export class PersonalStaffService {
       botExtra: updatedExtra,
       currentMentorId: ownerId, // Mentor is always the owner
     });
+
+    if (policyChanged) {
+      this.logger.log({
+        event: 'bot_dm_outbound_policy_changed',
+        botId: bot.botId,
+        botUserId: bot.userId,
+        actorUserId: ownerId,
+        from: currentPolicy,
+        to: nextPolicy,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     return this.getStaff(installedApplicationId, tenantId, ownerId);
   }

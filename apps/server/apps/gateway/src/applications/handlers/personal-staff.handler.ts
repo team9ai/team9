@@ -76,8 +76,36 @@ export class PersonalStaffHandler implements ApplicationHandler {
       { strict: false },
     );
 
+    // Fresh-workspace case (humanMembers === 1, i.e. just the owner): the
+    // onboarding wizard drives the final name/persona/locale choice, then
+    // calls updateStaff and explicitly triggers bootstrap — so the bot
+    // greets with the chosen identity in the user's language. Firing
+    // bootstrap here would use the default English role title before the
+    // wizard has run, which is jarring.
+    //
+    // Multi-member backfill case (humanMembers > 1): the app is being
+    // installed into a workspace that already has members. This happens
+    // in two flavours:
+    //
+    //   a) New autoInstall ships when the workspace already has humans —
+    //      none of them will re-run the onboarding wizard (their onboarding
+    //      is 'provisioned'), so bootstrap must fire from here or they
+    //      never get a greeting at all.
+    //   b) Manual reinstall after existing members grew past 1 — here the
+    //      owner's wizard has already persisted a chosen name/persona, but
+    //      those fields live on the PREVIOUS bot row which was deleted on
+    //      uninstall. The new bot inherits the default English role title
+    //      again, and none of the members will run the wizard a second
+    //      time. Firing bootstrap so everyone gets a fresh greeting is
+    //      the intended behaviour — the prior persona was tied to the old
+    //      bot.
+    //
+    // Both sub-cases accept the "default English name + empty persona"
+    // tradeoff as the least-bad option vs. silent bots.
+    const shouldBootstrap = humanMembers.length > 1;
+
     this.logger.log(
-      `Creating personal staff for ${humanMembers.length} existing members in tenant ${tenantId}`,
+      `Creating personal staff for ${humanMembers.length} existing members in tenant ${tenantId} (bootstrap=${shouldBootstrap})`,
     );
 
     for (const member of humanMembers) {
@@ -88,7 +116,7 @@ export class PersonalStaffHandler implements ApplicationHandler {
           member.userId,
           {
             model: DEFAULT_MODEL,
-            agenticBootstrap: false, // Don't trigger bootstrap for auto-install
+            agenticBootstrap: shouldBootstrap,
           },
         );
         this.logger.log(`Created personal staff for user ${member.userId}`);

@@ -1,7 +1,51 @@
 import type { OnboardingTasksContextDto } from './dto/onboarding.dto.js';
 
-function targetLanguage(lang: 'zh' | 'en') {
-  return lang === 'zh' ? 'Simplified Chinese' : 'English';
+export type OnboardingLanguage =
+  | 'en'
+  | 'zh'
+  | 'zh-TW'
+  | 'ja'
+  | 'ko'
+  | 'es'
+  | 'pt'
+  | 'fr'
+  | 'de'
+  | 'it'
+  | 'nl'
+  | 'ru';
+
+const SUPPORTED_ONBOARDING_LANGUAGES: readonly OnboardingLanguage[] = [
+  'en',
+  'zh',
+  'zh-TW',
+  'ja',
+  'ko',
+  'es',
+  'pt',
+  'fr',
+  'de',
+  'it',
+  'nl',
+  'ru',
+];
+
+const LANGUAGE_DISPLAY_NAMES: Record<OnboardingLanguage, string> = {
+  en: 'English',
+  zh: 'Simplified Chinese',
+  'zh-TW': 'Traditional Chinese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  es: 'Spanish',
+  pt: 'Portuguese',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  nl: 'Dutch',
+  ru: 'Russian',
+};
+
+function targetLanguage(lang: OnboardingLanguage) {
+  return LANGUAGE_DISPLAY_NAMES[lang] ?? 'English';
 }
 
 function buildTaskSelectionContext(tasks?: OnboardingTasksContextDto): string {
@@ -40,9 +84,16 @@ function buildSharedOnboardingPrompt(args: {
   categoryKey?: string | null;
   description?: string | null;
   tasks?: OnboardingTasksContextDto;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   return `
+=========================
+OUTPUT LANGUAGE (HIGHEST PRIORITY)
+=========================
+- ALL user-facing string values you output MUST be written in ${targetLanguage(args.lang)}.
+- This rule overrides any language used in the examples below. Examples are illustrative only — DO NOT copy their language.
+- Identifiers like JSON keys, enum slugs, and emoji stay as-is; only natural-language values must be in ${targetLanguage(args.lang)}.
+
 You are generating dynamic content for a workspace onboarding flow in Team9.
 
 This content is shown to a newly registered workspace owner during setup. Your job is to make the workspace feel immediately relevant, specific, and useful, not generic or over-designed.
@@ -64,9 +115,6 @@ Important:
 - If the role label, category, or slug are unfamiliar, custom, or sparse, infer carefully from the wording and keep the result broadly useful.
 - Treat role/category as hints, not as hard constraints or scripts to imitate.
 
-Target language:
-- ${targetLanguage(args.lang)}
-
 User context:
 - Role label: ${args.roleLabel || 'Not provided'}
 - Role slug: ${args.roleSlug || 'Not provided'}
@@ -83,12 +131,41 @@ Output discipline:
 `.trim();
 }
 
-export function normalizeOnboardingLanguage(lang?: string): 'zh' | 'en' {
-  return lang?.toLowerCase().startsWith('en') ? 'en' : 'zh';
+export function normalizeOnboardingLanguage(lang?: string): OnboardingLanguage {
+  if (!lang) return 'en';
+  const lower = lang.toLowerCase().replace('_', '-');
+
+  if (lower === 'zh' || lower.startsWith('zh-hans') || lower === 'zh-cn') {
+    return 'zh';
+  }
+  if (lower.startsWith('zh-hant') || lower === 'zh-tw' || lower === 'zh-hk') {
+    return 'zh-TW';
+  }
+
+  const primary = lower.split('-')[0];
+  const match = SUPPORTED_ONBOARDING_LANGUAGES.find(
+    (code) => code.toLowerCase() === primary,
+  );
+  return match ?? 'en';
 }
 
-export function onboardingMainAgentName(lang: 'zh' | 'en') {
-  return lang === 'zh' ? '私人秘书' : 'Personal Staff';
+const MAIN_AGENT_NAMES: Record<OnboardingLanguage, string> = {
+  en: 'Personal Staff',
+  zh: '私人秘书',
+  'zh-TW': '私人秘書',
+  ja: 'パーソナルスタッフ',
+  ko: '퍼스널 스태프',
+  es: 'Personal Staff',
+  pt: 'Assistente Pessoal',
+  fr: 'Assistant personnel',
+  de: 'Persönlicher Assistent',
+  it: 'Assistente personale',
+  nl: 'Persoonlijke assistent',
+  ru: 'Личный помощник',
+};
+
+export function onboardingMainAgentName(lang: OnboardingLanguage) {
+  return MAIN_AGENT_NAMES[lang] ?? MAIN_AGENT_NAMES.en;
 }
 
 export function buildGenerateTasksPrompt(args: {
@@ -96,7 +173,7 @@ export function buildGenerateTasksPrompt(args: {
   roleSlug?: string | null;
   categoryKey?: string | null;
   description?: string | null;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   const roleContextMap: Record<string, string> = {
     finance:
@@ -161,36 +238,59 @@ Current onboarding step:
 - Step 2: Task Selection
 
 Step goal:
-- Generate 3 task candidates that reflect the user's actual, recurring daily/weekly/monthly work—the kind of work they'd genuinely come back to often.
+- Generate 3 DAILY task candidates that reflect the user's actual, high-frequency, must-do daily work—the kind of tasks they execute every single workday.
 
 Work context for this role category:
 ${contextStr}
 
-Definition of a real task:
-- A recurring workflow, responsibility, or cadence the user would plausibly revisit on a regular basis (not a one-off project).
-- Something that recurs weekly, bi-weekly, monthly, or more frequently—not aspirational goals or abstract strategies.
-- A concrete action or output the user can picture themselves doing, not a generic label like "admin" or "planning".
+Definition of a real daily task:
+- A daily-recurring workflow the user would plausibly execute every workday (NOT weekly, NOT monthly, NOT one-off projects).
+- Central to this role's daily rhythm — the kind of check, review, briefing, or update that anchors the user's morning, shift, or end-of-day wrap.
+- A concrete, bounded action or output the user can picture themselves doing today, not a generic label like "admin" or "planning".
 - Tied to this user's specific role/description context, not applicable to any job in any industry.
 
-Good case examples (by role type):
-- For a Product Manager: "Review user feedback weekly", "Prioritize roadmap backlog", "Conduct user interviews"
-- For a Designer: "Design spec review and feedback loop", "Create design mockups for new features", "Maintain component library"
-- For a Lawyer: "Contract review and negotiation", "Compliance audit and reporting", "Legal research for case preparation"
-- For a Salesperson: "Qualify and nurture sales leads", "Prepare client proposals", "Track pipeline and forecast"
+Good case examples (by role type — notice every title opens with the daily marker):
+- For a Trader: "Daily position review", "Daily market open briefing", "Daily P&L and risk report"
+- For a Product Manager: "Daily user feedback triage", "Daily metrics dashboard review", "Daily team standup and priorities"
+- For a Designer: "Daily design critique round", "Daily mockup iteration", "Daily asset export check"
+- For a Lawyer: "Daily case docket review", "Daily compliance alert scan", "Daily client correspondence review"
+- For a Salesperson: "Daily pipeline update", "Daily client follow-up calls", "Daily outreach batch"
+
+Chinese reference (same daily-prefix pattern in 每日):
+- 交易员: "每日仓位检查"、"每日开盘简报"、"每日盈亏与风险汇报"
+- 产品经理: "每日用户反馈梳理"、"每日指标巡检"、"每日站会与优先级对齐"
+- 律师: "每日案件进度审阅"、"每日合规提醒巡查"、"每日客户往来函件处理"
 
 Bad case (what NOT to generate):
+- Missing the daily marker at the start: "Position review" without "Daily", "仓位检查" without "每日" — every title MUST open with the language's daily marker.
+- Wrong cadence: "Weekly roadmap review", "Monthly compliance audit", "Quarterly planning" — cadence MUST be daily.
 - Generic tasks: "Plan your day", "Review goals", "Team meeting", "Admin work"
 - One-off projects: "Launch new product", "Rebranding initiative", "Office relocation"
 - Vague or too broad: "Stay organized", "Improve performance", "Drive growth"
-- Repeated ideas: "Content creation", "Content planning", "Content management" (all the same workflow)
+- Repeated ideas: "Daily content creation", "Daily content planning", "Daily content management" (all the same workflow with the prefix slapped on)
 - Disconnected from role: A designer being asked to "manage payroll" or a lawyer being asked to "run paid ads"
 
 Output requirements:
-- Return exactly 3 tasks.
-- Ensure each task is concretely specific and role-aware—the user should immediately recognize themselves in at least one.
-- Tasks should span different responsibilities or phases of this role's work (not three flavors of the same thing).
+- Return exactly 3 daily tasks.
+- Every "title" MUST open with ${targetLanguage(args.lang)}'s natural "daily" marker so the cadence is unmistakable at first glance. Use the pattern appropriate to the language:
+  - English → start with "Daily " (e.g., "Daily position review")
+  - Simplified Chinese → 以 "每日" 开头 (例: "每日仓位检查")
+  - Traditional Chinese → 以 "每日" 開頭 (例: "每日倉位檢查")
+  - Japanese → 「毎日」で始める (例: 「毎日のポジション確認」)
+  - Korean → "매일"로 시작 (예: "매일 포지션 점검")
+  - German → mit "Tägliche/Täglicher/Tägliches" beginnen (z. B. "Tägliche Positionsprüfung")
+  - Dutch → met "Dagelijkse" beginnen (bv. "Dagelijkse positiecontrole")
+  - Russian → начинать со слова "Ежедневный/Ежедневная/Ежедневное" (напр. "Ежедневная проверка позиций")
+  - Spanish → comenzar con "Revisión/Control/Informe diario de ..." (el marcador "diario/diaria" aparece dentro de las dos primeras palabras)
+  - Portuguese → começar com "Revisão/Controle/Relatório diário de ..."
+  - Italian → iniziare con "Revisione/Controllo/Report giornaliero di ..."
+  - French → commencer par "Revue/Contrôle/Rapport quotidien(ne) de ..."
+  For Romance/French cases where the adjective naturally follows the noun, lead with the noun but keep the daily adjective within the first two words so the cadence is still visible at a glance.
+- Each task is concretely specific and role-aware — the user should immediately recognize themselves in at least one.
+- Tasks should span different responsibilities or phases of this role's daily work (not three flavors of the same thing with the prefix re-used).
 - Put the emoji in the "emoji" field and keep the "title" field plain text.
 - Keep titles concise, natural, and UI-friendly.
+- Every "title" value MUST be written in ${targetLanguage(args.lang)}, regardless of the language used in the examples above.
 
 JSON shape:
 {
@@ -207,7 +307,7 @@ export function buildGenerateChannelsPrompt(args: {
   categoryKey?: string | null;
   description?: string | null;
   tasks?: OnboardingTasksContextDto;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   const selectedTaskTitles =
     args.tasks?.generatedTasks
@@ -258,6 +358,7 @@ Output requirements:
 - Names should be noun-based (e.g., "Client Reviews" not "Review Clients").
 - Short, clear, and immediately understandable.
 - Plain channel names are enough; the product will handle formatting.
+- Every "name" value MUST be written in ${targetLanguage(args.lang)}, regardless of the language used in the examples above.
 
 JSON shape:
 {
@@ -274,7 +375,7 @@ export function buildGenerateAgentsPrompt(args: {
   categoryKey?: string | null;
   description?: string | null;
   tasks?: OnboardingTasksContextDto;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   const selectedTaskTitles =
     args.tasks?.generatedTasks
@@ -359,6 +460,7 @@ Output requirements:
 - Return one short, clear main description (1 sentence, no marketing speak).
 - Generate exactly 3 child agents, each with one fitting emoji and one clear functional name.
 - Each child agent name should be a role title or function (e.g., "Lead Qualifier", not "Qualify Leads").
+- Every "description" and child agent "name" value MUST be written in ${targetLanguage(args.lang)}, regardless of the language used in the examples above.
 
 JSON shape:
 {

@@ -294,6 +294,8 @@
     "pickerDescription": "所选智能体将引导你完成日常的创建过程。",
     "agentLabel": "选择引导你进行创建的智能体",
     "noAgentsAvailable": "暂无可用的活跃智能体。",
+    "noAgentsHint": "先添加一个智能体来引导创建，或直接手动创建日常。",
+    "goToAgents": "去添加智能体",
     "confirm": "开始创建",
     "cancel": "取消",
     "navigatingToast": "正在创建日常..."
@@ -306,5 +308,9 @@
     "bannerMessage": "此日常处于草稿状态，完成创建后方可使用。",
     "noChannelTooltip": "没有可用的创建对话。",
     "untitled": "无标题"
+  },
+  "creation": {
+    "runLabel": "创建日常任务会话",
+    "bannerStatus": "创建中"
   }
 }
