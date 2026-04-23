@@ -721,6 +721,9 @@ importers:
       google-auth-library:
         specifier: ^10.5.0
         version: 10.5.0
+      helmet:
+        specifier: ^8.1.0
+        version: 8.1.0
       passport:
         specifier: ^0.7.0
         version: 0.7.0
@@ -733,6 +736,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      sanitize-html:
+        specifier: ^2.17.3
+        version: 2.17.3
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
