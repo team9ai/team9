@@ -115,7 +115,24 @@ function makeEventsGateway() {
   return { emitToOwner: jest.fn<any>() };
 }
 
-function sign(body: string): string {
+/**
+ * Stripe-style HMAC: HMAC-SHA256(secret, `${timestamp}.${body}`).
+ * Matches Stream A's hub webhook sender.
+ */
+function sign(body: string, timestamp: string): string {
+  return (
+    'sha256=' +
+    createHmac('sha256', SECRET)
+      .update(`${timestamp}.${body}`)
+      .digest('hex')
+  );
+}
+
+/**
+ * Legacy body-only HMAC input, kept for regression testing that such
+ * signatures are now rejected.
+ */
+function signLegacyBodyOnly(body: string): string {
   return 'sha256=' + createHmac('sha256', SECRET).update(body).digest('hex');
 }
 
@@ -170,10 +187,26 @@ describe('AhandWebhookService', () => {
   describe('verifySignature', () => {
     const body = Buffer.from(JSON.stringify({ eventId: 'evt_1' }));
 
-    it('accepts valid signature + fresh timestamp', () => {
+    it('accepts valid Stripe-style signature + fresh timestamp', () => {
+      const ts = nowSec();
       expect(() =>
-        svc.verifySignature(body, sign(body.toString()), nowSec()),
+        svc.verifySignature(body, sign(body.toString(), ts), ts),
       ).not.toThrow();
+    });
+
+    it('rejects legacy body-only HMAC (must be {ts}.{body})', () => {
+      expect(() =>
+        svc.verifySignature(body, signLegacyBodyOnly(body.toString()), nowSec()),
+      ).toThrow(UnauthorizedException);
+    });
+
+    it('rejects signature computed with a different timestamp (tamper guard)', () => {
+      const ts1 = nowSec();
+      const ts2 = String(Math.floor(Date.now() / 1000) + 10);
+      // Sign with ts1, verify with ts2 — should fail even if ts2 is within skew.
+      expect(() =>
+        svc.verifySignature(body, sign(body.toString(), ts1), ts2),
+      ).toThrow(UnauthorizedException);
     });
 
     it('rejects missing signature header', () => {
@@ -207,42 +240,48 @@ describe('AhandWebhookService', () => {
     });
 
     it('rejects signature with non-hex characters', () => {
-      const body = Buffer.from('test');
+      const body2 = Buffer.from('test');
       expect(() =>
-        svc.verifySignature(body, 'sha256=' + 'g'.repeat(64), nowSec()),
+        svc.verifySignature(body2, 'sha256=' + 'g'.repeat(64), nowSec()),
       ).toThrow(UnauthorizedException);
     });
 
     it('rejects timestamp older than 5 min', () => {
       const old = String(Math.floor(Date.now() / 1000) - 400);
       expect(() =>
-        svc.verifySignature(body, sign(body.toString()), old),
+        svc.verifySignature(body, sign(body.toString(), old), old),
       ).toThrow(UnauthorizedException);
     });
 
     it('rejects timestamp from the future beyond skew', () => {
       const future = String(Math.floor(Date.now() / 1000) + 400);
       expect(() =>
-        svc.verifySignature(body, sign(body.toString()), future),
+        svc.verifySignature(body, sign(body.toString(), future), future),
       ).toThrow(UnauthorizedException);
     });
 
     it('rejects non-numeric timestamp', () => {
       expect(() =>
-        svc.verifySignature(body, sign(body.toString()), 'not-a-number'),
+        svc.verifySignature(
+          body,
+          sign(body.toString(), 'not-a-number'),
+          'not-a-number',
+        ),
       ).toThrow(UnauthorizedException);
     });
 
     it('rejects missing timestamp header', () => {
+      const ts = nowSec();
       expect(() =>
-        svc.verifySignature(body, sign(body.toString()), undefined),
+        svc.verifySignature(body, sign(body.toString(), ts), undefined),
       ).toThrow(UnauthorizedException);
     });
 
     it('throws when AHAND_HUB_WEBHOOK_SECRET is not configured', () => {
       mockSharedEnv.AHAND_HUB_WEBHOOK_SECRET = '';
+      const ts = nowSec();
       expect(() =>
-        svc.verifySignature(body, sign(body.toString()), nowSec()),
+        svc.verifySignature(body, sign(body.toString(), ts), ts),
       ).toThrow(Error);
     });
   });

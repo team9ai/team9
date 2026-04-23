@@ -62,8 +62,16 @@ export class AhandWebhookService {
         'X-AHand-Timestamp outside acceptable window',
       );
     }
+    // Stripe-style signing input: `{timestamp}.{raw_body}` — matches Stream A's
+    // hub webhook sender (crates/ahand-hub/src/webhook/sender.rs). This
+    // prevents timestamp-header substitution replay attacks that could bypass
+    // the clock-skew window if we signed rawBody alone.
+    const signingInput = Buffer.concat([
+      Buffer.from(`${timestampHeader}.`, 'utf8'),
+      rawBody,
+    ]);
     const expected = createHmac('sha256', this.secret)
-      .update(rawBody)
+      .update(signingInput)
       .digest('hex');
     const got = signatureHeader.slice('sha256='.length);
     // Length check before timingSafeEqual to avoid buffer-size mismatch error.
