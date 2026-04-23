@@ -27,7 +27,10 @@ export interface ChannelContentProps {
   lastReadMessageId?: string;
 
   // MessageInput props
-  onSend?: (content: string, attachments?: AttachmentDto[]) => Promise<void>;
+  onSend?: (
+    payload: { content: string; contentAst?: Record<string, unknown> },
+    attachments?: AttachmentDto[],
+  ) => Promise<void>;
   isSendDisabled?: boolean;
   inputPlaceholder?: string;
   initialDraft?: string;

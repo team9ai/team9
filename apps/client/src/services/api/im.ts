@@ -176,6 +176,44 @@ export const channelsApi = {
       show,
     });
   },
+
+  // Get the effective LLM model for this channel's agent session.
+  // Only available on human↔agent DM and routine-session channels.
+  getChannelModel: async (
+    channelId: string,
+  ): Promise<{
+    channelId: string;
+    model: { provider: string; id: string };
+    source: "agent_default" | "session_initial" | "dynamic";
+    override: { provider: string; id: string } | null;
+  }> => {
+    const response = await http.get<{
+      channelId: string;
+      model: { provider: string; id: string };
+      source: "agent_default" | "session_initial" | "dynamic";
+      override: { provider: string; id: string } | null;
+    }>(`/v1/im/channels/${channelId}/model`);
+    return response.data;
+  },
+
+  // Switch this channel's session-level model.
+  updateChannelModel: async (
+    channelId: string,
+    model: { provider: string; id: string },
+  ): Promise<{
+    channelId: string;
+    model: { provider: string; id: string };
+    source: "agent_default" | "session_initial" | "dynamic";
+    override: { provider: string; id: string } | null;
+  }> => {
+    const response = await http.patch<{
+      channelId: string;
+      model: { provider: string; id: string };
+      source: "agent_default" | "session_initial" | "dynamic";
+      override: { provider: string; id: string } | null;
+    }>(`/v1/im/channels/${channelId}/model`, { model });
+    return response.data;
+  },
 };
 
 // Messages API
@@ -499,6 +537,81 @@ export const sectionsApi = {
   },
 };
 
+// Topic Sessions API
+export interface CreateTopicSessionDto {
+  /** Bot shadow user id (target agent). */
+  botUserId: string;
+  /** First user message. Server persists it atomically with the channel. */
+  initialMessage: string;
+  /** Optional session-initial model override. */
+  model?: { provider: string; id: string };
+  /** Optional pre-set title (usually left null and auto-generated later). */
+  title?: string;
+}
+
+export interface TopicSessionResponse {
+  channelId: string;
+  sessionId: string;
+  agentId: string;
+  botUserId: string;
+  title: string | null;
+  createdAt: string;
+}
+
+export interface TopicSessionRecentEntry {
+  channelId: string;
+  sessionId: string;
+  title: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+  createdAt: string;
+}
+
+export interface TopicSessionGroup {
+  agentUserId: string;
+  agentId: string;
+  agentDisplayName: string;
+  agentAvatarUrl: string | null;
+  legacyDirectChannelId: string | null;
+  totalCount: number;
+  recentSessions: TopicSessionRecentEntry[];
+}
+
+export const topicSessionsApi = {
+  /**
+   * Create a new topic session: atomically provisions an agent-pi session,
+   * a team9 channel, and the first user message. Returns the new channelId
+   * so the caller can navigate to it — no follow-up message send needed.
+   */
+  create: async (
+    data: CreateTopicSessionDto,
+  ): Promise<TopicSessionResponse> => {
+    const response = await http.post<TopicSessionResponse>(
+      "/v1/im/topic-sessions",
+      data,
+    );
+    return response.data;
+  },
+
+  /**
+   * Sidebar data source: groups the caller's topic sessions by agent,
+   * returning N most-recent per agent plus any legacy direct channel
+   * with the same agent. One round trip, no N+1.
+   */
+  getGrouped: async (perAgent = 5): Promise<TopicSessionGroup[]> => {
+    const response = await http.get<TopicSessionGroup[]>(
+      "/v1/im/topic-sessions/grouped",
+      { params: { perAgent } },
+    );
+    return response.data;
+  },
+
+  /** Archive a topic session (creator-only on server). */
+  delete: async (channelId: string): Promise<void> => {
+    await http.delete(`/v1/im/topic-sessions/${channelId}`);
+  },
+};
+
 // Sync API
 export const syncApi = {
   // Sync messages for a channel (lazy loading - called when opening a channel)
@@ -526,6 +639,7 @@ export const imApi = {
   users: imUsersApi,
   sync: syncApi,
   sections: sectionsApi,
+  topicSessions: topicSessionsApi,
 };
 
 export default imApi;

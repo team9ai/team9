@@ -17,12 +17,14 @@ import rehypeKatex from "rehype-katex";
 import linkifyHtml from "linkify-html";
 import Prism from "@/lib/prism";
 import { renderMathInHtml } from "@/lib/math";
+import { sanitizeMessageHtml } from "@/lib/sanitize";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import { LongTextCollapse } from "./LongTextCollapse";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { SelectionCopyPopup } from "./SelectionCopyPopup";
+import { AstRenderer } from "./AstRenderer";
 import type { Message } from "@/types/im";
 
 interface MessageContentProps {
@@ -145,7 +147,9 @@ function HtmlMessageContent({ content, className }: MessageContentProps) {
       className: "message-link",
     });
 
-    return html;
+    // Final XSS defense: strip scripts, event handlers, and javascript: URLs
+    // before the result hits dangerouslySetInnerHTML below.
+    return sanitizeMessageHtml(html);
   }, [content]);
 
   // Event delegation on container for mention hover/click and code copy button.
@@ -406,6 +410,12 @@ export function MessageContent({
       : content;
 
   const isHtml = HTML_TAG_PATTERN.test(displayContent);
+  // Prefer the Lexical AST when the message was authored in the rich-text
+  // composer. This path renders React elements directly — no HTML sink, so
+  // there's no innerHTML to exploit. Legacy HTML rows and bot/markdown
+  // messages fall through to the sanitized HTML/Markdown paths below.
+  const hasAst =
+    !!message?.contentAst && typeof message.contentAst === "object";
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectionState, setSelectionState] = useState<{
     rect: DOMRect;
@@ -416,7 +426,9 @@ export function MessageContent({
   // the inner content components (which would destroy DOM and clear selection)
   const contentElement = useMemo(
     () =>
-      isHtml ? (
+      hasAst ? (
+        <AstRenderer ast={message!.contentAst} className={className} />
+      ) : isHtml ? (
         <HtmlMessageContent content={displayContent} className={className} />
       ) : (
         <MarkdownMessageContent
@@ -424,7 +436,7 @@ export function MessageContent({
           className={className}
         />
       ),
-    [isHtml, displayContent, className],
+    [hasAst, isHtml, displayContent, className, message],
   );
 
   // Wrap in LongTextCollapse for long_text messages.

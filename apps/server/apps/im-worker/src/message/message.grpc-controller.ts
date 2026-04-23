@@ -22,6 +22,7 @@ interface CreateMessageRequest {
   attachments?: GrpcAttachment[];
   metadata_json?: string;
   workspace_id?: string;
+  content_ast_json?: string;
 }
 
 interface GrpcCreateMessageResponse {
@@ -52,6 +53,19 @@ export class MessageGrpcController {
 
   private parseMetadata(raw: string): Record<string, unknown> {
     return JSON.parse(raw) as Record<string, unknown>;
+  }
+
+  private parseContentAst(raw: string): Record<string, unknown> | undefined {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Invalid JSON — treat as absent so the message still persists; the
+      // gateway's DTO layer already validated upstream.
+    }
+    return undefined;
   }
 
   /**
@@ -113,6 +127,9 @@ export class MessageGrpcController {
         })),
         metadata: request.metadata_json
           ? this.parseMetadata(request.metadata_json)
+          : undefined,
+        contentAst: request.content_ast_json
+          ? this.parseContentAst(request.content_ast_json)
           : undefined,
       };
 

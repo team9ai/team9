@@ -6,6 +6,7 @@ import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { PlatformLlmService } from './platform-llm.service.js';
 import { BotController } from './bot.controller.js';
+import { BotModelController } from './bot-model.controller.js';
 import { BotStaffProfileController } from './staff-profile/bot-staff-profile.controller.js';
 import { BotStaffProfileService } from './staff-profile/bot-staff-profile.service.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
@@ -39,7 +40,7 @@ import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
 @Global()
 @Module({
   imports: [forwardRef(() => ChannelsModule), ClawHiveModule],
-  controllers: [BotController, BotStaffProfileController],
+  controllers: [BotController, BotModelController, BotStaffProfileController],
   providers: [
     BotService,
     BotTokenValidatorService,

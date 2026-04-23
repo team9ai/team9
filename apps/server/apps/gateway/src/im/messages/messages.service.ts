@@ -9,6 +9,8 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ModuleRef } from '@nestjs/core';
 import { determineMessageType, truncateContent } from './message-utils.js';
+import { sanitizeMessageContent } from './utils/sanitize-content.js';
+import { normalizeAst, astToPlaintext } from './utils/ast.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -74,6 +76,9 @@ export interface MessageResponse {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
+  // Lexical serialized EditorState (null for legacy/bot/system messages that
+  // render via the sanitized HTML/Markdown fallback path).
+  contentAst: Record<string, unknown> | null;
   type: 'text' | 'file' | 'image' | 'system' | 'tracking' | 'long_text';
   isTruncated?: boolean;
   fullContentLength?: number;
@@ -295,6 +300,7 @@ export class MessagesService {
       parentId: message.parentId,
       rootId: message.rootId,
       content: message.content,
+      contentAst: message.contentAst ?? null,
       type: message.type,
       isPinned: message.isPinned,
       isEdited: message.isEdited,
@@ -463,6 +469,7 @@ export class MessagesService {
         parentId: message.parentId,
         rootId: message.rootId,
         content: message.content,
+        contentAst: message.contentAst ?? null,
         type: message.type,
         isPinned: message.isPinned,
         isEdited: message.isEdited,
@@ -930,17 +937,32 @@ export class MessagesService {
       message.channelId,
     );
 
+    // Mirror the create path: if the caller provides a Lexical AST, validate
+    // it and re-derive `content` as plaintext so search/preview stay in sync.
+    // Setting contentAst = null explicitly clears it (e.g. when switching
+    // back to a plain-text edit); absent means "leave untouched".
+    let nextContent = dto.content;
+    let nextContentAst: Record<string, unknown> | null | undefined;
+    if (dto.contentAst) {
+      const ast = normalizeAst(dto.contentAst);
+      nextContent = astToPlaintext(ast);
+      nextContentAst = ast as unknown as Record<string, unknown>;
+    } else if (dto.contentAst === null) {
+      nextContentAst = null;
+    }
+
     // Re-determine type only for text-based messages (text / long_text).
     // File/image/system/tracking messages keep their original type.
     const isTextBased = message.type === 'text' || message.type === 'long_text';
     const newType = isTextBased
-      ? determineMessageType(dto.content, false)
+      ? determineMessageType(nextContent, false)
       : message.type;
 
     await this.db
       .update(schema.messages)
       .set({
-        content: dto.content,
+        content: nextContent,
+        ...(nextContentAst !== undefined ? { contentAst: nextContentAst } : {}),
         type: newType,
         isEdited: true,
         seqId: newSeqId,
@@ -1206,7 +1228,11 @@ export class MessagesService {
       throw new Error('sendFromBot: imWorkerGrpcClientService is not injected');
     }
 
-    const { botUserId, channelId, content, attachments, workspaceId } = params;
+    const { botUserId, channelId, attachments, workspaceId } = params;
+    // Bot/agent output goes through the same XSS filter as human messages —
+    // an LLM can hallucinate <script> tags or event handlers just as easily
+    // as a malicious user can.
+    const content = sanitizeMessageContent(params.content);
 
     const clientMsgId = uuidv7();
     const messageType = determineMessageType(content, !!attachments?.length);

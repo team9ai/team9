@@ -3,6 +3,7 @@ import { Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { RichTextEditor } from "./editor";
+import type { EditorSubmitPayload } from "./editor/utils/submitEditorContent";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { cn } from "@/lib/utils";
 import { deepResearchApi } from "@/services/api/deep-research";
@@ -13,7 +14,10 @@ import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 interface MessageInputProps {
   /** Channel ID for file upload context (optional in compact mode) */
   channelId?: string;
-  onSend: (content: string, attachments?: AttachmentDto[]) => Promise<void>;
+  onSend: (
+    payload: EditorSubmitPayload,
+    attachments?: AttachmentDto[],
+  ) => Promise<void>;
   disabled?: boolean;
   /** Compact mode for thread panel - smaller height, no drag-drop */
   compact?: boolean;
@@ -162,12 +166,12 @@ export function MessageInput({
     };
   }, [handlePaste]);
 
-  const handleSubmit = async (content: string) => {
+  const handleSubmit = async (payload: EditorSubmitPayload) => {
     // Don't send if uploading or nothing to send
     if (isUploading) return;
 
     const attachments = getAttachments();
-    const hasContent = content.trim().length > 0;
+    const hasContent = payload.content.trim().length > 0;
     const hasAttachments = attachments.length > 0;
 
     if (!hasContent && !hasAttachments) return;
@@ -178,7 +182,7 @@ export function MessageInput({
       setIsCreatingResearch(true);
       try {
         const result = await deepResearchApi.startInChannel(channelId, {
-          input: content.trim(),
+          input: payload.content.trim(),
           origin: "chat",
         });
         upsertChannelMessageInCache(queryClient, channelId, result.message);
@@ -190,7 +194,7 @@ export function MessageInput({
       return;
     }
 
-    await onSend(content, attachments.length > 0 ? attachments : undefined);
+    await onSend(payload, attachments.length > 0 ? attachments : undefined);
 
     // Clear uploaded files after successful send
     clearFiles();

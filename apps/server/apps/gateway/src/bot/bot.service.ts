@@ -1112,6 +1112,27 @@ export class BotService implements OnModuleInit {
   }
 
   /**
+   * Whether the user has an active (non-left) membership in the tenant.
+   */
+  async isActiveTenantMember(
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const [row] = await this.db
+      .select({ userId: schema.tenantMembers.userId })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          eq(schema.tenantMembers.tenantId, tenantId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      )
+      .limit(1);
+    return !!row;
+  }
+
+  /**
    * List every active bot mentored by the given user, scoped to a tenant.
    * Filters out bots whose tenant membership has been revoked
    * (tenantMembers.leftAt IS NOT NULL) so a bot whose owning user left the

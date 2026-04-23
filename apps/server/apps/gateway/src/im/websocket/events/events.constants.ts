@@ -29,6 +29,7 @@ export type {
   ChannelDeletedEvent,
   ChannelArchivedEvent,
   ChannelUnarchivedEvent,
+  ChannelModelChangedEvent,
   ChannelOperationResponse,
   // Message
   NewMessageEvent,

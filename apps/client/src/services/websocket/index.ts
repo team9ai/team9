@@ -26,6 +26,7 @@ import {
   type ChannelDeletedEvent,
   type ChannelArchivedEvent,
   type ChannelUnarchivedEvent,
+  type ChannelModelChangedEvent,
   type UserOnlineEvent,
   type UserOfflineEvent,
   type UserStatusChangedEvent,
@@ -507,6 +508,15 @@ class WebSocketService {
 
   onChannelUnarchived(callback: (event: ChannelUnarchivedEvent) => void): void {
     this.on<ChannelUnarchivedEvent>(WS_EVENTS.CHANNEL.UNARCHIVED, callback);
+  }
+
+  onChannelModelChanged(
+    callback: (event: ChannelModelChangedEvent) => void,
+  ): void {
+    this.on<ChannelModelChangedEvent>(
+      WS_EVENTS.CHANNEL.MODEL_CHANGED,
+      callback,
+    );
   }
 
   onUserOnline(callback: (event: UserOnlineEvent) => void): void {
