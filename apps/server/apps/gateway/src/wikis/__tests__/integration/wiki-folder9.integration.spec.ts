@@ -145,9 +145,11 @@ function primeReadPath(db: ChainMock, wiki: WikiRow) {
 // ---------------------------------------------------------------------------
 
 const INTEGRATION_ENABLED = process.env.INTEGRATION === '1';
-const maybeDescribe: jest.Describe = INTEGRATION_ENABLED
-  ? describe
-  : describe.skip;
+// Inferred type is `describe | typeof describe.skip`; avoid the explicit
+// `jest.Describe` namespace reference because ESM mode (`--experimental-vm-modules`)
+// doesn't register @types/jest globals, so the type annotation would emit a
+// runtime `jest` reference and fail before the first assertion.
+const maybeDescribe = INTEGRATION_ENABLED ? describe : describe.skip;
 
 maybeDescribe('WikisModule integration — real folder9', () => {
   let svc: InstanceType<typeof WikisService>;
