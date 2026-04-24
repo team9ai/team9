@@ -1114,8 +1114,18 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    // For direct/echo channels, fetch the other user's information
-    if ((channel.type === 'direct' || channel.type === 'echo') && userId) {
+    // For direct / echo / routine-session / topic-session channels, fetch the
+    // other user's information. All four types represent a one-on-one
+    // conversation: direct is the classic human-or-bot DM, echo shows the
+    // current user's own notes, and routine-session / topic-session are
+    // ephemeral bot conversations with exactly one bot member.
+    if (
+      userId &&
+      (channel.type === 'direct' ||
+        channel.type === 'echo' ||
+        channel.type === 'routine-session' ||
+        channel.type === 'topic-session')
+    ) {
       const otherUser =
         channel.type === 'echo'
           ? await this.getUserSummary(userId)
@@ -1729,7 +1739,7 @@ export class ChannelsService {
    * Resolve the target of a channel-level model switch.
    *
    * A channel is eligible iff:
-   *   - type ∈ ('direct', 'routine-session')
+   *   - type ∈ ('direct', 'routine-session', 'topic-session')
    *   - requester has read access
    *   - contains exactly one managed-hive bot member (managedProvider='hive'
    *     with a resolvable managedMeta.agentId)
@@ -1751,9 +1761,13 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    if (channel.type !== 'direct' && channel.type !== 'routine-session') {
+    if (
+      channel.type !== 'direct' &&
+      channel.type !== 'routine-session' &&
+      channel.type !== 'topic-session'
+    ) {
       throw new ForbiddenException(
-        'Model switching is only available on DM and routine-session channels',
+        'Model switching is only available on DM, routine-session, and topic-session channels',
       );
     }
 

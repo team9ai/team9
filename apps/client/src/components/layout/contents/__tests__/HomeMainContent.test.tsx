@@ -6,7 +6,6 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseChannelsByType = vi.hoisted(() => vi.fn());
 const mockUseCreateDirectChannel = vi.hoisted(() => vi.fn());
 const mockUseDashboardAgents = vi.hoisted(() => vi.fn());
-const mockUpdateAgentModel = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
@@ -165,8 +164,6 @@ describe("HomeMainContent", () => {
           canSwitchModel: true,
         },
       ],
-      updateAgentModel: mockUpdateAgentModel,
-      updatingAgentUserId: null,
     });
     mockUseUser.mockReturnValue({
       createdAt: "2024-01-01T00:00:00.000Z",
@@ -283,8 +280,6 @@ describe("HomeMainContent", () => {
           canSwitchModel: false,
         },
       ],
-      updateAgentModel: mockUpdateAgentModel,
-      updatingAgentUserId: null,
     });
 
     renderWithProviders(<HomeMainContent />);
@@ -332,8 +327,6 @@ describe("HomeMainContent", () => {
           canSwitchModel: true,
         },
       ],
-      updateAgentModel: mockUpdateAgentModel,
-      updatingAgentUserId: null,
     });
 
     renderWithProviders(<HomeMainContent />);

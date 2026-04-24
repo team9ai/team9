@@ -155,10 +155,13 @@ function AgentGroup({
 
   const handleNewTopic = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    // Send the user back to the dashboard composer. The dashboard
-    // remembers the last-selected agent in its own state, so the user
-    // lands with sensible defaults and can type the new prompt.
-    void navigate({ to: "/channels" });
+    // Route back to the dashboard composer with the clicked agent pre-selected
+    // via search param, so the composer header reflects the correct agent
+    // instead of falling back to the dashboard's last-remembered selection.
+    void navigate({
+      to: "/channels",
+      search: { agentId: group.agentUserId },
+    });
   };
 
   return (
@@ -207,8 +210,10 @@ function AgentGroup({
           })}
           className={cn(
             "shrink-0 inline-flex size-5 items-center justify-center rounded",
-            "text-nav-foreground-subtle transition-colors",
+            "text-nav-foreground-subtle transition-opacity",
             "hover:text-nav-foreground-strong hover:bg-nav-hover",
+            "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+            (expanded || headerHighlighted) && "opacity-100",
           )}
         >
           <SquarePen size={12} />
