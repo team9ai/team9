@@ -74,3 +74,109 @@ jobs:
             apps/server/apps/im-worker/coverage
             apps/server/apps/task-worker/coverage
           if-no-files-found: warn
+
+  # Wiki ↔ folder9 integration test. Spins up a real folder9 + postgres via
+  # docker compose and runs the opt-in `INTEGRATION=1` suite. Gated by a git
+  # diff check so only PRs that touch wiki code pay the ~1-2 min docker cold
+  # start.
+  #
+  # IMPORTANT: requires `team9ai/folder9:latest` (or the tag set in
+  # $FOLDER9_IMAGE) to be reachable from GitHub Actions. If the image is
+  # private this job will fail on the pull step — add `docker login` with a
+  # registry auth secret before the compose step in that case.
+  wiki-integration:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need the merge-base of the PR to run `git diff` against, so fetch
+          # enough history that `origin/${{ github.base_ref }}` resolves.
+          fetch-depth: 0
+
+      - name: Detect wiki-related changes
+        id: changes
+        run: |
+          set -euo pipefail
+          if git diff --name-only "origin/${{ github.base_ref }}"...HEAD \
+              | grep -E '^(apps/server/apps/gateway/src/wikis/|apps/server/libs/database/src/schemas/wiki/|apps/server/libs/database/migrations/[^/]*wiki|docs/superpowers/specs/[^/]*wiki|\.github/workflows/ci-test\.yml$)' \
+              > /tmp/wiki-changes.txt; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Wiki-related files changed:"
+            cat /tmp/wiki-changes.txt
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No wiki-related files changed — skipping integration job."
+          fi
+
+      - name: Install pnpm
+        if: steps.changes.outputs.changed == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - name: Install Node.js
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.changes.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Start folder9 + postgres via docker compose
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          # Override the default `team9ai/folder9:integration` tag (which is a
+          # local-build-only placeholder) with the published image. If this
+          # tag is private or missing, the pull will fail on this step — flag
+          # that failure to the user rather than silently skipping.
+          FOLDER9_IMAGE: team9ai/folder9:latest
+        working-directory: apps/server/apps/gateway/src/wikis/__tests__/integration
+        run: |
+          set -euo pipefail
+          # Use --no-build so compose won't try to build from the sibling
+          # folder9 checkout (which doesn't exist in CI). If the image isn't
+          # pullable the step fails loudly.
+          docker compose pull folder9 folder9-postgres
+          docker compose up -d --no-build
+          # Poll until folder9's /healthz returns 200 OR we hit the 120s cap.
+          # The service's own healthcheck retries internally, so if we reach
+          # the cap it's a real startup failure and the job should fail.
+          echo "Waiting for folder9 to be healthy (max 120s)..."
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:58080/healthz >/dev/null 2>&1; then
+              echo "folder9 is healthy after ${i} poll(s)."
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::folder9 did not become healthy within 120s"
+              docker compose ps
+              docker compose logs --no-color
+              exit 1
+            fi
+            sleep 2
+          done
+          docker compose ps
+
+      - name: Run wiki integration test
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          INTEGRATION: "1"
+          FOLDER9_INTEGRATION_URL: "http://localhost:58080"
+        run: pnpm --filter @team9/gateway test -- wiki-folder9.integration
+
+      - name: Print docker logs on failure
+        if: failure() && steps.changes.outputs.changed == 'true'
+        working-directory: apps/server/apps/gateway/src/wikis/__tests__/integration
+        run: docker compose logs --no-color
+
+      - name: Teardown
+        if: always() && steps.changes.outputs.changed == 'true'
+        working-directory: apps/server/apps/gateway/src/wikis/__tests__/integration
+        run: docker compose down -v
