@@ -1,5 +1,19 @@
 {
   "myDevices": "Mijn apparaten",
+  "comingSoon": "Binnenkort",
+  "devicesTabs": {
+    "overview": "Overzicht",
+    "overviewDescription": "Hoe deze computer is ingericht voor je AI-personeel.",
+    "browser": "Browser-setup",
+    "browserDescription": "Installeer en kies de browser die je agents moeten bedienen.",
+    "permissions": "Rechten",
+    "permissionsDescription": "Bepaal wie deze computer mag gebruiken en hoe elke toegang wordt goedgekeurd.",
+    "myDevices": "Mijn apparaten",
+    "myDevicesDescription": "Alle computers die aan je account zijn gekoppeld.",
+    "audit": "Auditlog",
+    "auditDescription": "Een logboek van elke keer dat een agent een van je apparaten gebruikte.",
+    "placeholder": "Binnenkort. We bouwen hier nog aan."
+  },
   "myDevicesHelpAria": "Wat is dit?",
   "myDevicesHelpIntro": "Dit zijn de computers die je hebt geautoriseerd voor AI-personeel. Eenmaal ingeschakeld, kan een agent op die machine echte commando's uitvoeren, bestanden openen, apps starten en op het web surfen — niet alleen chatten.",
   "myDevicesHelpAccess": "De controle over deze computer is van jou persoonlijk, niet van een workspace — van workspace wisselen verandert deze instellingen niet. Standaard mag alleen jouw Personal Staff hem gebruiken, en jouw Personal Staff praat alleen met jou — met niemand anders. Elke andere agent heeft jouw directe goedkeuring nodig.",

@@ -1,5 +1,19 @@
 {
   "myDevices": "Meine Geräte",
+  "comingSoon": "Demnächst",
+  "devicesTabs": {
+    "overview": "Übersicht",
+    "overviewDescription": "Wie dieser Computer für deine KI-Mitarbeiter eingerichtet ist.",
+    "browser": "Browser-Setup",
+    "browserDescription": "Installiere und wähle den Browser, den deine Agenten bedienen sollen.",
+    "permissions": "Berechtigungen",
+    "permissionsDescription": "Lege fest, wer diesen Computer nutzen darf und wie zugestimmt wird.",
+    "myDevices": "Meine Geräte",
+    "myDevicesDescription": "Alle Computer, die du mit deinem Konto verbunden hast.",
+    "audit": "Audit-Log",
+    "auditDescription": "Ein Protokoll jeder Nutzung deiner Geräte durch einen Agenten.",
+    "placeholder": "Demnächst — wir bauen das noch."
+  },
   "myDevicesHelpAria": "Was ist das?",
   "myDevicesHelpIntro": "Das sind die Computer, die du deinen KI-Mitarbeitern freigegeben hast. Sobald aktiviert, kann ein Agent auf dem Gerät echte Befehle ausführen, Dateien öffnen, Apps starten und im Web surfen — nicht nur chatten.",
   "myDevicesHelpAccess": "Die Kontrolle über diesen Computer gehört dir persönlich, nicht einem Workspace — das Wechseln des Workspaces ändert diese Einstellungen nicht. Standardmäßig darf nur dein Personal Staff ihn nutzen, und dein Personal Staff spricht nur mit dir — sonst mit niemandem. Jeder andere Agent braucht deine persönliche Zustimmung.",

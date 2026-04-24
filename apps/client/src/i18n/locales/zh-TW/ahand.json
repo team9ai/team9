@@ -1,5 +1,19 @@
 {
   "myDevices": "我的裝置",
+  "comingSoon": "即將推出",
+  "devicesTabs": {
+    "overview": "總覽",
+    "overviewDescription": "這台電腦目前為 AI 員工做了哪些準備。",
+    "browser": "瀏覽器設定",
+    "browserDescription": "安裝並選擇 Agent 要操作的瀏覽器。",
+    "permissions": "授權管理",
+    "permissionsDescription": "設定誰能用這台電腦，以及需要怎麼點同意。",
+    "myDevices": "我的裝置",
+    "myDevicesDescription": "你帳號下綁定的全部電腦。",
+    "audit": "稽核日誌",
+    "auditDescription": "Agent 每次動你裝置的紀錄。",
+    "placeholder": "即將推出，我們還在開發。"
+  },
   "myDevicesHelpAria": "這是什麼？",
   "myDevicesHelpIntro": "這些是你授權給 AI 員工的本地電腦。開啟後，Agent 可以在該機器上執行真實命令、存取檔案、打開應用、瀏覽網頁 —— 不再只是聊天。",
   "myDevicesHelpAccess": "控制權歸你個人，不歸 workspace —— 切換 workspace 時授權不受影響。預設只有你的私人助理 (Personal Staff) 能用，而私人助理只和你本人聊，別人動不到；其他 Agent 要動你的電腦，需要你親手點同意。",

@@ -41,7 +41,6 @@ import { useDevtools } from "@/hooks/useDevtools";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
 import { NavigationRail } from "./NavigationRail";
 import type { UserStatus } from "@/types/im";
-import { DevicesDialog } from "@/components/dialog/DevicesDialog";
 import { useAhandLocalStatus } from "@/hooks/useAhandLocalStatus";
 import { useAhandDevices } from "@/hooks/useAhandDevices";
 import { isTauriApp } from "@/lib/tauri";
@@ -65,7 +64,6 @@ export function MainSidebar() {
   const { mutateAsync: logout, isPending: isLoggingOut } = useLogout();
   const { data: onlineUsers = {} } = useOnlineUsers();
   const { handleTap: devtoolsTap, message: devtoolsMessage } = useDevtools();
-  const [devicesDialogOpen, setDevicesDialogOpen] = useState(false);
   const localStatus = useAhandLocalStatus();
   const { data: ahandDevices } = useAhandDevices({ includeOffline: true });
   const { t: tAhand } = useTranslation("ahand");
@@ -398,9 +396,9 @@ export function MainSidebar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => setDevicesDialogOpen(true)}
+              onClick={() => navigate({ to: "/devices" as never })}
               aria-label={tAhand("myDevices")}
-              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2"
+              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2 cursor-pointer"
             >
               {/* Inner wrapper sized to the Laptop glyph so the badge can
                     hug its bottom-right corner (with partial overlap) rather
@@ -446,11 +444,6 @@ export function MainSidebar() {
             </p>
           </TooltipContent>
         </Tooltip>
-        <DevicesDialog
-          open={devicesDialogOpen}
-          onOpenChange={setDevicesDialogOpen}
-        />
-
         {/* User Avatar at Bottom */}
         <div data-tauri-drag-region className="shrink-0 py-4">
           <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>

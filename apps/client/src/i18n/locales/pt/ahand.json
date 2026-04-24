@@ -1,5 +1,19 @@
 {
   "myDevices": "Meus dispositivos",
+  "comingSoon": "Em breve",
+  "devicesTabs": {
+    "overview": "Visão geral",
+    "overviewDescription": "Como este computador está preparado para o seu pessoal de IA.",
+    "browser": "Navegador",
+    "browserDescription": "Instale e escolha o navegador que seus agentes vão controlar.",
+    "permissions": "Permissões",
+    "permissionsDescription": "Defina quem pode usar este computador e como aprovar cada acesso.",
+    "myDevices": "Meus dispositivos",
+    "myDevicesDescription": "Todos os computadores ligados à sua conta.",
+    "audit": "Log de auditoria",
+    "auditDescription": "Histórico de cada vez que um agente usou um dos seus dispositivos.",
+    "placeholder": "Em breve. Ainda estamos construindo."
+  },
   "myDevicesHelpAria": "O que é isto?",
   "myDevicesHelpIntro": "São os computadores que você autorizou para o pessoal de IA. Uma vez habilitado, um agente pode executar comandos reais, acessar arquivos, abrir apps e navegar na web nessa máquina — não apenas conversar.",
   "myDevicesHelpAccess": "O controle deste computador pertence a você, não a nenhum workspace — mudar de workspace não afeta essas configurações. Por padrão, apenas seu Personal Staff pode usá-lo, e seu Personal Staff só conversa com você — com mais ninguém. Qualquer outro agente precisa da sua aprovação direta.",

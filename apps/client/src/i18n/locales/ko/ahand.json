@@ -1,5 +1,19 @@
 {
   "myDevices": "내 기기",
+  "comingSoon": "출시 예정",
+  "devicesTabs": {
+    "overview": "개요",
+    "overviewDescription": "이 컴퓨터가 AI 스태프용으로 어떻게 준비되어 있는지.",
+    "browser": "브라우저 설정",
+    "browserDescription": "Agent가 사용할 브라우저를 설치하고 선택합니다.",
+    "permissions": "권한 관리",
+    "permissionsDescription": "누가 이 컴퓨터를 쓸 수 있는지, 어떻게 동의해야 하는지 설정합니다.",
+    "myDevices": "내 기기",
+    "myDevicesDescription": "계정에 연결된 모든 컴퓨터.",
+    "audit": "감사 로그",
+    "auditDescription": "Agent가 내 기기를 사용한 모든 기록.",
+    "placeholder": "출시 예정. 아직 개발 중입니다."
+  },
   "myDevicesHelpAria": "이게 뭐예요?",
   "myDevicesHelpIntro": "AI 스태프에게 승인한 로컬 컴퓨터입니다. 활성화하면 Agent가 해당 기기에서 실제 명령 실행, 파일 접근, 앱 실행, 웹 탐색까지 할 수 있습니다 —— 단순 채팅이 아닙니다.",
   "myDevicesHelpAccess": "이 컴퓨터의 제어권은 당신 개인에게 있으며, workspace에 속하지 않습니다 —— workspace를 전환해도 여기 권한은 그대로입니다. 기본값으로는 개인 어시스턴트(Personal Staff)만 사용할 수 있고, 개인 어시스턴트는 본인과만 대화하므로 다른 사람은 접근할 수 없습니다. 다른 Agent가 컴퓨터를 쓰려면 당신이 직접 '동의'를 눌러야 합니다.",

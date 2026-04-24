@@ -1,5 +1,19 @@
 {
   "myDevices": "My Devices",
+  "comingSoon": "Coming soon",
+  "devicesTabs": {
+    "overview": "Overview",
+    "overviewDescription": "How this computer is set up to work with your AI staff.",
+    "browser": "Browser setup",
+    "browserDescription": "Install and pick the browser your agents should drive.",
+    "permissions": "Permissions",
+    "permissionsDescription": "Choose who can use this computer, and how they need to be approved.",
+    "myDevices": "My devices",
+    "myDevicesDescription": "Every computer you've linked to your account.",
+    "audit": "Audit log",
+    "auditDescription": "A record of every time an agent used one of your devices.",
+    "placeholder": "Coming soon. We're still building this."
+  },
   "myDevicesHelpAria": "What is this?",
   "myDevicesHelpIntro": "These are the computers you've authorized for AI staff. Once enabled, an agent can run real commands, access files, open apps, and browse the web on that machine — not just chat.",
   "myDevicesHelpAccess": "This computer belongs to you, not to any workspace — switching workspaces won't touch these settings. By default only your Personal Staff can use it, and your Personal Staff only talks to you — nobody else. Any other agent needs your hands-on approval.",

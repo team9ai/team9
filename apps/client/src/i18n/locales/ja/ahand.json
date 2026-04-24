@@ -1,5 +1,19 @@
 {
   "myDevices": "マイデバイス",
+  "comingSoon": "近日公開",
+  "devicesTabs": {
+    "overview": "概要",
+    "overviewDescription": "この PC が AI スタッフ向けにどう準備されているか。",
+    "browser": "ブラウザ設定",
+    "browserDescription": "Agent に操作させるブラウザをインストール・選択します。",
+    "permissions": "権限管理",
+    "permissionsDescription": "誰がこの PC を使えるか、どう同意するかを設定します。",
+    "myDevices": "マイデバイス",
+    "myDevicesDescription": "アカウントに紐づけた全ての PC。",
+    "audit": "監査ログ",
+    "auditDescription": "Agent があなたのデバイスを使用した記録。",
+    "placeholder": "近日公開。開発中です。"
+  },
   "myDevicesHelpAria": "これは何？",
   "myDevicesHelpIntro": "これらはあなたが AI スタッフに許可したローカル PC です。有効にすると、Agent はそのマシン上で実際のコマンド実行、ファイルアクセス、アプリ起動、ウェブ閲覧ができます —— ただのチャットではありません。",
   "myDevicesHelpAccess": "このコンピュータの制御はあなた個人に属し、workspace には属しません —— workspace を切り替えてもここの許可は変わりません。デフォルトではあなたのパーソナルアシスタント (Personal Staff) のみが使用可能で、パーソナルアシスタントはあなた本人としか会話せず、他人からは触れません。他の Agent があなたの PC を使うには、あなたが直接「同意」を押す必要があります。",
