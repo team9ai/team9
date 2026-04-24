@@ -31,9 +31,12 @@ export class WebhookEventDataDto {
 }
 
 export class WebhookEventDto {
+  // Hub emits bare ULIDs (26 Crockford-base32 chars, e.g.
+  // `01KPZXF939E45M8ZQN9GWFM0DY`). Older designs used a `evt_` prefix;
+  // accept both so the gateway isn't coupled to the hub's id scheme.
   @IsString()
   @MaxLength(128)
-  @Matches(/^evt_[A-Z0-9_]+$/i)
+  @Matches(/^(evt_)?[A-Z0-9_]+$/i)
   eventId!: string;
 
   @IsIn([
