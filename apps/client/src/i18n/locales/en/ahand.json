@@ -2,7 +2,7 @@
   "myDevices": "My Devices",
   "myDevicesHelpAria": "What is this?",
   "myDevicesHelpIntro": "These are the computers you've authorized for AI staff. Once enabled, an agent can run real commands, access files, open apps, and browse the web on that machine — not just chat.",
-  "myDevicesHelpAccess": "You control who gets in: by default only your Personal Staff can use this computer, and your Personal Staff only talks to you — nobody else. Any other agent needs your explicit permission.",
+  "myDevicesHelpAccess": "This computer belongs to you, not to any workspace — switching workspaces won't touch these settings. By default only your Personal Staff can use it, and your Personal Staff only talks to you — nobody else. Any other agent needs your hands-on approval.",
   "thisMac": "This Mac",
   "otherDevices_zero": "My Other Devices",
   "otherDevices_one": "My Other Devices (1)",
@@ -37,8 +37,8 @@
     "autoRefreshFailed": "aHand: auto-refresh failed — {{msg}}"
   },
 
-  "ctaTitle": "Let agents take over your computer",
-  "ctaBody": "Use the Team9 desktop app to turn this machine into your agent's remote execution arm — at near-zero cost.",
+  "ctaTitle": "Let an agent actually use your computer",
+  "ctaBody": "Want an agent to really drive your computer and browser — not just chat? Grab our desktop app and pair this machine in seconds.",
   "ctaPrimaryAction": "Open Desktop App",
   "ctaSecondaryAction": "Download Desktop App",
   "noAppInstalledHint": "If nothing happened, the desktop app may not be installed yet."

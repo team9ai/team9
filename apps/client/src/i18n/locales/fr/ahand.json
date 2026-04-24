@@ -2,7 +2,7 @@
   "myDevices": "Mes appareils",
   "myDevicesHelpAria": "Qu'est-ce que c'est ?",
   "myDevicesHelpIntro": "Ce sont les ordinateurs que vous avez autorisés pour votre personnel IA. Une fois activé, un agent peut exécuter de vraies commandes, accéder aux fichiers, ouvrir des applis et naviguer sur le web sur cette machine — pas juste discuter.",
-  "myDevicesHelpAccess": "Vous contrôlez qui entre : par défaut, seul votre Personal Staff peut utiliser cet ordinateur, et votre Personal Staff ne parle qu'à vous — personne d'autre. Tout autre agent a besoin d'une autorisation explicite de votre part.",
+  "myDevicesHelpAccess": "Le contrôle de cet ordinateur vous appartient, pas à un workspace — changer de workspace ne touche pas à ces réglages. Par défaut, seul votre Personal Staff peut l'utiliser, et votre Personal Staff ne parle qu'à vous — à personne d'autre. Tout autre agent a besoin de votre accord direct.",
   "thisMac": "Ce Mac",
   "otherDevices_zero": "Mes autres appareils",
   "otherDevices_one": "Mes autres appareils (1)",
@@ -34,8 +34,8 @@
     "deviceRevoked": "aHand: cet appareil n'est plus autorisé. Veuillez le réactiver.",
     "autoRefreshFailed": "aHand: échec de l'actualisation automatique — {{msg}}"
   },
-  "ctaTitle": "Laissez les agents prendre le contrôle de votre ordinateur",
-  "ctaBody": "Utilisez l'application de bureau Team9 pour transformer cette machine en bras d'exécution distant de votre agent — à coût quasi nul.",
+  "ctaTitle": "Laissez un agent vraiment utiliser votre ordinateur",
+  "ctaBody": "Vous voulez qu'un agent pilote vraiment votre ordinateur et votre navigateur — pas seulement discuter ? Téléchargez notre application de bureau et associez cette machine en quelques secondes.",
   "ctaPrimaryAction": "Ouvrir l'application de bureau",
   "ctaSecondaryAction": "Télécharger l'application de bureau",
   "noAppInstalledHint": "Si rien ne se passe, l'application de bureau n'est peut-être pas encore installée."

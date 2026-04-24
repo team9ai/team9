@@ -2,7 +2,7 @@
   "myDevices": "I miei dispositivi",
   "myDevicesHelpAria": "Cos'è questo?",
   "myDevicesHelpIntro": "Sono i computer che hai autorizzato per il personale IA. Una volta abilitato, un agente può eseguire comandi reali, accedere ai file, aprire app e navigare sul web su quella macchina — non solo chattare.",
-  "myDevicesHelpAccess": "Tu controlli chi entra: di default solo il tuo Personal Staff può usare questo computer, e il tuo Personal Staff parla solo con te — con nessun altro. Qualsiasi altro agente ha bisogno del tuo permesso esplicito.",
+  "myDevicesHelpAccess": "Il controllo di questo computer appartiene a te, non a nessun workspace — cambiare workspace non tocca queste impostazioni. Per impostazione predefinita solo il tuo Personal Staff può usarlo, e il tuo Personal Staff parla solo con te — con nessun altro. Qualsiasi altro agente ha bisogno del tuo consenso diretto.",
   "thisMac": "Questo Mac",
   "otherDevices_zero": "I miei altri dispositivi",
   "otherDevices_one": "I miei altri dispositivi (1)",
@@ -34,8 +34,8 @@
     "deviceRevoked": "aHand: questo dispositivo non è più autorizzato. Riabilitarlo.",
     "autoRefreshFailed": "aHand: aggiornamento automatico fallito — {{msg}}"
   },
-  "ctaTitle": "Lascia che gli agenti prendano il controllo del tuo computer",
-  "ctaBody": "Usa l'app desktop Team9 per trasformare questa macchina nel braccio di esecuzione remota del tuo agente — a costo quasi zero.",
+  "ctaTitle": "Lascia che un agente usi davvero il tuo computer",
+  "ctaBody": "Vuoi che un agente piloti davvero il tuo computer e il browser — non solo chatti? Scarica la nostra app desktop e abbina questa macchina in pochi secondi.",
   "ctaPrimaryAction": "Apri app desktop",
   "ctaSecondaryAction": "Scarica app desktop",
   "noAppInstalledHint": "Se non è successo nulla, l'app desktop potrebbe non essere ancora installata."

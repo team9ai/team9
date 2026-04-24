@@ -2,7 +2,7 @@
   "myDevices": "Meine Geräte",
   "myDevicesHelpAria": "Was ist das?",
   "myDevicesHelpIntro": "Das sind die Computer, die du deinen KI-Mitarbeitern freigegeben hast. Sobald aktiviert, kann ein Agent auf dem Gerät echte Befehle ausführen, Dateien öffnen, Apps starten und im Web surfen — nicht nur chatten.",
-  "myDevicesHelpAccess": "Du bestimmst, wer Zugriff hat: Standardmäßig darf nur dein Personal Staff diesen Computer nutzen, und dein Personal Staff spricht nur mit dir — sonst mit niemandem. Jeder andere Agent braucht deine ausdrückliche Erlaubnis.",
+  "myDevicesHelpAccess": "Die Kontrolle über diesen Computer gehört dir persönlich, nicht einem Workspace — das Wechseln des Workspaces ändert diese Einstellungen nicht. Standardmäßig darf nur dein Personal Staff ihn nutzen, und dein Personal Staff spricht nur mit dir — sonst mit niemandem. Jeder andere Agent braucht deine persönliche Zustimmung.",
   "thisMac": "Dieser Mac",
   "otherDevices_zero": "Meine anderen Geräte",
   "otherDevices_one": "Meine anderen Geräte (1)",
@@ -34,8 +34,8 @@
     "deviceRevoked": "aHand: Dieses Gerät ist nicht mehr autorisiert. Bitte erneut aktivieren.",
     "autoRefreshFailed": "aHand: automatische Aktualisierung fehlgeschlagen — {{msg}}"
   },
-  "ctaTitle": "Lass Agenten deinen Computer übernehmen",
-  "ctaBody": "Nutze die Team9-Desktop-App, um diesen Rechner zum Remote-Ausführungsarm deines Agenten zu machen — zu nahezu null Kosten.",
+  "ctaTitle": "Lass einen Agenten wirklich an deinem Computer arbeiten",
+  "ctaBody": "Willst du, dass ein Agent deinen Computer und Browser tatsächlich bedient — nicht nur chattet? Hol dir unsere Desktop-App und koppele dieses Gerät in Sekunden.",
   "ctaPrimaryAction": "Desktop-App öffnen",
   "ctaSecondaryAction": "Desktop-App herunterladen",
   "noAppInstalledHint": "Wenn nichts passiert ist, ist die Desktop-App möglicherweise noch nicht installiert."

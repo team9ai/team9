@@ -2,7 +2,7 @@
   "myDevices": "マイデバイス",
   "myDevicesHelpAria": "これは何？",
   "myDevicesHelpIntro": "これらはあなたが AI スタッフに許可したローカル PC です。有効にすると、Agent はそのマシン上で実際のコマンド実行、ファイルアクセス、アプリ起動、ウェブ閲覧ができます —— ただのチャットではありません。",
-  "myDevicesHelpAccess": "どの Agent があなたの PC を使えるかを制御できます：デフォルトではあなたのパーソナルアシスタント (Personal Staff) のみが使用可能で、パーソナルアシスタントはあなた本人としか会話せず、他人からは触れません。他の Agent があなたの PC を使うには、明示的な許可が必要です。",
+  "myDevicesHelpAccess": "このコンピュータの制御はあなた個人に属し、workspace には属しません —— workspace を切り替えてもここの許可は変わりません。デフォルトではあなたのパーソナルアシスタント (Personal Staff) のみが使用可能で、パーソナルアシスタントはあなた本人としか会話せず、他人からは触れません。他の Agent があなたの PC を使うには、あなたが直接「同意」を押す必要があります。",
   "thisMac": "この Mac",
   "otherDevices_zero": "その他のデバイス",
   "otherDevices_one": "その他のデバイス (1)",
@@ -34,8 +34,8 @@
     "deviceRevoked": "aHand: このデバイスは認証されていません。再度有効化してください。",
     "autoRefreshFailed": "aHand: 自動更新に失敗しました — {{msg}}"
   },
-  "ctaTitle": "エージェントにあなたの PC を委ねよう",
-  "ctaBody": "Team9 デスクトップアプリで、この PC をあなたのエージェントのリモート実行アームに。ほぼゼロコストでローカル shell を提供します。",
+  "ctaTitle": "Agent に本当に PC を使わせよう",
+  "ctaBody": "Agent に本当に PC とブラウザを操作してもらい、仕事を片付けさせたい？ デスクトップアプリをダウンロードすれば、数秒でこのマシンをペアリングできます。",
   "ctaPrimaryAction": "デスクトップアプリを開く",
   "ctaSecondaryAction": "デスクトップアプリをダウンロード",
   "noAppInstalledHint": "反応がない場合、デスクトップアプリがまだインストールされていない可能性があります。"

@@ -2,7 +2,7 @@
   "myDevices": "我的设备",
   "myDevicesHelpAria": "这是什么？",
   "myDevicesHelpIntro": "这些是你授权给 AI 员工的本地电脑。开启后，Agent 可以在该机器上运行真实命令、访问文件、打开应用、浏览网页 —— 不再只是聊天。",
-  "myDevicesHelpAccess": "你可以控制哪些 Agent 能动你的电脑：默认只有你的私人助理 (Personal Staff) 能进，而私人助理只和你本人聊，别人动不到；其他 Agent 要动你的电脑，需要你显式授权。",
+  "myDevicesHelpAccess": "控制权归你个人，不归 workspace —— 切换 workspace 时授权不受影响。默认只有你的私人助理 (Personal Staff) 能用，而私人助理只和你本人聊，别人动不到；其他 Agent 要动你的电脑，需要你亲手点同意。",
   "thisMac": "这台电脑",
   "otherDevices_zero": "我的其他设备",
   "otherDevices_one": "我的其他设备 (1)",
@@ -34,8 +34,8 @@
     "deviceRevoked": "aHand：此设备已被撤销，请重新启用。",
     "autoRefreshFailed": "aHand：自动刷新失败 — {{msg}}"
   },
-  "ctaTitle": "让 Agent 接管你的电脑",
-  "ctaBody": "使用 Team9 桌面应用把这台电脑变成你 Agent 的远程执行手臂，以极低的成本获得本机 shell 能力。",
+  "ctaTitle": "让 Agent 真的帮你动电脑",
+  "ctaBody": "想让 Agent 真的帮你动电脑、开浏览器、搞定事情？下载桌面 App，几秒钟就能绑定这台机器。",
   "ctaPrimaryAction": "打开桌面应用",
   "ctaSecondaryAction": "下载桌面应用",
   "noAppInstalledHint": "如果没有反应，桌面应用可能尚未安装。"

@@ -2,7 +2,7 @@
   "myDevices": "Mijn apparaten",
   "myDevicesHelpAria": "Wat is dit?",
   "myDevicesHelpIntro": "Dit zijn de computers die je hebt geautoriseerd voor AI-personeel. Eenmaal ingeschakeld, kan een agent op die machine echte commando's uitvoeren, bestanden openen, apps starten en op het web surfen — niet alleen chatten.",
-  "myDevicesHelpAccess": "Jij bepaalt wie erin mag: standaard mag alleen jouw Personal Staff deze computer gebruiken, en jouw Personal Staff praat alleen met jou — met niemand anders. Elke andere agent heeft jouw expliciete toestemming nodig.",
+  "myDevicesHelpAccess": "De controle over deze computer is van jou persoonlijk, niet van een workspace — van workspace wisselen verandert deze instellingen niet. Standaard mag alleen jouw Personal Staff hem gebruiken, en jouw Personal Staff praat alleen met jou — met niemand anders. Elke andere agent heeft jouw directe goedkeuring nodig.",
   "thisMac": "Deze Mac",
   "otherDevices_zero": "Mijn andere apparaten",
   "otherDevices_one": "Mijn andere apparaten (1)",
@@ -34,8 +34,8 @@
     "deviceRevoked": "aHand: dit apparaat is niet meer geautoriseerd. Schakel het opnieuw in.",
     "autoRefreshFailed": "aHand: automatisch verversen mislukt — {{msg}}"
   },
-  "ctaTitle": "Laat agents je computer overnemen",
-  "ctaBody": "Gebruik de Team9-desktop-app om deze machine te veranderen in de remote-uitvoeringsarm van je agent — tegen bijna nul kosten.",
+  "ctaTitle": "Laat een agent je computer echt gebruiken",
+  "ctaBody": "Wil je dat een agent echt je computer en browser bestuurt — niet alleen chat? Haal onze desktop-app en koppel deze machine in seconden.",
   "ctaPrimaryAction": "Desktop-app openen",
   "ctaSecondaryAction": "Desktop-app downloaden",
   "noAppInstalledHint": "Als er niets is gebeurd, is de desktop-app mogelijk nog niet geïnstalleerd."
