@@ -72,6 +72,7 @@
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-autostart": "^2",
     "@tauri-apps/plugin-deep-link": "^2.4.7",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2",
     "@types/diff": "^8.0.0",

@@ -8,6 +8,7 @@ import { useAhandStore } from "@/stores/useAhandStore";
 import { useUser } from "@/stores/useAppStore";
 import { ahandTauri } from "@/services/ahand-tauri";
 import { ahandApi } from "@/services/ahand-api";
+import { confirmDestructive } from "@/lib/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { AHAND_DEVICES_QUERY_KEY } from "@/hooks/useAhandDevices";
@@ -71,8 +72,7 @@ export function ThisMacSection() {
 
   const handleRemove = useCallback(async () => {
     if (!userId || !deviceId) return;
-    // window.confirm is a no-op in Tauri (WKWebView); proceed directly.
-    // TODO: swap for a Radix AlertDialog once the E2E flow is validated.
+    if (!(await confirmDestructive(t("confirmRemoveThisMac")))) return;
     setBusy(true);
     try {
       await ahandTauri.stop();

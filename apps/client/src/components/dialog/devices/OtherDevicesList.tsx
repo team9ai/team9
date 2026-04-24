@@ -12,6 +12,7 @@ import {
 import { useAhandStore } from "@/stores/useAhandStore";
 import { useUser } from "@/stores/useAppStore";
 import { ahandApi, type DeviceDto } from "@/services/ahand-api";
+import { confirmDestructive } from "@/lib/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil, Check, X } from "lucide-react";
 
@@ -39,10 +40,9 @@ export function OtherDevicesList({ excludeLocal }: { excludeLocal: boolean }) {
   if (devices.length === 0) return null;
 
   async function handleRemove(device: DeviceDto): Promise<void> {
-    // Note: Stream E used window.confirm() here, which is a no-op in
-    // Tauri (WKWebView blocks it) — Remove clicks silently dropped with
-    // no network request. Clicking "Remove" is a deliberate action so
-    // we proceed directly; a proper Radix AlertDialog is follow-up work.
+    if (!(await confirmDestructive(t("confirmRemove", { name: device.nickname })))) {
+      return;
+    }
     try {
       await ahandApi.remove(device.id);
       qc.invalidateQueries({ queryKey: AHAND_DEVICES_QUERY_KEY });

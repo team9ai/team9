@@ -239,6 +239,7 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(PendingUpdate::default())
         .manage(ahand::AhandRuntime::new())
         .setup(|app| {
