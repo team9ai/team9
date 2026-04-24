@@ -1,5 +1,8 @@
 {
   "myDevices": "マイデバイス",
+  "myDevicesHelpAria": "これは何？",
+  "myDevicesHelpIntro": "これらはあなたが AI スタッフに許可したローカル PC です。有効にすると、Agent はそのマシン上で実際のコマンド実行、ファイルアクセス、アプリ起動、ウェブ閲覧ができます —— ただのチャットではありません。",
+  "myDevicesHelpAccess": "どの Agent があなたの PC を使えるかを制御できます：デフォルトではあなたのパーソナルアシスタント (Personal Staff) のみが使用可能で、パーソナルアシスタントはあなた本人としか会話せず、他人からは触れません。他の Agent があなたの PC を使うには、明示的な許可が必要です。",
   "thisMac": "この Mac",
   "otherDevices_zero": "その他のデバイス",
   "otherDevices_one": "その他のデバイス (1)",

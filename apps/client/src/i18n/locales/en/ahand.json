@@ -1,5 +1,8 @@
 {
   "myDevices": "My Devices",
+  "myDevicesHelpAria": "What is this?",
+  "myDevicesHelpIntro": "These are the computers you've authorized for AI staff. Once enabled, an agent can run real commands, access files, open apps, and browse the web on that machine — not just chat.",
+  "myDevicesHelpAccess": "You control who gets in: by default only your Personal Staff can use this computer, and your Personal Staff only talks to you — nobody else. Any other agent needs your explicit permission.",
   "thisMac": "This Mac",
   "otherDevices_zero": "My Other Devices",
   "otherDevices_one": "My Other Devices (1)",

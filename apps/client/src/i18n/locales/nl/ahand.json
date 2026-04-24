@@ -1,5 +1,8 @@
 {
   "myDevices": "Mijn apparaten",
+  "myDevicesHelpAria": "Wat is dit?",
+  "myDevicesHelpIntro": "Dit zijn de computers die je hebt geautoriseerd voor AI-personeel. Eenmaal ingeschakeld, kan een agent op die machine echte commando's uitvoeren, bestanden openen, apps starten en op het web surfen — niet alleen chatten.",
+  "myDevicesHelpAccess": "Jij bepaalt wie erin mag: standaard mag alleen jouw Personal Staff deze computer gebruiken, en jouw Personal Staff praat alleen met jou — met niemand anders. Elke andere agent heeft jouw expliciete toestemming nodig.",
   "thisMac": "Deze Mac",
   "otherDevices_zero": "Mijn andere apparaten",
   "otherDevices_one": "Mijn andere apparaten (1)",

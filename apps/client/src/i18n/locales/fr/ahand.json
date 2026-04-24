@@ -1,5 +1,8 @@
 {
   "myDevices": "Mes appareils",
+  "myDevicesHelpAria": "Qu'est-ce que c'est ?",
+  "myDevicesHelpIntro": "Ce sont les ordinateurs que vous avez autorisés pour votre personnel IA. Une fois activé, un agent peut exécuter de vraies commandes, accéder aux fichiers, ouvrir des applis et naviguer sur le web sur cette machine — pas juste discuter.",
+  "myDevicesHelpAccess": "Vous contrôlez qui entre : par défaut, seul votre Personal Staff peut utiliser cet ordinateur, et votre Personal Staff ne parle qu'à vous — personne d'autre. Tout autre agent a besoin d'une autorisation explicite de votre part.",
   "thisMac": "Ce Mac",
   "otherDevices_zero": "Mes autres appareils",
   "otherDevices_one": "Mes autres appareils (1)",

@@ -1,5 +1,8 @@
 {
   "myDevices": "I miei dispositivi",
+  "myDevicesHelpAria": "Cos'è questo?",
+  "myDevicesHelpIntro": "Sono i computer che hai autorizzato per il personale IA. Una volta abilitato, un agente può eseguire comandi reali, accedere ai file, aprire app e navigare sul web su quella macchina — non solo chattare.",
+  "myDevicesHelpAccess": "Tu controlli chi entra: di default solo il tuo Personal Staff può usare questo computer, e il tuo Personal Staff parla solo con te — con nessun altro. Qualsiasi altro agente ha bisogno del tuo permesso esplicito.",
   "thisMac": "Questo Mac",
   "otherDevices_zero": "I miei altri dispositivi",
   "otherDevices_one": "I miei altri dispositivi (1)",

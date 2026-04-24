@@ -1,5 +1,8 @@
 {
   "myDevices": "Meine Geräte",
+  "myDevicesHelpAria": "Was ist das?",
+  "myDevicesHelpIntro": "Das sind die Computer, die du deinen KI-Mitarbeitern freigegeben hast. Sobald aktiviert, kann ein Agent auf dem Gerät echte Befehle ausführen, Dateien öffnen, Apps starten und im Web surfen — nicht nur chatten.",
+  "myDevicesHelpAccess": "Du bestimmst, wer Zugriff hat: Standardmäßig darf nur dein Personal Staff diesen Computer nutzen, und dein Personal Staff spricht nur mit dir — sonst mit niemandem. Jeder andere Agent braucht deine ausdrückliche Erlaubnis.",
   "thisMac": "Dieser Mac",
   "otherDevices_zero": "Meine anderen Geräte",
   "otherDevices_one": "Meine anderen Geräte (1)",

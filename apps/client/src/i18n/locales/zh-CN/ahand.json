@@ -1,5 +1,8 @@
 {
   "myDevices": "我的设备",
+  "myDevicesHelpAria": "这是什么？",
+  "myDevicesHelpIntro": "这些是你授权给 AI 员工的本地电脑。开启后，Agent 可以在该机器上运行真实命令、访问文件、打开应用、浏览网页 —— 不再只是聊天。",
+  "myDevicesHelpAccess": "你可以控制哪些 Agent 能动你的电脑：默认只有你的私人助理 (Personal Staff) 能进，而私人助理只和你本人聊，别人动不到；其他 Agent 要动你的电脑，需要你显式授权。",
   "thisMac": "这台电脑",
   "otherDevices_zero": "我的其他设备",
   "otherDevices_one": "我的其他设备 (1)",
