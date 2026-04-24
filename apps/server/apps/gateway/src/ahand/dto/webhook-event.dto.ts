@@ -57,9 +57,14 @@ export class WebhookEventDto {
   @Matches(/^[0-9a-f]{64}$/)
   deviceId!: string;
 
+  // Hub omits this field on events where it's not known / applicable
+  // (ahand-hub/src/webhook/mod.rs uses serde skip_serializing_if on
+  // Option::is_none). Gateway handlers look the owner up server-side
+  // by deviceId for non-registered events anyway.
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  externalUserId!: string;
+  externalUserId?: string;
 
   @IsObject()
   data!: WebhookEventDataDto;
