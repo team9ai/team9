@@ -17,8 +17,9 @@ import {
   ChevronRight,
   Laptop,
   CircleCheck,
-  CircleAlert,
+  CircleX,
   Ban,
+  WifiOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -510,34 +511,41 @@ export function MainSidebar() {
                 aria-label={tAhand("myDevices")}
                 className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2"
               >
-                <Laptop
-                  size={18}
-                  className={cn(
-                    deriveSidebarLaptopColor(
+                {/* Inner wrapper sized to the Laptop glyph so the badge can
+                    hug its bottom-right corner (with partial overlap) rather
+                    than the button's padding edge. */}
+                <span className="relative inline-flex">
+                  <Laptop
+                    size={24}
+                    className={cn(
+                      deriveSidebarLaptopColor(
+                        localStatus,
+                        ahandDevices,
+                        isTauriApp(),
+                      ),
+                    )}
+                  />
+                  {(() => {
+                    const Badge = deriveSidebarBadgeIcon(
                       localStatus,
                       ahandDevices,
                       isTauriApp(),
-                    ),
-                  )}
-                />
-                {(() => {
-                  const Badge = deriveSidebarBadgeIcon(
-                    localStatus,
-                    ahandDevices,
-                    isTauriApp(),
-                  );
-                  if (!Badge) return null;
-                  return (
-                    <Badge.icon
-                      size={10}
-                      strokeWidth={2.5}
-                      className={cn(
-                        "absolute -bottom-0.5 -right-0.5 bg-nav-bg rounded-full",
-                        Badge.className,
-                      )}
-                    />
-                  );
-                })()}
+                    );
+                    if (!Badge) return null;
+                    return (
+                      <Badge.icon
+                        size={14}
+                        strokeWidth={2.5}
+                        // translate-x/y picks a ~40% overlap with the
+                        // Laptop's bottom-right corner.
+                        className={cn(
+                          "absolute bottom-0 right-0 translate-x-1/3 translate-y-1/3 bg-nav-bg rounded-full",
+                          Badge.className,
+                        )}
+                      />
+                    );
+                  })()}
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -753,8 +761,9 @@ function deriveSidebarLaptopColor(
     : "";
 }
 
-/** Small overlay glyph at bottom-right. Present only for terminal states
- *  so at-a-glance colour on the Laptop itself stays the primary signal. */
+/** Small overlay glyph at bottom-right of the Laptop icon — distinct
+ *  lucide icons per state so the shape carries meaning even if color
+ *  is muted. */
 function deriveSidebarBadgeIcon(
   local: ReturnType<typeof useAhandLocalStatus>,
   devices: ReturnType<typeof useAhandDevices>["data"],
@@ -765,16 +774,19 @@ function deriveSidebarBadgeIcon(
       case "online":
         return { icon: CircleCheck, className: "text-green-500" };
       case "error":
-        return { icon: CircleAlert, className: "text-destructive" };
+        return { icon: CircleX, className: "text-destructive" };
       case "offline":
-        return { icon: Ban, className: "text-muted-foreground" };
-      default:
+        return { icon: WifiOff, className: "text-muted-foreground" };
+      case "connecting":
         return null;
+      case "idle":
+      default:
+        return { icon: Ban, className: "text-muted-foreground" };
     }
   }
   return (devices ?? []).some((d) => d.isOnline === true)
     ? { icon: CircleCheck, className: "text-green-500" }
-    : null;
+    : { icon: Ban, className: "text-muted-foreground" };
 }
 
 function deriveSidebarStatusLabel(
