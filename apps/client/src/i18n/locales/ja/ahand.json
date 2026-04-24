@@ -14,6 +14,35 @@
     "auditDescription": "Agent があなたのデバイスを使用した記録。",
     "placeholder": "近日公開。開発中です。"
   },
+  "audit": {
+    "recentTitle": "最近のアクティビティ",
+    "recentDescription": "この PC で Agent がしたこと、しようとしたこと、すべての記録。",
+    "filterAgentAll": "全ての Agent",
+    "filterOutcomeAll": "全ての結果",
+    "filterRange7d": "直近 7 日",
+    "minutesAgo_one": "{{count}} 分前",
+    "minutesAgo_other": "{{count}} 分前",
+    "hoursAgo_one": "{{count}} 時間前",
+    "hoursAgo_other": "{{count}} 時間前",
+    "yesterday": "昨日",
+    "outcome": {
+      "approved": "承認",
+      "denied": "拒否",
+      "pending": "保留中"
+    },
+    "source": {
+      "auto": "ポリシーにより自動承認",
+      "userApproved": "あなたが承認",
+      "userDenied": "あなたが拒否",
+      "awaitingApproval": "あなたの承認待ち"
+    },
+    "verb": {
+      "ranCommand": "実行",
+      "openedUrl": "開いた",
+      "readFile": "読み取り",
+      "requestedPermission": "使用を申請"
+    }
+  },
   "permissions": {
     "default": "デフォルト",
     "approval": {

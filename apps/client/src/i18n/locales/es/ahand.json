@@ -14,6 +14,35 @@
     "auditDescription": "Historial de cada vez que un agente usó uno de tus dispositivos.",
     "placeholder": "Próximamente. Todavía lo estamos desarrollando."
   },
+  "audit": {
+    "recentTitle": "Actividad reciente",
+    "recentDescription": "Todo lo que un agente ha hecho — o intentado hacer — en este ordenador.",
+    "filterAgentAll": "Todos los agentes",
+    "filterOutcomeAll": "Todos los resultados",
+    "filterRange7d": "Últimos 7 días",
+    "minutesAgo_one": "hace {{count}} min",
+    "minutesAgo_other": "hace {{count}} min",
+    "hoursAgo_one": "hace {{count}} h",
+    "hoursAgo_other": "hace {{count}} h",
+    "yesterday": "Ayer",
+    "outcome": {
+      "approved": "Aprobado",
+      "denied": "Denegado",
+      "pending": "En espera"
+    },
+    "source": {
+      "auto": "aprobado automáticamente por regla",
+      "userApproved": "lo aprobaste tú",
+      "userDenied": "lo denegaste tú",
+      "awaitingApproval": "necesita tu OK"
+    },
+    "verb": {
+      "ranCommand": "ejecutó",
+      "openedUrl": "abrió",
+      "readFile": "leyó",
+      "requestedPermission": "solicitó usar"
+    }
+  },
   "permissions": {
     "default": "Por defecto",
     "approval": {

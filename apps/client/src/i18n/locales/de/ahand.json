@@ -14,6 +14,35 @@
     "auditDescription": "Ein Protokoll jeder Nutzung deiner Geräte durch einen Agenten.",
     "placeholder": "Demnächst — wir bauen das noch."
   },
+  "audit": {
+    "recentTitle": "Letzte Aktivität",
+    "recentDescription": "Alles, was ein Agent auf diesem Computer getan — oder versucht — hat.",
+    "filterAgentAll": "Alle Agenten",
+    "filterOutcomeAll": "Alle Ergebnisse",
+    "filterRange7d": "Letzte 7 Tage",
+    "minutesAgo_one": "vor {{count}} Min.",
+    "minutesAgo_other": "vor {{count}} Min.",
+    "hoursAgo_one": "vor {{count}} Std.",
+    "hoursAgo_other": "vor {{count}} Std.",
+    "yesterday": "Gestern",
+    "outcome": {
+      "approved": "Genehmigt",
+      "denied": "Abgelehnt",
+      "pending": "Wartet"
+    },
+    "source": {
+      "auto": "automatisch genehmigt (Regel)",
+      "userApproved": "du hast genehmigt",
+      "userDenied": "du hast abgelehnt",
+      "awaitingApproval": "braucht dein OK"
+    },
+    "verb": {
+      "ranCommand": "führte aus",
+      "openedUrl": "öffnete",
+      "readFile": "las",
+      "requestedPermission": "bat um die Nutzung von"
+    }
+  },
   "permissions": {
     "default": "Standard",
     "approval": {

@@ -14,6 +14,35 @@
     "auditDescription": "Agent가 내 기기를 사용한 모든 기록.",
     "placeholder": "출시 예정. 아직 개발 중입니다."
   },
+  "audit": {
+    "recentTitle": "최근 활동",
+    "recentDescription": "이 컴퓨터에서 Agent가 한 일, 하려 한 일 — 전부.",
+    "filterAgentAll": "모든 Agent",
+    "filterOutcomeAll": "모든 결과",
+    "filterRange7d": "최근 7일",
+    "minutesAgo_one": "{{count}}분 전",
+    "minutesAgo_other": "{{count}}분 전",
+    "hoursAgo_one": "{{count}}시간 전",
+    "hoursAgo_other": "{{count}}시간 전",
+    "yesterday": "어제",
+    "outcome": {
+      "approved": "승인",
+      "denied": "거부",
+      "pending": "대기"
+    },
+    "source": {
+      "auto": "정책에 따라 자동 승인",
+      "userApproved": "당신이 승인",
+      "userDenied": "당신이 거부",
+      "awaitingApproval": "당신의 승인 필요"
+    },
+    "verb": {
+      "ranCommand": "실행",
+      "openedUrl": "열기",
+      "readFile": "읽기",
+      "requestedPermission": "사용 요청"
+    }
+  },
   "permissions": {
     "default": "기본",
     "approval": {

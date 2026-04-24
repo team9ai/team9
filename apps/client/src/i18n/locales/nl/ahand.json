@@ -14,6 +14,35 @@
     "auditDescription": "Een logboek van elke keer dat een agent een van je apparaten gebruikte.",
     "placeholder": "Binnenkort. We bouwen hier nog aan."
   },
+  "audit": {
+    "recentTitle": "Recente activiteit",
+    "recentDescription": "Alles wat een agent op deze computer heeft gedaan — of geprobeerd te doen.",
+    "filterAgentAll": "Alle agents",
+    "filterOutcomeAll": "Alle uitkomsten",
+    "filterRange7d": "Afgelopen 7 dagen",
+    "minutesAgo_one": "{{count}} min geleden",
+    "minutesAgo_other": "{{count}} min geleden",
+    "hoursAgo_one": "{{count}} uur geleden",
+    "hoursAgo_other": "{{count}} uur geleden",
+    "yesterday": "Gisteren",
+    "outcome": {
+      "approved": "Goedgekeurd",
+      "denied": "Geweigerd",
+      "pending": "In afwachting"
+    },
+    "source": {
+      "auto": "automatisch goedgekeurd door regel",
+      "userApproved": "jij keurde goed",
+      "userDenied": "jij weigerde",
+      "awaitingApproval": "wacht op jouw OK"
+    },
+    "verb": {
+      "ranCommand": "voerde uit",
+      "openedUrl": "opende",
+      "readFile": "las",
+      "requestedPermission": "vroeg om te gebruiken"
+    }
+  },
   "permissions": {
     "default": "Standaard",
     "approval": {

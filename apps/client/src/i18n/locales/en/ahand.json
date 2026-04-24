@@ -17,6 +17,35 @@
   "myDevicesHelpAria": "What is this?",
   "myDevicesHelpIntro": "These are the computers you've authorized for AI staff. Once enabled, an agent can run real commands, access files, open apps, and browse the web on that machine — not just chat.",
   "myDevicesHelpAccess": "This computer belongs to you, not to any workspace — switching workspaces won't touch these settings. By default only your Personal Staff can use it, and your Personal Staff only talks to you — nobody else. Any other agent needs your hands-on approval.",
+  "audit": {
+    "recentTitle": "Recent activity",
+    "recentDescription": "Everything an agent has done — or asked to do — on this computer.",
+    "filterAgentAll": "All agents",
+    "filterOutcomeAll": "All outcomes",
+    "filterRange7d": "Last 7 days",
+    "minutesAgo_one": "{{count}} min ago",
+    "minutesAgo_other": "{{count}} min ago",
+    "hoursAgo_one": "{{count}} hr ago",
+    "hoursAgo_other": "{{count}} hrs ago",
+    "yesterday": "Yesterday",
+    "outcome": {
+      "approved": "Approved",
+      "denied": "Denied",
+      "pending": "Waiting"
+    },
+    "source": {
+      "auto": "auto-approved by policy",
+      "userApproved": "you approved",
+      "userDenied": "you denied",
+      "awaitingApproval": "needs your OK"
+    },
+    "verb": {
+      "ranCommand": "ran",
+      "openedUrl": "opened",
+      "readFile": "read",
+      "requestedPermission": "requested permission to use"
+    }
+  },
   "permissions": {
     "default": "Default",
     "approval": {

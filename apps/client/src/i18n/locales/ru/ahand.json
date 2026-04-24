@@ -14,6 +14,35 @@
     "auditDescription": "История каждого использования ваших устройств агентами.",
     "placeholder": "Скоро. Мы ещё разрабатываем."
   },
+  "audit": {
+    "recentTitle": "Недавняя активность",
+    "recentDescription": "Всё, что агент делал — или пытался сделать — на этом компьютере.",
+    "filterAgentAll": "Все агенты",
+    "filterOutcomeAll": "Все результаты",
+    "filterRange7d": "Последние 7 дней",
+    "minutesAgo_one": "{{count}} мин назад",
+    "minutesAgo_other": "{{count}} мин назад",
+    "hoursAgo_one": "{{count}} ч назад",
+    "hoursAgo_other": "{{count}} ч назад",
+    "yesterday": "Вчера",
+    "outcome": {
+      "approved": "Одобрено",
+      "denied": "Отклонено",
+      "pending": "Ожидает"
+    },
+    "source": {
+      "auto": "автоматически по правилу",
+      "userApproved": "вы одобрили",
+      "userDenied": "вы отклонили",
+      "awaitingApproval": "ждёт вашего OK"
+    },
+    "verb": {
+      "ranCommand": "выполнил",
+      "openedUrl": "открыл",
+      "readFile": "прочитал",
+      "requestedPermission": "запросил использование"
+    }
+  },
   "permissions": {
     "default": "По умолчанию",
     "approval": {

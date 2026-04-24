@@ -14,6 +14,35 @@
     "auditDescription": "Agent 每次動你裝置的紀錄。",
     "placeholder": "即將推出，我們還在開發。"
   },
+  "audit": {
+    "recentTitle": "最近動態",
+    "recentDescription": "Agent 在這台電腦上做過的——和想做的——每一件事。",
+    "filterAgentAll": "所有 Agent",
+    "filterOutcomeAll": "所有結果",
+    "filterRange7d": "最近 7 天",
+    "minutesAgo_one": "{{count}} 分鐘前",
+    "minutesAgo_other": "{{count}} 分鐘前",
+    "hoursAgo_one": "{{count}} 小時前",
+    "hoursAgo_other": "{{count}} 小時前",
+    "yesterday": "昨天",
+    "outcome": {
+      "approved": "已批准",
+      "denied": "已拒絕",
+      "pending": "待批准"
+    },
+    "source": {
+      "auto": "依規則自動批准",
+      "userApproved": "你已批准",
+      "userDenied": "你已拒絕",
+      "awaitingApproval": "等你點同意"
+    },
+    "verb": {
+      "ranCommand": "執行了",
+      "openedUrl": "打開了",
+      "readFile": "讀取了",
+      "requestedPermission": "申請使用"
+    }
+  },
   "permissions": {
     "default": "預設",
     "approval": {
