@@ -439,7 +439,7 @@ export function ChannelTabs({
   );
 
   return (
-    <div className="flex items-center gap-1 px-3 border-b overflow-x-auto scrollbar-none shrink-0">
+    <div className="flex items-center gap-1 px-3 border-b overflow-x-auto scrollbar-none shrink-0 select-none">
       {sortedTabs.map((tab) => (
         <TabItem
           key={tab.id}
