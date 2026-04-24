@@ -200,15 +200,18 @@ maybeDescribe('WikisModule integration — real folder9', () => {
     // Insert .returning() echoes back a row we mint from the folder9 id.
     let insertedWiki: WikiRow | null = null;
     db.returning.mockImplementationOnce(async () => {
-      // The service passes folder9FolderId into .values() — grab it from the
-      // mock so our returned row matches what was actually persisted.
+      // The service passes folder9FolderId, name, slug into .values() — grab
+      // them from the mock so our returned row mirrors what was actually
+      // persisted. (Using a fresh `Date.now()` here would race with the
+      // caller's own `Date.now()` below by a few ms and break the equality
+      // check on dto.name.)
       const valuesCall = db.values.mock.calls.at(-1)?.[0] as
-        | { folder9FolderId?: string }
+        | { folder9FolderId?: string; name?: string; slug?: string }
         | undefined;
       insertedWiki = makeWikiRow({
         folder9FolderId: valuesCall?.folder9FolderId ?? 'unknown',
-        name: `f1-${Date.now()}`,
-        slug: `f1-${Date.now()}`,
+        name: valuesCall?.name ?? 'unknown',
+        slug: valuesCall?.slug ?? 'unknown',
       });
       return [insertedWiki];
     });
