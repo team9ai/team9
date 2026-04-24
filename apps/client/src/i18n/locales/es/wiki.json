@@ -1,0 +1,188 @@
+{
+  "sidebar": {
+    "loading": "Cargando…",
+    "empty": "Aún no hay wikis. Haz clic en + para crear una.",
+    "createWiki": "Crear Wiki",
+    "reviewProposals": "Revisar propuestas",
+    "itemActions": "Acciones de {{name}}"
+  },
+  "empty": {
+    "title": "Selecciona una página del Wiki",
+    "description": "Elige una página del árbol de la izquierda o crea un nuevo Wiki con el botón +."
+  },
+  "route": {
+    "notFound": "Wiki no encontrado."
+  },
+  "common": {
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "loading": "Cargando…",
+    "required": "*",
+    "optional": "(opcional)"
+  },
+  "create": {
+    "title": "Crear Wiki",
+    "description": "Crea un nuevo Wiki para colaborar en páginas con tu equipo.",
+    "iconLabel": "Icono",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "Manual del equipo",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "Letras minúsculas, números y guiones. Debe comenzar con una letra o número. Se deriva automáticamente del nombre hasta que lo edites.",
+    "cancel": "Cancelar",
+    "submit": "Crear Wiki",
+    "submitting": "Creando…",
+    "errors": {
+      "nameRequired": "El nombre es obligatorio.",
+      "slugTooLong": "El slug debe tener {{max}} caracteres o menos.",
+      "slugPattern": "El slug debe comenzar con una letra minúscula o número y contener solo letras minúsculas, números y guiones.",
+      "slugTaken": "Ya existe un Wiki con ese slug. Elige otro.",
+      "createFailed": "No se pudo crear. Inténtalo de nuevo.",
+      "createFailedWithMessage": "No se pudo crear: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Configuración del Wiki",
+    "description": "Configura cómo se nombra este Wiki, quién puede editarlo y cómo se revisan los cambios propuestos.",
+    "generalHeading": "General",
+    "iconLabel": "Icono",
+    "nameLabel": "Nombre",
+    "slugLabel": "Slug",
+    "slugHelp": "Letras minúsculas, números y guiones. Debe comenzar con una letra o número.",
+    "approvalHeading": "Modo de aprobación",
+    "approvalLegend": "Modo de aprobación",
+    "approvalAutoLabel": "Fusión automática",
+    "approvalAutoDescription": "Las escrituras se publican inmediatamente sin revisión.",
+    "approvalReviewLabel": "Revisión obligatoria",
+    "approvalReviewDescription": "Las escrituras se envían como propuestas que un revisor debe aprobar.",
+    "permissionsHeading": "Permisos",
+    "humanLabel": "Humano",
+    "agentLabel": "Agente",
+    "permissionRead": "Lectura",
+    "permissionPropose": "Proponer",
+    "permissionWrite": "Escritura",
+    "dangerZoneHeading": "Zona de peligro",
+    "dangerZoneDescription": "Archivar oculta este Wiki de la barra lateral para todos. El contenido permanece en el servidor y un administrador puede restaurarlo.",
+    "archiveButton": "Archivar Wiki",
+    "cancel": "Cancelar",
+    "save": "Guardar cambios",
+    "saving": "Guardando…",
+    "errors": {
+      "nameRequired": "El nombre es obligatorio.",
+      "slugRequired": "El slug es obligatorio.",
+      "slugTooLong": "El slug debe tener {{max}} caracteres o menos.",
+      "slugPattern": "El slug debe comenzar con una letra minúscula o número y contener solo letras minúsculas, números y guiones.",
+      "slugTaken": "Ya existe un Wiki con ese slug. Elige otro.",
+      "updateForbidden": "No tienes permiso para actualizar este Wiki.",
+      "updateFailed": "No se pudo actualizar. Inténtalo de nuevo.",
+      "updateFailedWithMessage": "No se pudo actualizar: {{message}}",
+      "archiveForbidden": "No tienes permiso para archivar este Wiki.",
+      "archiveFailed": "No se pudo archivar. Inténtalo de nuevo.",
+      "archiveFailedWithMessage": "No se pudo archivar: {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "Configuración",
+    "archive": "Archivar",
+    "actionsLabel": "Acciones de {{name}}"
+  },
+  "archive": {
+    "title": "¿Archivar este Wiki?",
+    "description": "“{{name}}” se ocultará de la barra lateral para todos. Puedes pedir a un administrador que lo restaure más tarde.",
+    "cancel": "Cancelar",
+    "confirm": "Archivar",
+    "archiving": "Archivando…"
+  },
+  "iconPicker": {
+    "ariaLabel": "Elegir icono de la página"
+  },
+  "coverPicker": {
+    "addCover": "Añadir portada",
+    "changeCover": "Cambiar portada",
+    "addTriggerAria": "Añadir portada de página",
+    "changeTriggerAria": "Cambiar portada de página",
+    "pathLabel": "Ruta de imagen de portada",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "Pega una ruta de folder9. Las cargas llegarán en una versión futura.",
+    "remove": "Eliminar",
+    "apply": "Aplicar"
+  },
+  "editor": {
+    "staleAlert": "Tienes cambios locales sin guardar. Mostrando tu borrador.",
+    "staleDismissAria": "Descartar aviso de borrador obsoleto",
+    "notifySaved": "Guardado",
+    "notifySubmitted": "Enviado para revisión",
+    "notifyUploadFailed": "Error al subir",
+    "errors": {
+      "saveConflict": "No se pudo guardar: la página ha cambiado en el servidor. Recarga y vuelve a aplicar tus cambios.",
+      "saveForbidden": "No se pudo guardar: no tienes permiso para actualizar esta página.",
+      "saveFailed": "No se pudo guardar. Inténtalo de nuevo."
+    }
+  },
+  "status": {
+    "synced": "Sincronizado",
+    "unsaved": "Cambios sin guardar",
+    "lastSaved": "· último guardado {{time}}",
+    "save": "Guardar",
+    "saving": "Guardando…"
+  },
+  "page": {
+    "loading": "Cargando…",
+    "binaryFile": "Archivo binario — no editable aquí."
+  },
+  "proposalBanner": {
+    "message": "Esta página tiene una propuesta pendiente de revisión.",
+    "view": "Ver propuesta"
+  },
+  "submitReview": {
+    "title": "Enviar para revisión",
+    "description": "Este Wiki requiere revisión antes de publicar los cambios. Tu borrador se guardará como una propuesta que un revisor podrá aprobar.",
+    "titleLabel": "Título",
+    "titlePlaceholder": "Breve resumen del cambio",
+    "descriptionLabel": "Descripción",
+    "descriptionPlaceholder": "Añade cualquier contexto que los revisores deban saber sobre este cambio",
+    "cancel": "Cancelar",
+    "submit": "Enviar para revisión",
+    "submitting": "Enviando…"
+  },
+  "review": {
+    "heading": "Revisión – {{name}}",
+    "description": "Propuestas pendientes de revisión.",
+    "loading": "Cargando…",
+    "loadFailed": "No se pudieron cargar las propuestas.",
+    "empty": "No hay propuestas pendientes.",
+    "untitledProposal": "Propuesta sin título",
+    "authorAgent": "Agente",
+    "authorUser": "Usuario"
+  },
+  "proposalDiff": {
+    "back": "Volver a la cola de revisión",
+    "proposalFallbackTitle": "Propuesta {{id}}",
+    "authorAgent": "Agente",
+    "authorUser": "Usuario",
+    "reject": "Rechazar",
+    "approve": "Aprobar",
+    "rejectReasonLabel": "Motivo (opcional)",
+    "rejectReasonPlaceholder": "Indica al autor por qué se rechaza esta propuesta.",
+    "rejectCancel": "Cancelar",
+    "rejectConfirm": "Confirmar rechazo",
+    "diffLoading": "Cargando diff…",
+    "diffLoadFailed": "No se pudo cargar el diff.",
+    "diffEmpty": "Esta propuesta no contiene cambios de archivos.",
+    "fileEmpty": "(sin contenido)",
+    "errors": {
+      "approveConflict": "Conflicto — fusión cancelada",
+      "approveForbidden": "No tienes permiso para aprobar esta propuesta.",
+      "approveFailed": "No se pudo aprobar. Inténtalo de nuevo.",
+      "rejectConflict": "Conflicto — fusión cancelada",
+      "rejectForbidden": "No tienes permiso para rechazar esta propuesta.",
+      "rejectFailed": "No se pudo rechazar. Inténtalo de nuevo."
+    }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki no encontrado — puede haber sido archivado.",
+    "boundaryMessage": "Algo salió mal — inténtalo de nuevo.",
+    "boundaryRetry": "Reintentar"
+  }
+}

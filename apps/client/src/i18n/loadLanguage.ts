@@ -14,6 +14,7 @@ export const NAMESPACES = [
   "resources",
   "skills",
   "onboarding",
+  "wiki",
   "deepResearch",
   "ahand",
 ] as const;

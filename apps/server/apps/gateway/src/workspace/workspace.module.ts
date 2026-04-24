@@ -19,6 +19,7 @@ import { ChannelsModule } from '../im/channels/channels.module.js';
 import { ApplicationsModule } from '../applications/applications.module.js';
 import { BillingHubModule } from '../billing-hub/billing-hub.module.js';
 import { RoutinesModule } from '../routines/routines.module.js';
+import { WikisModule } from '../wikis/wikis.module.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RoutinesModule } from '../routines/routines.module.js';
     forwardRef(() => ApplicationsModule),
     BillingHubModule,
     forwardRef(() => RoutinesModule),
+    WikisModule,
   ],
   controllers: [
     WorkspaceController,

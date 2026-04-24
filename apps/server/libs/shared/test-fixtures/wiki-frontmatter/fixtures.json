@@ -1,0 +1,26 @@
+{
+  "basic.md": {
+    "frontmatter": {
+      "icon": "📘",
+      "cover": ".team9/covers/hero.jpg",
+      "title": "Welcome"
+    },
+    "body": "# Welcome\n\nSome content.\n"
+  },
+  "no-frontmatter.md": {
+    "frontmatter": {},
+    "body": "# Just a title\n\nNo frontmatter here.\n"
+  },
+  "unknown-keys.md": {
+    "frontmatter": {
+      "icon": "🔐",
+      "customField": { "nested": "value" },
+      "anotherKey": 42
+    },
+    "body": "Body with unknown frontmatter keys.\n"
+  },
+  "empty-body.md": {
+    "frontmatter": { "icon": "📝", "title": "Draft" },
+    "body": ""
+  }
+}
