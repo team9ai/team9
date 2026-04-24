@@ -126,6 +126,11 @@ export function useWikiWebSocketSync(): void {
           queryClient.invalidateQueries({
             queryKey: wikiKeys.proposals(wikiId),
           });
+          // Aggregated sub-sidebar badge must reflect the new pending
+          // proposal across the whole workspace.
+          queryClient.invalidateQueries({
+            queryKey: wikiKeys.pendingCounts(),
+          });
         },
       ],
       [
@@ -140,6 +145,9 @@ export function useWikiWebSocketSync(): void {
           // Approval merges the proposal into the canonical branch, so any
           // page query for this wiki may now be stale.
           queryClient.invalidateQueries({ queryKey: wikiKeys.pages(wikiId) });
+          queryClient.invalidateQueries({
+            queryKey: wikiKeys.pendingCounts(),
+          });
           if (proposalId) {
             clearSubmittedProposalsByProposalId(proposalId);
           }
@@ -156,6 +164,9 @@ export function useWikiWebSocketSync(): void {
           });
           // Rejection doesn't alter the canonical branch, so we don't
           // invalidate page queries here — the banner flip is enough.
+          queryClient.invalidateQueries({
+            queryKey: wikiKeys.pendingCounts(),
+          });
           if (proposalId) {
             clearSubmittedProposalsByProposalId(proposalId);
           }

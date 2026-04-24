@@ -161,7 +161,7 @@ describe("useWikiWebSocketSync", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("wiki_proposal_created invalidates the proposals prefix", () => {
+  it("wiki_proposal_created invalidates the proposals prefix and pending-counts", () => {
     const spy = vi.spyOn(queryClient, "invalidateQueries");
     renderHook(() => useWikiWebSocketSync(), {
       wrapper: makeWrapper(queryClient),
@@ -176,6 +176,10 @@ describe("useWikiWebSocketSync", () => {
 
     expect(spy).toHaveBeenCalledWith({
       queryKey: wikiKeys.proposals("wiki-1"),
+    });
+    // Aggregated sub-sidebar badge must reflect the new pending proposal.
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
     });
   });
 
@@ -218,6 +222,9 @@ describe("useWikiWebSocketSync", () => {
     });
     expect(spy).toHaveBeenCalledWith({
       queryKey: wikiKeys.pages("wiki-1"),
+    });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
     });
 
     const map = useWikiStore.getState().submittedProposals;
@@ -291,6 +298,11 @@ describe("useWikiWebSocketSync", () => {
     // invalidated — only the proposals cache.
     expect(spy).not.toHaveBeenCalledWith({
       queryKey: wikiKeys.pages("wiki-1"),
+    });
+    // Aggregated sub-sidebar badge must refresh (resolved proposal stops
+    // contributing to the workspace total).
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
     });
 
     const map = useWikiStore.getState().submittedProposals;

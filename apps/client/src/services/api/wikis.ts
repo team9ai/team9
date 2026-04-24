@@ -6,6 +6,7 @@ import type {
   CommitPageInput,
   CommitPageResponse,
   PageDto,
+  PendingCountsResponse,
   ProposalDiffEntry,
   ProposalDto,
   TreeEntryDto,
@@ -50,6 +51,20 @@ export interface UpdateWikiInput {
 export const wikisApi = {
   list: async (): Promise<WikiDto[]> => {
     const response = await http.get<WikiDto[]>("/v1/wikis");
+    return response.data;
+  },
+
+  /**
+   * Aggregated pending-proposal counts across every Wiki in the active
+   * workspace. Replaces an N+1 fan-out in the sub-sidebar (one
+   * `listProposals(..., 'pending')` per wiki) with a single request. The
+   * gateway enforces read-permission per wiki; the map contains one entry
+   * per readable wiki keyed by `wikiId`.
+   */
+  getPendingCounts: async (): Promise<PendingCountsResponse> => {
+    const response = await http.get<PendingCountsResponse>(
+      "/v1/wikis/pending-counts",
+    );
     return response.data;
   },
 

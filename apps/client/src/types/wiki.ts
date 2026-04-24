@@ -101,3 +101,13 @@ export interface ProposalDiffEntry {
   OldContent: string;
   NewContent: string;
 }
+
+/**
+ * Response shape for `GET /v1/wikis/pending-counts` — aggregates pending
+ * proposal counts across every Wiki in the active workspace so the
+ * sub-sidebar can render per-wiki badges AND a summed total in one
+ * request instead of N.
+ */
+export interface PendingCountsResponse {
+  counts: Record<string, number>;
+}
