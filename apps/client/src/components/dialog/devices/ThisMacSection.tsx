@@ -71,7 +71,8 @@ export function ThisMacSection() {
 
   const handleRemove = useCallback(async () => {
     if (!userId || !deviceId) return;
-    if (!window.confirm(t("confirmRemoveThisMac"))) return;
+    // window.confirm is a no-op in Tauri (WKWebView); proceed directly.
+    // TODO: swap for a Radix AlertDialog once the E2E flow is validated.
     setBusy(true);
     try {
       await ahandTauri.stop();

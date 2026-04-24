@@ -39,7 +39,10 @@ export function OtherDevicesList({ excludeLocal }: { excludeLocal: boolean }) {
   if (devices.length === 0) return null;
 
   async function handleRemove(device: DeviceDto): Promise<void> {
-    if (!window.confirm(t("confirmRemove", { name: device.nickname }))) return;
+    // Note: Stream E used window.confirm() here, which is a no-op in
+    // Tauri (WKWebView blocks it) — Remove clicks silently dropped with
+    // no network request. Clicking "Remove" is a deliberate action so
+    // we proceed directly; a proper Radix AlertDialog is follow-up work.
     try {
       await ahandApi.remove(device.id);
       qc.invalidateQueries({ queryKey: AHAND_DEVICES_QUERY_KEY });
