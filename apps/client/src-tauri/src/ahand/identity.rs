@@ -51,21 +51,23 @@ pub fn load_or_create(app: &AppHandle, team9_user_id: &str) -> Result<IdentityDt
     let dir = identity_dir(app, team9_user_id)?;
     let id = ahandd::load_or_create_identity(&dir)
         .map_err(|e| format!("load_or_create_identity: {e}"))?;
+    let pubkey = id.public_key_bytes();
     Ok(IdentityDto {
-        device_id: device_id_from_dir(&dir),
-        public_key_b64: STANDARD.encode(id.public_key_bytes()),
+        device_id: device_id_from_pubkey(&pubkey),
+        public_key_b64: STANDARD.encode(&pubkey),
     })
 }
 
-/// Derive a stable device ID from the identity directory path.
-/// Uses the same algorithm as `ahandd::default_device_id` so the Tauri shell
-/// and the embedded library agree on the device ID before the first Online event.
-pub fn device_id_from_dir(identity_dir: &Path) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(b"ahandd-device-id:");
-    hasher.update(identity_dir.as_os_str().as_encoded_bytes());
-    let digest = hasher.finalize();
-    format!("dev-{}", hex::encode(&digest[..8]))
+/// Derive a stable device ID from the public key — `SHA256(pubkey)` hex, per
+/// ahand protocol spec § 2.1. Matches `ahandd::DeviceIdentity::device_id`
+/// and the gateway's register-device DTO regex (`^[0-9a-f]{64}$`).
+///
+/// Earlier versions used `ahandd::default_device_id` (SHA256 of the identity
+/// dir path, `dev-` prefixed, 16 hex chars). That function is test-only; its
+/// output shape fails the gateway's DTO validation at device registration.
+pub fn device_id_from_pubkey(pubkey: &[u8]) -> String {
+    let digest = Sha256::digest(pubkey);
+    hex::encode(digest)
 }
 
 fn validate_user_id(id: &str) -> Result<(), String> {
@@ -192,13 +194,14 @@ mod tests {
     }
 
     #[test]
-    fn device_id_from_dir_is_stable_and_unique() {
-        let a = device_id_from_dir(Path::new("/tmp/ahand-a"));
-        let b = device_id_from_dir(Path::new("/tmp/ahand-a"));
-        let c = device_id_from_dir(Path::new("/tmp/ahand-b"));
+    fn device_id_from_pubkey_is_stable_and_64_hex() {
+        let a = device_id_from_pubkey(&[0u8; 32]);
+        let b = device_id_from_pubkey(&[0u8; 32]);
+        let c = device_id_from_pubkey(&[1u8; 32]);
         assert_eq!(a, b);
         assert_ne!(a, c);
-        assert!(a.starts_with("dev-"));
+        assert_eq!(a.len(), 64);
+        assert!(a.chars().all(|ch| ch.is_ascii_hexdigit() && !ch.is_ascii_uppercase()));
     }
 
     /// Test helper that exercises the remove logic without needing AppHandle.
