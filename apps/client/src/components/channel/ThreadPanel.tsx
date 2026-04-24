@@ -366,7 +366,7 @@ export function ThreadPanel({
 
   return (
     <div
-      className={`${isSnapped ? "flex-1" : ""} border-l bg-background flex flex-col h-full relative`}
+      className={`${isSnapped ? "flex-1" : ""} border-l bg-background flex flex-col h-full relative select-text`}
       style={isSnapped ? undefined : { width: `${width}px` }}
     >
       {!isSnapped && onWidthChange && (
