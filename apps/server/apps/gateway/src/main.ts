@@ -38,14 +38,22 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  // rawBody: true caches the raw request Buffer on req.rawBody while still
-  // letting the default JSON parser populate req.body. The ahand hub webhook
-  // HMAC verifier reads req.rawBody to avoid key-order / whitespace drift,
-  // but the controller still wants the parsed DTO for validation.
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  // Disable Nest's built-in body parser — we register our own below with
+  // a raised 1 MB limit AND a `verify` callback that stashes the raw
+  // request buffer on req.rawBody for the ahand hub webhook HMAC verifier.
+  // The default 100 KB limit is too small for long-text messages; the
+  // raw buffer is needed because Stripe-style signing is sensitive to
+  // key ordering and whitespace.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
-  app.use(json({ limit: '1mb' }));
+  app.use(
+    json({
+      limit: '1mb',
+      verify: (req: unknown, _res, buf: Buffer) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
 
   // Security headers — see security-headers.ts for the policy rationale.
   app.use(securityHeadersMiddleware());
