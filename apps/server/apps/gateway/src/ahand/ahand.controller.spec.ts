@@ -9,7 +9,9 @@ import { AuthGuard } from '@team9/auth';
 import { AhandController } from './ahand.controller.js';
 import { AhandDevicesService } from './ahand.service.js';
 
-const testUser = { id: 'u1', email: 'u@t.co' } as any;
+// Controller reads the user id via @CurrentUser('sub'), so in direct test
+// calls the first argument IS the user id string — not a user object.
+const testUserId = 'u1';
 
 function makeRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -60,7 +62,7 @@ describe('AhandController', () => {
         new ConflictException('Device already registered'),
       );
       await expect(
-        controller.register(testUser, {
+        controller.register(testUserId, {
           hubDeviceId: 'a'.repeat(64),
           publicKey: 'pk',
           nickname: 'A',
@@ -77,7 +79,7 @@ describe('AhandController', () => {
         hubUrl: 'https://hub',
         jwtExpiresAt: '2026-04-29T10:00:00Z',
       });
-      const res = await controller.register(testUser, {
+      const res = await controller.register(testUserId, {
         hubDeviceId: 'a'.repeat(64),
         publicKey: 'pk',
         nickname: 'MyMac',
@@ -103,7 +105,7 @@ describe('AhandController', () => {
         hubUrl: 'h',
         jwtExpiresAt: 'e',
       });
-      const res = await controller.register(testUser, {
+      const res = await controller.register(testUserId, {
         hubDeviceId: 'a'.repeat(64),
         publicKey: 'pk',
         nickname: 'A',
@@ -118,7 +120,7 @@ describe('AhandController', () => {
   describe('list', () => {
     it('defaults includeOffline=true when param omitted', async () => {
       svc.listActiveDevicesForUser.mockResolvedValue([]);
-      await controller.list(testUser, undefined);
+      await controller.list(testUserId, undefined);
       expect(svc.listActiveDevicesForUser).toHaveBeenCalledWith('u1', {
         includeOffline: true,
       });
@@ -126,7 +128,7 @@ describe('AhandController', () => {
 
     it('passes includeOffline=false when "false" string', async () => {
       svc.listActiveDevicesForUser.mockResolvedValue([]);
-      await controller.list(testUser, 'false');
+      await controller.list(testUserId, 'false');
       expect(svc.listActiveDevicesForUser).toHaveBeenCalledWith('u1', {
         includeOffline: false,
       });
@@ -134,7 +136,7 @@ describe('AhandController', () => {
 
     it('any value other than "false" → includeOffline=true', async () => {
       svc.listActiveDevicesForUser.mockResolvedValue([]);
-      await controller.list(testUser, 'true');
+      await controller.list(testUserId, 'true');
       expect(svc.listActiveDevicesForUser).toHaveBeenCalledWith('u1', {
         includeOffline: true,
       });
@@ -148,7 +150,7 @@ describe('AhandController', () => {
           hostname: 'hA',
         }),
       ]);
-      const dtos = await controller.list(testUser, 'true');
+      const dtos = await controller.list(testUserId, 'true');
       expect(dtos).toHaveLength(1);
       expect(dtos[0]).toMatchObject({
         id: 'uuid-1',
@@ -162,7 +164,7 @@ describe('AhandController', () => {
 
     it('returns empty array when service returns nothing', async () => {
       svc.listActiveDevicesForUser.mockResolvedValue([]);
-      expect(await controller.list(testUser)).toEqual([]);
+      expect(await controller.list(testUserId)).toEqual([]);
     });
   });
 
@@ -173,7 +175,7 @@ describe('AhandController', () => {
 
     it('returns JWT pair', async () => {
       svc.refreshDeviceToken.mockResolvedValue({ token: 't', expiresAt: 'e' });
-      const res = await controller.refreshToken(testUser, uuid);
+      const res = await controller.refreshToken(testUserId, uuid);
       expect(res).toEqual({ deviceJwt: 't', jwtExpiresAt: 'e' });
     });
 
@@ -181,7 +183,7 @@ describe('AhandController', () => {
       svc.refreshDeviceToken.mockRejectedValue(
         new NotFoundException('Device not found'),
       );
-      await expect(controller.refreshToken(testUser, uuid)).rejects.toThrow(
+      await expect(controller.refreshToken(testUserId, uuid)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -192,7 +194,7 @@ describe('AhandController', () => {
       );
       await expect(
         controller.refreshToken(
-          testUser,
+          testUserId,
           '11111111-1111-1111-1111-111111111111',
         ),
       ).rejects.toThrow(ConflictException);
@@ -206,7 +208,7 @@ describe('AhandController', () => {
 
     it('returns updated DTO with isOnline=null', async () => {
       svc.patchDevice.mockResolvedValue(makeRow({ nickname: 'New' }));
-      const res = await controller.patch(testUser, uuid, { nickname: 'New' });
+      const res = await controller.patch(testUserId, uuid, { nickname: 'New' });
       expect(res.nickname).toBe('New');
       expect(res.isOnline).toBeNull();
     });
@@ -216,7 +218,11 @@ describe('AhandController', () => {
         new NotFoundException('Device not found'),
       );
       await expect(
-        controller.patch(testUser, '11111111-1111-1111-1111-111111111111', {}),
+        controller.patch(
+          testUserId,
+          '11111111-1111-1111-1111-111111111111',
+          {},
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -225,7 +231,11 @@ describe('AhandController', () => {
         new ConflictException('Device has been revoked'),
       );
       await expect(
-        controller.patch(testUser, '11111111-1111-1111-1111-111111111111', {}),
+        controller.patch(
+          testUserId,
+          '11111111-1111-1111-1111-111111111111',
+          {},
+        ),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -237,14 +247,16 @@ describe('AhandController', () => {
 
     it('resolves to undefined (204)', async () => {
       svc.revokeDevice.mockResolvedValue(undefined);
-      await expect(controller.delete(testUser, uuid)).resolves.toBeUndefined();
+      await expect(
+        controller.delete(testUserId, uuid),
+      ).resolves.toBeUndefined();
     });
 
     it('propagates ConflictException from service', async () => {
       svc.revokeDevice.mockRejectedValue(
         new ConflictException('already revoked'),
       );
-      await expect(controller.delete(testUser, uuid)).rejects.toThrow(
+      await expect(controller.delete(testUserId, uuid)).rejects.toThrow(
         ConflictException,
       );
     });
