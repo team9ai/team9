@@ -98,7 +98,7 @@ describe('frontmatter util', () => {
       const source = '---\nicon: "📘\n---\n\nbody';
       try {
         parseFrontmatter(source);
-        fail('expected parseFrontmatter to throw');
+        throw new Error('expected parseFrontmatter to throw');
       } catch (err) {
         expect(err).toBeInstanceOf(FrontmatterParseError);
         expect((err as FrontmatterParseError).cause).toBeDefined();
@@ -117,7 +117,7 @@ describe('frontmatter util', () => {
       const source = '---\n42\n---\n\nbody\n';
       try {
         parseFrontmatter(source);
-        fail('expected parseFrontmatter to throw');
+        throw new Error('expected parseFrontmatter to throw');
       } catch (err) {
         expect(err).toBeInstanceOf(FrontmatterParseError);
         expect((err as FrontmatterParseError).cause).toBe(42);
