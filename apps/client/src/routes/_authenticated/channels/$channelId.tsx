@@ -63,7 +63,7 @@ function ChannelPage() {
   // Loading state while checking membership
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+      <div className="h-full flex flex-col items-center justify-center gap-3">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">{t("loadingChannel")}</p>
       </div>
