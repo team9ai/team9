@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Pagina niet gevonden",
+    "description": "De pagina die je zoekt bestaat niet of is verplaatst.",
+    "goBack": "Terug",
+    "goHome": "Naar startpagina"
+  },
   "loading": "Laden...",
   "loadingMore": "Meer laden...",
   "error": "Fout",

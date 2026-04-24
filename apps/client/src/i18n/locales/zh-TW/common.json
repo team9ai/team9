@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "找不到該頁面",
+    "description": "您造訪的頁面不存在，或已被移除。",
+    "goBack": "返回",
+    "goHome": "回到首頁"
+  },
   "loading": "載入中...",
   "loadingMore": "載入更多...",
   "error": "錯誤",

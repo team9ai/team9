@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Pagina non trovata",
+    "description": "La pagina che stai cercando non esiste o è stata spostata.",
+    "goBack": "Indietro",
+    "goHome": "Vai alla home"
+  },
   "loading": "Caricamento in corso...",
   "loadingMore": "Caricamento di altri elementi...",
   "error": "Errore",

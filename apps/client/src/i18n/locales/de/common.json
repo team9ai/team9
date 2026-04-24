@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "description": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
+    "goBack": "Zurück",
+    "goHome": "Zur Startseite"
+  },
   "loading": "Laden...",
   "loadingMore": "Weitere laden...",
   "error": "Fehler",

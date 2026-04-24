@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Página não encontrada",
+    "description": "A página que você procura não existe ou foi movida.",
+    "goBack": "Voltar",
+    "goHome": "Ir para o início"
+  },
   "loading": "Carregando...",
   "loadingMore": "Carregando mais...",
   "error": "Erro",
