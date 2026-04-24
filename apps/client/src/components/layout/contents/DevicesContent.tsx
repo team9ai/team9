@@ -1,14 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HelpCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { isTauriApp } from "@/lib/tauri";
 import { OverviewTab } from "./devices/OverviewTab";
 import { BrowserConfigTab } from "./devices/BrowserConfigTab";
@@ -34,31 +27,12 @@ export function DevicesContent() {
   }, [tauri]);
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="px-6 py-4 border-b">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold">{t("myDevices")}</h1>
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={t("myDevicesHelpAria")}
-                  className="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground cursor-help"
-                >
-                  <HelpCircle className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-sm">
-                <p className="text-xs leading-relaxed">
-                  {t("myDevicesHelpIntro")}
-                </p>
-                <p className="text-xs leading-relaxed mt-2">
-                  {t("myDevicesHelpAccess")}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+    <main className="h-full flex flex-col overflow-hidden bg-background">
+      <header className="px-6 pt-6 pb-4 border-b space-y-2 shrink-0">
+        <h1 className="text-xl font-semibold">{t("myDevices")}</h1>
+        <div className="space-y-2 text-sm text-muted-foreground max-w-3xl">
+          <p>{t("myDevicesHelpIntro")}</p>
+          <p>{t("myDevicesHelpAccess")}</p>
         </div>
       </header>
 
@@ -67,7 +41,7 @@ export function DevicesContent() {
         onValueChange={(value) => setTab(value as DeviceTab)}
         className="flex-1 flex flex-col min-h-0"
       >
-        <TabsList className="mx-6 mt-4 self-start">
+        <TabsList className="mx-6 mt-4 self-start shrink-0">
           {visibleTabs.map((key) => (
             <TabsTrigger key={key} value={key}>
               {t(`devicesTabs.${key}` as const)}
@@ -75,7 +49,7 @@ export function DevicesContent() {
           ))}
         </TabsList>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="px-6 py-6 max-w-3xl">
             {visibleTabs.includes("overview") && (
               <TabsContent value="overview">
@@ -105,6 +79,6 @@ export function DevicesContent() {
           </div>
         </ScrollArea>
       </Tabs>
-    </div>
+    </main>
   );
 }

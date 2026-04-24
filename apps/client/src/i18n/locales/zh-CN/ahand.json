@@ -14,6 +14,35 @@
     "auditDescription": "Agent 每次动你设备的记录。",
     "placeholder": "即将推出，我们还在开发。"
   },
+  "overview": {
+    "masterSwitchTitle": "接受远程控制",
+    "masterSwitchDescription": "关闭后，任何 Agent 都不能使用这台电脑，之前授权过的也不行。",
+    "masterSwitchOn": "远程控制已开启",
+    "masterSwitchOff": "远程控制已关闭",
+    "statusTitle": "连接状态",
+    "systemPermsTitle": "系统授权",
+    "systemPermsDescription": "macOS 还需要你给几项系统权限，Agent 才能完整地用这台电脑。",
+    "permNotChecked": "未检测",
+    "permOpenSettings": "打开系统设置",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "屏幕录制",
+        "description": "让 Agent 看到你屏幕上的内容。"
+      },
+      "accessibility": {
+        "label": "辅助功能",
+        "description": "让 Agent 替你点击、输入、移动窗口。"
+      },
+      "automation": {
+        "label": "自动化",
+        "description": "让 Agent 执行命令、控制其他应用。"
+      },
+      "fullDiskAccess": {
+        "label": "完全磁盘访问",
+        "description": "让 Agent 读写这台 Mac 上的任何文件。"
+      }
+    }
+  },
   "myDevicesHelpAria": "这是什么？",
   "myDevicesHelpIntro": "这些是你授权给 AI 员工的本地电脑。开启后，Agent 可以在该机器上运行真实命令、访问文件、打开应用、浏览网页 —— 不再只是聊天。",
   "myDevicesHelpAccess": "控制权归你个人，不归 workspace —— 切换 workspace 时授权不受影响。默认只有你的私人助理 (Personal Staff) 能用，而私人助理只和你本人聊，别人动不到；其他 Agent 要动你的电脑，需要你亲手点同意。",

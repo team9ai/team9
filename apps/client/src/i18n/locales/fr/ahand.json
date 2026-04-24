@@ -14,6 +14,35 @@
     "auditDescription": "Historique de chaque fois qu'un agent a utilisé un de tes appareils.",
     "placeholder": "Bientôt — nous travaillons dessus."
   },
+  "overview": {
+    "masterSwitchTitle": "Autoriser le contrôle à distance",
+    "masterSwitchDescription": "Désactive et aucun agent ne pourra utiliser cet ordinateur — même ceux déjà approuvés.",
+    "masterSwitchOn": "Contrôle à distance activé",
+    "masterSwitchOff": "Contrôle à distance désactivé",
+    "statusTitle": "Connexion",
+    "systemPermsTitle": "Autorisations système",
+    "systemPermsDescription": "macOS doit accorder quelques autorisations pour que les agents puissent pleinement utiliser cette machine.",
+    "permNotChecked": "Non vérifié",
+    "permOpenSettings": "Ouvrir les Réglages",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Enregistrement d'écran",
+        "description": "Les agents voient ce qui est à l'écran."
+      },
+      "accessibility": {
+        "label": "Accessibilité",
+        "description": "Les agents peuvent cliquer, taper et déplacer des fenêtres pour toi."
+      },
+      "automation": {
+        "label": "Automatisation",
+        "description": "Les agents peuvent exécuter des commandes et piloter d'autres apps."
+      },
+      "fullDiskAccess": {
+        "label": "Accès complet au disque",
+        "description": "Les agents peuvent lire et écrire n'importe quel fichier sur ce Mac."
+      }
+    }
+  },
   "myDevicesHelpAria": "Qu'est-ce que c'est ?",
   "myDevicesHelpIntro": "Ce sont les ordinateurs que vous avez autorisés pour votre personnel IA. Une fois activé, un agent peut exécuter de vraies commandes, accéder aux fichiers, ouvrir des applis et naviguer sur le web sur cette machine — pas juste discuter.",
   "myDevicesHelpAccess": "Le contrôle de cet ordinateur vous appartient, pas à un workspace — changer de workspace ne touche pas à ces réglages. Par défaut, seul votre Personal Staff peut l'utiliser, et votre Personal Staff ne parle qu'à vous — à personne d'autre. Tout autre agent a besoin de votre accord direct.",

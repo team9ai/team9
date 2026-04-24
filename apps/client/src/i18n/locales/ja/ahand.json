@@ -14,6 +14,35 @@
     "auditDescription": "Agent があなたのデバイスを使用した記録。",
     "placeholder": "近日公開。開発中です。"
   },
+  "overview": {
+    "masterSwitchTitle": "リモート操作を許可",
+    "masterSwitchDescription": "オフにすると、以前に許可した Agent も含めて、この PC を一切使えなくなります。",
+    "masterSwitchOn": "リモート操作：オン",
+    "masterSwitchOff": "リモート操作：オフ",
+    "statusTitle": "接続状態",
+    "systemPermsTitle": "システム権限",
+    "systemPermsDescription": "Agent がこの PC を完全に使うには、macOS の権限もいくつか許可する必要があります。",
+    "permNotChecked": "未確認",
+    "permOpenSettings": "システム設定を開く",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "画面収録",
+        "description": "Agent に画面の内容を見せます。"
+      },
+      "accessibility": {
+        "label": "アクセシビリティ",
+        "description": "Agent がクリック、入力、ウィンドウ操作を代行します。"
+      },
+      "automation": {
+        "label": "オートメーション",
+        "description": "Agent がコマンド実行や他のアプリを制御できます。"
+      },
+      "fullDiskAccess": {
+        "label": "フルディスクアクセス",
+        "description": "Agent がこの Mac のどのファイルでも読み書きできます。"
+      }
+    }
+  },
   "myDevicesHelpAria": "これは何？",
   "myDevicesHelpIntro": "これらはあなたが AI スタッフに許可したローカル PC です。有効にすると、Agent はそのマシン上で実際のコマンド実行、ファイルアクセス、アプリ起動、ウェブ閲覧ができます —— ただのチャットではありません。",
   "myDevicesHelpAccess": "このコンピュータの制御はあなた個人に属し、workspace には属しません —— workspace を切り替えてもここの許可は変わりません。デフォルトではあなたのパーソナルアシスタント (Personal Staff) のみが使用可能で、パーソナルアシスタントはあなた本人としか会話せず、他人からは触れません。他の Agent があなたの PC を使うには、あなたが直接「同意」を押す必要があります。",

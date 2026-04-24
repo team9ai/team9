@@ -14,6 +14,35 @@
     "auditDescription": "Agent가 내 기기를 사용한 모든 기록.",
     "placeholder": "출시 예정. 아직 개발 중입니다."
   },
+  "overview": {
+    "masterSwitchTitle": "원격 제어 허용",
+    "masterSwitchDescription": "끄면 이전에 허가한 Agent를 포함해 그 어떤 Agent도 이 컴퓨터를 사용할 수 없습니다.",
+    "masterSwitchOn": "원격 제어 켜짐",
+    "masterSwitchOff": "원격 제어 꺼짐",
+    "statusTitle": "연결 상태",
+    "systemPermsTitle": "시스템 권한",
+    "systemPermsDescription": "Agent가 이 컴퓨터를 완전히 사용하려면 macOS 권한 몇 가지를 추가로 허용해야 합니다.",
+    "permNotChecked": "확인 안 됨",
+    "permOpenSettings": "시스템 설정 열기",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "화면 기록",
+        "description": "Agent가 화면에 표시된 내용을 볼 수 있습니다."
+      },
+      "accessibility": {
+        "label": "손쉬운 사용",
+        "description": "Agent가 클릭, 입력, 창 이동을 대신 수행합니다."
+      },
+      "automation": {
+        "label": "자동화",
+        "description": "Agent가 명령을 실행하고 다른 앱을 제어합니다."
+      },
+      "fullDiskAccess": {
+        "label": "전체 디스크 접근",
+        "description": "Agent가 이 Mac의 어떤 파일이든 읽고 쓸 수 있습니다."
+      }
+    }
+  },
   "myDevicesHelpAria": "이게 뭐예요?",
   "myDevicesHelpIntro": "AI 스태프에게 승인한 로컬 컴퓨터입니다. 활성화하면 Agent가 해당 기기에서 실제 명령 실행, 파일 접근, 앱 실행, 웹 탐색까지 할 수 있습니다 —— 단순 채팅이 아닙니다.",
   "myDevicesHelpAccess": "이 컴퓨터의 제어권은 당신 개인에게 있으며, workspace에 속하지 않습니다 —— workspace를 전환해도 여기 권한은 그대로입니다. 기본값으로는 개인 어시스턴트(Personal Staff)만 사용할 수 있고, 개인 어시스턴트는 본인과만 대화하므로 다른 사람은 접근할 수 없습니다. 다른 Agent가 컴퓨터를 쓰려면 당신이 직접 '동의'를 눌러야 합니다.",

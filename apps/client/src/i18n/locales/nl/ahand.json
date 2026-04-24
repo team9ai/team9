@@ -14,6 +14,35 @@
     "auditDescription": "Een logboek van elke keer dat een agent een van je apparaten gebruikte.",
     "placeholder": "Binnenkort. We bouwen hier nog aan."
   },
+  "overview": {
+    "masterSwitchTitle": "Remote-bediening toestaan",
+    "masterSwitchDescription": "Zet dit uit en geen enkele agent mag deze computer gebruiken — ook niet agents die je eerder hebt goedgekeurd.",
+    "masterSwitchOn": "Remote-bediening aan",
+    "masterSwitchOff": "Remote-bediening uit",
+    "statusTitle": "Verbinding",
+    "systemPermsTitle": "Systeemrechten",
+    "systemPermsDescription": "macOS moet een paar rechten verlenen voordat agents deze machine volledig kunnen gebruiken.",
+    "permNotChecked": "Niet gecontroleerd",
+    "permOpenSettings": "Instellingen openen",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Schermopname",
+        "description": "Agents kunnen zien wat er op je scherm staat."
+      },
+      "accessibility": {
+        "label": "Toegankelijkheid",
+        "description": "Agents mogen voor jou klikken, typen en vensters verplaatsen."
+      },
+      "automation": {
+        "label": "Automatisering",
+        "description": "Agents mogen commando's uitvoeren en andere apps besturen."
+      },
+      "fullDiskAccess": {
+        "label": "Volledige schijftoegang",
+        "description": "Agents mogen elk bestand op deze Mac lezen en schrijven."
+      }
+    }
+  },
   "myDevicesHelpAria": "Wat is dit?",
   "myDevicesHelpIntro": "Dit zijn de computers die je hebt geautoriseerd voor AI-personeel. Eenmaal ingeschakeld, kan een agent op die machine echte commando's uitvoeren, bestanden openen, apps starten en op het web surfen — niet alleen chatten.",
   "myDevicesHelpAccess": "De controle over deze computer is van jou persoonlijk, niet van een workspace — van workspace wisselen verandert deze instellingen niet. Standaard mag alleen jouw Personal Staff hem gebruiken, en jouw Personal Staff praat alleen met jou — met niemand anders. Elke andere agent heeft jouw directe goedkeuring nodig.",

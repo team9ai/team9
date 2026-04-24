@@ -14,6 +14,35 @@
     "auditDescription": "Ein Protokoll jeder Nutzung deiner Geräte durch einen Agenten.",
     "placeholder": "Demnächst — wir bauen das noch."
   },
+  "overview": {
+    "masterSwitchTitle": "Fernzugriff erlauben",
+    "masterSwitchDescription": "Ausschalten und kein Agent darf diesen Computer benutzen — auch nicht die, die du früher freigegeben hast.",
+    "masterSwitchOn": "Fernzugriff aktiv",
+    "masterSwitchOff": "Fernzugriff deaktiviert",
+    "statusTitle": "Verbindung",
+    "systemPermsTitle": "Systemberechtigungen",
+    "systemPermsDescription": "macOS muss ein paar Berechtigungen freigeben, damit Agenten diesen Rechner voll nutzen können.",
+    "permNotChecked": "Nicht geprüft",
+    "permOpenSettings": "Einstellungen öffnen",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Bildschirmaufnahme",
+        "description": "Agenten dürfen sehen, was auf deinem Bildschirm ist."
+      },
+      "accessibility": {
+        "label": "Bedienungshilfen",
+        "description": "Agenten dürfen für dich klicken, tippen und Fenster verschieben."
+      },
+      "automation": {
+        "label": "Automation",
+        "description": "Agenten dürfen Befehle ausführen und andere Apps steuern."
+      },
+      "fullDiskAccess": {
+        "label": "Festplattenvollzugriff",
+        "description": "Agenten dürfen alle Dateien auf diesem Mac lesen und schreiben."
+      }
+    }
+  },
   "myDevicesHelpAria": "Was ist das?",
   "myDevicesHelpIntro": "Das sind die Computer, die du deinen KI-Mitarbeitern freigegeben hast. Sobald aktiviert, kann ein Agent auf dem Gerät echte Befehle ausführen, Dateien öffnen, Apps starten und im Web surfen — nicht nur chatten.",
   "myDevicesHelpAccess": "Die Kontrolle über diesen Computer gehört dir persönlich, nicht einem Workspace — das Wechseln des Workspaces ändert diese Einstellungen nicht. Standardmäßig darf nur dein Personal Staff ihn nutzen, und dein Personal Staff spricht nur mit dir — sonst mit niemandem. Jeder andere Agent braucht deine persönliche Zustimmung.",

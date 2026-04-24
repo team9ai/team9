@@ -14,6 +14,35 @@
     "auditDescription": "Histórico de cada vez que um agente usou um dos seus dispositivos.",
     "placeholder": "Em breve. Ainda estamos construindo."
   },
+  "overview": {
+    "masterSwitchTitle": "Permitir controle remoto",
+    "masterSwitchDescription": "Desligue e nenhum agente poderá usar este computador — nem os que você aprovou antes.",
+    "masterSwitchOn": "Controle remoto ligado",
+    "masterSwitchOff": "Controle remoto desligado",
+    "statusTitle": "Conexão",
+    "systemPermsTitle": "Permissões do sistema",
+    "systemPermsDescription": "O macOS precisa conceder algumas permissões para que os agentes possam usar plenamente esta máquina.",
+    "permNotChecked": "Não verificado",
+    "permOpenSettings": "Abrir Ajustes",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Gravação de tela",
+        "description": "Os agentes veem o que está na sua tela."
+      },
+      "accessibility": {
+        "label": "Acessibilidade",
+        "description": "Os agentes podem clicar, digitar e mover janelas por você."
+      },
+      "automation": {
+        "label": "Automação",
+        "description": "Os agentes podem executar comandos e controlar outros apps."
+      },
+      "fullDiskAccess": {
+        "label": "Acesso total ao disco",
+        "description": "Os agentes podem ler e gravar qualquer arquivo neste Mac."
+      }
+    }
+  },
   "myDevicesHelpAria": "O que é isto?",
   "myDevicesHelpIntro": "São os computadores que você autorizou para o pessoal de IA. Uma vez habilitado, um agente pode executar comandos reais, acessar arquivos, abrir apps e navegar na web nessa máquina — não apenas conversar.",
   "myDevicesHelpAccess": "O controle deste computador pertence a você, não a nenhum workspace — mudar de workspace não afeta essas configurações. Por padrão, apenas seu Personal Staff pode usá-lo, e seu Personal Staff só conversa com você — com mais ninguém. Qualquer outro agente precisa da sua aprovação direta.",

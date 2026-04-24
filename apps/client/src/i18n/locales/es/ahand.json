@@ -14,6 +14,35 @@
     "auditDescription": "Historial de cada vez que un agente usó uno de tus dispositivos.",
     "placeholder": "Próximamente. Todavía lo estamos desarrollando."
   },
+  "overview": {
+    "masterSwitchTitle": "Permitir control remoto",
+    "masterSwitchDescription": "Apágalo y ningún agente podrá usar este ordenador — ni siquiera los que aprobaste antes.",
+    "masterSwitchOn": "Control remoto activado",
+    "masterSwitchOff": "Control remoto desactivado",
+    "statusTitle": "Conexión",
+    "systemPermsTitle": "Permisos del sistema",
+    "systemPermsDescription": "macOS necesita conceder algunos permisos para que los agentes puedan usar plenamente esta máquina.",
+    "permNotChecked": "Sin comprobar",
+    "permOpenSettings": "Abrir Ajustes",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Grabación de pantalla",
+        "description": "Los agentes verán lo que hay en tu pantalla."
+      },
+      "accessibility": {
+        "label": "Accesibilidad",
+        "description": "Los agentes pueden hacer clic, escribir y mover ventanas por ti."
+      },
+      "automation": {
+        "label": "Automatización",
+        "description": "Los agentes pueden ejecutar comandos y controlar otras apps."
+      },
+      "fullDiskAccess": {
+        "label": "Acceso completo al disco",
+        "description": "Los agentes pueden leer y escribir cualquier archivo en este Mac."
+      }
+    }
+  },
   "myDevicesHelpAria": "¿Qué es esto?",
   "myDevicesHelpIntro": "Son los ordenadores que has autorizado para el personal de IA. Una vez activado, un agente puede ejecutar comandos reales, acceder a archivos, abrir apps y navegar por la web en esa máquina — no solo chatear.",
   "myDevicesHelpAccess": "El control de este ordenador te pertenece a ti, no a ningún workspace — cambiar de workspace no afecta a estos ajustes. Por defecto solo tu Personal Staff puede usarlo, y tu Personal Staff solo habla contigo — con nadie más. Cualquier otro agente necesita tu confirmación directa.",

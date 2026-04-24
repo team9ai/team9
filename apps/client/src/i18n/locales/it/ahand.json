@@ -14,6 +14,35 @@
     "auditDescription": "Storico di ogni volta che un agente ha usato uno dei tuoi dispositivi.",
     "placeholder": "Prossimamente. Lo stiamo ancora sviluppando."
   },
+  "overview": {
+    "masterSwitchTitle": "Consenti il controllo remoto",
+    "masterSwitchDescription": "Disattivando, nessun agente potrà usare questo computer — nemmeno quelli che hai approvato prima.",
+    "masterSwitchOn": "Controllo remoto attivo",
+    "masterSwitchOff": "Controllo remoto disattivato",
+    "statusTitle": "Connessione",
+    "systemPermsTitle": "Permessi di sistema",
+    "systemPermsDescription": "macOS deve concedere alcuni permessi perché gli agenti possano usare pienamente questa macchina.",
+    "permNotChecked": "Non verificato",
+    "permOpenSettings": "Apri Impostazioni",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Registrazione schermo",
+        "description": "Gli agenti vedono ciò che è sullo schermo."
+      },
+      "accessibility": {
+        "label": "Accessibilità",
+        "description": "Gli agenti possono cliccare, digitare e spostare finestre per te."
+      },
+      "automation": {
+        "label": "Automazione",
+        "description": "Gli agenti possono eseguire comandi e controllare altre app."
+      },
+      "fullDiskAccess": {
+        "label": "Accesso completo al disco",
+        "description": "Gli agenti possono leggere e scrivere qualsiasi file su questo Mac."
+      }
+    }
+  },
   "myDevicesHelpAria": "Cos'è questo?",
   "myDevicesHelpIntro": "Sono i computer che hai autorizzato per il personale IA. Una volta abilitato, un agente può eseguire comandi reali, accedere ai file, aprire app e navigare sul web su quella macchina — non solo chattare.",
   "myDevicesHelpAccess": "Il controllo di questo computer appartiene a te, non a nessun workspace — cambiare workspace non tocca queste impostazioni. Per impostazione predefinita solo il tuo Personal Staff può usarlo, e il tuo Personal Staff parla solo con te — con nessun altro. Qualsiasi altro agente ha bisogno del tuo consenso diretto.",
