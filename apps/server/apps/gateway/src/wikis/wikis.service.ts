@@ -416,21 +416,52 @@ export class WikisService {
       .where(eq(schema.workspaceWikis.id, wikiId))
       .returning()) as WikiRow[];
 
+    if (!updated[0]) {
+      // TOCTOU: wiki was concurrently archived/deleted between getWikiOrThrow and UPDATE
+      throw new NotFoundException(`Wiki ${wikiId} not found`);
+    }
+
     if (dto.name !== undefined || dto.approvalMode !== undefined) {
       const folderPatch: Folder9UpdateFolderInput = {};
       if (dto.name !== undefined) folderPatch.name = dto.name;
       if (dto.approvalMode !== undefined)
         folderPatch.approval_mode = dto.approvalMode;
-      await this.folder9.updateFolder(
-        workspaceId,
-        wiki.folder9FolderId,
-        folderPatch,
-      );
-    }
-
-    if (!updated[0]) {
-      // TOCTOU: wiki was concurrently archived/deleted between getWikiOrThrow and UPDATE
-      throw new NotFoundException(`Wiki ${wikiId} not found`);
+      try {
+        await this.folder9.updateFolder(
+          workspaceId,
+          wiki.folder9FolderId,
+          folderPatch,
+        );
+      } catch (err) {
+        // Compensation: revert the DB row to its pre-patch state. `wiki`
+        // (captured from `getWikiOrThrow` above) holds the original values,
+        // so we restore every column that `updateWikiSettings` is allowed to
+        // mutate. If the revert itself fails, log loudly and re-throw the
+        // original folder9 error — leaking the revert error would mask the
+        // real cause and mislead the caller. The wiki is now inconsistent
+        // with folder9 and needs ops attention.
+        try {
+          await this.db
+            .update(schema.workspaceWikis)
+            .set({
+              name: wiki.name,
+              slug: wiki.slug,
+              icon: wiki.icon,
+              approvalMode: wiki.approvalMode,
+              humanPermission: wiki.humanPermission,
+              agentPermission: wiki.agentPermission,
+              updatedAt: wiki.updatedAt,
+            })
+            .where(eq(schema.workspaceWikis.id, wikiId));
+        } catch (revertErr) {
+          this.logger.error(
+            `updateWikiSettings: failed to revert DB after folder9 failure — wiki ${wikiId} is now inconsistent with folder9: ${
+              revertErr instanceof Error ? revertErr.message : String(revertErr)
+            }`,
+          );
+        }
+        throw err;
+      }
     }
 
     // Broadcast AFTER DB + folder9 mirror both succeeded. A failure above

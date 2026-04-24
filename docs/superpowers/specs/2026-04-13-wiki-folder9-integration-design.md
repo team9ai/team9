@@ -18,6 +18,7 @@ Implementation followed the spec with these notable adjustments:
   - `workspace_wikis.workspace_id` tightened from `TEXT` to `uuid` with `ON DELETE CASCADE` FK to `tenants.id` (migration `0045_wiki_workspace_fk`).
   - Slug uniqueness is now a PARTIAL index on `WHERE archived_at IS NULL` (migration `0047_wiki_slug_partial_unique`) so archived wikis release their slugs.
 - **Binary file handling:** `PageDto.encoding` field added so the client renders a read-only "Binary file" placeholder for `encoding: 'base64'` blobs instead of allowing the editor to corrupt them on save.
+- **`updateWikiSettings` compensation:** resolved in follow-up (see commit for compensation logic). When `folder9.updateFolder` fails after the DB patch has already committed, the service now restores the pre-patch DB columns (captured from `getWikiOrThrow`) so Team9 and folder9 stay in sync. If the revert itself fails, we log loudly and still re-throw the original folder9 error — the original `createWiki` "create folder first, then DB" compensation pattern is now mirrored on the update path.
 
 ## Overview
 

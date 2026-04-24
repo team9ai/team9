@@ -985,6 +985,144 @@ describe('WikisService', () => {
       )[0] as Record<string, unknown>;
       expect(setCall).not.toHaveProperty('icon');
     });
+
+    it('reverts the DB patch when folder9.updateFolder fails and re-throws the folder9 error', async () => {
+      const originalRow = makeWikiRow({
+        name: 'Original',
+        slug: 'original',
+        icon: '📘',
+        approvalMode: 'auto',
+        humanPermission: 'write',
+        agentPermission: 'read',
+      });
+      db.limit.mockResolvedValueOnce([originalRow]); // getWikiOrThrow
+      db.returning.mockResolvedValueOnce([
+        makeWikiRow({
+          name: 'Renamed',
+          approvalMode: 'review',
+          updatedAt: LATER,
+        }),
+      ]);
+      f9.updateFolder.mockRejectedValue(new Error('folder9 down') as never);
+
+      await expect(
+        svc.updateWikiSettings(
+          'ws-1',
+          'wiki-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'Renamed', approvalMode: 'review' },
+        ),
+      ).rejects.toThrow(/folder9 down/);
+
+      // Two `.set()` calls expected: the forward patch, then the revert.
+      expect(db.set).toHaveBeenCalledTimes(2);
+      const revertArg = (db.set.mock.calls[1] as unknown[])[0] as Record<
+        string,
+        unknown
+      >;
+      expect(revertArg).toEqual({
+        name: originalRow.name,
+        slug: originalRow.slug,
+        icon: originalRow.icon,
+        approvalMode: originalRow.approvalMode,
+        humanPermission: originalRow.humanPermission,
+        agentPermission: originalRow.agentPermission,
+        updatedAt: originalRow.updatedAt,
+      });
+      // Broadcast must NOT fire on the failure path.
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('logs and still re-throws the original folder9 error when the revert UPDATE itself fails', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+      const originalRow = makeWikiRow({ name: 'Original' });
+      db.limit.mockResolvedValueOnce([originalRow]); // getWikiOrThrow
+      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      f9.updateFolder.mockRejectedValue(new Error('folder9 down') as never);
+      // Forward UPDATE = chain.update().set().where(...).returning().
+      // Revert UPDATE = chain.update().set({...}).where(...) — no returning().
+      // Make the *second* call to `.update()` return a broken chain whose
+      // `.where()` throws synchronously so the revert path fails while the
+      // forward path succeeds.
+      const brokenChain: Record<string, unknown> = {};
+      brokenChain.set = jest.fn().mockReturnValue(brokenChain);
+      brokenChain.where = jest.fn().mockImplementation(() => {
+        throw new Error('revert db down');
+      });
+      db.update
+        .mockReturnValueOnce(db) // forward
+        .mockReturnValueOnce(brokenChain as unknown as typeof db); // revert
+
+      await expect(
+        svc.updateWikiSettings(
+          'ws-1',
+          'wiki-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'Renamed' },
+        ),
+      ).rejects.toThrow(/folder9 down/);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to revert DB after folder9 failure'),
+      );
+      // Specifically the revert error message should be surfaced in the log.
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('revert db down'),
+      );
+      expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+
+    it('logs a string fallback when the revert rejects with a non-Error value', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+      const originalRow = makeWikiRow();
+      db.limit.mockResolvedValueOnce([originalRow]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      f9.updateFolder.mockRejectedValue(new Error('folder9 down') as never);
+      const brokenChain: Record<string, unknown> = {};
+      brokenChain.set = jest.fn().mockReturnValue(brokenChain);
+      brokenChain.where = jest.fn().mockImplementation(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'plain string revert failure';
+      });
+      db.update
+        .mockReturnValueOnce(db)
+        .mockReturnValueOnce(brokenChain as unknown as typeof db);
+
+      await expect(
+        svc.updateWikiSettings(
+          'ws-1',
+          'wiki-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'Renamed' },
+        ),
+      ).rejects.toThrow(/folder9 down/);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('plain string revert failure'),
+      );
+      errorSpy.mockRestore();
+    });
+
+    it('does NOT attempt a revert when the folder9 mirror is skipped (pure DB patch)', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      db.returning.mockResolvedValueOnce([makeWikiRow({ icon: '📚' })]);
+
+      await svc.updateWikiSettings(
+        'ws-1',
+        'wiki-1',
+        { id: 'user-1', isAgent: false },
+        { icon: '📚', humanPermission: 'propose' },
+      );
+
+      // Only the forward patch runs — no revert path.
+      expect(db.set).toHaveBeenCalledTimes(1);
+      expect(f9.updateFolder).not.toHaveBeenCalled();
+    });
   });
 
   // ── archiveWiki ─────────────────────────────────────────────────────
