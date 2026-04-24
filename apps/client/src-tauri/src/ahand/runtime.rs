@@ -163,10 +163,19 @@ impl AhandRuntime {
     }
 
     /// Stop the active session. Idempotent — returns Ok when nothing is running.
-    pub async fn stop(&self) -> Result<(), String> {
+    ///
+    /// When `app` is provided, emits a final `DaemonStatus::Idle` to the
+    /// frontend so the UI status indicator (sidebar dot, ThisMacSection
+    /// label) reliably reflects the stopped state, even when the ahandd
+    /// watch channel's Offline event races the forwarder abort in
+    /// `shutdown_session`. Tests pass `None`.
+    pub async fn stop(&self, app: Option<&AppHandle>) -> Result<(), String> {
         let mut guard = self.inner.lock().await;
         if let Some(session) = guard.take() {
             Self::shutdown_session(session).await;
+        }
+        if let Some(app) = app {
+            let _ = app.emit("ahand-daemon-status", &DaemonStatus::Idle);
         }
         Ok(())
     }
@@ -217,8 +226,8 @@ mod tests {
     #[tokio::test]
     async fn stop_is_idempotent_when_nothing_active() {
         let rt = AhandRuntime::new();
-        assert!(rt.stop().await.is_ok());
-        assert!(rt.stop().await.is_ok());
+        assert!(rt.stop(None).await.is_ok());
+        assert!(rt.stop(None).await.is_ok());
     }
 
     #[test]
