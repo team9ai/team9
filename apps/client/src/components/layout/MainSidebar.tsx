@@ -738,18 +738,27 @@ export function MainSidebar() {
   );
 }
 
-/** Laptop glyph stays neutral (inherits sidebar foreground). Status is
- *  carried entirely by the bottom-right badge icon — a single colored
- *  accent reads cleaner than two tinted shapes stacked. Connecting
- *  still gets a tint because it has no badge (the tint itself is the
- *  "working on it" signal). */
+/** Tint the Laptop glyph itself to signal "is this machine usable as an
+ *  agent target right now?" — green when Online, amber while connecting,
+ *  else the default sidebar foreground. */
 function deriveSidebarLaptopColor(
   local: ReturnType<typeof useAhandLocalStatus>,
-  _devices: ReturnType<typeof useAhandDevices>["data"],
+  devices: ReturnType<typeof useAhandDevices>["data"],
   tauri: boolean,
 ): string {
-  if (tauri && local?.state === "connecting") return "text-amber-500";
-  return "";
+  if (tauri) {
+    switch (local?.state) {
+      case "online":
+        return "text-green-500";
+      case "connecting":
+        return "text-amber-500";
+      default:
+        return "";
+    }
+  }
+  return (devices ?? []).some((d) => d.isOnline === true)
+    ? "text-green-500"
+    : "";
 }
 
 /** Small overlay glyph at bottom-right of the Laptop icon — distinct
