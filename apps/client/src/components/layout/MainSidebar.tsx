@@ -738,10 +738,12 @@ export function MainSidebar() {
   );
 }
 
-/** Tint the Laptop glyph itself to signal "is this machine usable as an
- *  agent target right now?" — green when Online, amber while connecting,
- *  else the default sidebar foreground. */
-function deriveSidebarLaptopColor(
+/** Single color class per connection state. Both the Laptop glyph and
+ *  its bottom-right badge use this, so the shapes never read as two
+ *  competing signals. Color == connection state; badge icon shape is
+ *  reserved for future "permission / authorization level" differentiation.
+ */
+function deriveSidebarStatusColor(
   local: ReturnType<typeof useAhandLocalStatus>,
   devices: ReturnType<typeof useAhandDevices>["data"],
   tauri: boolean,
@@ -752,41 +754,54 @@ function deriveSidebarLaptopColor(
         return "text-green-500";
       case "connecting":
         return "text-amber-500";
+      case "error":
+        return "text-destructive";
+      case "offline":
+      case "idle":
       default:
-        return "";
+        return "text-muted-foreground";
     }
   }
   return (devices ?? []).some((d) => d.isOnline === true)
     ? "text-green-500"
-    : "";
+    : "text-muted-foreground";
 }
 
-/** Small overlay glyph at bottom-right of the Laptop icon — distinct
- *  lucide icons per state so the shape carries meaning even if color
- *  is muted. */
+function deriveSidebarLaptopColor(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  tauri: boolean,
+): string {
+  return deriveSidebarStatusColor(local, devices, tauri);
+}
+
+/** Badge icon carries the status SHAPE; its color comes from the shared
+ *  status palette so it matches the Laptop tint. Connecting has no
+ *  badge (the amber tint + Laptop pulse is enough signal). */
 function deriveSidebarBadgeIcon(
   local: ReturnType<typeof useAhandLocalStatus>,
   devices: ReturnType<typeof useAhandDevices>["data"],
   tauri: boolean,
 ): { icon: typeof CircleCheck; className: string } | null {
+  const className = deriveSidebarStatusColor(local, devices, tauri);
   if (tauri) {
     switch (local?.state) {
       case "online":
-        return { icon: CircleCheck, className: "text-green-500" };
+        return { icon: CircleCheck, className };
       case "error":
-        return { icon: CircleX, className: "text-destructive" };
+        return { icon: CircleX, className };
       case "offline":
-        return { icon: WifiOff, className: "text-muted-foreground" };
+        return { icon: WifiOff, className };
       case "connecting":
         return null;
       case "idle":
       default:
-        return { icon: Ban, className: "text-muted-foreground" };
+        return { icon: Ban, className };
     }
   }
   return (devices ?? []).some((d) => d.isOnline === true)
-    ? { icon: CircleCheck, className: "text-green-500" }
-    : { icon: Ban, className: "text-muted-foreground" };
+    ? { icon: CircleCheck, className }
+    : { icon: Ban, className };
 }
 
 function deriveSidebarStatusLabel(
