@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import wsService from "@/services/websocket";
 import type { ChannelWithUnread, Message } from "@/types/im";
+import type { TopicSessionGroup } from "@/services/api/im";
 import type {
   ReadStatusUpdatedEvent,
   UserOnlineEvent,
@@ -17,7 +18,10 @@ import type {
   RoutineUpdatedEvent,
   TrackingDeactivatedEvent,
   MessagePropertyChangedEvent,
+  MessageRelationChangedEvent,
+  MessageRelationsPurgedEvent,
 } from "@/types/ws-events";
+import { relationKeys } from "@/lib/query-client";
 import { useAppStore, useSelectedWorkspaceId, useUser } from "@/stores";
 import { api } from "@/services/api";
 import { syncCurrentUser } from "@/hooks/useAuth";
@@ -83,6 +87,23 @@ export function useWebSocketEvents() {
       }, 500);
     };
 
+    // Topic-session lifecycle. Invalidates both the grouped sidebar query
+    // and the channels list (the underlying channel row changes too) so the
+    // two views stay in sync after create / title-generation / delete.
+    let topicSessionInvalidateTimer: ReturnType<typeof setTimeout> | null =
+      null;
+    const invalidateTopicSessions = () => {
+      if (topicSessionInvalidateTimer)
+        clearTimeout(topicSessionInvalidateTimer);
+      topicSessionInvalidateTimer = setTimeout(() => {
+        topicSessionInvalidateTimer = null;
+        queryClient.invalidateQueries({
+          queryKey: ["topic-sessions-grouped", workspaceId],
+        });
+        queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      }, 500);
+    };
+
     // Handle new message - immediately increment unread count
     const handleNewMessage = (message: Message) => {
       // Skip if message is from current user or is a reply (thread message)
@@ -133,6 +154,36 @@ export function useWebSocketEvents() {
             }
             return channel;
           });
+        },
+      );
+
+      // Also zero the badge on the topic-session sidebar view.
+      // topic-sessions-grouped carries its own `recentSessions[].unreadCount`
+      // snapshot — without this update, the channels query gets patched
+      // but the sidebar AgentGroupList keeps rendering the stale badge
+      // until a full refetch. Use setQueriesData (not setQueryData) because
+      // the query key includes `perAgent`, so multiple variants may be
+      // cached and all of them need the patch applied.
+      queryClient.setQueriesData<TopicSessionGroup[]>(
+        { queryKey: ["topic-sessions-grouped", workspaceId] },
+        (old) => {
+          if (!old) return old;
+          let changed = false;
+          const next = old.map((group) => {
+            if (
+              !group.recentSessions.some((s) => s.channelId === event.channelId)
+            ) {
+              return group;
+            }
+            changed = true;
+            return {
+              ...group,
+              recentSessions: group.recentSessions.map((s) =>
+                s.channelId === event.channelId ? { ...s, unreadCount: 0 } : s,
+              ),
+            };
+          });
+          return changed ? next : old;
         },
       );
     };
@@ -380,6 +431,44 @@ export function useWebSocketEvents() {
       });
     };
 
+    // ==================== Relation Events ====================
+
+    // When a relation edge changes, invalidate caches for the source message,
+    // the affected target messages (inbound), and the channel's view-tree.
+    const handleRelationChanged = (event: MessageRelationChangedEvent) => {
+      queryClient.invalidateQueries({
+        queryKey: relationKeys.byMessage(event.sourceMessageId),
+      });
+      const affected = [...event.addedTargetIds, ...event.removedTargetIds];
+      for (const targetId of affected) {
+        queryClient.invalidateQueries({
+          queryKey: relationKeys.inbound(targetId),
+        });
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["view-tree", event.channelId],
+      });
+    };
+
+    // When a message is deleted all its relation edges are purged; invalidate
+    // the deleted message's caches plus any source messages that linked to it.
+    const handleRelationsPurged = (event: MessageRelationsPurgedEvent) => {
+      queryClient.invalidateQueries({
+        queryKey: relationKeys.byMessage(event.deletedMessageId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: relationKeys.inbound(event.deletedMessageId),
+      });
+      for (const sourceId of event.affectedSourceIds) {
+        queryClient.invalidateQueries({
+          queryKey: relationKeys.byMessage(sourceId),
+        });
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["view-tree", event.channelId],
+      });
+    };
+
     // ==================== Register All Listeners ====================
 
     // Channel lifecycle events
@@ -389,6 +478,11 @@ export function useWebSocketEvents() {
     wsService.on("channel_deleted", invalidateChannels);
     wsService.on("channel_archived", invalidateChannels);
     wsService.on("channel_unarchived", invalidateChannels);
+
+    // Topic-session lifecycle events
+    wsService.on("topic_session_created", invalidateTopicSessions);
+    wsService.on("topic_session_updated", invalidateTopicSessions);
+    wsService.on("topic_session_deleted", invalidateTopicSessions);
 
     // Message events for unread counts
     wsService.on("new_message", handleNewMessage);
@@ -419,12 +513,19 @@ export function useWebSocketEvents() {
     // Property events
     wsService.onMessagePropertyChanged(handleMessagePropertyChanged);
 
+    // Relation events
+    wsService.onRelationChanged(handleRelationChanged);
+    wsService.onRelationsPurged(handleRelationsPurged);
+
     // ==================== Cleanup ====================
 
     return () => {
-      // Clear debounce timer
+      // Clear debounce timers
       if (channelInvalidateTimer) {
         clearTimeout(channelInvalidateTimer);
+      }
+      if (topicSessionInvalidateTimer) {
+        clearTimeout(topicSessionInvalidateTimer);
       }
 
       // Channel events
@@ -434,6 +535,11 @@ export function useWebSocketEvents() {
       wsService.off("channel_deleted", invalidateChannels);
       wsService.off("channel_archived", invalidateChannels);
       wsService.off("channel_unarchived", invalidateChannels);
+
+      // Topic-session events
+      wsService.off("topic_session_created", invalidateTopicSessions);
+      wsService.off("topic_session_updated", invalidateTopicSessions);
+      wsService.off("topic_session_deleted", invalidateTopicSessions);
 
       // Message events
       wsService.off("new_message", handleNewMessage);
@@ -463,6 +569,10 @@ export function useWebSocketEvents() {
 
       // Property events
       wsService.offMessagePropertyChanged(handleMessagePropertyChanged);
+
+      // Relation events
+      wsService.offRelationChanged(handleRelationChanged);
+      wsService.offRelationsPurged(handleRelationsPurged);
     };
   }, [queryClient, workspaceId, currentUser?.id]);
 }

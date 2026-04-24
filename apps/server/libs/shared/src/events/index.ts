@@ -48,6 +48,7 @@ import type {
   ChannelDeletedEvent,
   ChannelArchivedEvent,
   ChannelUnarchivedEvent,
+  ChannelModelChangedEvent,
   // Message
   NewMessageEvent,
   MessageUpdatedEvent,
@@ -106,6 +107,8 @@ import type {
   PropertyDefinitionUpdatedEvent,
   PropertyDefinitionDeletedEvent,
   MessagePropertyChangedEvent,
+  MessageRelationChangedEvent,
+  MessageRelationsPurgedEvent,
   // View
   ViewCreatedEvent,
   ViewUpdatedEvent,
@@ -162,6 +165,7 @@ export interface ServerToClientEvents {
   channel_deleted: ChannelDeletedEvent;
   channel_archived: ChannelArchivedEvent;
   channel_unarchived: ChannelUnarchivedEvent;
+  channel_model_changed: ChannelModelChangedEvent;
   // Message
   new_message: NewMessageEvent;
   message_updated: MessageUpdatedEvent;
@@ -210,6 +214,8 @@ export interface ServerToClientEvents {
   property_definition_updated: PropertyDefinitionUpdatedEvent;
   property_definition_deleted: PropertyDefinitionDeletedEvent;
   message_property_changed: MessagePropertyChangedEvent;
+  message_relation_changed: MessageRelationChangedEvent;
+  message_relations_purged: MessageRelationsPurgedEvent;
   // View
   view_created: ViewCreatedEvent;
   view_updated: ViewUpdatedEvent;

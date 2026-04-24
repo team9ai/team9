@@ -1,11 +1,16 @@
 import {
   Injectable,
   Inject,
+  Optional,
   NotFoundException,
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ModuleRef } from '@nestjs/core';
 import { determineMessageType, truncateContent } from './message-utils.js';
+import { sanitizeMessageContent } from './utils/sanitize-content.js';
+import { normalizeAst, astToPlaintext } from './utils/ast.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -22,6 +27,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+const { messageRelations } = schema;
 import { UpdateMessageDto } from './dto/index.js';
 import { ChannelSequenceService } from '../shared/channel-sequence.service.js';
 import {
@@ -29,6 +35,11 @@ import {
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
+import { GatewayMQService } from '@team9/rabbitmq';
+import { type PostBroadcastTask } from '@team9/shared';
+import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
 
 export interface MessageSender {
   id: string;
@@ -65,6 +76,9 @@ export interface MessageResponse {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
+  // Lexical serialized EditorState (null for legacy/bot/system messages that
+  // render via the sanitized HTML/Markdown fallback path).
+  contentAst: Record<string, unknown> | null;
   type: 'text' | 'file' | 'image' | 'system' | 'tracking' | 'long_text';
   isTruncated?: boolean;
   fullContentLength?: number;
@@ -118,7 +132,17 @@ export class MessagesService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly channelSequenceService: ChannelSequenceService,
     private readonly messagePropertiesService: MessagePropertiesService,
+    private readonly moduleRef: ModuleRef,
+    @Optional()
+    private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
+    @Optional() private readonly gatewayMQService?: GatewayMQService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
+
+  /** Lazily resolve WebsocketGateway to avoid ESM circular dependency at import time */
+  private get wsGateway(): WebsocketGateway {
+    return this.moduleRef.get(WEBSOCKET_GATEWAY, { strict: false });
+  }
 
   private mapMessageSender(row: {
     id: string;
@@ -276,6 +300,7 @@ export class MessagesService {
       parentId: message.parentId,
       rootId: message.rootId,
       content: message.content,
+      contentAst: message.contentAst ?? null,
       type: message.type,
       isPinned: message.isPinned,
       isEdited: message.isEdited,
@@ -444,6 +469,7 @@ export class MessagesService {
         parentId: message.parentId,
         rootId: message.rootId,
         content: message.content,
+        contentAst: message.contentAst ?? null,
         type: message.type,
         isPinned: message.isPinned,
         isEdited: message.isEdited,
@@ -911,17 +937,32 @@ export class MessagesService {
       message.channelId,
     );
 
+    // Mirror the create path: if the caller provides a Lexical AST, validate
+    // it and re-derive `content` as plaintext so search/preview stay in sync.
+    // Setting contentAst = null explicitly clears it (e.g. when switching
+    // back to a plain-text edit); absent means "leave untouched".
+    let nextContent = dto.content;
+    let nextContentAst: Record<string, unknown> | null | undefined;
+    if (dto.contentAst) {
+      const ast = normalizeAst(dto.contentAst);
+      nextContent = astToPlaintext(ast);
+      nextContentAst = ast as unknown as Record<string, unknown>;
+    } else if (dto.contentAst === null) {
+      nextContentAst = null;
+    }
+
     // Re-determine type only for text-based messages (text / long_text).
     // File/image/system/tracking messages keep their original type.
     const isTextBased = message.type === 'text' || message.type === 'long_text';
     const newType = isTextBased
-      ? determineMessageType(dto.content, false)
+      ? determineMessageType(nextContent, false)
       : message.type;
 
     await this.db
       .update(schema.messages)
       .set({
-        content: dto.content,
+        content: nextContent,
+        ...(nextContentAst !== undefined ? { contentAst: nextContentAst } : {}),
         type: newType,
         isEdited: true,
         seqId: newSeqId,
@@ -954,6 +995,13 @@ export class MessagesService {
       throw new ForbiddenException('Cannot delete message from another user');
     }
 
+    // Before soft delete: capture source messages whose relation edges point to this message
+    // (so we can emit a purge event after the delete)
+    const affected = await this.db
+      .selectDistinct({ sourceMessageId: messageRelations.sourceMessageId })
+      .from(messageRelations)
+      .where(eq(messageRelations.targetMessageId, messageId));
+
     // Advance seqId so the deletion shows up in incremental sync
     const newSeqId = await this.channelSequenceService.generateChannelSeq(
       message.channelId,
@@ -968,6 +1016,22 @@ export class MessagesService {
         updatedAt: new Date(),
       })
       .where(eq(schema.messages.id, messageId));
+
+    // Emit purge event best-effort: if wsGateway throws, the soft delete commit is NOT rolled back
+    if (affected.length > 0) {
+      try {
+        await this.wsGateway.emitRelationsPurged({
+          channelId: message.channelId,
+          deletedMessageId: messageId,
+          affectedSourceIds: affected.map((r) => r.sourceMessageId),
+        });
+      } catch (err) {
+        this.logger.error(
+          `Failed to emit message_relations_purged for deleted message ${messageId}:`,
+          err,
+        );
+      }
+    }
   }
 
   async pinMessage(messageId: string, isPinned: boolean): Promise<void> {
@@ -1127,5 +1191,104 @@ export class MessagesService {
     }
 
     return { content: message.content ?? '' };
+  }
+
+  /**
+   * Send a message authored by a bot user.
+   *
+   * Designed for bot-to-user DM dispatch (e.g. after provisioning a DM channel
+   * via ChannelsService.assertBotCanDm).  Compared to the human-authored path in
+   * MessagesController.createMessage it intentionally:
+   *  - Skips mention validation (bots write to channels they just provisioned).
+   *  - Does NOT publish RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED (bot-authored
+   *    messages must not trigger channel-message agent workflows).
+   *
+   * Requires imWorkerGrpcClientService, websocketGateway to be injected (they
+   * are registered as optional in the constructor so that existing unit tests of
+   * this service that don't need these deps can continue to instantiate it
+   * without them).
+   */
+  async sendFromBot(params: {
+    botUserId: string;
+    channelId: string;
+    content: string;
+    attachments?: Array<{
+      fileKey: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+    }>;
+    workspaceId: string;
+  }): Promise<{
+    channelId: string;
+    messageId: string;
+    preview: MessageResponse;
+  }> {
+    if (!this.imWorkerGrpcClientService) {
+      throw new Error('sendFromBot: imWorkerGrpcClientService is not injected');
+    }
+
+    const { botUserId, channelId, attachments, workspaceId } = params;
+    // Bot/agent output goes through the same XSS filter as human messages —
+    // an LLM can hallucinate <script> tags or event handlers just as easily
+    // as a malicious user can.
+    const content = sanitizeMessageContent(params.content);
+
+    const clientMsgId = uuidv7();
+    const messageType = determineMessageType(content, !!attachments?.length);
+
+    const result = await this.imWorkerGrpcClientService.createMessage({
+      clientMsgId,
+      channelId,
+      senderId: botUserId,
+      content,
+      type: messageType,
+      workspaceId,
+      attachments,
+    });
+
+    const message = await this.getMessageWithDetails(result.msgId);
+    const [withProps] = await this.mergeProperties([message]);
+    const preview = this.truncateForPreview(withProps);
+
+    // Fire-and-forget post-broadcast task (unread counts, outbox completion)
+    if (this.gatewayMQService?.isReady()) {
+      const task: PostBroadcastTask = {
+        msgId: result.msgId,
+        channelId,
+        senderId: botUserId,
+        workspaceId,
+        broadcastAt: Date.now(),
+      };
+      this.gatewayMQService.publishPostBroadcast(task).catch((err) => {
+        this.logger.warn(`sendFromBot post-broadcast publish failed: ${err}`);
+      });
+    }
+
+    // Emit for search indexing (symmetric with controller path)
+    this.eventEmitter?.emit('message.created', {
+      message: {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        parentId: message.parentId,
+        createdAt: message.createdAt,
+      },
+      channel: { id: channelId },
+      sender: { id: botUserId },
+    });
+
+    // NOTE: intentionally skipping RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED publish
+    // — bot-authored messages must not trigger channel-message agent workflows.
+
+    // NOTE: WS broadcast is intentionally NOT done here to avoid ESM circular
+    // dependency (MessagesService → WebsocketGateway → MessagesModule → cycle).
+    // The caller (BotMessagingController) performs the broadcast using the
+    // returned preview payload.
+
+    return { channelId, messageId: result.msgId, preview };
   }
 }

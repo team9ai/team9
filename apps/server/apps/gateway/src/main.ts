@@ -4,6 +4,10 @@ import './otel.js'; // Initialize OpenTelemetry
 import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
+import {
+  securityHeadersMiddleware,
+  trustedTypesReportOnlyMiddleware,
+} from './security/security-headers.js';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -34,10 +38,26 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  const app = await NestFactory.create(AppModule);
+  // Disable Nest's built-in body parser — we register our own below with
+  // a raised 1 MB limit AND a `verify` callback that stashes the raw
+  // request buffer on req.rawBody for the ahand hub webhook HMAC verifier.
+  // The default 100 KB limit is too small for long-text messages; the
+  // raw buffer is needed because Stripe-style signing is sensitive to
+  // key ordering and whitespace.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
-  app.use(json({ limit: '1mb' }));
+  app.use(
+    json({
+      limit: '1mb',
+      verify: (req: unknown, _res, buf: Buffer) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
+
+  // Security headers — see security-headers.ts for the policy rationale.
+  app.use(securityHeadersMiddleware());
+  app.use(trustedTypesReportOnlyMiddleware);
 
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {

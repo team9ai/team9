@@ -54,6 +54,34 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
+// Reserve a stable box for image attachments so the loading skeleton, the
+// final <img>, and the error fallback all occupy the same height. Without
+// this the message row resizes after the image decodes, which invalidates
+// react-virtuoso's size cache and can leave the viewport parked over a
+// blank region during scrolling.
+const IMAGE_MAX_WIDTH = 300;
+const IMAGE_MAX_HEIGHT = 200;
+const IMAGE_FALLBACK_WIDTH = 200;
+const IMAGE_FALLBACK_HEIGHT = 150;
+
+function getImageBox(attachment: MessageAttachment): {
+  width: number;
+  height: number;
+} {
+  if (attachment.width && attachment.height) {
+    const scale = Math.min(
+      IMAGE_MAX_WIDTH / attachment.width,
+      IMAGE_MAX_HEIGHT / attachment.height,
+      1,
+    );
+    return {
+      width: Math.round(attachment.width * scale),
+      height: Math.round(attachment.height * scale),
+    };
+  }
+  return { width: IMAGE_FALLBACK_WIDTH, height: IMAGE_FALLBACK_HEIGHT };
+}
+
 function ImageAttachment({
   attachment,
   isOwnMessage,
@@ -66,6 +94,7 @@ function ImageAttachment({
     attachment.fileKey,
   );
   const imageUrl = data?.url ?? null;
+  const box = getImageBox(attachment);
 
   if (isLoading && !imageUrl) {
     return (
@@ -74,10 +103,7 @@ function ImageAttachment({
           "rounded-lg overflow-hidden flex items-center justify-center",
           isOwnMessage ? "bg-primary" : "bg-muted",
         )}
-        style={{
-          width: Math.min(attachment.width || 200, 300),
-          height: Math.min(attachment.height || 150, 200),
-        }}
+        style={{ width: box.width, height: box.height }}
       >
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
@@ -88,9 +114,10 @@ function ImageAttachment({
     return (
       <div
         className={cn(
-          "rounded-lg p-4 flex flex-col items-center gap-2",
+          "rounded-lg p-4 flex flex-col items-center justify-center gap-2",
           isOwnMessage ? "bg-primary" : "bg-muted",
         )}
+        style={{ width: box.width, height: box.height }}
       >
         <ImageIcon className="w-8 h-8 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">
@@ -114,17 +141,15 @@ function ImageAttachment({
         type="button"
         onClick={() => setIsPreviewOpen(true)}
         className="block rounded-lg overflow-hidden hover:opacity-90 transition-opacity cursor-zoom-in"
+        style={{ width: box.width, height: box.height }}
       >
         <img
           src={imageUrl}
           alt={attachment.fileName}
-          className="max-w-[300px] max-h-[200px] object-contain"
-          style={{
-            width: attachment.width ? Math.min(attachment.width, 300) : "auto",
-            height: attachment.height
-              ? Math.min(attachment.height, 200)
-              : "auto",
-          }}
+          width={box.width}
+          height={box.height}
+          className="object-contain"
+          style={{ width: box.width, height: box.height }}
         />
       </button>
       {isPreviewOpen && (

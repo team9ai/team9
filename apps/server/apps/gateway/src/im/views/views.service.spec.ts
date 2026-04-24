@@ -9,6 +9,20 @@ const dbModule = {
   desc: jest.fn((value: unknown) => ({ op: 'desc', value })),
   lt: jest.fn((left: unknown, right: unknown) => ({ op: 'lt', left, right })),
   isNull: jest.fn((value: unknown) => ({ op: 'isNull', value })),
+  sql: Object.assign(
+    jest.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+      op: 'sql',
+      strings,
+      values,
+    })),
+    {
+      join: jest.fn((parts: unknown[], sep: unknown) => ({
+        op: 'sqlJoin',
+        parts,
+        sep,
+      })),
+    },
+  ),
 };
 
 const schemaModule = {
@@ -30,6 +44,11 @@ const schemaModule = {
     parentId: 'messages.parentId',
     createdAt: 'messages.createdAt',
   },
+  channelPropertyDefinitions: {
+    id: 'cpd.id',
+    channelId: 'cpd.channelId',
+    config: 'cpd.config',
+  },
 };
 
 jest.unstable_mockModule('@team9/database', () => dbModule);
@@ -45,6 +64,16 @@ const mockMessagePropertiesService = {
 
 jest.unstable_mockModule('../properties/message-properties.service.js', () => ({
   MessagePropertiesService: jest.fn(() => mockMessagePropertiesService),
+}));
+
+// Mock the MessageRelationsService module
+const mockRelationsService = {
+  getEffectiveParent: jest.fn<any>(),
+  getSubtree: jest.fn<any>(),
+};
+
+jest.unstable_mockModule('../properties/message-relations.service.js', () => ({
+  MessageRelationsService: jest.fn(() => mockRelationsService),
 }));
 
 // Mock DTOs
@@ -171,8 +200,14 @@ describe('ViewsService', () => {
 
   beforeEach(() => {
     db = mockDb();
-    service = new ViewsService(db as any, mockMessagePropertiesService as any);
+    service = new ViewsService(
+      db as any,
+      mockMessagePropertiesService as any,
+      mockRelationsService as any,
+    );
     jest.clearAllMocks();
+    mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+    mockRelationsService.getSubtree.mockResolvedValue([]);
   });
 
   // ==================== findAllByChannel ====================
@@ -281,6 +316,76 @@ describe('ViewsService', () => {
     );
   });
 
+  it('rejects create with hierarchyMode=true and groupBy set', async () => {
+    db.__state.selectResults.push([]); // countByChannel → 0
+
+    await expect(
+      service.create(
+        'channel-1',
+        {
+          name: 'Conflict',
+          type: 'table',
+          config: { hierarchyMode: true, groupBy: 'status' },
+        } as any,
+        'user-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    // No insert should have been attempted
+    expect(db.__queries.insert).toHaveLength(0);
+  });
+
+  it('accepts create with hierarchyMode alone', async () => {
+    db.__state.selectResults.push([]); // countByChannel → 0
+    db.__state.selectResults.push([]); // getMaxOrder → empty
+    db.__state.insertResults.push([
+      view({
+        id: 'view-uuid',
+        order: 0,
+        config: { hierarchyMode: true, hierarchyDefaultDepth: 3 },
+      }),
+    ]);
+
+    const result = await service.create(
+      'channel-1',
+      {
+        name: 'Hierarchy',
+        type: 'table',
+        config: { hierarchyMode: true, hierarchyDefaultDepth: 3 },
+      } as any,
+      'user-1',
+    );
+
+    expect(result.config).toMatchObject({
+      hierarchyMode: true,
+      hierarchyDefaultDepth: 3,
+    });
+  });
+
+  it('accepts create with groupBy alone', async () => {
+    db.__state.selectResults.push([]); // countByChannel → 0
+    db.__state.selectResults.push([]); // getMaxOrder → empty
+    db.__state.insertResults.push([
+      view({
+        id: 'view-uuid',
+        order: 0,
+        config: { groupBy: 'status' },
+      }),
+    ]);
+
+    const result = await service.create(
+      'channel-1',
+      {
+        name: 'Grouped',
+        type: 'table',
+        config: { groupBy: 'status' },
+      } as any,
+      'user-1',
+    );
+
+    expect((result.config as any).groupBy).toBe('status');
+  });
+
   // ==================== update ====================
 
   it('partial update of name, config, order', async () => {
@@ -310,6 +415,42 @@ describe('ViewsService', () => {
     await expect(
       service.update('missing', { name: 'Nope' } as any),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects update with hierarchyMode=true and groupBy set', async () => {
+    db.__state.selectResults.push([view()]); // findByIdOrThrow
+
+    await expect(
+      service.update('view-1', {
+        config: { hierarchyMode: true, groupBy: 'status' },
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(db.__queries.update).toHaveLength(0);
+  });
+
+  it('accepts update with hierarchyMode alone', async () => {
+    db.__state.selectResults.push([view()]); // findByIdOrThrow
+    db.__state.updateResults.push([
+      view({ config: { hierarchyMode: true, hierarchyDefaultDepth: 2 } }),
+    ]);
+
+    const result = await service.update('view-1', {
+      config: { hierarchyMode: true, hierarchyDefaultDepth: 2 },
+    } as any);
+
+    expect((result.config as any).hierarchyMode).toBe(true);
+  });
+
+  it('accepts update with groupBy alone', async () => {
+    db.__state.selectResults.push([view()]); // findByIdOrThrow
+    db.__state.updateResults.push([view({ config: { groupBy: 'status' } })]);
+
+    const result = await service.update('view-1', {
+      config: { groupBy: 'status' },
+    } as any);
+
+    expect((result.config as any).groupBy).toBe('status');
   });
 
   // ==================== delete ====================
@@ -956,5 +1097,333 @@ describe('ViewsService', () => {
     const result = await service.queryMessages('view-1', { limit: 2 });
 
     expect((result as any).cursor).toBe(cursorDate.toISOString());
+  });
+
+  // ==================== getTreeSnapshot ====================
+
+  describe('getTreeSnapshot', () => {
+    const treeParams = {
+      channelId: 'channel-1',
+      viewId: 'view-1',
+      maxDepth: 3,
+      expandedIds: [],
+      cursor: null,
+      limit: 50,
+    };
+
+    it('returns empty when channel has no parent definition', async () => {
+      // Select for channelPropertyDefinitions → no parent def
+      db.__state.selectResults.push([]);
+
+      const result = await service.getTreeSnapshot(treeParams);
+
+      expect(result).toEqual({
+        nodes: [],
+        nextCursor: null,
+        ancestorsIncluded: [],
+      });
+    });
+
+    it('returns nodes from relationsService.getSubtree with roots whose parent is null', async () => {
+      // channelPropertyDefinitions → parent def found
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → hit messages
+      db.__state.selectResults.push([{ id: 'msg-1' }, { id: 'msg-2' }]);
+
+      // No ancestors: getEffectiveParent returns null for both hits
+      // Then checking roots: same calls → null
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+
+      const subtreeNodes = [
+        {
+          messageId: 'msg-1',
+          effectiveParentId: null,
+          parentSource: null,
+          depth: 0,
+          hasChildren: false,
+        },
+        {
+          messageId: 'msg-2',
+          effectiveParentId: null,
+          parentSource: null,
+          depth: 0,
+          hasChildren: false,
+        },
+      ];
+      mockRelationsService.getSubtree.mockResolvedValue(subtreeNodes);
+
+      const result = await service.getTreeSnapshot(treeParams);
+
+      expect(result.nodes).toEqual(subtreeNodes);
+      expect(result.nextCursor).toBeNull();
+      expect(result.ancestorsIncluded).toEqual([]);
+    });
+
+    it('walks ancestor chain for each hit and includes them in roots', async () => {
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → one hit
+      db.__state.selectResults.push([{ id: 'child-msg' }]);
+
+      // Ancestor walk: child-msg → parent-msg → null
+      // Root check: child-msg → parent-msg (not null!), parent-msg → null (root)
+      mockRelationsService.getEffectiveParent
+        .mockResolvedValueOnce({
+          id: 'parent-msg',
+          source: 'relation' as const,
+        }) // ancestor walk: child-msg
+        .mockResolvedValueOnce(null) // ancestor walk: parent-msg (stop)
+        .mockResolvedValueOnce({
+          id: 'parent-msg',
+          source: 'relation' as const,
+        }) // root check: child-msg
+        .mockResolvedValueOnce(null); // root check: parent-msg (is root)
+
+      const subtreeNodes = [
+        {
+          messageId: 'parent-msg',
+          effectiveParentId: null,
+          parentSource: null,
+          depth: 0,
+          hasChildren: true,
+        },
+        {
+          messageId: 'child-msg',
+          effectiveParentId: 'parent-msg',
+          parentSource: 'relation' as const,
+          depth: 1,
+          hasChildren: false,
+        },
+      ];
+      mockRelationsService.getSubtree.mockResolvedValue(subtreeNodes);
+
+      const result = await service.getTreeSnapshot(treeParams);
+
+      expect(result.nodes).toEqual(subtreeNodes);
+      // parent-msg is an ancestor (not in hitIds), so it appears in ancestorsIncluded
+      expect(result.ancestorsIncluded).toContain('parent-msg');
+      // child-msg is in hitIds, so it does NOT appear in ancestorsIncluded
+      expect(result.ancestorsIncluded).not.toContain('child-msg');
+    });
+
+    it('dedupes ancestors across multiple hits that share a common ancestor', async () => {
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → two hits sharing one parent
+      db.__state.selectResults.push([{ id: 'child-a' }, { id: 'child-b' }]);
+
+      // Ancestor walk:
+      //   child-a → shared-parent → null (stop)
+      //   child-b → shared-parent → already in ancestorSet (stop because of 'has' check)
+      // Root checks:
+      //   child-a → shared-parent (not root)
+      //   child-b → shared-parent (not root)
+      //   shared-parent → null (root)
+      mockRelationsService.getEffectiveParent
+        .mockResolvedValueOnce({
+          id: 'shared-parent',
+          source: 'relation' as const,
+        }) // child-a ancestor walk
+        .mockResolvedValueOnce(null) // shared-parent → stop
+        .mockResolvedValueOnce({
+          id: 'shared-parent',
+          source: 'relation' as const,
+        }) // child-b ancestor walk (ancestorSet already has shared-parent → break)
+        // root checks
+        .mockResolvedValueOnce({
+          id: 'shared-parent',
+          source: 'relation' as const,
+        }) // child-a root check
+        .mockResolvedValueOnce({
+          id: 'shared-parent',
+          source: 'relation' as const,
+        }) // child-b root check
+        .mockResolvedValueOnce(null); // shared-parent root check
+
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const result = await service.getTreeSnapshot(treeParams);
+
+      // shared-parent should appear only once in ancestorsIncluded
+      const parentOccurrences = result.ancestorsIncluded.filter(
+        (id) => id === 'shared-parent',
+      );
+      expect(parentOccurrences).toHaveLength(1);
+    });
+
+    it('includes expandedIds extra level without duplicates', async () => {
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → one hit (which is also the expanded id)
+      db.__state.selectResults.push([{ id: 'msg-root' }]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+
+      const mainNode = {
+        messageId: 'msg-root',
+        effectiveParentId: null,
+        parentSource: null,
+        depth: 0,
+        hasChildren: true,
+      };
+      const childNode = {
+        messageId: 'msg-child',
+        effectiveParentId: 'msg-root',
+        parentSource: 'relation' as const,
+        depth: 1,
+        hasChildren: false,
+      };
+
+      // First getSubtree call (main tree) → mainNode
+      mockRelationsService.getSubtree
+        .mockResolvedValueOnce([mainNode])
+        // Second call (expandedIds extra level) → both nodes
+        .mockResolvedValueOnce([mainNode, childNode]);
+
+      const result = await service.getTreeSnapshot({
+        ...treeParams,
+        expandedIds: ['msg-root'],
+      });
+
+      // msg-root should appear once, msg-child added from expanded
+      const msgRootCount = result.nodes.filter(
+        (n) => n.messageId === 'msg-root',
+      ).length;
+      expect(msgRootCount).toBe(1);
+      expect(
+        result.nodes.find((n) => n.messageId === 'msg-child'),
+      ).toBeDefined();
+    });
+
+    it('sets nextCursor to last hit ID when full page returned', async () => {
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → exactly `limit` (2) results
+      db.__state.selectResults.push([{ id: 'msg-1' }, { id: 'msg-2' }]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const result = await service.getTreeSnapshot({
+        ...treeParams,
+        limit: 2,
+      });
+
+      expect(result.nextCursor).toBe('msg-2');
+    });
+
+    it('nextCursor is null when fewer results than limit', async () => {
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → only 1 result (< limit of 2)
+      db.__state.selectResults.push([{ id: 'msg-1' }]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const result = await service.getTreeSnapshot({
+        ...treeParams,
+        limit: 2,
+      });
+
+      expect(result.nextCursor).toBeNull();
+    });
+
+    it('cursor pagination: looks up cursor createdAt before filtering (tuple comparison)', async () => {
+      // When a cursor is provided, findMessageIdsForView should first look up the
+      // cursor message's createdAt and then apply a tuple (createdAt, id) comparison.
+      // This test verifies an extra select is issued for the cursor lookup.
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // cursor message lookup → returns createdAt
+      db.__state.selectResults.push([
+        { createdAt: new Date('2026-04-01T10:00:00Z') },
+      ]);
+      // findMessageIdsForView → one hit after cursor
+      db.__state.selectResults.push([{ id: 'msg-after-cursor' }]);
+
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const result = await service.getTreeSnapshot({
+        ...treeParams,
+        cursor: '00000000-0000-0000-0000-000000000001',
+      });
+
+      // Cursor message lookup + main query both occurred
+      // (channelPropertyDefinitions select + cursor lookup + message IDs select = 3 selects)
+      expect(db.__queries.select.length).toBeGreaterThanOrEqual(3);
+      expect(result.nextCursor).toBeNull(); // only 1 result returned, no next page
+    });
+
+    it('cursor pagination: two messages with same createdAt both appear exactly once across pages', async () => {
+      // Scenario: msg-A and msg-B have identical createdAt. Without stable secondary
+      // ordering by id, cursor-based pagination could skip or duplicate one of them.
+      // We simulate: page 1 returns msg-A; cursor set to msg-A's id.
+      // page 2 should return msg-B (same createdAt, but different id).
+
+      // Page 1 — no cursor
+      // channelPropertyDefinitions
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView: returns [msg-A, msg-B] (limit=2, full page)
+      db.__state.selectResults.push([{ id: 'msg-A' }, { id: 'msg-B' }]);
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const page1 = await service.getTreeSnapshot({ ...treeParams, limit: 2 });
+      // Should have a cursor (full page returned)
+      expect(page1.nextCursor).toBe('msg-B');
+
+      // Reset mocks for page 2
+      jest.clearAllMocks();
+      mockRelationsService.getEffectiveParent.mockResolvedValue(null);
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      // Page 2 — cursor=msg-B
+      // channelPropertyDefinitions
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // cursor lookup: msg-B createdAt
+      db.__state.selectResults.push([
+        { createdAt: new Date('2026-04-01T12:00:00Z') },
+      ]);
+      // findMessageIdsForView: returns only msg-C (items after the cursor)
+      db.__state.selectResults.push([{ id: 'msg-C' }]);
+
+      const page2 = await service.getTreeSnapshot({
+        ...treeParams,
+        limit: 2,
+        cursor: 'msg-B',
+      });
+      // Only msg-C returned, no overlap with page 1
+      expect(page2.nextCursor).toBeNull(); // < limit
+    });
+
+    it('ancestorsIncluded contains only ancestors not in the hit set', async () => {
+      // channelPropertyDefinitions → parent def
+      db.__state.selectResults.push([{ id: 'parent-def-1' }]);
+      // findMessageIdsForView → [hit-msg]
+      db.__state.selectResults.push([{ id: 'hit-msg' }]);
+
+      // Ancestor walk: hit-msg → ancestor-msg → null
+      // Root check: hit-msg → ancestor-msg (not root), ancestor-msg → null (root)
+      mockRelationsService.getEffectiveParent
+        .mockResolvedValueOnce({
+          id: 'ancestor-msg',
+          source: 'relation' as const,
+        })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ancestor-msg',
+          source: 'relation' as const,
+        })
+        .mockResolvedValueOnce(null);
+
+      mockRelationsService.getSubtree.mockResolvedValue([]);
+
+      const result = await service.getTreeSnapshot(treeParams);
+
+      expect(result.ancestorsIncluded).toContain('ancestor-msg');
+      expect(result.ancestorsIncluded).not.toContain('hit-msg');
+    });
   });
 });

@@ -12,6 +12,19 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 jest.unstable_mockModule('../properties/message-properties.service.js', () => ({
   MessagePropertiesService: class MessagePropertiesService {},
 }));
+jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+jest.unstable_mockModule(
+  '../services/im-worker-grpc-client.service.js',
+  () => ({
+    ImWorkerGrpcClientService: class ImWorkerGrpcClientService {},
+  }),
+);
+
+jest.unstable_mockModule('../../shared/constants/injection-tokens.js', () => ({
+  WEBSOCKET_GATEWAY: Symbol('WEBSOCKET_GATEWAY'),
+}));
 
 const { MessagesService } = await import('./messages.service.js');
 type MessageResponse = import('./messages.service.js').MessageResponse;
@@ -31,6 +44,12 @@ function createDbMock() {
   const selectFrom = jest.fn<any>().mockReturnValue(selectQuery);
   selectLeftJoin.mockReturnValue(selectQuery);
 
+  // selectDistinct chain: returns { from: { where: resolvedValue } }
+  const selectDistinctWhere = jest.fn<any>().mockResolvedValue([]);
+  const selectDistinctFrom = jest.fn<any>().mockReturnValue({
+    where: selectDistinctWhere,
+  });
+
   const insertOnConflictDoNothing = jest.fn<any>().mockResolvedValue(undefined);
   const insertOnConflictDoUpdate = jest.fn<any>().mockResolvedValue(undefined);
   const insertValues = jest.fn<any>().mockReturnValue({
@@ -45,6 +64,9 @@ function createDbMock() {
 
   return {
     select: jest.fn<any>().mockReturnValue({ from: selectFrom }),
+    selectDistinct: jest
+      .fn<any>()
+      .mockReturnValue({ from: selectDistinctFrom }),
     insert: jest.fn<any>().mockReturnValue({ values: insertValues }),
     update: jest.fn<any>().mockReturnValue({ set: updateSet }),
     delete: jest.fn<any>().mockReturnValue({ where: deleteWhere }),
@@ -54,6 +76,8 @@ function createDbMock() {
       selectWhere,
       selectLimit,
       selectOrderBy,
+      selectDistinctFrom,
+      selectDistinctWhere,
       insertValues,
       insertOnConflictDoNothing,
       insertOnConflictDoUpdate,
@@ -85,6 +109,7 @@ function makeMessageResponse(
     parentId: null,
     rootId: null,
     content: 'hello',
+    contentAst: null,
     type: 'text',
     isPinned: false,
     isEdited: false,
@@ -110,8 +135,12 @@ describe('MessagesService', () => {
   let messagePropertiesService: {
     batchGetByMessageIds: jest.Mock<any>;
   };
+  let mockWsGateway: {
+    emitRelationsPurged: jest.Mock<any>;
+  };
   let logger: {
     warn: jest.Mock<any>;
+    error: jest.Mock<any>;
   };
 
   beforeEach(() => {
@@ -125,13 +154,21 @@ describe('MessagesService', () => {
     messagePropertiesService = {
       batchGetByMessageIds: jest.fn<any>().mockResolvedValue({}),
     };
+    mockWsGateway = {
+      emitRelationsPurged: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    const moduleRef = {
+      get: jest.fn<any>().mockReturnValue(mockWsGateway),
+    };
     service = new MessagesService(
       db as never,
       channelSequenceService as never,
       messagePropertiesService as never,
+      moduleRef as never,
     );
     logger = {
       warn: jest.fn<any>(),
+      error: jest.fn<any>(),
     };
     (service as any).logger = logger;
   });
@@ -245,6 +282,95 @@ describe('MessagesService', () => {
         updatedAt: new Date('2026-04-02T10:30:00.000Z'),
       }),
     );
+  });
+
+  describe('update — contentAst branches', () => {
+    // The edit path must mirror create: if contentAst is provided, it's the
+    // source of truth and `content` is re-derived from it; if omitted, the
+    // stored contentAst column stays untouched; if explicitly null, it clears.
+
+    const validAst = {
+      root: {
+        type: 'root',
+        version: 1,
+        children: [
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', text: 'edited via AST' }],
+          },
+        ],
+      },
+    };
+
+    it('re-derives content from AST when contentAst is provided', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+      jest
+        .spyOn(service, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse());
+
+      await service.update('message-1', 'user-1', {
+        content: 'stale',
+        contentAst: validAst,
+      } as never);
+
+      const updatePayload = db.chains.updateSet.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(updatePayload.content).toBe('edited via AST');
+      expect(updatePayload.contentAst).toBeDefined();
+    });
+
+    it('leaves contentAst untouched when the caller omits it (legacy edit)', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+      jest
+        .spyOn(service, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse());
+
+      await service.update('message-1', 'user-1', {
+        content: 'plain edit',
+      } as never);
+
+      const updatePayload = db.chains.updateSet.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(updatePayload.content).toBe('plain edit');
+      // Undefined key means drizzle `set` won't touch the column.
+      expect('contentAst' in updatePayload).toBe(false);
+    });
+
+    it('clears contentAst when caller passes null explicitly', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+      jest
+        .spyOn(service, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse());
+
+      await service.update('message-1', 'user-1', {
+        content: 'now plain',
+        contentAst: null,
+      } as never);
+
+      const updatePayload = db.chains.updateSet.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(updatePayload.contentAst).toBeNull();
+    });
+
+    it('rejects a malformed contentAst instead of writing junk to DB', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+
+      await expect(
+        service.update('message-1', 'user-1', {
+          content: 'x',
+          contentAst: { root: 'not-an-object' },
+        } as never),
+      ).rejects.toThrow();
+
+      // DB must not be touched when validation fails.
+      expect(db.chains.updateSet).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects delete when the message is missing or owned by another sender', async () => {
@@ -1496,6 +1622,273 @@ describe('MessagesService', () => {
     });
   });
 
+  describe('sendFromBot', () => {
+    let botService: InstanceType<typeof MessagesService>;
+    let imWorker: { createMessage: jest.Mock<any> };
+    let mqService: {
+      isReady: jest.Mock<any>;
+      publishPostBroadcast: jest.Mock<any>;
+    };
+    let eventEmitterMock: { emit: jest.Mock<any> };
+    let botDb: ReturnType<typeof createDbMock>;
+    let botChannelSequenceService: { generateChannelSeq: jest.Mock<any> };
+    let botMessagePropertiesService: { batchGetByMessageIds: jest.Mock<any> };
+    let botLogger: { warn: jest.Mock<any> };
+    let botModuleRef: { get: jest.Mock<any> };
+    let msgResponse: MessageResponse;
+
+    beforeEach(() => {
+      botDb = createDbMock();
+      botChannelSequenceService = {
+        generateChannelSeq: jest.fn<any>().mockResolvedValue(1),
+      };
+      botMessagePropertiesService = {
+        batchGetByMessageIds: jest.fn<any>().mockResolvedValue({}),
+      };
+      imWorker = {
+        createMessage: jest.fn<any>().mockResolvedValue({
+          msgId: 'msg-1',
+          seqId: '1',
+          clientMsgId: 'c-1',
+        }),
+      };
+      mqService = {
+        isReady: jest.fn<any>().mockReturnValue(true),
+        publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+      };
+      eventEmitterMock = { emit: jest.fn<any>() };
+      botModuleRef = { get: jest.fn<any>() };
+
+      botService = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        imWorker as never,
+        mqService as never,
+        eventEmitterMock as never,
+      );
+      botLogger = { warn: jest.fn<any>() };
+      (botService as any).logger = botLogger;
+
+      // Stub the helper methods that require DB
+      msgResponse = makeMessageResponse({
+        id: 'msg-1',
+        channelId: 'ch-1',
+        senderId: 'bot-1',
+        content: 'hello bot',
+      });
+      jest
+        .spyOn(botService, 'getMessageWithDetails')
+        .mockResolvedValue(msgResponse);
+      jest
+        .spyOn(botService, 'mergeProperties')
+        .mockResolvedValue([msgResponse]);
+      jest.spyOn(botService, 'truncateForPreview').mockReturnValue(msgResponse);
+    });
+
+    it('inserts message via gRPC, returns {channelId, messageId, preview}', async () => {
+      const result = await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      expect(result).toEqual({
+        channelId: 'ch-1',
+        messageId: 'msg-1',
+        preview: msgResponse,
+      });
+      expect(imWorker.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'ch-1',
+          senderId: 'bot-1',
+          content: 'hello bot',
+          workspaceId: 'ws-1',
+        }),
+      );
+    });
+
+    it('does NOT call websocketGateway directly (broadcast is caller responsibility)', async () => {
+      // sendFromBot should not have a websocketGateway dep — no property exists
+      expect((botService as any).websocketGateway).toBeUndefined();
+
+      const result = await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      // preview is returned for the caller to broadcast
+      expect(result.preview).toEqual(msgResponse);
+    });
+
+    it('forwards attachments to the gRPC client', async () => {
+      const attachments = [
+        {
+          fileKey: 'file-key-1',
+          fileName: 'photo.png',
+          mimeType: 'image/png',
+          fileSize: 1024,
+        },
+      ];
+
+      await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'see attachment',
+        attachments,
+        workspaceId: 'ws-1',
+      });
+
+      expect(imWorker.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ attachments }),
+      );
+    });
+
+    it('skips post-broadcast publish when gatewayMQService is absent', async () => {
+      const serviceWithoutMQ = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        imWorker as never,
+        undefined, // no MQ service
+        eventEmitterMock as never,
+      );
+      jest
+        .spyOn(serviceWithoutMQ, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse({ id: 'msg-1' }));
+      jest
+        .spyOn(serviceWithoutMQ, 'mergeProperties')
+        .mockResolvedValue([makeMessageResponse({ id: 'msg-1' })]);
+      jest
+        .spyOn(serviceWithoutMQ, 'truncateForPreview')
+        .mockReturnValue(makeMessageResponse({ id: 'msg-1' }));
+
+      await serviceWithoutMQ.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hi',
+        workspaceId: 'ws-1',
+      });
+
+      expect(mqService.publishPostBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('skips post-broadcast publish when gatewayMQService.isReady() returns false', async () => {
+      mqService.isReady.mockReturnValue(false);
+
+      await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hi',
+        workspaceId: 'ws-1',
+      });
+
+      expect(mqService.publishPostBroadcast).not.toHaveBeenCalled();
+    });
+
+    it('does NOT publish channel-message trigger (RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED)', async () => {
+      // The publishWorkspaceEvent is the method used for MESSAGE_CREATED routing key.
+      // Since GatewayMQService is passed in as a plain mock without publishWorkspaceEvent,
+      // we verify it is never called — confirming the method is absent from sendFromBot.
+      const mqWithWorkspaceEvent = {
+        isReady: jest.fn<any>().mockReturnValue(true),
+        publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+        publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
+      };
+
+      const serviceWithMQ = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        imWorker as never,
+        mqWithWorkspaceEvent as never,
+        eventEmitterMock as never,
+      );
+      jest
+        .spyOn(serviceWithMQ, 'getMessageWithDetails')
+        .mockResolvedValue(makeMessageResponse({ id: 'msg-1' }));
+      jest
+        .spyOn(serviceWithMQ, 'mergeProperties')
+        .mockResolvedValue([makeMessageResponse({ id: 'msg-1' })]);
+      jest
+        .spyOn(serviceWithMQ, 'truncateForPreview')
+        .mockReturnValue(makeMessageResponse({ id: 'msg-1' }));
+
+      await serviceWithMQ.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hi',
+        workspaceId: 'ws-1',
+      });
+
+      expect(mqWithWorkspaceEvent.publishWorkspaceEvent).not.toHaveBeenCalled();
+    });
+
+    it('emits message.created event for search indexing', async () => {
+      await botService.sendFromBot({
+        botUserId: 'bot-1',
+        channelId: 'ch-1',
+        content: 'hello bot',
+        workspaceId: 'ws-1',
+      });
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        'message.created',
+        expect.objectContaining({
+          message: expect.objectContaining({ id: 'msg-1' }),
+          channel: { id: 'ch-1' },
+          sender: { id: 'bot-1' },
+        }),
+      );
+    });
+
+    it('fires post-broadcast publish and catches errors without propagating', async () => {
+      mqService.publishPostBroadcast.mockRejectedValue(new Error('MQ down'));
+
+      // Should not throw
+      await expect(
+        botService.sendFromBot({
+          botUserId: 'bot-1',
+          channelId: 'ch-1',
+          content: 'hi',
+          workspaceId: 'ws-1',
+        }),
+      ).resolves.toMatchObject({ channelId: 'ch-1', messageId: 'msg-1' });
+
+      // Give the microtask queue a tick for the .catch() to run
+      await Promise.resolve();
+
+      expect(botLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('sendFromBot post-broadcast publish failed'),
+      );
+    });
+
+    it('throws when imWorkerGrpcClientService is not injected', async () => {
+      const serviceNoGrpc = new MessagesService(
+        botDb as never,
+        botChannelSequenceService as never,
+        botMessagePropertiesService as never,
+        botModuleRef as never,
+        undefined, // no gRPC
+      );
+
+      await expect(
+        serviceNoGrpc.sendFromBot({
+          botUserId: 'bot-1',
+          channelId: 'ch-1',
+          content: 'hi',
+          workspaceId: 'ws-1',
+        }),
+      ).rejects.toThrow('imWorkerGrpcClientService is not injected');
+    });
+  });
+
   it('adds reactions without failing on conflicts', async () => {
     await expect(
       service.addReaction('message-1', 'user-1', ':+1:'),
@@ -1531,5 +1924,65 @@ describe('MessagesService', () => {
     await expect(
       service.getMessageChannelId('missing-message'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  // ==================== cascade purge on soft delete ====================
+
+  it('emits message_relations_purged with affectedSourceIds when inbound relation edges exist', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+    // selectDistinct returns two source messages that point to the deleted message
+    db.chains.selectDistinctWhere.mockResolvedValueOnce([
+      { sourceMessageId: 'src-a' },
+      { sourceMessageId: 'src-b' },
+    ]);
+    channelSequenceService.generateChannelSeq.mockResolvedValueOnce(300);
+
+    await expect(
+      service.delete('message-1', 'user-1'),
+    ).resolves.toBeUndefined();
+
+    expect(mockWsGateway.emitRelationsPurged).toHaveBeenCalledWith({
+      channelId: 'channel-1',
+      deletedMessageId: 'message-1',
+      affectedSourceIds: ['src-a', 'src-b'],
+    });
+  });
+
+  it('skips emitRelationsPurged when no edges reference the deleted message', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+    // selectDistinct returns empty list — no inbound edges
+    db.chains.selectDistinctWhere.mockResolvedValueOnce([]);
+    channelSequenceService.generateChannelSeq.mockResolvedValueOnce(301);
+
+    await expect(
+      service.delete('message-1', 'user-1'),
+    ).resolves.toBeUndefined();
+
+    expect(mockWsGateway.emitRelationsPurged).not.toHaveBeenCalled();
+  });
+
+  it('logs error but does NOT throw when emitRelationsPurged fails (best-effort)', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([makeMessageRow()]);
+    db.chains.selectDistinctWhere.mockResolvedValueOnce([
+      { sourceMessageId: 'src-a' },
+    ]);
+    channelSequenceService.generateChannelSeq.mockResolvedValueOnce(302);
+    mockWsGateway.emitRelationsPurged.mockRejectedValueOnce(
+      new Error('ws down'),
+    );
+
+    // Should resolve (not reject) — purge emit failure must not roll back the delete
+    await expect(
+      service.delete('message-1', 'user-1'),
+    ).resolves.toBeUndefined();
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('message_relations_purged'),
+      expect.any(Error),
+    );
+    // The soft delete update should still have been called
+    expect(db.chains.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ isDeleted: true }),
+    );
   });
 });

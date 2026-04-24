@@ -1,0 +1,42 @@
+{
+  "myDevices": "My Devices",
+  "thisMac": "This Mac",
+  "otherDevices_zero": "My Other Devices",
+  "otherDevices_one": "My Other Devices (1)",
+  "otherDevices_other": "My Other Devices ({{count}})",
+  "allowLocalDevice": "Allow as agent target",
+  "removeThisDevice": "Remove this device",
+  "confirmRemoveThisMac": "Remove this device? The daemon will disconnect and your ahand identity will be cleared.",
+  "confirmRemove": "Remove {{name}}? That device will lose its connection.",
+  "thisMacRemoved": "This device has been removed.",
+  "removed": "{{name}} has been removed.",
+  "remove": "Remove",
+
+  "online": "● Online",
+  "offline": "Offline",
+  "connecting": "⟳ Connecting…",
+  "disabled": "Disabled",
+  "notConnected": "Not connected",
+  "statusAnyOnline": "Some devices online",
+  "statusNoneOnline": "No devices online",
+  "lastSeen": "last active {{when}}",
+  "neverSeen": "never seen",
+
+  "error": {
+    "header": "✕ Error",
+    "jwtExpired": "Session expired; refreshing…",
+    "hubUnavailable": "Remote service unavailable. Please try again.",
+    "toggleFailed": "Failed to toggle: {{msg}}",
+    "removeFailed": "Failed to remove: {{msg}}",
+    "nicknameSaveFailed": "Failed to save nickname: {{msg}}",
+    "resumeFailed": "aHand: failed to resume — {{msg}}",
+    "deviceRevoked": "aHand: this device is no longer authorized. Please re-enable.",
+    "autoRefreshFailed": "aHand: auto-refresh failed — {{msg}}"
+  },
+
+  "ctaTitle": "Let agents take over your computer",
+  "ctaBody": "Use the Team9 desktop app to turn this machine into your agent's remote execution arm — at near-zero cost.",
+  "ctaPrimaryAction": "Open Desktop App",
+  "ctaSecondaryAction": "Download Desktop App",
+  "noAppInstalledHint": "If nothing happened, the desktop app may not be installed yet."
+}

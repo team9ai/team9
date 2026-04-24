@@ -592,6 +592,189 @@ describe('MessagesController', () => {
 
       expect(channelsService.assertMentionsAllowed).not.toHaveBeenCalled();
     });
+
+    describe('clientContext top-level field', () => {
+      it('merges macapp clientContext into metadata.clientContext', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          clientContext: { kind: 'macapp', deviceId: 'dev-abc' },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: {
+              clientContext: { kind: 'macapp', deviceId: 'dev-abc' },
+            },
+          }),
+        );
+      });
+
+      it('merges web clientContext into metadata.clientContext', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          clientContext: { kind: 'web' },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: { clientContext: { kind: 'web' } },
+          }),
+        );
+      });
+
+      it('preserves existing metadata fields when merging clientContext', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          metadata: { source: 'api', trackingId: 't1' },
+          clientContext: { kind: 'macapp', deviceId: null },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: {
+              source: 'api',
+              trackingId: 't1',
+              clientContext: { kind: 'macapp', deviceId: null },
+            },
+          }),
+        );
+      });
+
+      it('leaves metadata untouched when clientContext is absent', async () => {
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          makeMessage(),
+        );
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hi',
+          metadata: { source: 'api' },
+        } as never);
+
+        expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ metadata: { source: 'api' } }),
+        );
+      });
+    });
+
+    describe('contentAst ingress', () => {
+      // When the client posts a Lexical AST alongside content, the controller
+      // must: (a) validate structure, (b) re-derive plaintext `content` from
+      // the AST (to keep search/preview/fallback in sync), (c) forward BOTH
+      // to the gRPC layer. This is the ingest-side guarantee that underpins
+      // the XSS-safe render path on the client.
+
+      const validAst = {
+        root: {
+          type: 'root',
+          version: 1,
+          direction: null,
+          format: '',
+          indent: 0,
+          children: [
+            {
+              type: 'paragraph',
+              version: 1,
+              direction: null,
+              format: '',
+              indent: 0,
+              children: [
+                {
+                  type: 'text',
+                  version: 1,
+                  text: 'hello from AST',
+                  format: 0,
+                  detail: 0,
+                  mode: 'normal',
+                  style: '',
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      it('forwards both normalized content and contentAst to gRPC', async () => {
+        const fullMessage = makeMessage();
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          fullMessage,
+        );
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          // Client may send a stale / incorrect content string — server must
+          // override it with whatever astToPlaintext produces.
+          content: 'stale from optimistic update',
+          contentAst: validAst,
+        } as never);
+
+        const call = imWorkerGrpcClientService.createMessage.mock.calls[0][0];
+        expect(call.content).toBe('hello from AST');
+        expect(call.contentAst).toBeDefined();
+        expect(call.contentAst.root.children).toHaveLength(1);
+      });
+
+      it('rejects contentAst whose root.children is not an array', async () => {
+        await expect(
+          controller.createMessage(USER_ID, CHANNEL_ID, {
+            clientMsgId: CLIENT_MSG_ID,
+            content: 'anything',
+            contentAst: { root: { type: 'root', children: 'nope' } },
+          } as never),
+        ).rejects.toThrow();
+        expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+      });
+
+      it('rejects a pathologically deep contentAst', async () => {
+        let node: Record<string, unknown> = { type: 'text', text: 'leaf' };
+        for (let i = 0; i < 60; i++) {
+          node = { type: 'paragraph', children: [node] };
+        }
+        const deep = {
+          root: { type: 'root', version: 1, children: [node] },
+        };
+
+        await expect(
+          controller.createMessage(USER_ID, CHANNEL_ID, {
+            clientMsgId: CLIENT_MSG_ID,
+            content: 'x',
+            contentAst: deep,
+          } as never),
+        ).rejects.toThrow(/depth/);
+        expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+      });
+
+      it('passes through unchanged when contentAst is absent (legacy/bot path)', async () => {
+        const fullMessage = makeMessage();
+        messagesService.getMessageWithDetails.mockResolvedValueOnce(
+          fullMessage,
+        );
+
+        await controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'pure text',
+        } as never);
+
+        const call = imWorkerGrpcClientService.createMessage.mock.calls[0][0];
+        expect(call.content).toBe('pure text');
+        expect(call.contentAst).toBeUndefined();
+      });
+    });
   });
 
   describe('startDeepResearch', () => {

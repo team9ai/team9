@@ -14,6 +14,9 @@ export interface SearchQuery {
   isThread?: boolean; // is:thread
   isDm?: boolean; // is:dm
 
+  // Direct channel ID filter (for message_ref scope=same_channel)
+  channelId?: string;
+
   // Tenant isolation
   tenantId?: string;
 

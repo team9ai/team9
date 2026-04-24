@@ -26,6 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCreateDirectChannel, useChannelsByType } from "@/hooks/useChannels";
+import { useCreateTopicSession } from "@/hooks/useTopicSessions";
 import {
   type DashboardAgent,
   type DashboardAgentModel,
@@ -74,17 +75,18 @@ const FIXED_BASE_MODEL_LABELS = {
 
 function getAgentModelLabel(
   agent: DashboardAgent | null,
+  model: DashboardAgentModel | null,
   fallbackLabel: string,
 ) {
   if (!agent) return fallbackLabel;
 
-  if (agent.model) {
+  if (model) {
     const matchedModel = COMMON_STAFF_MODELS.find(
-      (model) =>
-        model.provider === agent.model?.provider && model.id === agent.model.id,
+      (candidate) =>
+        candidate.provider === model.provider && candidate.id === model.id,
     );
 
-    return matchedModel?.label ?? agent.model.id;
+    return matchedModel?.label ?? model.id;
   }
 
   if (agent.canSwitchModel) {
@@ -104,19 +106,17 @@ function getAgentModelLabel(
 
 function DashboardModelControl({
   agent,
+  model,
   fallbackLabel,
-  isUpdating,
   onSelectModel,
 }: {
   agent: DashboardAgent | null;
+  model: DashboardAgentModel | null;
   fallbackLabel: string;
-  isUpdating: boolean;
-  onSelectModel: (model: DashboardAgentModel) => Promise<void>;
+  onSelectModel: (model: DashboardAgentModel) => void;
 }) {
-  const currentLabel = getAgentModelLabel(agent, fallbackLabel);
-  const currentValue = agent?.model
-    ? `${agent.model.provider}::${agent.model.id}`
-    : undefined;
+  const currentLabel = getAgentModelLabel(agent, model, fallbackLabel);
+  const currentValue = model ? `${model.provider}::${model.id}` : undefined;
 
   if (!agent?.canSwitchModel) {
     return (
@@ -132,14 +132,9 @@ function DashboardModelControl({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          disabled={isUpdating}
-          className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+          className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] cursor-pointer"
         >
-          {isUpdating ? (
-            <Loader2 size={12} className="animate-spin text-[#2c3647]" />
-          ) : (
-            <Sparkles size={12} className="text-[#2c3647]" />
-          )}
+          <Sparkles size={12} className="text-[#2c3647]" />
           <span>{currentLabel}</span>
           <ChevronDown size={11} className="text-[#93887b]" />
         </button>
@@ -154,7 +149,7 @@ function DashboardModelControl({
           onValueChange={(value) => {
             const [provider, id] = value.split("::");
             if (!provider || !id) return;
-            void onSelectModel({ provider, id });
+            onSelectModel({ provider, id });
           }}
         >
           {COMMON_STAFF_MODELS.map((model) => (
@@ -404,33 +399,44 @@ function formatDashboardCredits(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.floor(value));
 }
 
-export function HomeMainContent() {
+export function HomeMainContent({
+  agentId = null,
+}: { agentId?: string | null } = {}) {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
+  // Deep research still uses the legacy direct channel as its container —
+  // it's orthogonal to topic sessions and can be migrated later.
   const createDirectChannel = useCreateDirectChannel();
-  const { agents, updateAgentModel, updatingAgentUserId } =
-    useDashboardAgents(directChannels);
+  const createTopicSession = useCreateTopicSession();
+  const { agents } = useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
-    null,
+    agentId,
   );
   const [isDeepResearch, setIsDeepResearch] = useState(false);
   const [isCreatingResearch, setIsCreatingResearch] = useState(false);
+  // Session-scoped model override: chosen in the dashboard dropdown, applied
+  // only to the next topic session the user creates. Never written back to
+  // the agent's persistent default. Cleared when the user switches agents.
+  const [sessionModelOverride, setSessionModelOverride] =
+    useState<DashboardAgentModel | null>(null);
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
+  const effectiveModel = sessionModelOverride ?? selectedAgent?.model ?? null;
+  const isSubmitting =
+    createDirectChannel.isPending ||
+    createTopicSession.isPending ||
+    isCreatingResearch;
   const canSubmit =
     prompt.trim().length > 0 &&
-    !createDirectChannel.isPending &&
-    !isCreatingResearch &&
+    !isSubmitting &&
     (isDeepResearch || !!selectedAgent);
-  const isUpdatingSelectedAgentModel =
-    !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
   const activeSubscription = billingSummary.data?.subscription ?? null;
   const isSubscribed = !!activeSubscription;
   const currentPlanLabel =
@@ -445,6 +451,11 @@ export function HomeMainContent() {
     totalCredits !== null && totalCredits < LOW_CREDITS_THRESHOLD;
 
   useEffect(() => {
+    if (!agentId) return;
+    setSelectedAgentUserId(agentId);
+  }, [agentId]);
+
+  useEffect(() => {
     setSelectedAgentUserId((current) => {
       if (current && agents.some((agent) => agent.userId === current)) {
         return current;
@@ -453,6 +464,12 @@ export function HomeMainContent() {
       return pickDefaultAgent(agents)?.userId ?? null;
     });
   }, [agents]);
+
+  // Reset session model override when the user switches agents — each agent
+  // should present its own default model until the user picks one again.
+  useEffect(() => {
+    setSessionModelOverride(null);
+  }, [selectedAgentUserId]);
 
   const handleSubmit = async () => {
     const draft = prompt.trim();
@@ -497,15 +514,22 @@ export function HomeMainContent() {
     if (!selectedAgent) return;
 
     try {
-      const channelId =
-        selectedAgent.channelId ??
-        (await createDirectChannel.mutateAsync(selectedAgent.userId)).id;
+      // Create a fresh topic session for this prompt. The server persists
+      // the first user message inside the same saga, so we can navigate
+      // straight to the new channel without draft/autoSend URL params.
+      // effectiveModel carries the session-scoped override (if any) or
+      // falls back to the agent's stored default — either way it stays
+      // local to this session and never mutates the agent's config.
+      const result = await createTopicSession.mutateAsync({
+        botUserId: selectedAgent.userId,
+        initialMessage: draft,
+        ...(effectiveModel ? { model: effectiveModel } : {}),
+      });
 
       setPrompt("");
       navigate({
         to: "/channels/$channelId",
-        params: { channelId },
-        search: { draft, autoSend: true },
+        params: { channelId: result.channelId },
       });
     } catch (error: unknown) {
       const status = getHttpErrorStatus(error);
@@ -528,21 +552,17 @@ export function HomeMainContent() {
     }
   };
 
-  const handleModelChange = async (model: DashboardAgentModel) => {
+  const handleModelChange = (model: DashboardAgentModel) => {
     if (!selectedAgent?.canSwitchModel) return;
 
     if (
-      selectedAgent.model?.provider === model.provider &&
-      selectedAgent.model?.id === model.id
+      effectiveModel?.provider === model.provider &&
+      effectiveModel?.id === model.id
     ) {
       return;
     }
 
-    try {
-      await updateAgentModel(selectedAgent, model);
-    } catch (error: unknown) {
-      alert(getHttpErrorMessage(error) || "Failed to update model");
-    }
+    setSessionModelOverride(model);
   };
 
   return (
@@ -615,8 +635,8 @@ export function HomeMainContent() {
                     {!isDeepResearch && SHOW_COMPOSER_MODEL_CONTROL ? (
                       <DashboardModelControl
                         agent={selectedAgent}
+                        model={effectiveModel}
                         fallbackLabel={t("dashboardModelLabel")}
-                        isUpdating={isUpdatingSelectedAgentModel}
                         onSelectModel={handleModelChange}
                       />
                     ) : null}
@@ -629,7 +649,7 @@ export function HomeMainContent() {
                       aria-label={t("sendMessage", { ns: "message" })}
                       className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
                     >
-                      {createDirectChannel.isPending || isCreatingResearch ? (
+                      {isSubmitting ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <ArrowUp size={16} strokeWidth={2.2} />

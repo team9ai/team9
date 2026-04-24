@@ -1,4 +1,7 @@
 {
+  "table": {
+    "openInChat": "Open in chat"
+  },
   "createChannel": "채널 만들기",
   "createChannelDescription": "채널은 팀이 소통하는 공간입니다. 주제별로 정리하면 효과적입니다 - 예: #project-mars",
   "channelName": "채널 이름",

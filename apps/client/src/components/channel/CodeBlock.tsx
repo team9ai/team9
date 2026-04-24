@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { Check, Copy } from "lucide-react";
 import Prism from "@/lib/prism";
+import { sanitizeMessageHtml } from "@/lib/sanitize";
 
 interface CodeBlockProps {
   code: string;
@@ -38,14 +39,10 @@ export function CodeBlock({ code, language = "" }: CodeBlockProps) {
 
   const highlightedHtml = useMemo(() => {
     const grammar = Prism.languages[resolvedLang];
-    if (grammar) {
-      return Prism.highlight(code, grammar, resolvedLang);
-    }
-    // Fallback: escape HTML for plain text display
-    return code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    const raw = grammar
+      ? Prism.highlight(code, grammar, resolvedLang)
+      : code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return sanitizeMessageHtml(raw);
   }, [code, resolvedLang]);
 
   const handleCopy = useCallback(() => {

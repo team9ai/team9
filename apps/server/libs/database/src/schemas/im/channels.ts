@@ -34,6 +34,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
   'tracking',
   'echo',
   'routine-session',
+  'topic-session',
 ]);
 
 export const channels = pgTable(

@@ -118,9 +118,15 @@ export function MessageList({
   }, []);
 
   const handleEditSave = useCallback(
-    async (messageId: string, content: string) => {
+    async (
+      messageId: string,
+      payload: { content: string; contentAst?: Record<string, unknown> },
+    ) => {
       try {
-        await updateMessage.mutateAsync({ messageId, data: { content } });
+        await updateMessage.mutateAsync({
+          messageId,
+          data: { content: payload.content, contentAst: payload.contentAst },
+        });
         // Invalidate full-content cache so edited long_text messages refetch
         queryClient.removeQueries({
           queryKey: ["message-full-content", messageId],
@@ -703,7 +709,13 @@ export function MessageList({
         followOutput={handleFollowOutput}
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={150}
-        increaseViewportBy={{ top: 300, bottom: 100 }}
+        // Pre-render a tall buffer above and below the viewport so that fast
+        // trackpad/wheel scrolling through heavy messages (images, code
+        // blocks, tool-call cards, A2UI surfaces) doesn't expose blank
+        // regions before React catches up. The prior 300/100 values were
+        // smaller than a single tall message and caused intermittent
+        // "white flash" bands during rapid scrolling.
+        increaseViewportBy={{ top: 1200, bottom: 800 }}
         className="h-full px-4 overflow-x-hidden"
         components={{
           Header: () =>
@@ -768,7 +780,10 @@ function ChannelMessageItem({
   editingMessageId: string | null;
   isEditSaving: boolean;
   onEditStart: (messageId: string) => void;
-  onEditSave: (messageId: string, content: string) => Promise<void>;
+  onEditSave: (
+    messageId: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
+  ) => Promise<void>;
   onEditCancel: () => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
@@ -859,7 +874,7 @@ function ChannelMessageItem({
         canDelete={canDelete}
         isEditing={isEditing}
         isEditSaving={isEditing && isEditSaving}
-        onEditSave={(content) => onEditSave(message.id, content)}
+        onEditSave={(payload) => onEditSave(message.id, payload)}
         onEditCancel={onEditCancel}
         supportsProperties={supportsProperties}
       />

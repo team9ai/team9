@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import type {
   BaseModelStaffBotInfo,
@@ -167,7 +167,6 @@ export function useDashboardAgents(
 ) {
   const workspaceId = useSelectedWorkspaceId();
   const { data: currentUser } = useCurrentUser();
-  const queryClient = useQueryClient();
 
   const { data: installedApps, isLoading } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
@@ -181,117 +180,8 @@ export function useDashboardAgents(
     [currentUser?.id, directChannels, installedApps],
   );
 
-  const updateAgentModelMutation = useMutation({
-    mutationFn: async ({
-      agent,
-      model,
-    }: {
-      agent: DashboardAgent;
-      model: DashboardAgentModel;
-    }) => {
-      if (!agent.canSwitchModel || !agent.installedApplicationId) {
-        throw new Error("This agent does not support model switching");
-      }
-
-      if (agent.applicationId === "common-staff") {
-        if (!agent.botId) {
-          throw new Error("Missing common staff bot ID");
-        }
-
-        await api.applications.updateCommonStaff(
-          agent.installedApplicationId,
-          agent.botId,
-          { model },
-        );
-        return;
-      }
-
-      if (agent.applicationId === "personal-staff") {
-        await api.applications.updatePersonalStaff(
-          agent.installedApplicationId,
-          {
-            model,
-          },
-        );
-        return;
-      }
-
-      throw new Error("Unsupported dashboard agent model update");
-    },
-    onMutate: async ({ agent, model }) => {
-      if (!workspaceId || !agent.installedApplicationId) {
-        return { previousApps: undefined };
-      }
-
-      const queryKey = [
-        "installed-applications-with-bots",
-        workspaceId,
-      ] as const;
-      await queryClient.cancelQueries({ queryKey });
-
-      const previousApps =
-        queryClient.getQueryData<InstalledApplicationWithBots[]>(queryKey);
-
-      if (previousApps) {
-        queryClient.setQueryData<InstalledApplicationWithBots[]>(
-          queryKey,
-          previousApps.map((app) => {
-            if (app.id !== agent.installedApplicationId) return app;
-
-            return {
-              ...app,
-              bots: app.bots.map((bot) => {
-                if (bot.userId !== agent.userId || !("model" in bot)) {
-                  return bot;
-                }
-
-                return {
-                  ...bot,
-                  model,
-                };
-              }),
-            };
-          }),
-        );
-      }
-
-      return { previousApps };
-    },
-    onError: (_error, _variables, context) => {
-      if (!workspaceId || !context?.previousApps) return;
-
-      queryClient.setQueryData(
-        ["installed-applications-with-bots", workspaceId],
-        context.previousApps,
-      );
-    },
-    onSettled: (_data, _error, variables) => {
-      if (workspaceId) {
-        void queryClient.invalidateQueries({
-          queryKey: ["installed-applications-with-bots", workspaceId],
-        });
-      }
-
-      if (
-        variables?.agent.applicationId === "personal-staff" &&
-        variables.agent.installedApplicationId
-      ) {
-        void queryClient.invalidateQueries({
-          queryKey: ["personal-staff", variables.agent.installedApplicationId],
-        });
-      }
-    },
-  });
-
   return {
     agents,
     isLoading,
-    updateAgentModel: async (
-      agent: DashboardAgent,
-      model: DashboardAgentModel,
-    ) => updateAgentModelMutation.mutateAsync({ agent, model }),
-    updatingAgentUserId: updateAgentModelMutation.isPending
-      ? (updateAgentModelMutation.variables?.agent.userId ?? null)
-      : null,
   };
 }

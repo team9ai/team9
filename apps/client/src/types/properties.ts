@@ -20,6 +20,17 @@ export type PropertyValueType =
   | "image"
   | "tags";
 
+// ==================== MessageRef Config ====================
+
+export interface MessageRefConfig {
+  /** Restrict search to the current channel when set to 'same_channel'; 'any' allows cross-channel (server default) */
+  scope?: "same_channel" | "any";
+  /** Whether selection allows a single reference or multiple */
+  cardinality?: "single" | "multi";
+  /** Semantic relation kind for task-relationship shortcuts */
+  relationKind?: "parent" | "related";
+}
+
 // ==================== Select Option ====================
 
 export interface SelectOption {
@@ -100,6 +111,10 @@ export interface ViewConfig {
   datePropertyKey?: string;
   defaultCalendarView?: "month" | "week" | "day";
   showRecurring?: boolean;
+  /** Enable hierarchy (parent-child tree) mode in table view */
+  hierarchyMode?: boolean;
+  /** Default expand depth when hierarchy mode is active (0–5, default 3) */
+  hierarchyDefaultDepth?: number;
 }
 
 export interface ChannelView {
