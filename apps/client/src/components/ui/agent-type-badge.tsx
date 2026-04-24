@@ -8,6 +8,16 @@ interface AgentTypeBadgeProps {
   className?: string;
 }
 
+function getAgentTypeColor(agentType: AgentType | null | undefined): string {
+  if (agentType === "openclaw") {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+  if (agentType === "base_model") {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+  return "border-border/60 bg-background/80 text-muted-foreground";
+}
+
 export function AgentTypeBadge({ agentType, className }: AgentTypeBadgeProps) {
   const label = getAgentTypeLabel(agentType);
 
@@ -20,7 +30,8 @@ export function AgentTypeBadge({ agentType, className }: AgentTypeBadgeProps) {
       variant="outline"
       size="sm"
       className={cn(
-        "h-5 shrink-0 rounded-md border-border/60 bg-background/80 px-1.5 text-[10px] font-medium text-muted-foreground",
+        "h-5 shrink-0 rounded-md px-1.5 text-[10px] font-medium",
+        getAgentTypeColor(agentType),
         className,
       )}
     >

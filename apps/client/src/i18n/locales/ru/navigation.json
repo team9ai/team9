@@ -146,5 +146,7 @@
   "hideConversation": "Скрыть беседу",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Личный ассистент",
-  "agentPillModel": "Модель"
+  "agentPillModel": "Модель",
+  "agentPillPersonalAssistantOf": "Личный ассистент {{owner}}",
+  "agentBadgeAide": "Помощник"
 }

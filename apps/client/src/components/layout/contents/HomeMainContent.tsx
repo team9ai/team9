@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
+import { Badge } from "@/components/ui/badge";
 import { useCreateDirectChannel, useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
 import {
@@ -226,7 +228,7 @@ function DashboardHeader({
                 <DropdownMenuRadioItem
                   key={agent.userId}
                   value={agent.userId}
-                  className="!cursor-pointer rounded-2xl py-2.5 pr-3"
+                  className="!cursor-pointer rounded-2xl gap-3 py-2.5 px-3 [&>span:first-child]:hidden data-[state=checked]:bg-[#f3ede3]"
                 >
                   <UserAvatar
                     userId={agent.userId}
@@ -238,15 +240,45 @@ function DashboardHeader({
                     fallbackClassName="text-[0.78rem] font-semibold"
                   />
 
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[#312c27]">
-                      {agent.label}
-                    </p>
-                    {agent.username && agent.username !== agent.label ? (
-                      <p className="truncate text-xs text-[#8f8578]">
-                        @{agent.username}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="truncate font-medium text-[#312c27]">
+                        {agent.label}
                       </p>
-                    ) : null}
+                      <AgentTypeBadge agentType={agent.agentType} />
+                      {agent.staffKind === "personal" && (
+                        <Badge
+                          variant="outline"
+                          size="sm"
+                          className="h-5 shrink-0 rounded-md border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700"
+                        >
+                          {t("agentBadgeAide")}
+                        </Badge>
+                      )}
+                    </div>
+                    {(() => {
+                      const subtitle =
+                        agent.roleTitle ??
+                        (agent.staffKind === "personal" && agent.ownerName
+                          ? t("agentPillPersonalAssistantOf", {
+                              owner: agent.ownerName,
+                              defaultValue: `${agent.ownerName}'s ${t("agentPillPersonalAssistant")}`,
+                            })
+                          : null);
+                      if (subtitle) {
+                        return (
+                          <p className="truncate text-xs text-[#8f8578]">
+                            {subtitle}
+                          </p>
+                        );
+                      }
+                      return agent.username &&
+                        agent.username !== agent.label ? (
+                        <p className="truncate text-xs text-[#8f8578]">
+                          @{agent.username}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </DropdownMenuRadioItem>
               ))}

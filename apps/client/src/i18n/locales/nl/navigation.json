@@ -146,5 +146,7 @@
   "hideConversation": "Gesprek verbergen",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Persoonlijke assistent",
-  "agentPillModel": "Model"
+  "agentPillModel": "Model",
+  "agentPillPersonalAssistantOf": "Persoonlijke assistent van {{owner}}",
+  "agentBadgeAide": "Hulp"
 }

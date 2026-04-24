@@ -146,5 +146,7 @@
   "hideConversation": "대화 숨기기",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "개인 어시스턴트",
-  "agentPillModel": "모델"
+  "agentPillModel": "모델",
+  "agentPillPersonalAssistantOf": "{{owner}}님의 개인 어시스턴트",
+  "agentBadgeAide": "조수"
 }
