@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { DatabaseModule } from '@team9/database';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
+import { WorkspaceModule } from '../workspace/workspace.module.js';
 import { WikisController } from './wikis.controller.js';
 import { WikisService } from './wikis.service.js';
 import { Folder9ClientService } from './folder9-client.service.js';
@@ -29,7 +30,14 @@ import { Folder9WebhookController } from './folder9-webhook.controller.js';
  * insurance as more cross-module wiring lands.
  */
 @Module({
-  imports: [DatabaseModule, forwardRef(() => WebsocketModule)],
+  imports: [
+    DatabaseModule,
+    forwardRef(() => WebsocketModule),
+    // WorkspaceModule exports WorkspaceGuard, which WikisController applies
+    // via @UseGuards. forwardRef is required because WorkspaceModule's seed
+    // hook imports WikisService (Task 10), creating a cycle.
+    forwardRef(() => WorkspaceModule),
+  ],
   controllers: [WikisController, Folder9WebhookController],
   providers: [WikisService, Folder9ClientService],
   exports: [WikisService],
