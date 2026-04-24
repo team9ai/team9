@@ -44,6 +44,7 @@ import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { normalizeAst, astToPlaintext } from './utils/ast.js';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
 import { AiAutoFillService } from '../properties/ai-auto-fill.service.js';
 import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
@@ -251,23 +252,46 @@ export class MessagesController {
       }
     }
 
+    // Normalize and split representation:
+    //  - `contentAst` (new Lexical-composer clients) is the canonical source;
+    //    we re-derive `content` from it so search/preview/notifications
+    //    always see the plaintext form.
+    //  - `content` only (old clients, bot, OpenClaw) stays as-is and we
+    //    leave `contentAst` null so the renderer falls back to the sanitized
+    //    HTML/Markdown path.
+    let normalizedContent = dto.content;
+    let normalizedContentAst: Record<string, unknown> | undefined;
+    if (dto.contentAst) {
+      const ast = normalizeAst(dto.contentAst);
+      normalizedContent = astToPlaintext(ast);
+      normalizedContentAst = ast as unknown as Record<string, unknown>;
+    }
+
     // Determine message type based on attachments and content length
     const messageType = determineMessageType(
-      dto.content,
+      normalizedContent,
       !!dto.attachments?.length,
     );
+
+    // Merge top-level clientContext into metadata.clientContext — Stream E
+    // client sends it at the top level per the Tauri/Web contract; im-worker's
+    // AhandBlueprintExtender reads messages.metadata.clientContext.
+    const metadata = dto.clientContext
+      ? { ...(dto.metadata ?? {}), clientContext: dto.clientContext }
+      : dto.metadata;
 
     // Create message via gRPC
     const result = await this.imWorkerGrpcClientService.createMessage({
       clientMsgId,
       channelId,
       senderId: userId,
-      content: dto.content,
+      content: normalizedContent,
+      contentAst: normalizedContentAst,
       parentId: dto.parentId,
       type: messageType,
       workspaceId,
       attachments: dto.attachments,
-      metadata: dto.metadata,
+      metadata,
     });
     const t3 = Date.now();
 

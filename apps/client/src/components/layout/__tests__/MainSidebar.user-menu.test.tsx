@@ -6,7 +6,6 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const mockLogout = vi.hoisted(() => vi.fn());
 const mockUpdateStatus = vi.hoisted(() => vi.fn());
 const mockSetSelectedWorkspaceId = vi.hoisted(() => vi.fn());
-const mockResetAHand = vi.hoisted(() => vi.fn());
 const mockChangeLanguage = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
@@ -147,12 +146,16 @@ vi.mock("@/hooks/useDevtools", () => ({
   }),
 }));
 
-vi.mock("@/stores/useAHandSetupStore", () => ({
-  useAHandSetupStore: {
-    getState: () => ({
-      reset: mockResetAHand,
-    }),
-  },
+vi.mock("@/hooks/useAhandLocalStatus", () => ({
+  useAhandLocalStatus: () => ({ state: "web" }),
+}));
+
+vi.mock("@/hooks/useAhandDevices", () => ({
+  useAhandDevices: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock("@/components/dialog/DevicesDialog", () => ({
+  DevicesDialog: () => null,
 }));
 
 vi.mock("@/components/ui/button", () => ({

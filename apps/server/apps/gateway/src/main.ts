@@ -4,6 +4,11 @@ import './otel.js'; // Initialize OpenTelemetry
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { json } from 'express';
+import {
+  securityHeadersMiddleware,
+  trustedTypesReportOnlyMiddleware,
+} from './security/security-headers.js';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -34,18 +39,29 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  // `rawBody: true` makes the original request bytes available on
-  // `RawBodyRequest#rawBody`; the folder9 webhook controller needs them to
-  // verify the HMAC-SHA256 signature against the exact payload sent by
-  // folder9 (JSON.stringify of the parsed body is not byte-stable).
+  // Disable Nest's built-in body parser; register our own below with a raised
+  // 10 MB limit and a `verify` callback that stashes the raw request buffer on
+  // req.rawBody. Raw bytes are required by both the folder9 webhook controller
+  // and the ahand hub webhook — both HMAC-SHA256 over the exact byte stream
+  // that arrived on the wire (JSON.stringify of the parsed body is not
+  // byte-stable). 10 MB accommodates wiki image uploads (up to ~5 MB raw →
+  // ~6.7 MB base64) as well as long-text messages.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    rawBody: true,
+    bodyParser: false,
   });
 
-  // Raise JSON body parser limit to 10 MB. Wiki image uploads are base64-encoded
-  // inline (up to 5 MB raw → ~6.7 MB base64). Long text messages also benefit
-  // from headroom beyond 1 MB. `useBodyParser` respects `rawBody: true` above.
-  app.useBodyParser('json', { limit: '10mb' });
+  app.use(
+    json({
+      limit: '10mb',
+      verify: (req: unknown, _res, buf: Buffer) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
+
+  // Security headers — see security-headers.ts for the policy rationale.
+  app.use(securityHeadersMiddleware());
+  app.use(trustedTypesReportOnlyMiddleware);
 
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import type {
   BaseModelStaffBotInfo,
@@ -37,6 +37,9 @@ export interface DashboardAgent {
   model: DashboardAgentModel | null;
   managedAgentId: string | null;
   canSwitchModel: boolean;
+  staffKind: "common" | "personal" | "other" | null;
+  roleTitle: string | null;
+  ownerName: string | null;
 }
 
 function isPersonalStaffBot(
@@ -71,10 +74,34 @@ function canSwitchDashboardModel(applicationId: string) {
   return applicationId === "common-staff" || applicationId === "personal-staff";
 }
 
+function getStaffKind(applicationId: string): DashboardAgent["staffKind"] {
+  if (applicationId === "common-staff") return "common";
+  if (applicationId === "personal-staff") return "personal";
+  if (applicationId === "base-model-staff") return "other";
+  return null;
+}
+
+function getBotRoleTitle(bot: DashboardBot): string | null {
+  return "roleTitle" in bot ? (bot.roleTitle ?? null) : null;
+}
+
+function getBotOwnerId(bot: DashboardBot): string | null {
+  return "ownerId" in bot ? (bot.ownerId ?? null) : null;
+}
+
+function getAgentGroupOrder(agent: DashboardAgent): number {
+  if (agent.applicationId === "personal-staff") return 0;
+  if (agent.applicationId === "common-staff") return 1;
+  if (agent.applicationId === "base-model-staff") return 2;
+  if (agent.applicationId === "openclaw") return 3;
+  return 4;
+}
+
 export function buildDashboardAgents(
   installedApps: InstalledApplicationWithBots[] | undefined,
   directChannels: ChannelWithUnread[] | undefined,
   currentUserId?: string,
+  currentUserDisplayName?: string | null,
 ): DashboardAgent[] {
   const directBotChannels = (directChannels ?? []).filter(
     (channel) =>
@@ -103,6 +130,15 @@ export function buildDashboardAgents(
 
       const existingChannel = directBotChannelByUserId.get(bot.userId);
       const label = bot.displayName || bot.username || app.name || "AI Staff";
+      const staffKind =
+        existingChannel?.otherUser?.staffKind ??
+        getStaffKind(app.applicationId);
+      const ownerId = getBotOwnerId(bot);
+      const ownerName =
+        existingChannel?.otherUser?.ownerName ??
+        (ownerId && ownerId === currentUserId
+          ? (currentUserDisplayName ?? null)
+          : null);
 
       agents.set(bot.userId, {
         userId: bot.userId,
@@ -120,6 +156,10 @@ export function buildDashboardAgents(
         model: getBotModel(bot),
         managedAgentId: getBotManagedAgentId(bot),
         canSwitchModel: canSwitchDashboardModel(app.applicationId),
+        staffKind,
+        roleTitle:
+          getBotRoleTitle(bot) ?? existingChannel?.otherUser?.roleTitle ?? null,
+        ownerName,
       });
     }
   }
@@ -142,17 +182,22 @@ export function buildDashboardAgents(
       model: null,
       managedAgentId: null,
       canSwitchModel: false,
+      staffKind: otherUser.staffKind ?? null,
+      roleTitle: otherUser.roleTitle ?? null,
+      ownerName: otherUser.ownerName ?? null,
     });
   }
 
   return Array.from(agents.values()).sort((left, right) => {
+    const groupDiff = getAgentGroupOrder(left) - getAgentGroupOrder(right);
+    if (groupDiff !== 0) return groupDiff;
+
     const leftChannelOrder = directBotChannelOrderByUserId.get(left.userId);
     const rightChannelOrder = directBotChannelOrderByUserId.get(right.userId);
 
     if (leftChannelOrder !== undefined && rightChannelOrder !== undefined) {
       return leftChannelOrder - rightChannelOrder;
     }
-
     if (leftChannelOrder !== undefined) return -1;
     if (rightChannelOrder !== undefined) return 1;
 
@@ -167,7 +212,6 @@ export function useDashboardAgents(
 ) {
   const workspaceId = useSelectedWorkspaceId();
   const { data: currentUser } = useCurrentUser();
-  const queryClient = useQueryClient();
 
   const { data: installedApps, isLoading } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
@@ -177,121 +221,24 @@ export function useDashboardAgents(
   });
 
   const agents = useMemo(
-    () => buildDashboardAgents(installedApps, directChannels, currentUser?.id),
-    [currentUser?.id, directChannels, installedApps],
+    () =>
+      buildDashboardAgents(
+        installedApps,
+        directChannels,
+        currentUser?.id,
+        currentUser?.displayName ?? currentUser?.username ?? null,
+      ),
+    [
+      currentUser?.id,
+      currentUser?.displayName,
+      currentUser?.username,
+      directChannels,
+      installedApps,
+    ],
   );
-
-  const updateAgentModelMutation = useMutation({
-    mutationFn: async ({
-      agent,
-      model,
-    }: {
-      agent: DashboardAgent;
-      model: DashboardAgentModel;
-    }) => {
-      if (!agent.canSwitchModel || !agent.installedApplicationId) {
-        throw new Error("This agent does not support model switching");
-      }
-
-      if (agent.applicationId === "common-staff") {
-        if (!agent.botId) {
-          throw new Error("Missing common staff bot ID");
-        }
-
-        await api.applications.updateCommonStaff(
-          agent.installedApplicationId,
-          agent.botId,
-          { model },
-        );
-        return;
-      }
-
-      if (agent.applicationId === "personal-staff") {
-        await api.applications.updatePersonalStaff(
-          agent.installedApplicationId,
-          {
-            model,
-          },
-        );
-        return;
-      }
-
-      throw new Error("Unsupported dashboard agent model update");
-    },
-    onMutate: async ({ agent, model }) => {
-      if (!workspaceId || !agent.installedApplicationId) {
-        return { previousApps: undefined };
-      }
-
-      const queryKey = [
-        "installed-applications-with-bots",
-        workspaceId,
-      ] as const;
-      await queryClient.cancelQueries({ queryKey });
-
-      const previousApps =
-        queryClient.getQueryData<InstalledApplicationWithBots[]>(queryKey);
-
-      if (previousApps) {
-        queryClient.setQueryData<InstalledApplicationWithBots[]>(
-          queryKey,
-          previousApps.map((app) => {
-            if (app.id !== agent.installedApplicationId) return app;
-
-            return {
-              ...app,
-              bots: app.bots.map((bot) => {
-                if (bot.userId !== agent.userId || !("model" in bot)) {
-                  return bot;
-                }
-
-                return {
-                  ...bot,
-                  model,
-                };
-              }),
-            };
-          }),
-        );
-      }
-
-      return { previousApps };
-    },
-    onError: (_error, _variables, context) => {
-      if (!workspaceId || !context?.previousApps) return;
-
-      queryClient.setQueryData(
-        ["installed-applications-with-bots", workspaceId],
-        context.previousApps,
-      );
-    },
-    onSettled: (_data, _error, variables) => {
-      if (workspaceId) {
-        void queryClient.invalidateQueries({
-          queryKey: ["installed-applications-with-bots", workspaceId],
-        });
-      }
-
-      if (
-        variables?.agent.applicationId === "personal-staff" &&
-        variables.agent.installedApplicationId
-      ) {
-        void queryClient.invalidateQueries({
-          queryKey: ["personal-staff", variables.agent.installedApplicationId],
-        });
-      }
-    },
-  });
 
   return {
     agents,
     isLoading,
-    updateAgentModel: async (
-      agent: DashboardAgent,
-      model: DashboardAgentModel,
-    ) => updateAgentModelMutation.mutateAsync({ agent, model }),
-    updatingAgentUserId: updateAgentModelMutation.isPending
-      ? (updateAgentModelMutation.variables?.agent.userId ?? null)
-      : null,
   };
 }

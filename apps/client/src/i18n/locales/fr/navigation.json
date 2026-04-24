@@ -149,5 +149,7 @@
   "hideConversation": "Masquer la conversation",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Assistant personnel",
-  "agentPillModel": "Modèle"
+  "agentPillModel": "Modèle",
+  "agentPillPersonalAssistantOf": "Assistant personnel de {{owner}}",
+  "agentBadgeAide": "Aide"
 }

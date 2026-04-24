@@ -1,0 +1,819 @@
+{
+  "plan": "docs/superpowers/plans/2026-04-22-ahand-integration-plan.md",
+  "spec": "docs/superpowers/specs/2026-04-22-ahand-integration-design.md",
+  "created_at": "2026-04-22",
+  "total_tasks": 52,
+  "phases": [
+    {
+      "number": 1,
+      "name": "ahand repo changes",
+      "working_directory": "/Users/winrey/Projects/weightwave/ahand",
+      "tasks": [
+        {
+          "id": "1.1",
+          "title": "Library-ize ahandd into DaemonHandle API",
+          "status": "pending",
+          "plan_section": "Task 1.1",
+          "line": 53,
+          "depends_on": [],
+          "files": ["crates/ahandd/src/lib.rs", "crates/ahandd/src/main.rs"],
+          "verify_command": "cargo test -p ahandd --lib -- --nocapture"
+        },
+        {
+          "id": "1.2",
+          "title": "Heartbeat envelope + daemon sender + hub forward",
+          "status": "pending",
+          "plan_section": "Task 1.2",
+          "line": 425,
+          "depends_on": ["1.1"],
+          "files": [
+            "crates/ahand-protocol/proto/envelope.proto",
+            "crates/ahandd/src/heartbeat.rs",
+            "crates/ahand-hub/src/handler.rs"
+          ],
+          "verify_command": "cargo test -p ahand-protocol && cargo test -p ahandd -- heartbeat && cargo test -p ahand-hub -- heartbeat"
+        },
+        {
+          "id": "1.3",
+          "title": "Hub admin API (device pre-register + token minting)",
+          "status": "pending",
+          "plan_section": "Task 1.3",
+          "line": 637,
+          "depends_on": [],
+          "files": [
+            "crates/ahand-hub/src/http/admin.rs",
+            "crates/ahand-hub/src/jwt.rs"
+          ],
+          "verify_command": "cargo test -p ahand-hub -- admin"
+        },
+        {
+          "id": "1.4",
+          "title": "Hub control-plane REST + SSE",
+          "status": "pending",
+          "plan_section": "Task 1.4",
+          "line": 903,
+          "depends_on": ["1.3"],
+          "files": [
+            "crates/ahand-hub/src/http/control.rs",
+            "crates/ahand-hub/src/jobs.rs"
+          ],
+          "verify_command": "cargo test -p ahand-hub -- control_plane"
+        },
+        {
+          "id": "1.5",
+          "title": "Hub outbound webhook sender with retry + DLQ",
+          "status": "pending",
+          "plan_section": "Task 1.5",
+          "line": 1157,
+          "depends_on": ["1.3"],
+          "files": [
+            "crates/ahand-hub/src/webhook.rs",
+            "crates/ahand-hub-store/src/webhook_deliveries.rs"
+          ],
+          "verify_command": "cargo test -p ahand-hub -- webhook"
+        },
+        {
+          "id": "1.6",
+          "title": "@ahand/sdk CloudClient",
+          "status": "pending",
+          "plan_section": "Task 1.6",
+          "line": 1264,
+          "depends_on": ["1.4"],
+          "files": [
+            "packages/sdk/src/cloud-client.ts",
+            "packages/sdk/src/index.ts"
+          ],
+          "verify_command": "pnpm -C packages/sdk test cloud-client"
+        },
+        {
+          "id": "1.7",
+          "title": "Hub deploy workflow + deploy.sh + task-definition template",
+          "status": "pending",
+          "plan_section": "Task 1.7",
+          "line": 1435,
+          "depends_on": ["1.1", "1.3", "1.4", "1.5"],
+          "files": [
+            ".github/workflows/deploy-hub.yml",
+            "deploy/hub/deploy.sh",
+            "deploy/hub/task-definition.template.json"
+          ],
+          "verify_command": "gh run list --workflow=deploy-hub.yml --limit=1"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "name": "team9-agent-pi framework extensions",
+      "working_directory": "/Users/winrey/Projects/weightwave/team9-agent-pi",
+      "tasks": [
+        {
+          "id": "2.1",
+          "title": "HostComponent multi-backend + sticky + metadata",
+          "status": "pending",
+          "plan_section": "Task 2.1",
+          "line": 1502,
+          "depends_on": [],
+          "files": [
+            "packages/types/src/host.ts",
+            "packages/agent-components/src/components/host/host-component.ts",
+            "packages/agent-components/src/components/host/host-component.test.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/agent-components/src/components/host/ --coverage"
+        },
+        {
+          "id": "2.2",
+          "title": "CacheSystemContextProvider framework hook",
+          "status": "pending",
+          "plan_section": "Task 2.2",
+          "line": 2041,
+          "depends_on": [],
+          "files": [
+            "packages/types/src/component.ts",
+            "packages/agent-core/src/cache-system.ts",
+            "packages/agent-core/src/component-runner.ts",
+            "packages/agent-core/src/agent-session.ts",
+            "packages/agent-core/src/cache-system.test.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/agent-core/src/cache-system --coverage"
+        },
+        {
+          "id": "2.3",
+          "title": "Framework-level refresh_context tool",
+          "status": "pending",
+          "plan_section": "Task 2.3",
+          "line": 2544,
+          "depends_on": ["2.2"],
+          "files": [
+            "packages/agent-components/src/components/cache-system/cache-system-component.ts",
+            "packages/agent-components/src/components/cache-system/cache-system-component.test.ts",
+            "packages/agent-components/src/index.ts",
+            "packages/claw-hive/src/blueprints/presets.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/agent-components/src/components/cache-system/ --coverage"
+        },
+        {
+          "id": "2.4",
+          "title": "Dynamic AgentSession.addComponent / removeComponent",
+          "status": "pending",
+          "deferrable": true,
+          "plan_section": "Task 2.4",
+          "line": 2761,
+          "depends_on": ["2.1"],
+          "files": [
+            "packages/types/src/component.ts",
+            "packages/agent-core/src/component-runner.ts",
+            "packages/agent-core/src/agent-session.ts",
+            "packages/agent-core/src/async-lock.ts",
+            "packages/agent-core/src/agent-session.dynamic.test.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/agent-core/src/agent-session.dynamic.test.ts --coverage"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "name": "AWS infrastructure",
+      "working_directory": "<team9-infra-repo>/terraform",
+      "tasks": [
+        {
+          "id": "3.1",
+          "title": "IAM roles for deploy + task execution",
+          "status": "pending",
+          "plan_section": "Task 3.1",
+          "line": 3189,
+          "depends_on": [],
+          "files": [
+            "terraform/modules/ahand-hub/iam.tf",
+            "terraform/modules/ahand-hub-shared/iam-github-oidc.tf"
+          ],
+          "verify_command": "terraform plan -target=module.ahand_hub_shared.aws_iam_role.github_actions_deploy"
+        },
+        {
+          "id": "3.2",
+          "title": "ECR repository for ahand-hub",
+          "status": "pending",
+          "plan_section": "Task 3.2",
+          "line": 3485,
+          "depends_on": ["3.1"],
+          "files": [
+            "terraform/modules/ahand-hub-shared/ecr.tf",
+            "terraform/main.tf"
+          ],
+          "verify_command": "aws ecr describe-repositories --repository-names ahand-hub --profile ww --region us-east-1"
+        },
+        {
+          "id": "3.3",
+          "title": "RDS ahand_hub database + scoped user",
+          "status": "pending",
+          "plan_section": "Task 3.3",
+          "line": 3662,
+          "depends_on": [],
+          "files": [
+            "terraform/modules/ahand-hub/rds.tf",
+            "terraform/modules/ahand-hub/versions.tf"
+          ],
+          "verify_command": "psql \"$(aws ssm get-parameter --name /ahand-hub/prod/DATABASE_URL --with-decryption --profile ww --query 'Parameter.Value' --output text)\" -c 'SELECT current_database();'"
+        },
+        {
+          "id": "3.4",
+          "title": "ElastiCache Redis (reuse or provision)",
+          "status": "pending",
+          "plan_section": "Task 3.4",
+          "line": 3935,
+          "depends_on": [],
+          "files": [
+            "terraform/modules/ahand-hub/redis.tf",
+            "terraform/modules/ahand-hub/variables.tf",
+            "terraform/modules/ahand-hub/README.md"
+          ],
+          "verify_command": "aws ssm get-parameter --name /ahand-hub/prod/REDIS_URL --with-decryption --profile ww"
+        },
+        {
+          "id": "3.5",
+          "title": "SSM parameters + Route53 + CloudWatch logs",
+          "status": "pending",
+          "plan_section": "Task 3.5",
+          "line": 4155,
+          "depends_on": ["3.3", "3.4"],
+          "files": [
+            "terraform/modules/ahand-hub/ssm.tf",
+            "terraform/modules/ahand-hub/ssm-team9-mirrors.tf",
+            "terraform/modules/ahand-hub/dns.tf",
+            "terraform/modules/ahand-hub-shared/logs.tf"
+          ],
+          "verify_command": "aws ssm get-parameters-by-path --path /ahand-hub/prod/ --profile ww --query 'Parameters[].Name'"
+        },
+        {
+          "id": "3.6",
+          "title": "ECS service stub",
+          "status": "pending",
+          "plan_section": "Task 3.6",
+          "line": 4466,
+          "depends_on": ["3.1", "3.2", "3.5"],
+          "files": ["terraform/modules/ahand-hub/ecs.tf", "terraform/main.tf"],
+          "verify_command": "aws ecs describe-services --cluster openclaw-hive --services ahand-hub-prod --profile ww"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "name": "team9 gateway ahand module",
+      "working_directory": "/Users/winrey/Projects/weightwave/team9/apps/server/apps/gateway",
+      "tasks": [
+        {
+          "id": "4.1",
+          "title": "Drizzle schema ahand_devices + migration",
+          "status": "pending",
+          "plan_section": "Task 4.1",
+          "line": 4802,
+          "depends_on": [],
+          "files": [
+            "apps/server/libs/database/schemas/im/ahand-devices.ts",
+            "apps/server/libs/database/schemas/im/index.ts",
+            "apps/server/libs/database/drizzle/"
+          ],
+          "verify_command": "cd apps/server && pnpm db:migrate && psql \"$DATABASE_URL\" -c '\\d ahand_devices'"
+        },
+        {
+          "id": "4.2",
+          "title": "AhandHubClient HTTP wrapper",
+          "status": "pending",
+          "plan_section": "Task 4.2",
+          "line": 4989,
+          "depends_on": ["1.3", "1.4"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/ahand-hub.client.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-hub.client.spec.ts",
+            "apps/server/apps/gateway/src/config/"
+          ],
+          "verify_command": "pnpm test apps/server/apps/gateway/src/ahand/ahand-hub.client.spec.ts --coverage"
+        },
+        {
+          "id": "4.3",
+          "title": "AhandDevicesService business logic",
+          "status": "pending",
+          "plan_section": "Task 4.3",
+          "line": 5417,
+          "depends_on": ["4.1", "4.2"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/ahand.service.ts",
+            "apps/server/apps/gateway/src/ahand/ahand.service.spec.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/gateway/src/ahand/ahand.service.spec.ts --coverage"
+        },
+        {
+          "id": "4.4",
+          "title": "AhandController REST endpoints for Tauri",
+          "status": "pending",
+          "plan_section": "Task 4.4",
+          "line": 6023,
+          "depends_on": ["4.3"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/dto/register-device.dto.ts",
+            "apps/server/apps/gateway/src/ahand/dto/device.dto.ts",
+            "apps/server/apps/gateway/src/ahand/dto/patch-device.dto.ts",
+            "apps/server/apps/gateway/src/ahand/ahand.controller.ts",
+            "apps/server/apps/gateway/src/ahand/ahand.controller.spec.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/gateway/src/ahand/ahand.controller.spec.ts --coverage"
+        },
+        {
+          "id": "4.5",
+          "title": "AhandInternalController endpoints for im-worker",
+          "status": "pending",
+          "plan_section": "Task 4.5",
+          "line": 6399,
+          "depends_on": ["4.3"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/ahand-internal.controller.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-internal.controller.spec.ts",
+            "apps/server/apps/gateway/src/ahand/dto/internal.dto.ts",
+            "apps/server/apps/gateway/src/auth/guards/internal-service.guard.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/gateway/src/ahand/ahand-internal.controller.spec.ts --coverage"
+        },
+        {
+          "id": "4.6",
+          "title": "AhandHubWebhookController — hub → gateway receiver",
+          "status": "pending",
+          "plan_section": "Task 4.6",
+          "line": 6673,
+          "depends_on": ["4.3"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/ahand-webhook.controller.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-webhook.service.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-webhook.service.spec.ts",
+            "apps/server/apps/gateway/src/ahand/dto/webhook-event.dto.ts",
+            "apps/server/apps/gateway/src/main.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/gateway/src/ahand/ahand-webhook.service.spec.ts --coverage"
+        },
+        {
+          "id": "4.7",
+          "title": "AhandRedisPublisher + AhandEventsGateway (Socket.io)",
+          "status": "pending",
+          "plan_section": "Task 4.7",
+          "line": 7169,
+          "depends_on": ["4.3"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/ahand-redis-publisher.service.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-redis-publisher.service.spec.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-events.gateway.ts",
+            "apps/server/apps/gateway/src/ahand/ahand-events.gateway.spec.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/gateway/src/ahand/ahand-redis-publisher.service.spec.ts apps/server/apps/gateway/src/ahand/ahand-events.gateway.spec.ts --coverage"
+        },
+        {
+          "id": "4.8",
+          "title": "AhandModule wiring + message clientContext",
+          "status": "pending",
+          "plan_section": "Task 4.8",
+          "line": 7533,
+          "depends_on": ["4.4", "4.5", "4.6", "4.7"],
+          "files": [
+            "apps/server/apps/gateway/src/ahand/ahand.module.ts",
+            "apps/server/apps/gateway/src/app.module.ts",
+            "apps/server/apps/gateway/src/main.ts",
+            "apps/server/libs/database/schemas/im/messages.ts",
+            "apps/server/libs/database/drizzle/",
+            "apps/server/apps/gateway/src/im/"
+          ],
+          "verify_command": "cd apps/server && pnpm build && pnpm start:dev # verify no boot errors"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "name": "team9 im-worker",
+      "working_directory": "/Users/winrey/Projects/weightwave/team9/apps/server/apps/im-worker",
+      "tasks": [
+        {
+          "id": "5.1",
+          "title": "AhandControlPlaneClient for gateway internal API",
+          "status": "pending",
+          "plan_section": "Task 5.1",
+          "line": 7852,
+          "depends_on": ["4.5"],
+          "files": [
+            "apps/server/apps/im-worker/src/ahand/ahand-control-plane.service.ts",
+            "apps/server/apps/im-worker/src/ahand/ahand-control-plane.service.spec.ts",
+            "apps/server/apps/im-worker/src/config/"
+          ],
+          "verify_command": "pnpm test apps/server/apps/im-worker/src/ahand/ahand-control-plane.service.spec.ts --coverage"
+        },
+        {
+          "id": "5.2",
+          "title": "AhandBlueprintExtender — inject ahand at session start",
+          "status": "pending",
+          "plan_section": "Task 5.2",
+          "line": 8141,
+          "depends_on": ["5.1", "6.2", "6.3"],
+          "files": [
+            "apps/server/apps/im-worker/src/ahand/ahand-blueprint.extender.ts",
+            "apps/server/apps/im-worker/src/ahand/ahand-blueprint.extender.spec.ts",
+            "apps/server/apps/im-worker/src/agent-session/agent-session.service.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/im-worker/src/ahand/ahand-blueprint.extender.spec.ts --coverage"
+        },
+        {
+          "id": "5.3",
+          "title": "AhandEventsSubscriber — Redis pub/sub listener",
+          "status": "pending",
+          "plan_section": "Task 5.3",
+          "line": 8494,
+          "depends_on": ["5.1"],
+          "files": [
+            "apps/server/apps/im-worker/src/ahand/ahand-events.subscriber.ts",
+            "apps/server/apps/im-worker/src/ahand/ahand-events.subscriber.spec.ts"
+          ],
+          "verify_command": "pnpm test apps/server/apps/im-worker/src/ahand/ahand-events.subscriber.spec.ts --coverage"
+        },
+        {
+          "id": "5.4",
+          "title": "AhandSessionDispatcher + module wiring",
+          "status": "pending",
+          "plan_section": "Task 5.4",
+          "line": 8706,
+          "depends_on": ["2.4", "5.2", "5.3", "6.2"],
+          "files": [
+            "apps/server/apps/im-worker/src/ahand/ahand-session-dispatcher.service.ts",
+            "apps/server/apps/im-worker/src/ahand/ahand-session-dispatcher.service.spec.ts",
+            "apps/server/apps/im-worker/src/ahand/ahand-session-tracking.service.ts",
+            "apps/server/apps/im-worker/src/ahand/ahand.module.ts",
+            "apps/server/apps/im-worker/src/app.module.ts",
+            "apps/server/apps/im-worker/src/agent-session/"
+          ],
+          "verify_command": "pnpm test apps/server/apps/im-worker/src/ahand/ahand-session-dispatcher.service.spec.ts --coverage"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "name": "claw-hive ahand components",
+      "working_directory": "/Users/winrey/Projects/weightwave/team9-agent-pi",
+      "tasks": [
+        {
+          "id": "6.1",
+          "title": "GatewayAhandClient — HTTP client to gateway internal API",
+          "status": "pending",
+          "plan_section": "Task 6.1",
+          "line": 9227,
+          "depends_on": ["4.5"],
+          "files": [
+            "packages/claw-hive/src/components/ahand/gateway-client.ts",
+            "packages/claw-hive/src/components/ahand/gateway-client.test.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/claw-hive/src/components/ahand/gateway-client.test.ts --coverage"
+        },
+        {
+          "id": "6.2",
+          "title": "AHandHostComponent — IHostBackend implementation",
+          "status": "pending",
+          "plan_section": "Task 6.2",
+          "line": 9462,
+          "depends_on": ["1.6", "2.1", "6.1"],
+          "files": [
+            "packages/claw-hive/src/components/ahand/component.ts",
+            "packages/claw-hive/src/components/ahand/component.test.ts",
+            "packages/claw-hive/package.json"
+          ],
+          "verify_command": "pnpm vitest run packages/claw-hive/src/components/ahand/component.test.ts --coverage"
+        },
+        {
+          "id": "6.3",
+          "title": "AHandContextProvider + ahand.list_devices tool",
+          "status": "pending",
+          "plan_section": "Task 6.3",
+          "line": 9962,
+          "depends_on": ["2.2", "6.1"],
+          "files": [
+            "packages/claw-hive/src/components/ahand/context-provider.ts",
+            "packages/claw-hive/src/components/ahand/context-provider.test.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/claw-hive/src/components/ahand/context-provider.test.ts --coverage"
+        },
+        {
+          "id": "6.4",
+          "title": "Component factories + exports + blueprint preset",
+          "status": "pending",
+          "plan_section": "Task 6.4",
+          "line": 10346,
+          "depends_on": ["6.2", "6.3"],
+          "files": [
+            "packages/claw-hive/src/components/ahand/index.ts",
+            "packages/claw-hive/src/index.ts",
+            "packages/claw-hive/src/component-factories.ts",
+            "packages/claw-hive/src/component-factories.test.ts",
+            "packages/claw-hive/src/blueprints/presets.ts",
+            "packages/claw-hive/src/blueprints/presets.test.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/claw-hive/src/component-factories.test.ts packages/claw-hive/src/blueprints --coverage"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "name": "Tauri client Rust side",
+      "working_directory": "/Users/winrey/Projects/weightwave/team9/apps/client/src-tauri",
+      "tasks": [
+        {
+          "id": "7.1",
+          "title": "Cargo deps + remove legacy src/ahand.rs",
+          "status": "pending",
+          "plan_section": "Task 7.1",
+          "line": 10636,
+          "depends_on": ["1.1"],
+          "files": [
+            "apps/client/src-tauri/Cargo.toml",
+            "apps/client/src-tauri/src/ahand.rs",
+            "apps/client/src-tauri/src/lib.rs",
+            "apps/client/src-tauri/tauri.conf.json",
+            ".github/workflows/"
+          ],
+          "verify_command": "cd apps/client/src-tauri && cargo check && cd .. && pnpm tauri dev # verify boots without sidecar"
+        },
+        {
+          "id": "7.2",
+          "title": "identity.rs — per-user identity directory",
+          "status": "pending",
+          "plan_section": "Task 7.2",
+          "line": 10793,
+          "depends_on": ["7.1"],
+          "files": [
+            "apps/client/src-tauri/src/ahand/identity.rs",
+            "apps/client/src-tauri/src/ahand/mod.rs",
+            "apps/client/src-tauri/Cargo.toml"
+          ],
+          "verify_command": "cd apps/client/src-tauri && cargo test --lib ahand::identity"
+        },
+        {
+          "id": "7.3",
+          "title": "AhandRuntime singleton + DaemonHandle lifecycle",
+          "status": "pending",
+          "plan_section": "Task 7.3",
+          "line": 11039,
+          "depends_on": ["7.1", "7.2"],
+          "files": [
+            "apps/client/src-tauri/src/ahand/runtime.rs",
+            "apps/client/src-tauri/src/ahand/mod.rs",
+            "apps/client/src-tauri/src/lib.rs"
+          ],
+          "verify_command": "cd apps/client/src-tauri && cargo test --lib ahand::runtime"
+        },
+        {
+          "id": "7.4",
+          "title": "Tauri command surface",
+          "status": "pending",
+          "plan_section": "Task 7.4",
+          "line": 11401,
+          "depends_on": ["7.2", "7.3"],
+          "files": [
+            "apps/client/src-tauri/src/ahand/commands.rs",
+            "apps/client/src-tauri/src/ahand/mod.rs",
+            "apps/client/src-tauri/src/lib.rs",
+            "apps/client/src/types/tauri-ahand.ts",
+            "apps/client/src/services/ahand-tauri.ts"
+          ],
+          "verify_command": "cd apps/client/src-tauri && cargo check"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "name": "Tauri/Web frontend",
+      "working_directory": "/Users/winrey/Projects/weightwave/team9/apps/client",
+      "tasks": [
+        {
+          "id": "8.1",
+          "title": "Message clientContext — send from Tauri & Web",
+          "status": "pending",
+          "plan_section": "Task 8.1",
+          "line": 11640,
+          "depends_on": ["4.8"],
+          "files": [
+            "apps/client/src/stores/useAhandStore.ts",
+            "apps/client/src/services/websocket.ts",
+            "apps/client/src/services/websocket.test.ts",
+            "apps/client/src/lib/env.ts"
+          ],
+          "verify_command": "pnpm --filter @team9/client test services/websocket.test.ts"
+        },
+        {
+          "id": "8.2",
+          "title": "ahand-api HTTP client + React Query hooks",
+          "status": "pending",
+          "plan_section": "Task 8.2",
+          "line": 11829,
+          "depends_on": ["4.4", "7.4"],
+          "files": [
+            "apps/client/src/services/ahand-api.ts",
+            "apps/client/src/services/ahand-api.test.ts",
+            "apps/client/src/hooks/useAhandDevices.ts",
+            "apps/client/src/hooks/useAhandDevices.test.ts",
+            "apps/client/src/hooks/useAhandLocalStatus.ts",
+            "apps/client/src/hooks/useAhandLocalStatus.test.ts"
+          ],
+          "verify_command": "pnpm --filter @team9/client test services/ahand-api hooks/useAhandDevices hooks/useAhandLocalStatus"
+        },
+        {
+          "id": "8.3",
+          "title": "DevicesDialog component (Tauri + Web modes)",
+          "status": "pending",
+          "plan_section": "Task 8.3",
+          "line": 12131,
+          "depends_on": ["8.1", "8.2"],
+          "files": [
+            "apps/client/src/components/dialog/DevicesDialog.tsx",
+            "apps/client/src/components/dialog/DevicesDialog.test.tsx",
+            "apps/client/src/components/dialog/devices/"
+          ],
+          "verify_command": "pnpm --filter @team9/client test components/dialog/DevicesDialog"
+        },
+        {
+          "id": "8.4",
+          "title": "MainSidebar entry + _authenticated auto-resume + logout",
+          "status": "pending",
+          "plan_section": "Task 8.4",
+          "line": 12586,
+          "depends_on": ["8.3"],
+          "files": [
+            "apps/client/src/components/layout/MainSidebar.tsx",
+            "apps/client/src/components/layout/MainSidebar.test.tsx",
+            "apps/client/src/routes/_authenticated.tsx",
+            "apps/client/src/hooks/useAhandBootstrap.ts",
+            "apps/client/src/hooks/useAhandBootstrap.test.tsx",
+            "apps/client/src/stores/useAhandStore.ts"
+          ],
+          "verify_command": "pnpm --filter @team9/client test components/layout/MainSidebar hooks/useAhandBootstrap"
+        },
+        {
+          "id": "8.5",
+          "title": "JWT auto-refresh on Auth error status",
+          "status": "pending",
+          "plan_section": "Task 8.5",
+          "line": 12907,
+          "depends_on": ["8.4"],
+          "files": [
+            "apps/client/src/hooks/useAhandJwtRefresh.ts",
+            "apps/client/src/hooks/useAhandJwtRefresh.test.tsx",
+            "apps/client/src/routes/_authenticated.tsx"
+          ],
+          "verify_command": "pnpm --filter @team9/client test hooks/useAhandJwtRefresh"
+        },
+        {
+          "id": "8.6",
+          "title": "i18n resource files + namespace registration",
+          "status": "pending",
+          "plan_section": "Task 8.6",
+          "line": 13098,
+          "depends_on": [],
+          "files": [
+            "apps/client/src/i18n/locales/en/ahand.json",
+            "apps/client/src/i18n/locales/zh-CN/ahand.json",
+            "apps/client/src/i18n/index.ts"
+          ],
+          "verify_command": "cd apps/client && pnpm typecheck"
+        },
+        {
+          "id": "8.7",
+          "title": "Legacy TS cleanup — remove old aHand paths",
+          "status": "pending",
+          "plan_section": "Task 8.7",
+          "line": 13281,
+          "depends_on": ["8.3", "8.4"],
+          "files": [
+            "apps/client/src/stores/useAHandSetupStore.ts",
+            "apps/client/src/hooks/useAHandStatus.ts",
+            "apps/client/src/components/dialog/AHandSetupDialog.tsx",
+            "apps/client/src/components/layout/LocalDeviceStatus.tsx"
+          ],
+          "verify_command": "cd apps/client && rg 'useAHandSetupStore|AHandSetupDialog|LocalDeviceStatus|useAHandStatus' src/ && pnpm typecheck && pnpm test"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "name": "integration, E2E, contract, load tests",
+      "working_directory": "all three repos",
+      "tasks": [
+        {
+          "id": "9.1",
+          "title": "claw-hive __integration__/ahand.integration.test.ts",
+          "status": "pending",
+          "plan_section": "Task 9.1",
+          "line": 13401,
+          "depends_on": ["6.4"],
+          "files": [
+            "packages/claw-hive/src/__integration__/ahand.integration.test.ts",
+            "packages/claw-hive/src/__integration__/fixtures/mock-hub-server.ts"
+          ],
+          "verify_command": "pnpm vitest run packages/claw-hive/src/__integration__/ahand.integration.test.ts"
+        },
+        {
+          "id": "9.2",
+          "title": "team9 gateway ahand.integration.spec.ts",
+          "status": "pending",
+          "plan_section": "Task 9.2",
+          "line": 13673,
+          "depends_on": ["4.8"],
+          "files": [
+            "apps/server/apps/gateway/test/ahand.integration.spec.ts",
+            "apps/server/apps/gateway/test/fixtures/mock-hub-admin.ts"
+          ],
+          "verify_command": "pnpm --filter gateway test:e2e ahand.integration.spec.ts"
+        },
+        {
+          "id": "9.3",
+          "title": "im-worker ahand-dynamic-device.integration.spec.ts",
+          "status": "pending",
+          "plan_section": "Task 9.3",
+          "line": 13958,
+          "depends_on": ["5.4"],
+          "files": [
+            "apps/server/apps/im-worker/test/ahand-dynamic-device.integration.spec.ts"
+          ],
+          "verify_command": "pnpm --filter im-worker test:integration ahand-dynamic-device.integration.spec.ts"
+        },
+        {
+          "id": "9.4",
+          "title": "Playwright E2E — 9 scenarios from spec § 9.4.9",
+          "status": "pending",
+          "plan_section": "Task 9.4",
+          "line": 14142,
+          "depends_on": ["8.7"],
+          "files": [
+            "apps/client/tests/e2e/ahand/scenarios/",
+            "apps/client/tests/e2e/ahand/fixtures/mock-hub.ts",
+            "apps/client/tests/e2e/ahand/setup.ts",
+            "apps/client/playwright.config.ts",
+            ".github/workflows/e2e-nightly.yml"
+          ],
+          "verify_command": "pnpm --filter @team9/client e2e:ahand"
+        },
+        {
+          "id": "9.5",
+          "title": "Contract tests + k6 load baseline",
+          "status": "pending",
+          "plan_section": "Task 9.5",
+          "line": 14319,
+          "depends_on": ["1.6", "4.8", "5.4"],
+          "files": [
+            "contracts/hub-control-plane.json",
+            "contracts/hub-webhook.json",
+            "apps/server/apps/gateway/test/contracts/hub-webhook.contract.test.ts",
+            "packages/sdk-contracts/src/cloud-client.contract.test-d.ts",
+            "k6/ahand-load-baseline.js"
+          ],
+          "verify_command": "pnpm --filter gateway test:contracts && pnpm --filter sdk-contracts test"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "name": "production rollout",
+      "working_directory": "ops (no source tree)",
+      "tasks": [
+        {
+          "id": "10.1",
+          "title": "Deploy ahand-hub to dev + prod",
+          "status": "pending",
+          "plan_section": "Task 10.1",
+          "line": 14615,
+          "depends_on": [
+            "1.1",
+            "1.2",
+            "1.3",
+            "1.4",
+            "1.5",
+            "1.6",
+            "1.7",
+            "3.6",
+            "9.5"
+          ],
+          "files": [],
+          "verify_command": "curl -fsSL https://ahand-hub.dev.team9.ai/api/health && curl -fsSL https://ahand-hub.team9.ai/api/health"
+        },
+        {
+          "id": "10.2",
+          "title": "Deploy team9 gateway + im-worker",
+          "status": "pending",
+          "plan_section": "Task 10.2",
+          "line": 14708,
+          "depends_on": ["4.8", "5.4", "10.1"],
+          "files": [],
+          "verify_command": "curl -fsSL https://api.team9.ai/api/health && railway logs -s 'API-Gateway' --lines 100 | grep -i ahand"
+        },
+        {
+          "id": "10.3",
+          "title": "Tauri desktop app release",
+          "status": "pending",
+          "plan_section": "Task 10.3",
+          "line": 14787,
+          "depends_on": ["7.4", "8.7", "10.2"],
+          "files": ["apps/client/src-tauri/tauri.conf.json"],
+          "verify_command": "curl -fsSL https://team9.ai/desktop/latest.json"
+        }
+      ]
+    }
+  ]
+}

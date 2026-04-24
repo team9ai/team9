@@ -25,6 +25,9 @@ const mockAnd = jest.fn((...args: unknown[]) => ({
 const mockInArray = jest.fn((col: unknown, vals: unknown) => ({
   __inArray: [col, vals],
 }));
+const mockNotInArray = jest.fn((col: unknown, vals: unknown) => ({
+  __notInArray: [col, vals],
+}));
 const mockIsNull = jest.fn((col: unknown) => ({ __isNull: col }));
 
 jest.unstable_mockModule('@team9/database', () => ({
@@ -32,6 +35,7 @@ jest.unstable_mockModule('@team9/database', () => ({
   eq: mockEq,
   and: mockAnd,
   inArray: mockInArray,
+  notInArray: mockNotInArray,
   isNull: mockIsNull,
   // Pass-through stubs for helpers used elsewhere in ChannelsService but
   // not under test here.

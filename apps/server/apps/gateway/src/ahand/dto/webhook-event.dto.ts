@@ -1,0 +1,74 @@
+import {
+  IsIn,
+  IsISO8601,
+  IsNotEmpty,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
+
+export class WebhookEventDataDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  sentAtMs?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  presenceTtlSeconds?: number;
+
+  @IsOptional()
+  @IsString()
+  nickname?: string;
+
+  // Additional per-eventType fields are allowed.
+  [key: string]: unknown;
+}
+
+export class WebhookEventDto {
+  // Hub emits bare ULIDs (26 Crockford-base32 chars, e.g.
+  // `01KPZXF939E45M8ZQN9GWFM0DY`). Older designs used a `evt_` prefix;
+  // accept both so the gateway isn't coupled to the hub's id scheme.
+  @IsString()
+  @MaxLength(128)
+  @Matches(/^(evt_)?[A-Z0-9_]+$/i)
+  eventId!: string;
+
+  @IsIn([
+    'device.registered',
+    'device.online',
+    'device.heartbeat',
+    'device.offline',
+    'device.revoked',
+  ])
+  eventType!:
+    | 'device.registered'
+    | 'device.online'
+    | 'device.heartbeat'
+    | 'device.offline'
+    | 'device.revoked';
+
+  @IsISO8601()
+  occurredAt!: string;
+
+  @IsString()
+  @Matches(/^[0-9a-f]{64}$/)
+  deviceId!: string;
+
+  // Hub omits this field on events where it's not known / applicable
+  // (ahand-hub/src/webhook/mod.rs uses serde skip_serializing_if on
+  // Option::is_none). Gateway handlers look the owner up server-side
+  // by deviceId for non-registered events anyway.
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  externalUserId?: string;
+
+  @IsObject()
+  data!: WebhookEventDataDto;
+}

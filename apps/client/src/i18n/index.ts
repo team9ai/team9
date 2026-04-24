@@ -16,6 +16,7 @@ import enSkills from "./locales/en/skills.json";
 import enOnboarding from "./locales/en/onboarding.json";
 import enWiki from "./locales/en/wiki.json";
 import enDeepResearch from "./locales/en/deepResearch.json";
+import enAhand from "./locales/en/ahand.json";
 
 import { loadLanguage, NAMESPACES } from "./loadLanguage";
 
@@ -58,6 +59,7 @@ const resources = {
     onboarding: enOnboarding,
     wiki: enWiki,
     deepResearch: enDeepResearch,
+    ahand: enAhand,
   },
 };
 

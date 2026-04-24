@@ -58,7 +58,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/ahandd"],
     "macOS": {
       "dmg": {
         "background": "icons/dmg-background.png",

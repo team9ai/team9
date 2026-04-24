@@ -36,5 +36,11 @@
   "copied": "Скопировано",
   "selected": "Выбрано",
   "warning": "Предупреждение:",
-  "seconds": "с"
+  "seconds": "с",
+  "connection": {
+    "reconnecting": "Переподключение…",
+    "reconnectingHint": "Пытаемся восстановить соединение.",
+    "disconnected": "Соединение потеряно",
+    "disconnectedHint": "Проверьте сеть и обновите страницу."
+  }
 }

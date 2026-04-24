@@ -32,6 +32,11 @@ import type {
   ChannelView as ChannelViewType,
 } from "@/types/properties";
 import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import { useChannelModel } from "@/hooks/useChannelModel";
+import {
+  COMMON_STAFF_MODELS,
+  DEFAULT_STAFF_MODEL,
+} from "@/lib/common-staff-models";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -271,10 +276,18 @@ export function ChannelView({
   const dmOtherUser = (memberChannel as ChannelWithUnread | undefined)
     ?.otherUser;
 
-  // Determine if this is a bot DM channel
+  // Determine if this is a bot DM-style channel. `direct` is the classic
+  // human/bot DM; `routine-session` and `topic-session` are ephemeral
+  // one-on-one bot conversations. All three resolve to the same agent-pi
+  // session scope ('dm') on the backend, so the composer model switcher and
+  // bot-startup logic apply uniformly.
   const isBotDm = useMemo(() => {
     if (!memberChannel) return false;
-    return memberChannel.type === "direct" && dmOtherUser?.userType === "bot";
+    const isOneOnOneBotType =
+      memberChannel.type === "direct" ||
+      memberChannel.type === "routine-session" ||
+      memberChannel.type === "topic-session";
+    return isOneOnOneBotType && dmOtherUser?.userType === "bot";
   }, [dmOtherUser, memberChannel]);
 
   const botDmUserId = useMemo(() => {
@@ -282,8 +295,35 @@ export function ChannelView({
     return dmOtherUser?.id ?? null;
   }, [dmOtherUser, isBotDm]);
 
-  // Bot model switching for bot DM channels
+  // Session-level (this conversation only) model controller. Changing the
+  // model here records a `model_change` entry on agent-pi's session, so
+  // future agent-default changes on the bot won't reset this conversation.
+  // If the channel is not eligible (e.g. not a managed hive DM, or agent
+  // is unreachable), the GET 4xx's — we fall back to `useBotModelSwitch`
+  // so the composer still shows the current bot default (read-only if the
+  // channel isn't eligible for session-level switching).
   const botModelSwitch = useBotModelSwitch(isBotDm ? botDmUserId : null);
+  const channelModel = useChannelModel(channelId, { enabled: isBotDm });
+  const channelModelSwitch = useMemo(() => {
+    if (!isBotDm) return undefined;
+    if (channelModel.isError || !channelModel.data) return undefined;
+    const current = channelModel.data.model;
+    const matched = COMMON_STAFF_MODELS.find(
+      (m) => m.provider === current.provider && m.id === current.id,
+    );
+    const label = matched?.label ?? current.id ?? DEFAULT_STAFF_MODEL.label;
+    return {
+      currentModel: current,
+      currentModelLabel: label,
+      canSwitchModel: true,
+      applicationId: null as string | null,
+      installedApplicationId: null as string | null,
+      botId: null as string | null,
+      isUpdating: channelModel.isUpdating,
+      updateModel: (model: { provider: string; id: string }): Promise<void> =>
+        channelModel.updateModel(model).then(() => undefined),
+    };
+  }, [isBotDm, channelModel]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {
@@ -489,15 +529,16 @@ export function ChannelView({
   }, [threadPanelCount, threadPanelWidth]);
 
   const handleSendMessage = async (
-    content: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
     attachments?: AttachmentDto[],
   ) => {
+    const { content, contentAst } = payload;
     // Allow sending if there's content or attachments
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     startBotThinking(content);
     try {
-      await sendMessage.mutateAsync({ content, attachments });
+      await sendMessage.mutateAsync({ content, contentAst, attachments });
     } catch {
       // Clear thinking indicators on send failure to avoid stale state
       setThinkingBotIds([]);
@@ -506,7 +547,7 @@ export function ChannelView({
 
   if (channelLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+      <div className="h-full flex flex-col items-center justify-center gap-3">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">{t("loadingChannel")}</p>
       </div>
@@ -515,7 +556,7 @@ export function ChannelView({
 
   if (!channel) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <p className="text-sm text-muted-foreground">{t("channelNotFound")}</p>
       </div>
     );
@@ -525,7 +566,7 @@ export function ChannelView({
     <div ref={containerRef} className="h-full flex">
       {/* Main channel content */}
       <div
-        className={`flex-1 flex flex-col min-w-0 ${isSnapped ? "hidden" : ""}`}
+        className={`flex-1 flex flex-col min-w-0 select-text ${isSnapped ? "hidden" : ""}`}
       >
         {!hideHeader && (
           <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
@@ -623,7 +664,9 @@ export function ChannelView({
             autoSendInitialDraft={autoSendInitialDraft}
             onInitialDraftAutoSent={onInitialDraftAutoSent}
             isBotDm={isBotDm}
-            botModelSwitch={isBotDm ? botModelSwitch : undefined}
+            botModelSwitch={
+              isBotDm ? (channelModelSwitch ?? botModelSwitch) : undefined
+            }
           />
         )}
 

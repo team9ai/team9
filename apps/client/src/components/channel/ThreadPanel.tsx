@@ -297,9 +297,10 @@ export function ThreadPanel({
 
   // Handle send reply with optional attachments
   const handleSendReply = async (
-    content: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
     attachments?: AttachmentDto[],
   ) => {
+    const { content, contentAst } = payload;
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     // Detect bots that should respond
@@ -312,7 +313,7 @@ export function ThreadPanel({
       setThinkingBotIds(botIds);
     }
 
-    await sendReply.mutateAsync({ content, attachments });
+    await sendReply.mutateAsync({ content, contentAst, attachments });
   };
 
   // Render individual list items
@@ -365,7 +366,7 @@ export function ThreadPanel({
 
   return (
     <div
-      className={`${isSnapped ? "flex-1" : ""} border-l bg-background flex flex-col h-full relative`}
+      className={`${isSnapped ? "flex-1" : ""} border-l bg-background flex flex-col h-full relative select-text`}
       style={isSnapped ? undefined : { width: `${width}px` }}
     >
       {!isSnapped && onWidthChange && (

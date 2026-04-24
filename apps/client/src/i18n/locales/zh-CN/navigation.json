@@ -150,5 +150,7 @@
   "hideConversation": "隐藏对话",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "个人助理",
-  "agentPillModel": "模型"
+  "agentPillModel": "模型",
+  "agentPillPersonalAssistantOf": "{{owner}}的个人助理",
+  "agentBadgeAide": "助理"
 }

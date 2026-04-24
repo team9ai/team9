@@ -23,6 +23,9 @@ const mockAnd = jest.fn((...args: unknown[]) => ({
 const mockInArray = jest.fn((col: unknown, vals: unknown) => ({
   __inArray: [col, vals],
 }));
+const mockNotInArray = jest.fn((col: unknown, vals: unknown) => ({
+  __notInArray: [col, vals],
+}));
 const mockIsNull = jest.fn((col: unknown) => ({ __isNull: col }));
 
 // sql is a tagged template literal; mock it to return an object with .as()
@@ -38,6 +41,7 @@ jest.unstable_mockModule('@team9/database', () => ({
   eq: mockEq,
   and: mockAnd,
   inArray: mockInArray,
+  notInArray: mockNotInArray,
   isNull: mockIsNull,
   alias: jest.fn((table: unknown, name: unknown) => ({
     __alias: [table, name],

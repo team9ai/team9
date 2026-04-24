@@ -1,7 +1,15 @@
 import { useState } from "react";
-import { Hash, Lock, Info, Users, UserPlus } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Check, Copy, Hash, Lock, Info, Users, UserPlus } from "lucide-react";
+import { AgentPillRow } from "@/components/sidebar/AgentPillRow";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { ChannelDetailsModal } from "./ChannelDetailsModal";
 import { AddMemberDialog } from "./AddMemberDialog";
@@ -18,8 +26,10 @@ export function ChannelHeader({
   channel,
   currentUserRole,
 }: ChannelHeaderProps) {
+  const { t } = useTranslation("channel");
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [copiedUsername, setCopiedUsername] = useState(false);
   const [defaultTab, setDefaultTab] = useState<
     "about" | "members" | "settings"
   >("about");
@@ -47,9 +57,19 @@ export function ChannelHeader({
     setIsDetailsOpen(true);
   };
 
+  const handleCopyUsername = async (username: string) => {
+    try {
+      await navigator.clipboard.writeText(`@${username}`);
+      setCopiedUsername(true);
+      setTimeout(() => setCopiedUsername(false), 1500);
+    } catch (err) {
+      console.error("Failed to copy username:", err);
+    }
+  };
+
   return (
     <>
-      <div className="h-14 px-4 flex items-center justify-between">
+      <div className="min-h-14 py-2 px-4 flex items-center justify-between select-none">
         <div className="flex items-center gap-3">
           {isDirect && otherUser ? (
             <div className="relative">
@@ -72,13 +92,43 @@ export function ChannelHeader({
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2 min-w-0">
               <h2 className="font-semibold truncate">{displayName}</h2>
+              {isDirect && otherUser?.username && otherUser.displayName && (
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip open={copiedUsername ? true : undefined}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUsername(otherUser.username!)}
+                        className="group text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer flex items-center gap-1 min-w-0 shrink"
+                      >
+                        <span className="truncate">@{otherUser.username}</span>
+                        {copiedUsername ? (
+                          <Check size={12} className="text-success shrink-0" />
+                        ) : (
+                          <Copy
+                            size={12}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" sideOffset={6}>
+                      {copiedUsername ? t("copied") : t("clickToCopy")}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <AgentTypeBadge agentType={otherUser?.agentType} />
             </div>
-            {isDirect && otherUser?.username && otherUser.displayName && (
-              <p className="text-xs text-muted-foreground">
-                @{otherUser.username}
-              </p>
-            )}
+            {isDirect &&
+              otherUser?.userType === "bot" &&
+              otherUser.staffKind && (
+                <AgentPillRow
+                  staffKind={otherUser.staffKind}
+                  roleTitle={otherUser.roleTitle}
+                  ownerName={otherUser.ownerName}
+                />
+              )}
             {!isDirect && channel.description && (
               <p className="text-xs text-muted-foreground">
                 {channel.description}

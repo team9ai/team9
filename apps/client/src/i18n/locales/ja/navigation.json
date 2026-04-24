@@ -149,5 +149,7 @@
   "hideConversation": "会話を非表示",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "パーソナルアシスタント",
-  "agentPillModel": "モデル"
+  "agentPillModel": "モデル",
+  "agentPillPersonalAssistantOf": "{{owner}}のパーソナルアシスタント",
+  "agentBadgeAide": "助手"
 }

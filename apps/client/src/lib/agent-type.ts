@@ -8,7 +8,7 @@ export function getAgentTypeLabel(
   }
 
   if (agentType === "openclaw") {
-    return "Openclaw";
+    return "OpenClaw";
   }
 
   return null;

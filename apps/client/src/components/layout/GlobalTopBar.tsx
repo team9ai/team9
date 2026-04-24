@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
+import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import {
   useUser,
   useWorkspaceStore,
@@ -17,7 +18,6 @@ import {
 } from "@/stores";
 import { alignMacTrafficLights, isMacTauriApp } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-// import { LocalDeviceStatus } from "./LocalDeviceStatus";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useDebouncedQuickSearch } from "@/hooks/useSearch";
 import { QuickSearchResults } from "@/components/search/QuickSearchResults";
@@ -141,10 +141,7 @@ export function GlobalTopBar() {
     <header
       ref={headerRef}
       data-tauri-drag-region
-      className={cn(
-        "shrink-0 border-b border-nav-border bg-nav-bg",
-        isMacDesktop ? "h-12" : "h-11",
-      )}
+      className={cn("shrink-0 bg-nav-bg", isMacDesktop ? "h-12" : "h-11")}
     >
       <div
         data-tauri-drag-region
@@ -245,12 +242,15 @@ export function GlobalTopBar() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* [DISABLED] Local device status
-      <div className="flex items-center gap-1">
-        <LocalDeviceStatus />
-      </div> */}
+        {/* Right section - connection status indicator */}
+        <div
+          data-tauri-drag-region
+          className="flex shrink-0 items-center gap-1 pr-1"
+        >
+          <ConnectionStatus />
+        </div>
+      </div>
     </header>
   );
 }

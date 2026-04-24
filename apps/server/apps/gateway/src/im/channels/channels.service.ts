@@ -18,6 +18,7 @@ import {
   desc,
   isNull,
   inArray,
+  notInArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -80,7 +81,8 @@ export interface ChannelResponse {
     | 'task'
     | 'tracking'
     | 'echo'
-    | 'routine-session';
+    | 'routine-session'
+    | 'topic-session';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
@@ -354,7 +356,8 @@ export class ChannelsService {
    * For bots, classifies into `staffKind`:
    * - `'common'` if `extra.commonStaff` is set (takes precedence over personal)
    * - `'personal'` if `extra.personalStaff` is set (resolves owner via aliased users join)
-   * - `'other'` otherwise (no staff role)
+   * - `null` otherwise — base-model / openclaw bots are identified by their
+   *   `agentType`, so no extra pill is needed.
    *
    * commonStaff/personalStaff are mutually exclusive per the data model
    * (see im_bots.ts BotExtra). If both are present we warn and pick common.
@@ -377,8 +380,6 @@ export class ChannelsService {
       } else if (row.botExtra?.personalStaff) {
         staffKind = 'personal';
         ownerName = row.ownerDisplayName ?? row.ownerUsername ?? null;
-      } else {
-        staffKind = 'other';
       }
     }
 
@@ -559,6 +560,152 @@ export class ChannelsService {
     );
 
     return channel;
+  }
+
+  /**
+   * Create a topic-session channel: one ephemeral conversation between a
+   * user and an agent, scoped to a single topic. Unlike `direct` channels,
+   * the same (user, agent) pair can have many topic sessions.
+   *
+   * The caller is expected to pre-generate `channelId` (UUIDv7) and the
+   * matching agent-pi `sessionId` (format
+   * `team9/{tenantId}/{agentId}/topic/{channelId}`), create the agent-pi
+   * session first, then call this — that ordering makes the scopeId
+   * contract between team9 and agent-pi observable at construction time
+   * and keeps compensation logic on the caller where the saga lives.
+   *
+   * propertySettings.topicSession caches `{ agentId, sessionId, title }`
+   * for cheap sidebar/search reads; title is eventually consistent with
+   * agent-pi (the source of truth) via the `topic_session_updated` WS
+   * event. Membership: creator + bot shadow user, both 'member'.
+   */
+  async createTopicSessionChannel(params: {
+    creatorId: string;
+    botUserId: string;
+    tenantId: string | null;
+    agentId: string;
+    sessionId: string;
+    title: string | null;
+    channelId?: string;
+  }): Promise<ChannelResponse> {
+    const { creatorId, botUserId, tenantId, agentId, sessionId, title } =
+      params;
+    const channelId = params.channelId ?? uuidv7();
+
+    const propertySettings: unknown = {
+      topicSession: { agentId, sessionId, title },
+    };
+
+    const channel = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(schema.channels)
+        .values({
+          id: channelId,
+          tenantId: tenantId ?? null,
+          type: 'topic-session',
+          name: null,
+          createdBy: creatorId,
+          propertySettings,
+        })
+        .returning();
+
+      await tx.insert(schema.channelMembers).values([
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: creatorId,
+          role: 'member' as const,
+        },
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: botUserId,
+          role: 'member' as const,
+        },
+      ]);
+
+      return row;
+    });
+
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, creatorId),
+    );
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, botUserId),
+    );
+
+    return channel;
+  }
+
+  /**
+   * Set the user-facing title on a topic-session channel.
+   *
+   * Title lives in two mirrored places for distinct read paths:
+   *   1. `propertySettings.topicSession.title` — the canonical location for
+   *      the agent-group sidebar (grouped query reads it from here).
+   *   2. `channels.name` — so the existing search indexer and anywhere that
+   *      displays `channel.name` pick it up with no extra plumbing.
+   *
+   * Both are updated atomically, and the row is re-fetched so callers can
+   * fan out `channel.updated` (for search re-index) and `topic_session_updated`
+   * (for sidebar live refresh) with consistent payloads.
+   *
+   * Uses an atomic guard (`WHERE title IS NULL`) when `expectCurrentTitleNull`
+   * is set so concurrent callers racing on the same channel can't double-write.
+   * Returns `null` when the guard rejects the write.
+   */
+  async updateTopicSessionTitle(
+    channelId: string,
+    title: string | null,
+    options: { expectCurrentTitleNull?: boolean } = {},
+  ): Promise<schema.Channel | null> {
+    const [row] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    if (!row || row.type !== 'topic-session') return null;
+
+    const existing =
+      (row.propertySettings as {
+        topicSession?: {
+          agentId?: string;
+          sessionId?: string;
+          title?: string | null;
+        };
+      } | null) ?? {};
+    const ts = existing.topicSession ?? {};
+
+    if (options.expectCurrentTitleNull && ts.title) {
+      // Another writer beat us to it — bail without overwriting.
+      return null;
+    }
+
+    const next = {
+      ...existing,
+      topicSession: { ...ts, title },
+    };
+
+    await this.db
+      .update(schema.channels)
+      .set({
+        // Mirror the title onto `name` so the search indexer (which keys
+        // off channel.name/description) picks it up automatically.
+        name: title,
+        propertySettings: next,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.channels.id, channelId));
+
+    const [updated] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    return updated ?? null;
   }
 
   /**
@@ -966,8 +1113,18 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    // For direct/echo channels, fetch the other user's information
-    if ((channel.type === 'direct' || channel.type === 'echo') && userId) {
+    // For direct / echo / routine-session / topic-session channels, fetch the
+    // other user's information. All four types represent a one-on-one
+    // conversation: direct is the classic human-or-bot DM, echo shows the
+    // current user's own notes, and routine-session / topic-session are
+    // ephemeral bot conversations with exactly one bot member.
+    if (
+      userId &&
+      (channel.type === 'direct' ||
+        channel.type === 'echo' ||
+        channel.type === 'routine-session' ||
+        channel.type === 'topic-session')
+    ) {
       const otherUser =
         channel.type === 'echo'
           ? await this.getUserSummary(userId)
@@ -1209,6 +1366,15 @@ export class ChannelsService {
    * Fetch channel rows (with unread counts) for a set of channel ids that are
    * derived via mentor-lookup and are NOT present in the user's direct-member
    * list. These channels are group/tracking channels — no otherUser enrichment.
+   *
+   * NOTE: `direct` and `echo` channels are excluded here even if the caller's
+   * id list includes them. The mentor-cascade path is meant to grant visibility
+   * into group/tracking channels where a mentored bot participates; it must
+   * NOT expose bot-to-bot private DMs (created e.g. by `base-model-staff`
+   * install when the tenant already has other bot members) as "Direct
+   * Message" rows in the mentor's sidebar. Without this filter, those
+   * bot-to-bot DMs reach the client with `otherUser=undefined` and render
+   * as the generic "Direct Message" fallback.
    */
   private async fetchChannelsByIds(
     channelIds: string[],
@@ -1246,7 +1412,12 @@ export class ChannelsService {
           eq(schema.userChannelReadStatus.userId, userId),
         ),
       )
-      .where(inArray(schema.channels.id, channelIds));
+      .where(
+        and(
+          inArray(schema.channels.id, channelIds),
+          notInArray(schema.channels.type, ['direct', 'echo']),
+        ),
+      );
 
     return rows.map((row) => ({
       ...row,
@@ -1561,6 +1732,94 @@ export class ChannelsService {
     }
 
     throw new ForbiddenException('Access denied');
+  }
+
+  /**
+   * Resolve the target of a channel-level model switch.
+   *
+   * A channel is eligible iff:
+   *   - type ∈ ('direct', 'routine-session', 'topic-session')
+   *   - requester has read access
+   *   - contains exactly one managed-hive bot member (managedProvider='hive'
+   *     with a resolvable managedMeta.agentId)
+   *
+   * Returns the bot + agent-pi session id, or throws ForbiddenException.
+   * Used by the channel-model GET/PATCH/SSE endpoints.
+   */
+  async resolveModelSwitchTarget(
+    channelId: string,
+    requesterId: string,
+  ): Promise<{
+    tenantId: string | null;
+    agentId: string;
+    sessionId: string;
+    bot: { botUserId: string };
+  }> {
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    if (
+      channel.type !== 'direct' &&
+      channel.type !== 'routine-session' &&
+      channel.type !== 'topic-session'
+    ) {
+      throw new ForbiddenException(
+        'Model switching is only available on DM, routine-session, and topic-session channels',
+      );
+    }
+
+    await this.assertReadAccess(channelId, requesterId);
+
+    const botRows = await this.db
+      .select({
+        userId: schema.channelMembers.userId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
+      })
+      .from(schema.channelMembers)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.channelMembers.userId),
+      )
+      .innerJoin(
+        schema.bots,
+        eq(schema.bots.userId, schema.channelMembers.userId),
+      )
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          isNull(schema.channelMembers.leftAt),
+          eq(schema.users.userType, 'bot'),
+        ),
+      );
+
+    const hiveBots = botRows.filter(
+      (row) => row.managedProvider === 'hive' && !!row.managedMeta?.agentId,
+    );
+
+    if (hiveBots.length !== 1) {
+      throw new ForbiddenException(
+        hiveBots.length === 0
+          ? 'Channel has no hive-managed bot'
+          : 'Model switching is not supported in channels with multiple bots',
+      );
+    }
+
+    const bot = hiveBots[0];
+    const agentId = bot.managedMeta!.agentId as string;
+    const tenantId = channel.tenantId;
+    // Mirrors the sessionId convention in post-broadcast.service.ts for
+    // direct / routine-session channels (scope='dm', scopeId=channel.id).
+    const sessionId = `team9/${tenantId ?? ''}/${agentId}/dm/${channelId}`;
+
+    return {
+      tenantId,
+      agentId,
+      sessionId,
+      bot: { botUserId: bot.userId },
+    };
   }
 
   async isBot(userId: string): Promise<boolean> {

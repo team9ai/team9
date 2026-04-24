@@ -31,7 +31,8 @@ export interface SectionWithChannels extends SectionResponse {
       | 'task'
       | 'tracking'
       | 'echo'
-      | 'routine-session';
+      | 'routine-session'
+      | 'topic-session';
     order: number;
   }[];
 }

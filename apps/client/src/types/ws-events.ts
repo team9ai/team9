@@ -34,6 +34,7 @@ export const WS_EVENTS = {
     UNARCHIVED: "channel_unarchived",
     OBSERVE: "channel:observe",
     UNOBSERVE: "channel:unobserve",
+    MODEL_CHANGED: "channel_model_changed",
   },
 
   // Message operations
@@ -239,6 +240,16 @@ export interface ChannelUnarchivedEvent {
   channelId: string;
   channelName?: string;
   unarchivedBy: string;
+}
+
+/** Channel session model changed event */
+export interface ChannelModelChangedEvent {
+  channelId: string;
+  botId: string;
+  model: { provider: string; id: string };
+  source: "agent_default" | "session_initial" | "dynamic";
+  changedBy: string | null;
+  changedAt: string;
 }
 
 // ==================== Message Event Types ====================
@@ -695,6 +706,27 @@ export interface MessageRelationsPurgedEvent {
 
 // ==================== Tab Event Types ====================
 
+export interface MessageRelationChangedEvent {
+  channelId: string;
+  sourceMessageId: string;
+  propertyDefinitionId: string;
+  propertyKey: string;
+  relationKind: "parent" | "related";
+  action: "added" | "removed" | "replaced";
+  addedTargetIds: string[];
+  removedTargetIds: string[];
+  currentTargetIds: string[];
+  performedBy: string;
+  timestamp: string;
+}
+
+/** Message relations purged event — broadcast when a message is soft-deleted */
+export interface MessageRelationsPurgedEvent {
+  channelId: string;
+  deletedMessageId: string;
+  affectedSourceIds: string[];
+}
+
 /** Tab created event */
 export interface TabCreatedEvent {
   channelId: string;
@@ -792,4 +824,7 @@ export interface ServerToClientEvents {
   tab_created: TabCreatedEvent;
   tab_updated: TabUpdatedEvent;
   tab_deleted: TabDeletedEvent;
+  // Message relations
+  message_relation_changed: MessageRelationChangedEvent;
+  message_relations_purged: MessageRelationsPurgedEvent;
 }

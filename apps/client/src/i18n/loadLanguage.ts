@@ -16,6 +16,7 @@ export const NAMESPACES = [
   "onboarding",
   "wiki",
   "deepResearch",
+  "ahand",
 ] as const;
 
 const modules = import.meta.glob<{ default: Record<string, unknown> }>(

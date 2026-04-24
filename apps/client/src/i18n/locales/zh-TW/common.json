@@ -36,5 +36,11 @@
   "copied": "已複製",
   "selected": "已選取",
   "warning": "警告：",
-  "seconds": "秒"
+  "seconds": "秒",
+  "connection": {
+    "reconnecting": "正在重新連線…",
+    "reconnectingHint": "正在嘗試恢復連線。",
+    "disconnected": "連線已斷開",
+    "disconnectedHint": "請檢查網路後重新整理。"
+  }
 }

@@ -15,6 +15,11 @@ import {
   Sparkles,
   Loader2,
   ChevronRight,
+  Laptop,
+  CircleCheck,
+  CircleX,
+  Ban,
+  WifiOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -51,7 +56,6 @@ import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
-import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useDevtools } from "@/hooks/useDevtools";
 import { NotificationBadge } from "@/components/ui/badge";
@@ -62,6 +66,10 @@ import {
   registerMoreTapUnlock,
 } from "./mainSidebarUnlock";
 import type { UserStatus } from "@/types/im";
+import { DevicesDialog } from "@/components/dialog/DevicesDialog";
+import { useAhandLocalStatus } from "@/hooks/useAhandLocalStatus";
+import { useAhandDevices } from "@/hooks/useAhandDevices";
+import { isTauriApp } from "@/lib/tauri";
 
 // Navigation items with i18n keys
 const navigationItems = [
@@ -103,6 +111,10 @@ export function MainSidebar() {
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
   const { handleTap: devtoolsTap, message: devtoolsMessage } = useDevtools();
+  const [devicesDialogOpen, setDevicesDialogOpen] = useState(false);
+  const localStatus = useAhandLocalStatus();
+  const { data: ahandDevices } = useAhandDevices({ includeOffline: true });
+  const { t: tAhand } = useTranslation("ahand");
 
   // Activity count excludes dm_received notifications (those are shown on Messages)
   const activityUnreadCount =
@@ -240,9 +252,6 @@ export function MainSidebar() {
       // or may point at stale detail pages in the next workspace.
       appActions.resetNavigationForWorkspaceEntry();
 
-      // Reset aHand setup state so it re-runs for the new workspace
-      useAHandSetupStore.getState().reset();
-
       // Navigate to home when switching workspace
       navigate({ to: "/" });
     }
@@ -298,7 +307,7 @@ export function MainSidebar() {
               <Icon size={20} />
               <NotificationBadge count={badgeCount} />
             </div>
-            <span className="text-xs mt-1.5">{label}</span>
+            <span className="text-xs mt-1">{label}</span>
           </Button>
         );
       },
@@ -310,7 +319,7 @@ export function MainSidebar() {
         isOpen={createWorkspaceOpen}
         onClose={() => setCreateWorkspaceOpen(false)}
       />
-      <div className="flex h-full">
+      <div className="flex h-full bg-nav-bg">
         {/* Column 1: Workspace avatars - always visible */}
         <aside
           data-tauri-drag-region
@@ -391,7 +400,11 @@ export function MainSidebar() {
                         )}
                       </div>
                     </PopoverTrigger>
-                    <PopoverContent side="right" className="w-56 p-2">
+                    <PopoverContent
+                      side="bottom"
+                      align="start"
+                      className="w-56 p-2"
+                    >
                       <div className="space-y-1">
                         <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
                           {tNav("moreWorkspaces")}
@@ -454,7 +467,7 @@ export function MainSidebar() {
                           getSeededAvatarGradient(workspace.id),
                           isSelected
                             ? "w-11 h-11 rounded-lg text-base shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
-                            : "w-9 h-9 rounded-full text-sm opacity-50 hover:opacity-90 hover:rounded-2xl hover:w-10 hover:h-10",
+                            : "w-9 h-9 rounded-full text-sm opacity-50 hover:opacity-90 hover:w-10 hover:h-10",
                         )}
                         onClick={() => setSelectedWorkspaceId(workspace.id)}
                       >
@@ -488,11 +501,68 @@ export function MainSidebar() {
 
             {/* Navigation Items - shown here when sidebar is collapsed */}
             {sidebarCollapsed && (
-              <nav className="w-full flex flex-col items-center space-y-1 border-border">
+              <nav className="w-full flex flex-col items-center space-y-2 border-border">
                 {renderNavigationItems()}
               </nav>
             )}
           </div>
+
+          {/* Devices (ahand) entry */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setDevicesDialogOpen(true)}
+                aria-label={tAhand("myDevices")}
+                className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2"
+              >
+                {/* Inner wrapper sized to the Laptop glyph so the badge can
+                    hug its bottom-right corner (with partial overlap) rather
+                    than the button's padding edge. */}
+                <span className="relative inline-flex">
+                  <Laptop
+                    size={24}
+                    className={cn(
+                      deriveSidebarLaptopColor(
+                        localStatus,
+                        ahandDevices,
+                        isTauriApp(),
+                      ),
+                    )}
+                  />
+                  {(() => {
+                    const Badge = deriveSidebarBadgeIcon(
+                      localStatus,
+                      ahandDevices,
+                      isTauriApp(),
+                    );
+                    if (!Badge) return null;
+                    return (
+                      <Badge.icon
+                        size={14}
+                        strokeWidth={2.5}
+                        // translate-x/y picks a ~40% overlap with the
+                        // Laptop's bottom-right corner.
+                        className={cn(
+                          "absolute bottom-0 right-0 translate-x-1/3 translate-y-1/3 bg-nav-bg rounded-full",
+                          Badge.className,
+                        )}
+                      />
+                    );
+                  })()}
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>{tAhand("myDevices")}</p>
+              <p className="text-xs text-muted-foreground">
+                {deriveSidebarStatusLabel(localStatus, ahandDevices, tAhand)}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+          <DevicesDialog
+            open={devicesDialogOpen}
+            onOpenChange={setDevicesDialogOpen}
+          />
 
           {/* User Avatar at Bottom */}
           <div data-tauri-drag-region className="shrink-0 py-4">
@@ -516,8 +586,8 @@ export function MainSidebar() {
                 </div>
               </PopoverTrigger>
               <PopoverContent
-                side="right"
-                align="end"
+                side="top"
+                align="start"
                 className="w-72 p-0"
                 sideOffset={8}
               >
@@ -661,7 +731,7 @@ export function MainSidebar() {
         {/* Column 2: Navigation items - only when expanded */}
         {!sidebarCollapsed && (
           <>
-            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-1 overflow-y-auto scrollbar-hide">
+            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-2 overflow-y-auto scrollbar-hide rounded-tl-lg">
               {renderNavigationItems()}
             </nav>
             <div className="w-px h-full bg-border shrink-0" />
@@ -670,4 +740,94 @@ export function MainSidebar() {
       </div>
     </TooltipProvider>
   );
+}
+
+/** Single color class per connection state. Both the Laptop glyph and
+ *  its bottom-right badge use this, so the shapes never read as two
+ *  competing signals. Color == connection state; badge icon shape is
+ *  reserved for future "permission / authorization level" differentiation.
+ */
+function deriveSidebarStatusColor(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  tauri: boolean,
+): string {
+  if (tauri) {
+    switch (local?.state) {
+      case "online":
+        return "text-green-500";
+      case "connecting":
+        return "text-amber-500";
+      case "error":
+        return "text-destructive";
+      case "offline":
+      case "idle":
+      default:
+        return "text-muted-foreground";
+    }
+  }
+  return (devices ?? []).some((d) => d.isOnline === true)
+    ? "text-green-500"
+    : "text-muted-foreground";
+}
+
+function deriveSidebarLaptopColor(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  tauri: boolean,
+): string {
+  return deriveSidebarStatusColor(local, devices, tauri);
+}
+
+/** Badge icon carries the status SHAPE; its color comes from the shared
+ *  status palette so it matches the Laptop tint. Connecting has no
+ *  badge (the amber tint + Laptop pulse is enough signal). */
+function deriveSidebarBadgeIcon(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  tauri: boolean,
+): { icon: typeof CircleCheck; className: string } | null {
+  const className = deriveSidebarStatusColor(local, devices, tauri);
+  if (tauri) {
+    switch (local?.state) {
+      case "online":
+        return { icon: CircleCheck, className };
+      case "error":
+        return { icon: CircleX, className };
+      case "offline":
+        return { icon: WifiOff, className };
+      case "connecting":
+        return null;
+      case "idle":
+      default:
+        return { icon: Ban, className };
+    }
+  }
+  return (devices ?? []).some((d) => d.isOnline === true)
+    ? { icon: CircleCheck, className }
+    : { icon: Ban, className };
+}
+
+function deriveSidebarStatusLabel(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  t: (k: string) => string,
+): string {
+  if (local?.state === "web" || !local) {
+    return (devices ?? []).some((d) => d.isOnline)
+      ? t("statusAnyOnline")
+      : t("statusNoneOnline");
+  }
+  switch (local.state) {
+    case "online":
+      return t("online");
+    case "connecting":
+      return t("connecting");
+    case "error":
+      return t("error.header");
+    case "offline":
+      return t("offline");
+    default:
+      return t("disabled");
+  }
 }
