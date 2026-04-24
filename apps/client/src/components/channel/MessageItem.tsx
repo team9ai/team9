@@ -17,6 +17,7 @@ import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
 import { DeepResearchMessageCard } from "./DeepResearchMessageCard";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
+import { UserHoverCard } from "./UserHoverCard";
 import {
   formatMessageTime,
   formatEditedTime,
@@ -347,25 +348,40 @@ export function MessageItem({
           propertiesSlot={propertiesHoverSlot}
         />
       )}
-      <UserAvatar
+      <UserHoverCard
         userId={message.sender?.id ?? message.senderId ?? undefined}
-        name={message.sender?.displayName ?? senderName}
-        username={message.sender?.username}
-        avatarUrl={message.sender?.avatarUrl}
-        isBot={message.sender?.userType === "bot"}
-        className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}
-        fallbackClassName={compact ? "text-xs" : "text-sm"}
-      />
+        displayName={senderName}
+      >
+        <UserAvatar
+          userId={message.sender?.id ?? message.senderId ?? undefined}
+          name={message.sender?.displayName ?? senderName}
+          username={message.sender?.username}
+          avatarUrl={message.sender?.avatarUrl}
+          isBot={message.sender?.userType === "bot"}
+          className={cn(
+            "shrink-0 cursor-pointer",
+            compact ? "w-8 h-8" : "w-9 h-9",
+          )}
+          fallbackClassName={compact ? "text-xs" : "text-sm"}
+        />
+      </UserHoverCard>
 
       <div className="flex flex-col items-start flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-semibold text-sm">{senderName}</span>
+            <UserHoverCard
+              userId={message.sender?.id ?? message.senderId ?? undefined}
+              displayName={senderName}
+            >
+              <span className="font-semibold text-sm cursor-pointer hover:underline">
+                {senderName}
+              </span>
+            </UserHoverCard>
             <AgentTypeBadge agentType={message.sender?.agentType} />
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-xs text-muted-foreground cursor-default">
+              <span className="text-xs text-muted-foreground cursor-default hover:underline">
                 {formatMessageTime(parseApiDate(message.createdAt))}
               </span>
             </TooltipTrigger>
@@ -379,7 +395,7 @@ export function MessageItem({
           {message.isEdited && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-xs text-muted-foreground cursor-default">
+                <span className="text-xs text-muted-foreground cursor-default hover:underline">
                   {t("message:editedAt", {
                     time: formatEditedTime(parseApiDate(message.updatedAt)),
                   })}
