@@ -5,6 +5,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const mockUpdatePreferences = vi.hoisted(() => vi.fn());
 const mockSubscribe = vi.hoisted(() => vi.fn());
 const mockUnsubscribe = vi.hoisted(() => vi.fn());
+const mockIsTauriApp = vi.hoisted(() => vi.fn(() => false));
+const mockRequestTauriPermission = vi.hoisted(() =>
+  vi.fn<() => Promise<"granted" | "denied" | "default">>(),
+);
+const mockIsTauriNotificationGranted = vi.hoisted(() =>
+  vi.fn<() => Promise<boolean>>(),
+);
 
 const mockPreferencesData = vi.hoisted(() => ({
   current: {
@@ -52,6 +59,15 @@ vi.mock("@/hooks/usePushSubscription", () => ({
   }),
 }));
 
+vi.mock("@/lib/tauri", () => ({
+  isTauriApp: mockIsTauriApp,
+}));
+
+vi.mock("@/services/tauri-notification", () => ({
+  isTauriNotificationGranted: mockIsTauriNotificationGranted,
+  requestTauriNotificationPermission: mockRequestTauriPermission,
+}));
+
 import { NotificationPreferencesDialog } from "../NotificationPreferencesDialog";
 
 describe("NotificationPreferencesDialog", () => {
@@ -65,6 +81,9 @@ describe("NotificationPreferencesDialog", () => {
     mockUpdatePreferences.mockResolvedValue(undefined);
     mockSubscribe.mockResolvedValue(true);
     mockUnsubscribe.mockResolvedValue(true);
+    mockIsTauriApp.mockReturnValue(false);
+    mockIsTauriNotificationGranted.mockResolvedValue(false);
+    mockRequestTauriPermission.mockResolvedValue("granted");
     mockIsLoading.current = false;
     mockPushStatus.current = "unsubscribed";
     mockPreferencesData.current = {
@@ -470,6 +489,197 @@ describe("NotificationPreferencesDialog", () => {
 
       expect(mockSubscribe).not.toHaveBeenCalled();
       expect(mockUnsubscribe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("desktop notifications in Tauri (per-device)", () => {
+    beforeEach(() => {
+      mockIsTauriApp.mockReturnValue(true);
+      // pushStatus is "unsupported" in Tauri per usePushSubscription.
+      mockPushStatus.current = "unsupported";
+    });
+
+    it("defaults the switch to checked via local prefs (desktopEnabledLocal=true)", () => {
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      expect(switches[0]).toHaveAttribute("data-state", "checked");
+    });
+
+    it("reads desktopEnabledLocal=false from localStorage", () => {
+      localStorage.setItem("notification_desktop_enabled_local", "false");
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      expect(switches[0]).toHaveAttribute("data-state", "unchecked");
+    });
+
+    it("does not disable the switch on pushStatus=unsupported in Tauri", () => {
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      expect(switches[0]).not.toBeDisabled();
+    });
+
+    it("shows granted status text when OS permission is granted on mount", async () => {
+      mockIsTauriNotificationGranted.mockResolvedValue(true);
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("tauriNotifEnabled")).toBeInTheDocument();
+      });
+    });
+
+    it("shows pending status text when switch is ON but permission not yet granted", async () => {
+      // desktopEnabledLocal defaults to true; permission is default.
+      mockIsTauriNotificationGranted.mockResolvedValue(false);
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("tauriNotifPending")).toBeInTheDocument();
+      });
+      // Must not contradict the ON switch with the "click to enable" prompt.
+      expect(screen.queryByText("tauriNotifPrompt")).not.toBeInTheDocument();
+    });
+
+    it("shows prompt status text when switch is OFF and permission not yet granted", async () => {
+      localStorage.setItem("notification_desktop_enabled_local", "false");
+      mockIsTauriNotificationGranted.mockResolvedValue(false);
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(screen.getByText("tauriNotifPrompt")).toBeInTheDocument();
+      });
+    });
+
+    it("toggling ON requests OS permission and persists local flag when granted", async () => {
+      // Start from off.
+      localStorage.setItem("notification_desktop_enabled_local", "false");
+      mockRequestTauriPermission.mockResolvedValue("granted");
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      fireEvent.click(switches[0]);
+
+      await waitFor(() => {
+        expect(mockRequestTauriPermission).toHaveBeenCalled();
+      });
+
+      expect(localStorage.getItem("notification_desktop_enabled_local")).toBe(
+        "true",
+      );
+      // Web Push & server pref must not be touched in the Tauri branch.
+      expect(mockSubscribe).not.toHaveBeenCalled();
+      expect(mockUpdatePreferences).not.toHaveBeenCalled();
+    });
+
+    it("toggling ON does not flip the switch when user denies permission", async () => {
+      localStorage.setItem("notification_desktop_enabled_local", "false");
+      mockRequestTauriPermission.mockResolvedValue("denied");
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      fireEvent.click(switches[0]);
+
+      await waitFor(() => {
+        expect(mockRequestTauriPermission).toHaveBeenCalled();
+      });
+
+      // Local flag stays false, switch stays unchecked.
+      expect(localStorage.getItem("notification_desktop_enabled_local")).toBe(
+        "false",
+      );
+      expect(switches[0]).toHaveAttribute("data-state", "unchecked");
+      // Status text should now say denied.
+      await waitFor(() => {
+        expect(screen.getByText("tauriNotifDenied")).toBeInTheDocument();
+      });
+    });
+
+    it('toggling ON does not flip the switch when user dismisses (permission "default")', async () => {
+      localStorage.setItem("notification_desktop_enabled_local", "false");
+      mockRequestTauriPermission.mockResolvedValue("default");
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      fireEvent.click(switches[0]);
+
+      await waitFor(() => {
+        expect(mockRequestTauriPermission).toHaveBeenCalled();
+      });
+
+      expect(localStorage.getItem("notification_desktop_enabled_local")).toBe(
+        "false",
+      );
+      expect(switches[0]).toHaveAttribute("data-state", "unchecked");
+    });
+
+    it("toggling OFF persists the local flag and does not call unsubscribe", async () => {
+      // desktopEnabledLocal defaults to true in localStorage.
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      fireEvent.click(switches[0]); // checked -> unchecked
+
+      await waitFor(() => {
+        expect(localStorage.getItem("notification_desktop_enabled_local")).toBe(
+          "false",
+        );
+      });
+
+      expect(mockRequestTauriPermission).not.toHaveBeenCalled();
+      expect(mockUnsubscribe).not.toHaveBeenCalled();
+      expect(mockUpdatePreferences).not.toHaveBeenCalled();
+    });
+
+    it("re-requests permission on each ON toggle — idempotent when already granted", async () => {
+      // Simulates ON -> OFF -> ON. Second ON should still call
+      // requestTauriNotificationPermission, which internally short-circuits on
+      // already-granted without re-prompting the OS.
+      mockRequestTauriPermission.mockResolvedValue("granted");
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      // Starts ON by default; click OFF.
+      fireEvent.click(switches[0]);
+      await waitFor(() => {
+        expect(localStorage.getItem("notification_desktop_enabled_local")).toBe(
+          "false",
+        );
+      });
+      expect(mockRequestTauriPermission).not.toHaveBeenCalled();
+
+      // Click ON again.
+      fireEvent.click(switches[0]);
+      await waitFor(() => {
+        expect(mockRequestTauriPermission).toHaveBeenCalledTimes(1);
+      });
+      expect(localStorage.getItem("notification_desktop_enabled_local")).toBe(
+        "true",
+      );
+    });
+
+    it("disables the switch when OS permission is already denied", async () => {
+      // Start from off so the toggle attempt triggers the denied path.
+      localStorage.setItem("notification_desktop_enabled_local", "false");
+      mockRequestTauriPermission.mockResolvedValue("denied");
+
+      render(<NotificationPreferencesDialog {...defaultProps} />);
+
+      const switches = screen.getAllByRole("switch");
+      fireEvent.click(switches[0]);
+
+      await waitFor(() => {
+        expect(switches[0]).toBeDisabled();
+      });
     });
   });
 });

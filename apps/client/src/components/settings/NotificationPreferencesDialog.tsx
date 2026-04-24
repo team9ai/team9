@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Dialog,
@@ -13,6 +13,16 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
+import { isTauriApp } from "@/lib/tauri";
+import {
+  getLocalNotificationPrefs,
+  setDesktopEnabledLocal,
+} from "@/lib/notification-prefs-local";
+import {
+  isTauriNotificationGranted,
+  requestTauriNotificationPermission,
+  type TauriNotificationPermission,
+} from "@/services/tauri-notification";
 
 /** Extract "HH:MM" from an ISO date string or return "" */
 function toTimeString(value: string | null | undefined): string {
@@ -36,17 +46,67 @@ export function NotificationPreferencesDialog({
     useNotificationPreferences();
   const { status: pushStatus, subscribe, unsubscribe } = usePushSubscription();
 
+  const isTauri = useMemo(() => isTauriApp(), []);
+
+  // Tauri-only per-device state: the "Desktop Notifications" switch on Tauri is
+  // local-device, not synced to the server preference. Rationale: the server's
+  // `desktopEnabled` still gates Web Push and Expo mobile push (see
+  // notification-delivery.service.ts), but Tauri delivers via WebSocket which
+  // is not gated by that flag. Keeping Tauri local-only avoids a user turning
+  // off Tauri on one device and accidentally silencing Web or mobile push on
+  // another device of the same account.
+  const [desktopEnabledLocal, setDesktopEnabledLocalState] = useState(
+    () => getLocalNotificationPrefs().desktopEnabledLocal,
+  );
+  const [tauriPermission, setTauriPermission] =
+    useState<TauriNotificationPermission>("default");
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let cancelled = false;
+    // The Tauri plugin only exposes a boolean isPermissionGranted, so on mount
+    // we can't distinguish "default" from "denied" without triggering the OS
+    // prompt. We collapse both to "default" here; if the user then toggles ON
+    // we call requestPermission which resolves to the real terminal state.
+    isTauriNotificationGranted().then((granted) => {
+      if (!cancelled) setTauriPermission(granted ? "granted" : "default");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri]);
+
   const [focusSuppression, setFocusSuppression] = useState(() => {
     return localStorage.getItem("notification_focus_suppression") !== "false";
   });
 
+  const handleTauriDesktopToggle = async (value: boolean) => {
+    if (value) {
+      // Turning on: ensure OS permission first. On "default" this shows the
+      // system prompt; on "denied" it resolves immediately without prompting.
+      const permission = await requestTauriNotificationPermission();
+      setTauriPermission(permission);
+      if (permission !== "granted") return; // don't flip the switch
+    }
+    setDesktopEnabledLocal(value);
+    setDesktopEnabledLocalState(value);
+  };
+
   const handleToggle = async (field: string, value: boolean) => {
-    // If toggling desktopEnabled, handle push subscription first
-    // to avoid desync: server shows enabled but no subscription exists.
+    // Tauri path: "desktopEnabled" is a local per-device flag, not a server pref.
+    // This keeps Tauri and Web independent — toggling on one device doesn't
+    // affect the other, and doesn't touch Web Push state for web sessions.
+    if (field === "desktopEnabled" && isTauri) {
+      await handleTauriDesktopToggle(value);
+      return;
+    }
+
+    // Web path: keep push subscription and server pref in sync to avoid desync
+    // (server shows enabled but no subscription exists).
     if (field === "desktopEnabled") {
       if (value) {
         const ok = await subscribe();
-        if (!ok) return; // don't persist if subscription failed
+        if (!ok) return;
       } else {
         await unsubscribe();
       }
@@ -92,6 +152,35 @@ export function NotificationPreferencesDialog({
     );
   }
 
+  const desktopStatusText = isTauri
+    ? tauriPermission === "granted"
+      ? t("tauriNotifEnabled")
+      : tauriPermission === "denied"
+        ? t("tauriNotifDenied")
+        : desktopEnabledLocal
+          ? // Switch is on but OS permission has not been granted yet. Avoid
+            // contradicting the ON switch with a "click to enable" prompt —
+            // permission will be asked automatically on the next notification.
+            t("tauriNotifPending")
+          : t("tauriNotifPrompt")
+    : pushStatus === "denied"
+      ? t("pushPermissionDenied")
+      : pushStatus === "prompt" || pushStatus === "unsubscribed"
+        ? t("pushPermissionPrompt")
+        : pushStatus === "subscribed"
+          ? t("pushEnabled")
+          : pushStatus === "unsupported"
+            ? t("pushUnsupported")
+            : "";
+
+  const desktopSwitchChecked = isTauri
+    ? desktopEnabledLocal
+    : preferences.desktopEnabled;
+
+  const desktopSwitchDisabled = isTauri
+    ? tauriPermission === "denied"
+    : pushStatus === "denied" || pushStatus === "unsupported";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md dark:bg-card">
@@ -114,18 +203,12 @@ export function NotificationPreferencesDialog({
                     {t("desktopNotifications")}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    {pushStatus === "denied" && t("pushPermissionDenied")}
-                    {pushStatus === "prompt" && t("pushPermissionPrompt")}
-                    {pushStatus === "unsubscribed" && t("pushPermissionPrompt")}
-                    {pushStatus === "subscribed" && t("pushEnabled")}
-                    {pushStatus === "unsupported" && t("pushUnsupported")}
+                    {desktopStatusText}
                   </p>
                 </div>
                 <Switch
-                  checked={preferences.desktopEnabled}
-                  disabled={
-                    pushStatus === "denied" || pushStatus === "unsupported"
-                  }
+                  checked={desktopSwitchChecked}
+                  disabled={desktopSwitchDisabled}
                   onCheckedChange={(value) =>
                     handleToggle("desktopEnabled", value)
                   }
