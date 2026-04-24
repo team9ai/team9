@@ -16,6 +16,7 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
+import { env } from '@team9/shared';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
@@ -149,6 +150,7 @@ export class CommonStaffService {
         'team9-staff-profile': {},
         'team9-staff-bootstrap': {},
         'team9-staff-soul': {},
+        ...this.buildAhandIntegrationConfig(ownerId),
       },
     });
 
@@ -436,6 +438,47 @@ export class CommonStaffService {
       agentIdPrefix: 'common-staff',
       botId,
     });
+  }
+
+  /**
+   * Build the ahand-integration componentConfig for a bot's registerAgent
+   * call. Returns an empty object (so spread is a no-op) when required
+   * env vars are missing — the bot still works, it just can't route
+   * `run_command` calls to the user's registered devices.
+   *
+   * The component runs inside claw-hive-worker, which needs:
+   *  - gatewayInternalUrl: where to reach team9 gateway's /internal/ahand/*
+   *  - gatewayInternalAuthToken: bearer for those endpoints
+   *  - hubUrl: ahand hub base URL for CloudClient SSE
+   *
+   * Per-user: callingUserId is the bot's owning team9 user; the component
+   * will list that user's devices and register one backend per online one.
+   */
+  private buildAhandIntegrationConfig(
+    ownerId: string,
+  ): Record<string, Record<string, unknown>> {
+    const gatewayInternalUrl = env.GATEWAY_INTERNAL_URL;
+    const hubUrl = env.AHAND_HUB_URL;
+    // env.INTERNAL_AUTH_VALIDATION_TOKEN throws on missing. Read process.env
+    // directly so missing (e.g. in unit tests without that env) silently
+    // disables the integration instead of blowing up bot creation.
+    const gatewayInternalAuthToken =
+      process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
+    if (!gatewayInternalUrl || !gatewayInternalAuthToken || !hubUrl) {
+      this.logger.warn(
+        'ahand-integration disabled on this bot: missing one of ' +
+          'GATEWAY_INTERNAL_URL / INTERNAL_AUTH_VALIDATION_TOKEN / AHAND_HUB_URL',
+      );
+      return {};
+    }
+    return {
+      'ahand-integration': {
+        callingUserId: ownerId,
+        gatewayInternalUrl,
+        gatewayInternalAuthToken,
+        hubUrl,
+      },
+    };
   }
 
   /**
