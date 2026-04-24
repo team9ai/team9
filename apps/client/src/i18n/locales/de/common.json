@@ -42,5 +42,6 @@
     "reconnectingHint": "Verbindung wird wiederhergestellt.",
     "disconnected": "Verbindung verloren",
     "disconnectedHint": "Netzwerk prüfen und neu laden."
-  }
+  },
+  "uploadFile": "Datei hochladen"
 }

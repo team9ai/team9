@@ -42,5 +42,6 @@
     "reconnectingHint": "Tentative de rétablissement de la connexion.",
     "disconnected": "Connexion perdue",
     "disconnectedHint": "Vérifiez votre réseau et actualisez."
-  }
+  },
+  "uploadFile": "Téléverser un fichier"
 }

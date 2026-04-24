@@ -6,11 +6,12 @@ import {
   ChevronRight,
   Crown,
   Loader2,
+  Paperclip,
   Plus,
   Search,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ParseKeys } from "i18next";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -447,6 +449,7 @@ export function HomeMainContent({
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     agentId,
   );
@@ -636,12 +639,44 @@ export function HomeMainContent({
 
                 <div className="mt-3 flex flex-col gap-2.5 px-0.5 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      className="dashboard-composer-plus inline-flex h-[2.375rem] w-[2.375rem] items-center justify-center rounded-full text-[#3e4f68]"
-                    >
-                      <Plus size={17} strokeWidth={2} />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={t("uploadFile", { ns: "common" })}
+                          className="dashboard-composer-plus inline-flex h-[2.375rem] w-[2.375rem] items-center justify-center rounded-full text-[#3e4f68] hover:bg-[#3e4f68]/10 transition-colors cursor-pointer"
+                        >
+                          <Plus size={17} strokeWidth={2} />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="min-w-[160px]"
+                      >
+                        <DropdownMenuItem
+                          onSelect={() => fileInputRef.current?.click()}
+                          className="gap-2 text-sm cursor-pointer"
+                        >
+                          <Paperclip size={14} />
+                          {t("uploadFile", { ns: "common" })}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        // TODO: wire up actual upload; placeholder for now
+                        console.log(
+                          "[dashboard composer] file selected:",
+                          file,
+                        );
+                        e.target.value = "";
+                      }}
+                    />
 
                     {DASHBOARD_ACTION_CHIPS.map((chip) => {
                       const isDeepResearchChip =

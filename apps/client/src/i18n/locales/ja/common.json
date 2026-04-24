@@ -42,5 +42,6 @@
     "reconnectingHint": "接続を再試行しています。",
     "disconnected": "接続が切断されました",
     "disconnectedHint": "ネットワークを確認して再読み込みしてください。"
-  }
+  },
+  "uploadFile": "ファイルをアップロード"
 }

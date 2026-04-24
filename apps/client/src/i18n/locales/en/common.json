@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you’re looking for doesn’t exist or has been moved.",
+    "goBack": "Go back",
+    "goHome": "Back to home"
+  },
   "loading": "Loading...",
   "loadingMore": "Loading more...",
   "error": "Error",
@@ -42,5 +48,6 @@
     "reconnectingHint": "Trying to restore the connection.",
     "disconnected": "Connection lost",
     "disconnectedHint": "Check your network and refresh."
-  }
+  },
+  "uploadFile": "Upload file"
 }

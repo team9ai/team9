@@ -42,5 +42,6 @@
     "reconnectingHint": "연결을 복구하고 있습니다.",
     "disconnected": "연결이 끊겼습니다",
     "disconnectedHint": "네트워크를 확인하고 새로 고침하세요."
-  }
+  },
+  "uploadFile": "파일 업로드"
 }

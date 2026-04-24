@@ -42,5 +42,6 @@
     "reconnectingHint": "Verbinding wordt hersteld.",
     "disconnected": "Verbinding verbroken",
     "disconnectedHint": "Controleer je netwerk en vernieuw."
-  }
+  },
+  "uploadFile": "Bestand uploaden"
 }

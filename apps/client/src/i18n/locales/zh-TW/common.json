@@ -42,5 +42,6 @@
     "reconnectingHint": "正在嘗試恢復連線。",
     "disconnected": "連線已斷開",
     "disconnectedHint": "請檢查網路後重新整理。"
-  }
+  },
+  "uploadFile": "上傳檔案"
 }

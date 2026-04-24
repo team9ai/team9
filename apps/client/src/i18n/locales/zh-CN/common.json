@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "找不到该页面",
+    "description": "你访问的页面不存在，或者已经被移除。",
+    "goBack": "返回",
+    "goHome": "回到首页"
+  },
   "loading": "加载中...",
   "loadingMore": "加载更多...",
   "error": "错误",
@@ -42,5 +48,6 @@
     "reconnectingHint": "正在尝试恢复连接。",
     "disconnected": "连接已断开",
     "disconnectedHint": "请检查网络后刷新页面。"
-  }
+  },
+  "uploadFile": "上传文件"
 }
