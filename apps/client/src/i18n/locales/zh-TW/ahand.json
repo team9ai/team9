@@ -14,6 +14,64 @@
     "auditDescription": "Agent 每次動你裝置的紀錄。",
     "placeholder": "即將推出，我們還在開發。"
   },
+  "permissions": {
+    "default": "預設",
+    "approval": {
+      "title": "批准方式",
+      "description": "當 Agent 要用這台電腦，你在哪裡能點同意？",
+      "anyDevice": {
+        "label": "任何已登入裝置能同意",
+        "description": "手機、另一台電腦、網頁——你登入著的任意裝置都能確認。"
+      },
+      "thisDevice": {
+        "label": "只能在這台電腦上同意",
+        "description": "更穩：只有坐在這台機器前的人才能點同意。"
+      }
+    },
+    "policy": {
+      "title": "新 Agent 的預設規則",
+      "description": "遇到你還沒設定過的 Agent，第一次要動手時照這個走。",
+      "always": {
+        "label": "以後都自動同意",
+        "description": "同意一次，之後不再打擾。"
+      },
+      "once": {
+        "label": "只這一次",
+        "description": "僅本次任務有效，下次再來還會問。"
+      },
+      "perCommand": {
+        "label": "每個動作都問一下",
+        "description": "每次命令都跟你確認。最囉嗦，也最穩。"
+      },
+      "onlyWhenAsked": {
+        "label": "只在我主動要它做事時才可以",
+        "description": "Agent 不能自己找事做，必須由你發起任務。"
+      }
+    },
+    "agents": {
+      "title": "已授權的 Agent",
+      "description": "你給過這台電腦使用權的 Agent / Workspace。每一項都能單獨調整規則。"
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Task"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "全部自動"
+      },
+      "whenTalkingToMe": {
+        "label": "只和我說話時自動"
+      },
+      "partial": {
+        "label": "部分自動（指定命令）"
+      },
+      "onlyWhenAsked": {
+        "label": "除非我主動要"
+      }
+    }
+  },
   "browser": {
     "runtimeTitle": "瀏覽器控制執行環境",
     "runtimeDescription": "Agent 用它真實地操作網頁——點擊、輸入、讀取頁面內容。底層基於 Playwright。",

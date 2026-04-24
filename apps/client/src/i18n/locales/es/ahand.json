@@ -14,6 +14,64 @@
     "auditDescription": "Historial de cada vez que un agente usó uno de tus dispositivos.",
     "placeholder": "Próximamente. Todavía lo estamos desarrollando."
   },
+  "permissions": {
+    "default": "Por defecto",
+    "approval": {
+      "title": "Cómo se aprueba",
+      "description": "Cuando un agente quiere usar este ordenador, ¿desde dónde puedes aprobar?",
+      "anyDevice": {
+        "label": "Cualquier dispositivo con tu sesión",
+        "description": "Confirma desde el móvil, otro ordenador o la web — donde ya hayas iniciado sesión."
+      },
+      "thisDevice": {
+        "label": "Solo este ordenador",
+        "description": "Más estricto: la confirmación debe hacerse aquí, en esta máquina."
+      }
+    },
+    "policy": {
+      "title": "Regla por defecto para agentes nuevos",
+      "description": "Qué pasa la primera vez que un agente sin configurar pide hacer algo.",
+      "always": {
+        "label": "Permitir siempre",
+        "description": "Aprueba una vez y no se vuelve a preguntar."
+      },
+      "once": {
+        "label": "Solo esta vez",
+        "description": "Aprobado solo para la tarea actual; la próxima vez se pregunta otra vez."
+      },
+      "perCommand": {
+        "label": "Preguntar en cada acción",
+        "description": "Confirma cada comando contigo. Muy hablador, muy seguro."
+      },
+      "onlyWhenAsked": {
+        "label": "Solo cuando yo pida",
+        "description": "Los agentes no actúan por su cuenta — tú inicias la tarea."
+      }
+    },
+    "agents": {
+      "title": "Agentes autorizados",
+      "description": "Agentes y workspaces a los que has dado acceso a este ordenador. Puedes afinar las reglas por entrada."
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agente",
+      "task": "Tarea"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "Todo automático"
+      },
+      "whenTalkingToMe": {
+        "label": "Auto mientras chateo"
+      },
+      "partial": {
+        "label": "Parcial (comandos específicos)"
+      },
+      "onlyWhenAsked": {
+        "label": "Solo cuando yo pida"
+      }
+    }
+  },
   "browser": {
     "runtimeTitle": "Runtime de automatización del navegador",
     "runtimeDescription": "La librería que los agentes usan para manejar un navegador de verdad: clicar, escribir, leer la página. Usamos Playwright por debajo.",

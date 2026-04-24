@@ -14,6 +14,64 @@
     "auditDescription": "Agent があなたのデバイスを使用した記録。",
     "placeholder": "近日公開。開発中です。"
   },
+  "permissions": {
+    "default": "デフォルト",
+    "approval": {
+      "title": "承認方法",
+      "description": "Agent がこの PC を使おうとした時、どこから承認できますか？",
+      "anyDevice": {
+        "label": "ログイン済みのどの端末でも OK",
+        "description": "スマホ、別の PC、ウェブ——ログインしていればどこからでも承認できます。"
+      },
+      "thisDevice": {
+        "label": "この PC でしか承認できない",
+        "description": "より厳格：このマシンの前にいる人しか押せません。"
+      }
+    },
+    "policy": {
+      "title": "新しい Agent のデフォルト",
+      "description": "まだ設定していない Agent が初めて動こうとした時のルール。",
+      "always": {
+        "label": "以後ずっと自動で許可",
+        "description": "一度許可すれば、もう聞きません。"
+      },
+      "once": {
+        "label": "今回だけ",
+        "description": "このタスクだけ有効。次回はまた聞きます。"
+      },
+      "perCommand": {
+        "label": "全ての操作で確認",
+        "description": "コマンドごとに確認。一番うるさく、一番安全。"
+      },
+      "onlyWhenAsked": {
+        "label": "自分が頼んだ時だけ",
+        "description": "Agent が勝手に動くのは禁止。タスクはあなたから始める必要があります。"
+      }
+    },
+    "agents": {
+      "title": "許可した Agent",
+      "description": "この PC の使用を許可した Agent / Workspace。項目ごとに個別にルールを調整できます。"
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Task"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "全て自動"
+      },
+      "whenTalkingToMe": {
+        "label": "私と会話中のみ自動"
+      },
+      "partial": {
+        "label": "一部自動（特定コマンド）"
+      },
+      "onlyWhenAsked": {
+        "label": "自分が頼んだ時だけ"
+      }
+    }
+  },
   "browser": {
     "runtimeTitle": "ブラウザ操作ランタイム",
     "runtimeDescription": "Agent が実際にブラウザを操作（クリック・入力・ページ読取）するためのライブラリ。内部で Playwright を使います。",
