@@ -88,6 +88,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     timeout-minutes: 10
+    # The folder9 image isn't published yet — allow failures so a missing
+    # image doesn't block merges. Flip to required once team9ai/folder9 is
+    # pushed to a registry GitHub Actions can reach.
+    continue-on-error: true
 
     steps:
       - name: Checkout
