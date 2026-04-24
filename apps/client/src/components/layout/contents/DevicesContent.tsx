@@ -41,7 +41,7 @@ export function DevicesContent() {
         onValueChange={(value) => setTab(value as DeviceTab)}
         className="flex-1 flex flex-col min-h-0"
       >
-        <TabsList className="mx-6 mt-4 self-start shrink-0">
+        <TabsList className="mx-6 mt-4 shrink-0 w-[calc(100%-3rem)] justify-start">
           {visibleTabs.map((key) => (
             <TabsTrigger key={key} value={key}>
               {t(`devicesTabs.${key}` as const)}
