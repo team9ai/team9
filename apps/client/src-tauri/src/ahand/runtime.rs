@@ -117,7 +117,12 @@ impl AhandRuntime {
         }
 
         let identity_dir = identity::identity_dir(app, &cfg.team9_user_id)?;
-        let device_id = identity::device_id_from_dir(&identity_dir);
+        // Load the Ed25519 identity so we can compute `SHA256(pubkey)` — the
+        // canonical device_id per ahand protocol § 2.1 (matches
+        // `ahandd::DeviceIdentity::device_id` and the gateway's register DTO).
+        let id = ahandd::load_or_create_identity(&identity_dir)
+            .map_err(|e| format!("load_or_create_identity: {e}"))?;
+        let device_id = identity::device_id_from_pubkey(&id.public_key_bytes());
 
         let daemon_cfg = ahandd::DaemonConfig::builder(
             &cfg.hub_url,
