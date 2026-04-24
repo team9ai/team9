@@ -112,14 +112,22 @@ export class AhandDevicesService {
     this.validateNickname(input.nickname);
     const hubUrl = this.requireHubUrl();
 
-    // 0. Pre-flight: bail early if device already exists in DB so we don't
-    //    pre-register with hub only to compensate the deletion of a live record.
+    // 0. Pre-flight: an active row with this hubDeviceId is a true duplicate
+    //    (same device trying to re-register while still live). A revoked row
+    //    is an audit-trail remnant — we hard-delete it here so the user can
+    //    reclaim the same identity (common after a stop→start cycle where
+    //    revokeDevice soft-deleted the row).
     const existing = await this.db
       .select()
       .from(schema.ahandDevices)
       .where(eq(schema.ahandDevices.hubDeviceId, input.hubDeviceId));
     if (existing.length > 0) {
-      throw new ConflictException('Device already registered');
+      if (existing[0].status === 'active') {
+        throw new ConflictException('Device already registered');
+      }
+      await this.db
+        .delete(schema.ahandDevices)
+        .where(eq(schema.ahandDevices.id, existing[0].id));
     }
 
     // 1. Pre-register with hub.
