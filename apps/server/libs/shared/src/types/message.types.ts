@@ -263,6 +263,12 @@ export interface CreateMessageDto {
 
   // Workspace ID (for message context)
   workspaceId?: string;
+
+  // Lexical serialized EditorState (JSON). When present, this is the
+  // canonical representation the client authored; `content` is the plaintext
+  // fallback used for search, notifications, and older clients. Absence
+  // means the ingress path didn't produce an AST (bot/system/old client).
+  contentAst?: Record<string, unknown>;
 }
 
 /**

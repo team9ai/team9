@@ -48,6 +48,12 @@ message CreateMessageRequest {
 
   // Workspace ID (for offline message routing) - optional
   optional string workspace_id = 9;
+
+  // Lexical serialized EditorState as JSON string - optional.
+  // When set, the client authored the message via the rich-text composer;
+  // `content` holds the plaintext fallback and `content_ast_json` is rendered
+  // directly (no HTML sink) for the XSS-safe render path.
+  optional string content_ast_json = 10;
 }
 
 // Response after creating a message

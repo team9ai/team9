@@ -57,7 +57,7 @@ export function ThreadPanel({
   rootMessageId,
   highlightMessageId,
   isSnapped = false,
-  width = 640,
+  width = 600,
   onWidthChange,
 }: ThreadPanelProps) {
   const { t } = useTranslation("thread");
@@ -297,9 +297,10 @@ export function ThreadPanel({
 
   // Handle send reply with optional attachments
   const handleSendReply = async (
-    content: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
     attachments?: AttachmentDto[],
   ) => {
+    const { content, contentAst } = payload;
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     // Detect bots that should respond
@@ -312,7 +313,7 @@ export function ThreadPanel({
       setThinkingBotIds(botIds);
     }
 
-    await sendReply.mutateAsync({ content, attachments });
+    await sendReply.mutateAsync({ content, contentAst, attachments });
   };
 
   // Render individual list items

@@ -41,6 +41,7 @@ interface GrpcCreateMessageRequest {
   attachments?: GrpcAttachment[];
   metadata_json?: string;
   workspace_id?: string;
+  content_ast_json?: string;
 }
 
 interface GrpcCreateMessageResponse {
@@ -155,6 +156,9 @@ export class ImWorkerGrpcClientService
         mime_type: att.mimeType,
       })),
       metadata_json: dto.metadata ? JSON.stringify(dto.metadata) : undefined,
+      content_ast_json: dto.contentAst
+        ? JSON.stringify(dto.contentAst)
+        : undefined,
     };
 
     try {

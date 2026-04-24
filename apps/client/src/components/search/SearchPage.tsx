@@ -22,6 +22,7 @@ import { useSearch } from "@/hooks/useSearch";
 import { useCreateDirectChannel, useChannels } from "@/hooks/useChannels";
 import { useWorkspaceMembers } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId } from "@/stores";
+import { sanitizeSearchHighlight } from "@/lib/sanitize";
 import { SearchFilterFrom } from "./SearchFilterFrom";
 import { SearchFilterIn } from "./SearchFilterIn";
 import type { SearchSearchParams } from "@/routes/_authenticated/search";
@@ -350,7 +351,9 @@ export function SearchPage({
                         </div>
                         <div
                           className="mt-1 text-sm line-clamp-2 [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                          dangerouslySetInnerHTML={{ __html: item.highlight }}
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizeSearchHighlight(item.highlight),
+                          }}
                         />
                         {item.data.hasAttachment && (
                           <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
@@ -379,7 +382,9 @@ export function SearchPage({
                         <div className="flex items-center gap-2">
                           <span
                             className="font-semibold [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                            dangerouslySetInnerHTML={{ __html: item.highlight }}
+                            dangerouslySetInnerHTML={{
+                              __html: sanitizeSearchHighlight(item.highlight),
+                            }}
                           />
                           <span className="text-xs text-muted-foreground">
                             {item.data.memberCount}{" "}
@@ -421,7 +426,9 @@ export function SearchPage({
                         <div className="flex items-center gap-2">
                           <span
                             className="font-semibold [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                            dangerouslySetInnerHTML={{ __html: item.highlight }}
+                            dangerouslySetInnerHTML={{
+                              __html: sanitizeSearchHighlight(item.highlight),
+                            }}
                           />
                           <span className="text-sm text-muted-foreground">
                             @{item.data.username}
@@ -452,7 +459,9 @@ export function SearchPage({
                       <div className="flex-1 min-w-0">
                         <div
                           className="font-semibold truncate [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
-                          dangerouslySetInnerHTML={{ __html: item.highlight }}
+                          dangerouslySetInnerHTML={{
+                            __html: sanitizeSearchHighlight(item.highlight),
+                          }}
                         />
                         <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                           <span>

@@ -9,6 +9,8 @@ import { SectionsModule } from './sections/sections.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { PropertiesModule } from './properties/properties.module.js';
 import { ViewsModule } from './views/views.module.js';
+import { BotMessagingModule } from './bot/bot-messaging.module.js';
+import { TopicSessionsModule } from './topic-sessions/topic-sessions.module.js';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { ViewsModule } from './views/views.module.js';
     AuditModule,
     PropertiesModule,
     ViewsModule,
+    BotMessagingModule,
+    TopicSessionsModule,
   ],
   exports: [
     AuthModule,
@@ -34,6 +38,7 @@ import { ViewsModule } from './views/views.module.js';
     AuditModule,
     PropertiesModule,
     ViewsModule,
+    TopicSessionsModule,
   ],
 })
 export class ImModule {}

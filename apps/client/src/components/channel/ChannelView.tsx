@@ -23,6 +23,7 @@ import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
 import { useChannelTabs } from "@/hooks/useChannelTabs";
 import { useChannelViews } from "@/hooks/useChannelViews";
+import { useMessageJump } from "@/hooks/useMessageJump";
 import { TableView } from "./views/TableView";
 import { BoardView } from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
@@ -31,6 +32,11 @@ import type {
   ChannelView as ChannelViewType,
 } from "@/types/properties";
 import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import { useChannelModel } from "@/hooks/useChannelModel";
+import {
+  COMMON_STAFF_MODELS,
+  DEFAULT_STAFF_MODEL,
+} from "@/lib/common-staff-models";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -281,8 +287,35 @@ export function ChannelView({
     return dmOtherUser?.id ?? null;
   }, [dmOtherUser, isBotDm]);
 
-  // Bot model switching for bot DM channels
+  // Session-level (this conversation only) model controller. Changing the
+  // model here records a `model_change` entry on agent-pi's session, so
+  // future agent-default changes on the bot won't reset this conversation.
+  // If the channel is not eligible (e.g. not a managed hive DM, or agent
+  // is unreachable), the GET 4xx's — we fall back to `useBotModelSwitch`
+  // so the composer still shows the current bot default (read-only if the
+  // channel isn't eligible for session-level switching).
   const botModelSwitch = useBotModelSwitch(isBotDm ? botDmUserId : null);
+  const channelModel = useChannelModel(channelId, { enabled: isBotDm });
+  const channelModelSwitch = useMemo(() => {
+    if (!isBotDm) return undefined;
+    if (channelModel.isError || !channelModel.data) return undefined;
+    const current = channelModel.data.model;
+    const matched = COMMON_STAFF_MODELS.find(
+      (m) => m.provider === current.provider && m.id === current.id,
+    );
+    const label = matched?.label ?? current.id ?? DEFAULT_STAFF_MODEL.label;
+    return {
+      currentModel: current,
+      currentModelLabel: label,
+      canSwitchModel: true,
+      applicationId: null as string | null,
+      installedApplicationId: null as string | null,
+      botId: null as string | null,
+      isUpdating: channelModel.isUpdating,
+      updateModel: (model: { provider: string; id: string }): Promise<void> =>
+        channelModel.updateModel(model).then(() => undefined),
+    };
+  }, [isBotDm, channelModel]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {
@@ -311,7 +344,7 @@ export function ChannelView({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
-  const [threadPanelWidth, setThreadPanelWidth] = useState(640);
+  const [threadPanelWidth, setThreadPanelWidth] = useState(600);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
@@ -329,6 +362,14 @@ export function ChannelView({
     isPreviewMode ? undefined : channelId,
   );
   const [activeTabId, setActiveTabId] = useState<string>("");
+
+  // Message jump: click OPEN on a table-view row to switch to messages tab and
+  // scroll+highlight the target message. seq forces remount on repeat jumps.
+  const {
+    jumpToMessage,
+    highlightId: jumpHighlightId,
+    seq: jumpSeq,
+  } = useMessageJump(channelTabs, setActiveTabId);
 
   // Auto-select the first tab (messages) when tabs load, or reset on channel change
   useEffect(() => {
@@ -480,15 +521,16 @@ export function ChannelView({
   }, [threadPanelCount, threadPanelWidth]);
 
   const handleSendMessage = async (
-    content: string,
+    payload: { content: string; contentAst?: Record<string, unknown> },
     attachments?: AttachmentDto[],
   ) => {
+    const { content, contentAst } = payload;
     // Allow sending if there's content or attachments
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     startBotThinking(content);
     try {
-      await sendMessage.mutateAsync({ content, attachments });
+      await sendMessage.mutateAsync({ content, contentAst, attachments });
     } catch {
       // Clear thinking indicators on send failure to avoid stale state
       setThinkingBotIds([]);
@@ -551,7 +593,13 @@ export function ChannelView({
             }
             switch (view.type) {
               case "table":
-                return <TableView channelId={channelId} view={view} />;
+                return (
+                  <TableView
+                    channelId={channelId}
+                    view={view}
+                    onJumpToMessage={jumpToMessage}
+                  />
+                );
               case "board":
                 return <BoardView channelId={channelId} view={view} />;
               case "calendar":
@@ -594,7 +642,8 @@ export function ChannelView({
             }}
             hasNewer={hasPreviousPage}
             isLoadingNewer={isFetchingPreviousPage}
-            highlightMessageId={initialMessageId}
+            highlightMessageId={jumpHighlightId ?? initialMessageId}
+            highlightSeq={jumpSeq}
             readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
             members={members}
@@ -607,7 +656,9 @@ export function ChannelView({
             autoSendInitialDraft={autoSendInitialDraft}
             onInitialDraftAutoSent={onInitialDraftAutoSent}
             isBotDm={isBotDm}
-            botModelSwitch={isBotDm ? botModelSwitch : undefined}
+            botModelSwitch={
+              isBotDm ? (channelModelSwitch ?? botModelSwitch) : undefined
+            }
           />
         )}
 

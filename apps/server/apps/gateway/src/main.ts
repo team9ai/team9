@@ -4,6 +4,10 @@ import './otel.js'; // Initialize OpenTelemetry
 import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
+import {
+  securityHeadersMiddleware,
+  trustedTypesReportOnlyMiddleware,
+} from './security/security-headers.js';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -38,6 +42,10 @@ export async function bootstrap(): Promise<void> {
 
   // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
   app.use(json({ limit: '1mb' }));
+
+  // Security headers — see security-headers.ts for the policy rationale.
+  app.use(securityHeadersMiddleware());
+  app.use(trustedTypesReportOnlyMiddleware);
 
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {

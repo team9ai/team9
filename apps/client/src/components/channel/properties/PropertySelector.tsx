@@ -65,6 +65,29 @@ function getTypeIcon(type: PropertyValueType): React.ElementType {
   return TYPE_ICONS[type] || Type;
 }
 
+// ==================== Task Relation Helpers ====================
+
+export function resolveUniqueKey(
+  base: string,
+  defs: { key: string }[],
+): string {
+  if (!defs.some((d) => d.key === base)) return base;
+  for (let n = 2; n < 100; n++) {
+    if (!defs.some((d) => d.key === `${base}-${n}`)) return `${base}-${n}`;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+export function hasParentRelationDef(
+  defs: Array<{ valueType: string; config?: unknown }>,
+): boolean {
+  return defs.some((d) => {
+    if (d.valueType !== "message_ref") return false;
+    const cfg = (d.config ?? {}) as { relationKind?: string };
+    return cfg.relationKind === "parent";
+  });
+}
+
 // ==================== Suggested Quick-Create Presets ====================
 
 interface DatetimeSubOption {
@@ -373,6 +396,52 @@ export function PropertySelector({
     [activeDef, onSetProperty],
   );
 
+  // ---------- task relation shortcuts ----------
+
+  const handleAddParent = useCallback(() => {
+    const defs = definitions ?? [];
+    const key = resolveUniqueKey("parentMessage", defs);
+    createMutation.mutate(
+      {
+        key,
+        valueType: "message_ref",
+        config: {
+          scope: "same_channel",
+          cardinality: "single",
+          relationKind: "parent",
+        },
+      },
+      {
+        onSuccess: (newDef) => {
+          setSearch("");
+          setRightPane({ type: "def", defId: newDef.id });
+        },
+      },
+    );
+  }, [definitions, createMutation]);
+
+  const handleAddRelated = useCallback(() => {
+    const defs = definitions ?? [];
+    const key = resolveUniqueKey("relatedMessages", defs);
+    createMutation.mutate(
+      {
+        key,
+        valueType: "message_ref",
+        config: {
+          scope: "same_channel",
+          cardinality: "multi",
+          relationKind: "related",
+        },
+      },
+      {
+        onSuccess: (newDef) => {
+          setSearch("");
+          setRightPane({ type: "def", defId: newDef.id });
+        },
+      },
+    );
+  }, [definitions, createMutation]);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
@@ -545,6 +614,60 @@ export function PropertySelector({
                 </div>
               )}
 
+              {/* Task relation shortcuts */}
+              {allowCreate && (
+                <div className="border-t border-border py-1">
+                  <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    任务关系
+                  </div>
+                  {(() => {
+                    const defs = definitions ?? [];
+                    const parentDisabled = hasParentRelationDef(defs);
+                    return (
+                      <>
+                        <button
+                          onClick={handleAddParent}
+                          disabled={parentDisabled || createMutation.isPending}
+                          title={
+                            parentDisabled ? "此频道已有父任务属性" : undefined
+                          }
+                          className={cn(
+                            "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors",
+                            "disabled:opacity-50 disabled:cursor-not-allowed",
+                            parentDisabled ? "" : "hover:bg-muted",
+                          )}
+                        >
+                          <MessageSquare
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                          <span className="truncate flex-1">父任务</span>
+                          <Plus
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                        </button>
+                        <button
+                          onClick={handleAddRelated}
+                          disabled={createMutation.isPending}
+                          className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <MessageSquare
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                          <span className="truncate flex-1">关联任务</span>
+                          <Plus
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* AI Auto-fill (only when any def has aiAutoFill enabled) */}
               {hasAiAutoFillDefs && (
                 <div className="border-t border-border p-1">
@@ -632,6 +755,8 @@ export function PropertySelector({
                     value={currentProperties[activeDef.key]}
                     onChange={handleValueChange}
                     inline
+                    channelId={channelId}
+                    currentMessageId={messageId}
                   />
                 </div>
               </>
