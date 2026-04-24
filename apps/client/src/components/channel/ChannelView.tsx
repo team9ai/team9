@@ -319,11 +319,12 @@ export function ChannelView({
       applicationId: null as string | null,
       installedApplicationId: null as string | null,
       botId: null as string | null,
+      agentModelFamily: botModelSwitch.agentModelFamily,
       isUpdating: channelModel.isUpdating,
       updateModel: (model: { provider: string; id: string }): Promise<void> =>
         channelModel.updateModel(model).then(() => undefined),
     };
-  }, [isBotDm, channelModel]);
+  }, [isBotDm, channelModel, botModelSwitch.agentModelFamily]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {

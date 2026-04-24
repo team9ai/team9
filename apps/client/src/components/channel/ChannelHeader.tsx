@@ -118,9 +118,16 @@ export function ChannelHeader({
                   </Tooltip>
                 </TooltipProvider>
               )}
-              <AgentTypeBadge agentType={otherUser?.agentType} />
+              {otherUser?.agentType !== "base_model" && (
+                <AgentTypeBadge agentType={otherUser?.agentType} />
+              )}
             </div>
-            {isDirect &&
+            {otherUser?.agentType === "base_model" ? (
+              <div className="mt-0.5 flex items-center gap-1 min-w-0">
+                <AgentTypeBadge agentType="base_model" />
+              </div>
+            ) : (
+              isDirect &&
               otherUser?.userType === "bot" &&
               otherUser.staffKind && (
                 <AgentPillRow
@@ -128,7 +135,8 @@ export function ChannelHeader({
                   roleTitle={otherUser.roleTitle}
                   ownerName={otherUser.ownerName}
                 />
-              )}
+              )
+            )}
             {!isDirect && channel.description && (
               <p className="text-xs text-muted-foreground">
                 {channel.description}

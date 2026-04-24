@@ -1,3 +1,5 @@
+import type { StaffModelFamily } from "./common-staff-models";
+
 export type BaseModelProductKey = "claude" | "chatgpt" | "gemini";
 
 export const BASE_MODEL_PRODUCT_META: Record<
@@ -7,6 +9,15 @@ export const BASE_MODEL_PRODUCT_META: Record<
   claude: { provider: "Anthropic", alt: "Claude logo" },
   chatgpt: { provider: "OpenAI", alt: "ChatGPT logo" },
   gemini: { provider: "Google", alt: "Gemini logo" },
+};
+
+export const BASE_MODEL_PRODUCT_FAMILY: Record<
+  BaseModelProductKey,
+  StaffModelFamily
+> = {
+  claude: "anthropic",
+  chatgpt: "openai",
+  gemini: "google",
 };
 
 export function getBaseModelProductKey(

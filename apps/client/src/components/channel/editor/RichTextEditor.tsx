@@ -571,7 +571,11 @@ export function RichTextEditor({
                           void botModelSwitch.updateModel({ provider, id });
                         }}
                       >
-                        {COMMON_STAFF_MODELS.map((model) => (
+                        {COMMON_STAFF_MODELS.filter((model) =>
+                          botModelSwitch.agentModelFamily
+                            ? model.family === botModelSwitch.agentModelFamily
+                            : true,
+                        ).map((model) => (
                           <DropdownMenuRadioItem
                             key={`${model.provider}::${model.id}`}
                             value={`${model.provider}::${model.id}`}
