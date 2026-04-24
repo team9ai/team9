@@ -7,7 +7,8 @@ export type ChannelType =
   | "task"
   | "tracking"
   | "echo"
-  | "routine-session";
+  | "routine-session"
+  | "topic-session";
 export type MessageType =
   | "text"
   | "file"

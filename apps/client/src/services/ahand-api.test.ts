@@ -18,24 +18,24 @@ describe("ahandApi", () => {
   it("list() omits query string by default", async () => {
     vi.mocked(http.get).mockResolvedValue({ data: [] } as any);
     await ahandApi.list();
-    expect(http.get).toHaveBeenCalledWith("/ahand/devices");
+    expect(http.get).toHaveBeenCalledWith("/v1/ahand/devices");
   });
 
   it("list() passes includeOffline=false as query string", async () => {
     vi.mocked(http.get).mockResolvedValue({ data: [] } as any);
     await ahandApi.list({ includeOffline: false });
     expect(http.get).toHaveBeenCalledWith(
-      "/ahand/devices?includeOffline=false",
+      "/v1/ahand/devices?includeOffline=false",
     );
   });
 
   it("list() omits query string when includeOffline=true", async () => {
     vi.mocked(http.get).mockResolvedValue({ data: [] } as any);
     await ahandApi.list({ includeOffline: true });
-    expect(http.get).toHaveBeenCalledWith("/ahand/devices");
+    expect(http.get).toHaveBeenCalledWith("/v1/ahand/devices");
   });
 
-  it("register POSTs to /ahand/devices with body", async () => {
+  it("register POSTs to /v1/ahand/devices with body", async () => {
     vi.mocked(http.post).mockResolvedValue({ data: {} } as any);
     await ahandApi.register({
       hubDeviceId: "d",
@@ -44,7 +44,7 @@ describe("ahandApi", () => {
       platform: "macos",
     });
     expect(http.post).toHaveBeenCalledWith(
-      "/ahand/devices",
+      "/v1/ahand/devices",
       expect.objectContaining({ hubDeviceId: "d" }),
     );
   });
@@ -53,7 +53,7 @@ describe("ahandApi", () => {
     vi.mocked(http.post).mockResolvedValue({ data: {} } as any);
     await ahandApi.refreshToken("id with space");
     expect(http.post).toHaveBeenCalledWith(
-      "/ahand/devices/id%20with%20space/token/refresh",
+      "/v1/ahand/devices/id%20with%20space/token/refresh",
     );
   });
 
@@ -61,14 +61,14 @@ describe("ahandApi", () => {
     vi.mocked(http.post).mockResolvedValue({ data: {} } as any);
     await ahandApi.refreshToken("abc123");
     expect(http.post).toHaveBeenCalledWith(
-      "/ahand/devices/abc123/token/refresh",
+      "/v1/ahand/devices/abc123/token/refresh",
     );
   });
 
   it("patch sends body", async () => {
     vi.mocked(http.patch).mockResolvedValue({ data: {} } as any);
     await ahandApi.patch("id1", { nickname: "new" });
-    expect(http.patch).toHaveBeenCalledWith("/ahand/devices/id1", {
+    expect(http.patch).toHaveBeenCalledWith("/v1/ahand/devices/id1", {
       nickname: "new",
     });
   });
@@ -76,7 +76,7 @@ describe("ahandApi", () => {
   it("remove calls DELETE", async () => {
     vi.mocked(http.delete).mockResolvedValue({ data: {} } as any);
     await ahandApi.remove("id1");
-    expect(http.delete).toHaveBeenCalledWith("/ahand/devices/id1");
+    expect(http.delete).toHaveBeenCalledWith("/v1/ahand/devices/id1");
   });
 
   it("remove resolves to undefined", async () => {

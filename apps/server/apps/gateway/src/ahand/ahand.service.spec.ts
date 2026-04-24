@@ -202,7 +202,9 @@ describe('AhandDevicesService', () => {
       });
 
       expect(res.deviceJwt).toBe('jwt.xxx');
-      expect(res.hubUrl).toBe('https://hub.test');
+      // Service rewrites the admin HTTPS base to the WebSocket URL that
+      // Tauri's ahandd::spawn accepts (see hubWebSocketUrl in the service).
+      expect(res.hubUrl).toBe('wss://hub.test/ws');
       expect(res.device.hubDeviceId).toBe('hub-d1');
       expect(hub.registerDevice).toHaveBeenCalledWith({
         deviceId: 'hub-d1',

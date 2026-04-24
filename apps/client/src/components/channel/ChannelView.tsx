@@ -276,10 +276,18 @@ export function ChannelView({
   const dmOtherUser = (memberChannel as ChannelWithUnread | undefined)
     ?.otherUser;
 
-  // Determine if this is a bot DM channel
+  // Determine if this is a bot DM-style channel. `direct` is the classic
+  // human/bot DM; `routine-session` and `topic-session` are ephemeral
+  // one-on-one bot conversations. All three resolve to the same agent-pi
+  // session scope ('dm') on the backend, so the composer model switcher and
+  // bot-startup logic apply uniformly.
   const isBotDm = useMemo(() => {
     if (!memberChannel) return false;
-    return memberChannel.type === "direct" && dmOtherUser?.userType === "bot";
+    const isOneOnOneBotType =
+      memberChannel.type === "direct" ||
+      memberChannel.type === "routine-session" ||
+      memberChannel.type === "topic-session";
+    return isOneOnOneBotType && dmOtherUser?.userType === "bot";
   }, [dmOtherUser, memberChannel]);
 
   const botDmUserId = useMemo(() => {
