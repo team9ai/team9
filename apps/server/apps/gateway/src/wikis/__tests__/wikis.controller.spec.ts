@@ -55,6 +55,7 @@ describe('WikisController', () => {
       getProposalDiff: jest.fn<any>().mockResolvedValue([]),
       approveProposal: jest.fn<any>().mockResolvedValue(undefined),
       rejectProposal: jest.fn<any>().mockResolvedValue(undefined),
+      getPendingProposalCounts: jest.fn<any>().mockResolvedValue({}),
     };
 
     bots = {
@@ -96,6 +97,7 @@ describe('WikisController', () => {
     it('registers the expected REST method per endpoint', () => {
       const methods: Array<[keyof WikisController, RequestMethod]> = [
         ['list', RequestMethod.GET],
+        ['getPendingCounts', RequestMethod.GET],
         ['create', RequestMethod.POST],
         ['get', RequestMethod.GET],
         ['update', RequestMethod.PATCH],
@@ -122,6 +124,7 @@ describe('WikisController', () => {
     it('registers the expected path per endpoint', () => {
       const paths: Array<[keyof WikisController, string]> = [
         ['list', '/'],
+        ['getPendingCounts', 'pending-counts'],
         ['create', '/'],
         ['get', ':wikiId'],
         ['update', ':wikiId'],
@@ -193,6 +196,28 @@ describe('WikisController', () => {
       expect(wikis.listWikis).toHaveBeenCalledWith(WS_ID);
       expect(bots.isBot).not.toHaveBeenCalled();
       expect(result).toEqual([{ id: WIKI_ID }]);
+    });
+  });
+
+  describe('getPendingCounts', () => {
+    it('wraps the service result in a { counts } envelope', async () => {
+      wikis.getPendingProposalCounts.mockResolvedValueOnce({
+        'wiki-1': 2,
+        'wiki-2': 0,
+      });
+      const result = await controller.getPendingCounts(WS_ID, USER_ID);
+      expect(wikis.getPendingProposalCounts).toHaveBeenCalledWith(WS_ID, {
+        id: USER_ID,
+        isAgent: false,
+      });
+      expect(result).toEqual({ counts: { 'wiki-1': 2, 'wiki-2': 0 } });
+    });
+
+    it('throws ForbiddenException when workspace context is missing', async () => {
+      await expect(
+        controller.getPendingCounts(undefined, USER_ID),
+      ).rejects.toThrow(ForbiddenException);
+      expect(wikis.getPendingProposalCounts).not.toHaveBeenCalled();
     });
   });
 

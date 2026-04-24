@@ -1910,6 +1910,62 @@ describe('WikisService', () => {
     });
   });
 
+  // ── getPendingProposalCounts ───────────────────────────────────────
+  describe('getPendingProposalCounts', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    it('returns per-wiki pending counts for wikis the user can read', async () => {
+      const row1 = makeWikiRow({ id: 'wiki-1', folder9FolderId: 'f9-1' });
+      const row2 = makeWikiRow({ id: 'wiki-2', folder9FolderId: 'f9-2' });
+      db.orderBy.mockResolvedValueOnce([row1, row2]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.listProposals
+        .mockResolvedValueOnce([{ id: 'p-1' }, { id: 'p-2' }])
+        .mockResolvedValueOnce([]);
+
+      const result = await svc.getPendingProposalCounts('ws-1', user);
+
+      expect(result).toEqual({ 'wiki-1': 2, 'wiki-2': 0 });
+      expect(f9.listProposals).toHaveBeenCalledWith(
+        'ws-1',
+        expect.any(String),
+        'tok-read',
+        { status: 'pending' },
+      );
+      expect(f9.listProposals).toHaveBeenCalledTimes(2);
+    });
+
+    it('aggregates counts across multiple wikis independently', async () => {
+      const row1 = makeWikiRow({ id: 'wiki-a', folder9FolderId: 'f9-a' });
+      const row2 = makeWikiRow({ id: 'wiki-b', folder9FolderId: 'f9-b' });
+      const row3 = makeWikiRow({ id: 'wiki-c', folder9FolderId: 'f9-c' });
+      db.orderBy.mockResolvedValueOnce([row1, row2, row3]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      // Order of settlement isn't guaranteed (Promise.all), so we return a
+      // per-folder-id lookup instead of relying on call order.
+      const byFolder: Record<string, Array<{ id: string }>> = {
+        'f9-a': [{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }],
+        'f9-b': [],
+        'f9-c': [{ id: 'c1' }],
+      };
+      f9.listProposals.mockImplementation(
+        async (_ws: string, folderId: string) => byFolder[folderId] ?? [],
+      );
+
+      const result = await svc.getPendingProposalCounts('ws-1', user);
+
+      expect(result).toEqual({ 'wiki-a': 3, 'wiki-b': 0, 'wiki-c': 1 });
+      expect(f9.listProposals).toHaveBeenCalledTimes(3);
+    });
+
+    it('returns an empty object when the workspace has no wikis', async () => {
+      db.orderBy.mockResolvedValueOnce([]);
+      const result = await svc.getPendingProposalCounts('ws-1', user);
+      expect(result).toEqual({});
+      expect(f9.listProposals).not.toHaveBeenCalled();
+    });
+  });
+
   // ── getProposalDiff ─────────────────────────────────────────────────
   describe('getProposalDiff', () => {
     const user = { id: 'user-1', isAgent: false };

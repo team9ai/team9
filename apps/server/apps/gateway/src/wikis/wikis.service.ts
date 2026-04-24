@@ -770,6 +770,52 @@ export class WikisService {
   }
 
   /**
+   * Aggregate pending-proposal counts across every Wiki in the workspace.
+   * Returns a map of `wikiId → count` so the sub-sidebar can render per-wiki
+   * badges AND a summed total in one request instead of N (N = number of
+   * wikis). The current permission model guarantees every workspace member
+   * has at least `read` on every non-archived wiki (lowest level), so we
+   * still route through {@link requirePermission} for consistency with the
+   * single-wiki endpoint. Should permission levels ever drop below `read`,
+   * the Forbidden will surface to the caller rather than silently mask —
+   * callers can decide whether to 403 or filter client-side.
+   */
+  async getPendingProposalCounts(
+    workspaceId: string,
+    user: ActingUser,
+  ): Promise<Record<string, number>> {
+    const rows = (await this.db
+      .select()
+      .from(schema.workspaceWikis)
+      .where(
+        and(
+          eq(schema.workspaceWikis.workspaceId, workspaceId),
+          isNull(schema.workspaceWikis.archivedAt),
+        ),
+      )
+      .orderBy(desc(schema.workspaceWikis.createdAt))) as WikiRow[];
+    const counts: Record<string, number> = {};
+    await Promise.all(
+      rows.map(async (wiki) => {
+        requirePermission(wiki, user, 'read');
+        const token = await this.getFolderToken(
+          wiki.folder9FolderId,
+          'read',
+          this.readCreatedBy(wiki),
+        );
+        const proposals = await this.folder9.listProposals(
+          workspaceId,
+          wiki.folder9FolderId,
+          token,
+          { status: 'pending' },
+        );
+        counts[wiki.id] = proposals.length;
+      }),
+    );
+    return counts;
+  }
+
+  /**
    * Fetch the diff summary for a single proposal. Requires `read` permission.
    *
    * The service passes the folder9 diff entries through untouched — they're
