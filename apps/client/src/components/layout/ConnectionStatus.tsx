@@ -46,10 +46,8 @@ export function ConnectionStatus() {
             type="button"
             aria-label={label}
             className={cn(
-              "inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0 transition-colors cursor-pointer",
-              isReconnecting
-                ? "text-muted-foreground hover:bg-muted"
-                : "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+              "inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0 transition-colors cursor-pointer hover:bg-muted",
+              isReconnecting ? "text-muted-foreground" : "text-destructive",
             )}
           >
             <Icon className={cn("h-4 w-4", isReconnecting && "animate-spin")} />
