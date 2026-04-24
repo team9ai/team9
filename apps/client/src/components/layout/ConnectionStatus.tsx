@@ -23,7 +23,11 @@ export function ConnectionStatus() {
     return () => unsubscribe();
   }, []);
 
-  if (status === "connected") return null;
+  // Always reserve a fixed 7x7 slot so toggling this indicator doesn't
+  // resize sibling elements (e.g. the global search bar).
+  if (status === "connected") {
+    return <div className="w-7 h-7 shrink-0" aria-hidden="true" />;
+  }
 
   const isReconnecting = status === "reconnecting";
   const Icon = isReconnecting ? RefreshCw : WifiOff;
