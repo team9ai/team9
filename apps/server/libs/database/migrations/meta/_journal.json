@@ -323,6 +323,13 @@
       "when": 1777400000000,
       "tag": "0045_message_content_ast",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1777536000000,
+      "tag": "0046_ahand_devices",
+      "breakpoints": true
     }
   ]
 }

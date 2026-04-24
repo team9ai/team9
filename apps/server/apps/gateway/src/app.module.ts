@@ -48,6 +48,7 @@ import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
 import { BillingHubModule } from './billing-hub/billing-hub.module.js';
 import { AccountModule } from './account/account.module.js';
+import { AhandModule } from './ahand/ahand.module.js';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { AccountModule } from './account/account.module.js';
     SkillsModule,
     DeepResearchModule,
     PushModule,
+    AhandModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
