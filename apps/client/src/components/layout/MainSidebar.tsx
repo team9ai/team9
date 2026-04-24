@@ -16,6 +16,9 @@ import {
   Loader2,
   ChevronRight,
   Laptop,
+  CircleCheck,
+  CircleAlert,
+  Ban,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -294,7 +297,7 @@ export function MainSidebar() {
               navigate({ to: targetPath });
             }}
             className={cn(
-              "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+              "w-12 h-11 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
               isActive && "bg-nav-active text-nav-foreground",
             )}
             title={label}
@@ -303,7 +306,7 @@ export function MainSidebar() {
               <Icon size={20} />
               <NotificationBadge count={badgeCount} />
             </div>
-            <span className="text-xs mt-1.5">{label}</span>
+            <span className="text-xs mt-1">{label}</span>
           </Button>
         );
       },
@@ -507,17 +510,34 @@ export function MainSidebar() {
                 aria-label={tAhand("myDevices")}
                 className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2"
               >
-                <Laptop size={18} />
-                <div
+                <Laptop
+                  size={18}
                   className={cn(
-                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
-                    deriveSidebarDotColor(
+                    deriveSidebarLaptopColor(
                       localStatus,
                       ahandDevices,
                       isTauriApp(),
                     ),
                   )}
                 />
+                {(() => {
+                  const Badge = deriveSidebarBadgeIcon(
+                    localStatus,
+                    ahandDevices,
+                    isTauriApp(),
+                  );
+                  if (!Badge) return null;
+                  return (
+                    <Badge.icon
+                      size={10}
+                      strokeWidth={2.5}
+                      className={cn(
+                        "absolute -bottom-0.5 -right-0.5 bg-nav-bg rounded-full",
+                        Badge.className,
+                      )}
+                    />
+                  );
+                })()}
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -710,7 +730,10 @@ export function MainSidebar() {
   );
 }
 
-function deriveSidebarDotColor(
+/** Tint the Laptop glyph itself to signal "is this machine usable as an
+ *  agent target right now?" — green when Online, amber while connecting,
+ *  else the default sidebar foreground. */
+function deriveSidebarLaptopColor(
   local: ReturnType<typeof useAhandLocalStatus>,
   devices: ReturnType<typeof useAhandDevices>["data"],
   tauri: boolean,
@@ -718,20 +741,38 @@ function deriveSidebarDotColor(
   if (tauri) {
     switch (local?.state) {
       case "online":
-        return "bg-green-500";
+        return "text-green-500";
       case "connecting":
-        return "bg-amber-500 animate-pulse";
-      case "error":
-        return "bg-destructive";
-      case "offline":
-        return "bg-muted-foreground";
+        return "text-amber-500";
       default:
-        return "bg-muted";
+        return "";
+    }
+  }
+  return (devices ?? []).some((d) => d.isOnline === true) ? "text-green-500" : "";
+}
+
+/** Small overlay glyph at bottom-right. Present only for terminal states
+ *  so at-a-glance colour on the Laptop itself stays the primary signal. */
+function deriveSidebarBadgeIcon(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  tauri: boolean,
+): { icon: typeof CircleCheck; className: string } | null {
+  if (tauri) {
+    switch (local?.state) {
+      case "online":
+        return { icon: CircleCheck, className: "text-green-500" };
+      case "error":
+        return { icon: CircleAlert, className: "text-destructive" };
+      case "offline":
+        return { icon: Ban, className: "text-muted-foreground" };
+      default:
+        return null;
     }
   }
   return (devices ?? []).some((d) => d.isOnline === true)
-    ? "bg-green-500"
-    : "bg-muted";
+    ? { icon: CircleCheck, className: "text-green-500" }
+    : null;
 }
 
 function deriveSidebarStatusLabel(
