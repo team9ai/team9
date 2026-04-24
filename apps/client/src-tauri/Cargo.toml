@@ -30,7 +30,17 @@ time = { version = "0.3", features = ["formatting"] }
 tauri-plugin-notification = "2"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
-tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "time", "sync"] }
+anyhow = "1"
+base64 = "0.22"
+sha2 = "0.10"
+hex = "0.4"
+
+# ahand library embedding — pinned to aHand dev HEAD (post-Stream-A merge)
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "94c4c0af931f6b58750150281acdc4f61b3c65f5" }
+
+[dev-dependencies]
+tempfile = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"

@@ -15,6 +15,8 @@ import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
 import { useSyncUserLocale } from "@/hooks/useSyncUserLocale";
+import { useAhandBootstrap } from "@/hooks/useAhandBootstrap";
+import { useAhandJwtRefresh } from "@/hooks/useAhandJwtRefresh";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -23,11 +25,8 @@ import {
   isOnboardingRequired,
 } from "@/lib/onboarding-gate";
 import workspaceApi from "@/services/api/workspace";
-// import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
-// import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useEffect } from "react";
 import { workspaceActions, useWorkspaceStore } from "@/stores";
-// import { invoke } from "@tauri-apps/api/core";
 import {
   appActions,
   DEFAULT_SECTION_PATHS,
@@ -238,28 +237,11 @@ function AuthenticatedLayout() {
   const location = useLocation();
   const isOnboardingRoute = location.pathname === ONBOARDING_ROUTE;
 
-  // [DISABLED] aHand auto-start and Local Device Setup dialog
-  // const ahandRun = useAHandSetupStore((s) => s.run);
-  // const ahandOpenDialog = useAHandSetupStore((s) => s.openDialog);
-  // const ahandHasRun = useAHandSetupStore((s) => s.hasRun);
-  // const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
-  //
-  // useEffect(() => {
-  //   const isTauri =
-  //     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-  //   if (ahandHasRun || !isTauri || !selectedWorkspaceId) return;
-  //   ahandOpenDialog();
-  //   void ahandRun();
-  // }, [ahandRun, ahandOpenDialog, ahandHasRun, selectedWorkspaceId]);
-  //
-  // useEffect(() => {
-  //   const isTauri =
-  //     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-  //   if (!isTauri) return;
-  //   return () => {
-  //     invoke("ahand_stop").catch(() => {});
-  //   };
-  // }, []);
+  // Resume aHand daemon connection if previously enabled
+  useAhandBootstrap();
+
+  // Auto-refresh aHand JWT when daemon reports auth error
+  useAhandJwtRefresh();
 
   // Initialize WebSocket connection
   useWebSocket();

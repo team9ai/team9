@@ -26,6 +26,7 @@ import {
   type ChannelDeletedEvent,
   type ChannelArchivedEvent,
   type ChannelUnarchivedEvent,
+  type ChannelModelChangedEvent,
   type UserOnlineEvent,
   type UserOfflineEvent,
   type UserStatusChangedEvent,
@@ -509,6 +510,15 @@ class WebSocketService {
     this.on<ChannelUnarchivedEvent>(WS_EVENTS.CHANNEL.UNARCHIVED, callback);
   }
 
+  onChannelModelChanged(
+    callback: (event: ChannelModelChangedEvent) => void,
+  ): void {
+    this.on<ChannelModelChangedEvent>(
+      WS_EVENTS.CHANNEL.MODEL_CHANGED,
+      callback,
+    );
+  }
+
   onUserOnline(callback: (event: UserOnlineEvent) => void): void {
     this.on<UserOnlineEvent>(WS_EVENTS.USER.ONLINE, callback);
   }
@@ -914,6 +924,18 @@ class WebSocketService {
       WS_EVENTS.PROPERTY.RELATIONS_PURGED,
       callback,
     );
+  }
+
+  // ── ahand Room ───────────────────────────────────
+
+  joinAhandRoom(room: string): void {
+    if (!this.socket) return;
+    this.socket.emit("ahand:join_room", { room });
+  }
+
+  leaveAhandRoom(room: string): void {
+    if (!this.socket) return;
+    this.socket.emit("ahand:leave_room", { room });
   }
 }
 

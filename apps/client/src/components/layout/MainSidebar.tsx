@@ -15,6 +15,7 @@ import {
   Sparkles,
   Loader2,
   ChevronRight,
+  Laptop,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -51,7 +52,6 @@ import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
-import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useDevtools } from "@/hooks/useDevtools";
 import { NotificationBadge } from "@/components/ui/badge";
@@ -62,6 +62,10 @@ import {
   registerMoreTapUnlock,
 } from "./mainSidebarUnlock";
 import type { UserStatus } from "@/types/im";
+import { DevicesDialog } from "@/components/dialog/DevicesDialog";
+import { useAhandLocalStatus } from "@/hooks/useAhandLocalStatus";
+import { useAhandDevices } from "@/hooks/useAhandDevices";
+import { isTauriApp } from "@/lib/tauri";
 
 // Navigation items with i18n keys
 const navigationItems = [
@@ -103,6 +107,10 @@ export function MainSidebar() {
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
   const { handleTap: devtoolsTap, message: devtoolsMessage } = useDevtools();
+  const [devicesDialogOpen, setDevicesDialogOpen] = useState(false);
+  const localStatus = useAhandLocalStatus();
+  const { data: ahandDevices } = useAhandDevices({ includeOffline: true });
+  const { t: tAhand } = useTranslation("ahand");
 
   // Activity count excludes dm_received notifications (those are shown on Messages)
   const activityUnreadCount =
@@ -239,9 +247,6 @@ export function MainSidebar() {
       // Reset last visited paths — persisted section routes may not exist
       // or may point at stale detail pages in the next workspace.
       appActions.resetNavigationForWorkspaceEntry();
-
-      // Reset aHand setup state so it re-runs for the new workspace
-      useAHandSetupStore.getState().reset();
 
       // Navigate to home when switching workspace
       navigate({ to: "/" });
@@ -494,6 +499,39 @@ export function MainSidebar() {
             )}
           </div>
 
+          {/* Devices (ahand) entry */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setDevicesDialogOpen(true)}
+                aria-label={tAhand("myDevices")}
+                className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2"
+              >
+                <Laptop size={18} />
+                <div
+                  className={cn(
+                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
+                    deriveSidebarDotColor(
+                      localStatus,
+                      ahandDevices,
+                      isTauriApp(),
+                    ),
+                  )}
+                />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>{tAhand("myDevices")}</p>
+              <p className="text-xs text-muted-foreground">
+                {deriveSidebarStatusLabel(localStatus, ahandDevices, tAhand)}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+          <DevicesDialog
+            open={devicesDialogOpen}
+            onOpenChange={setDevicesDialogOpen}
+          />
+
           {/* User Avatar at Bottom */}
           <div data-tauri-drag-region className="shrink-0 py-4">
             <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
@@ -670,4 +708,52 @@ export function MainSidebar() {
       </div>
     </TooltipProvider>
   );
+}
+
+function deriveSidebarDotColor(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  tauri: boolean,
+): string {
+  if (tauri) {
+    switch (local?.state) {
+      case "online":
+        return "bg-green-500";
+      case "connecting":
+        return "bg-amber-500 animate-pulse";
+      case "error":
+        return "bg-destructive";
+      case "offline":
+        return "bg-muted-foreground";
+      default:
+        return "bg-muted";
+    }
+  }
+  return (devices ?? []).some((d) => d.isOnline === true)
+    ? "bg-green-500"
+    : "bg-muted";
+}
+
+function deriveSidebarStatusLabel(
+  local: ReturnType<typeof useAhandLocalStatus>,
+  devices: ReturnType<typeof useAhandDevices>["data"],
+  t: (k: string) => string,
+): string {
+  if (local?.state === "web" || !local) {
+    return (devices ?? []).some((d) => d.isOnline)
+      ? t("statusAnyOnline")
+      : t("statusNoneOnline");
+  }
+  switch (local.state) {
+    case "online":
+      return t("online");
+    case "connecting":
+      return t("connecting");
+    case "error":
+      return t("error.header");
+    case "offline":
+      return t("offline");
+    default:
+      return t("disabled");
+  }
 }

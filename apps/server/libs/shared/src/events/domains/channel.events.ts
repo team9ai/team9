@@ -247,6 +247,34 @@ export interface ChannelUnarchivedEvent {
   unarchivedBy: string;
 }
 
+/**
+ * Channel model changed event
+ *
+ * Broadcast by the server to channel members when the channel's active
+ * session-level LLM model is changed. Applies to human↔agent DM and
+ * routine-session channels.
+ *
+ * @event channel_model_changed
+ * @direction Server -> Channel Members
+ */
+export interface ChannelModelChangedEvent {
+  /** Channel ID */
+  channelId: string;
+  /** Bot user ID the session belongs to (the managed hive bot in this DM) */
+  botId: string;
+  /** New effective model */
+  model: { provider: string; id: string };
+  /**
+   * Which tier of the three-tier resolver produced the effective model.
+   * After a PATCH this is typically 'dynamic'.
+   */
+  source: 'agent_default' | 'session_initial' | 'dynamic';
+  /** User ID who triggered the change (null for agent-initiated) */
+  changedBy: string | null;
+  /** ISO timestamp of when the change was applied */
+  changedAt: string;
+}
+
 // ==================== Response Types ====================
 
 /**

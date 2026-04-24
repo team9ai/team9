@@ -9,14 +9,17 @@ import {
 import { CodeNode } from "@lexical/code";
 import { $getNearestNodeOfType } from "@lexical/utils";
 import { hasContent } from "../utils/exportContent";
-import { submitEditorContent } from "../utils/submitEditorContent";
+import {
+  submitEditorContent,
+  type EditorSubmitPayload,
+} from "../utils/submitEditorContent";
 import {
   isImeCompositionEvent,
   useIsComposingRef,
 } from "./CompositionStatePlugin";
 
 interface KeyboardShortcutsPluginProps {
-  onSubmit: (content: string) => Promise<void>;
+  onSubmit: (payload: EditorSubmitPayload) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
   /**

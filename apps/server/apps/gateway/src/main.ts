@@ -3,7 +3,11 @@ import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
 import { json, raw } from 'express';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
+import {
+  securityHeadersMiddleware,
+  trustedTypesReportOnlyMiddleware,
+} from './security/security-headers.js';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -46,6 +50,10 @@ export async function bootstrap(): Promise<void> {
   // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
   app.use(json({ limit: '1mb' }));
 
+  // Security headers — see security-headers.ts for the policy rationale.
+  app.use(securityHeadersMiddleware());
+  app.use(trustedTypesReportOnlyMiddleware);
+
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {
     const { OtelLogger } = await import('@team9/observability');
@@ -61,6 +69,10 @@ export async function bootstrap(): Promise<void> {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
 
   // Configure Socket.io Redis Adapter for multi-node deployment
   try {

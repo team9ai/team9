@@ -3,17 +3,23 @@ import { render, screen } from "@testing-library/react";
 
 import { HomeSubSidebar } from "../HomeSubSidebar";
 
+// HomeSubSidebar now renders bot DMs under the "AI Agents" grouping (see
+// AgentGroupList) and filters bots out of the flat DM list, so this fixture
+// uses a human user to exercise the DM avatar rendering path.
 const mockDirectChannels = vi.hoisted(() => [
   {
-    id: "dm-claude",
+    id: "dm-alex",
     unreadCount: 0,
     otherUser: {
-      id: "bot-claude",
-      displayName: "Claude",
-      username: "claude_bot_workspace",
-      avatarUrl: null,
+      id: "user-alex",
+      displayName: "Alex",
+      username: "alex",
+      // Human users with avatarUrl:null render only initials (no <img>),
+      // so this fixture sets an URL to ensure the Avatar emits an image
+      // element the test can locate by role.
+      avatarUrl: "https://example.com/alex.png",
       status: "online",
-      userType: "bot",
+      userType: "human",
     },
   },
 ]);
@@ -55,6 +61,16 @@ vi.mock("@/hooks/useChannels", () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn().mockResolvedValue(undefined),
     isPending: false,
+  }),
+}));
+
+// Stub the agent-groups hook so the component does not pull in react-query's
+// useQuery chain (useCurrentUser / useDashboardAgents). No QueryClientProvider
+// is wrapped around this render.
+vi.mock("@/hooks/useAgentGroupsForSidebar", () => ({
+  useAgentGroupsForSidebar: () => ({
+    groups: [],
+    isLoading: false,
   }),
 }));
 
@@ -143,9 +159,7 @@ describe("HomeSubSidebar", () => {
     render(<HomeSubSidebar />);
 
     expect(
-      screen
-        .getByRole("img", { name: "Claude" })
-        .closest("[data-slot='avatar']"),
+      screen.getByRole("img", { name: "Alex" }).closest("[data-slot='avatar']"),
     ).toHaveClass("w-9", "h-9");
   });
 });

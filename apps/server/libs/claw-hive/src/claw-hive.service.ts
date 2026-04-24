@@ -1,6 +1,43 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { env } from '@team9/shared';
 
+export interface HiveModelRef {
+  provider: string;
+  id: string;
+}
+
+export interface HiveAgentSnapshot {
+  id: string;
+  name: string;
+  blueprintId: string;
+  model: HiveModelRef;
+  componentConfigs?: Record<string, Record<string, unknown>>;
+  description?: string;
+  metadata?: Record<string, unknown>;
+  tenantId?: string;
+  cacheRetention?: 'none' | 'short' | 'long';
+}
+
+/**
+ * Full session detail returned by agent-pi `GET /api/sessions/:id`.
+ * `modelResolution` is the three-tier snapshot:
+ *   effective = sessionDynamic ?? sessionInitial ?? agentDefault
+ */
+export interface HiveSessionDetail {
+  sessionId: string;
+  agentId: string;
+  agentName?: string;
+  modelOverride?: HiveModelRef;
+  modelResolution: {
+    agentDefault: HiveModelRef;
+    sessionInitial: HiveModelRef | null;
+    sessionDynamic: HiveModelRef | null;
+    effective: HiveModelRef;
+    source: 'agent_default' | 'session_initial' | 'dynamic';
+  };
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class ClawHiveService {
   private readonly logger = new Logger(ClawHiveService.name);
@@ -39,6 +76,22 @@ export class ClawHiveService {
       const text = await res.text();
       throw new Error(`Failed to register agent: ${res.status} ${text}`);
     }
+  }
+
+  async getAgent(
+    agentId: string,
+    tenantId?: string,
+  ): Promise<HiveAgentSnapshot | null> {
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
+      { method: 'GET', headers: this.headers(tenantId) },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to get agent: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<HiveAgentSnapshot>;
   }
 
   async updateAgent(
@@ -109,6 +162,44 @@ export class ClawHiveService {
       throw new Error(`Failed to create session: ${res.status} ${text}`);
     }
     return res.json() as Promise<{ sessionId: string }>;
+  }
+
+  async getSession(
+    sessionId: string,
+    tenantId?: string,
+  ): Promise<HiveSessionDetail | null> {
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
+      { method: 'GET', headers: this.headers(tenantId) },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to get session: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<HiveSessionDetail>;
+  }
+
+  /**
+   * Switch the LLM model of a running session. Delivered as a
+   * `session.model_override` event via the existing input queue — the worker
+   * handles it directly (no agent loop, no LLM roundtrip, history preserved).
+   */
+  async changeSessionModel(
+    sessionId: string,
+    model: { provider: string; id: string },
+    tenantId?: string,
+  ): Promise<void> {
+    await this.sendInput(
+      sessionId,
+      {
+        type: 'session.model_override',
+        source: 'team9',
+        timestamp: new Date().toISOString(),
+        payload: { model },
+      },
+      tenantId,
+    );
   }
 
   async sendInput(

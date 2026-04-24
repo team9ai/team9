@@ -1,6 +1,15 @@
 import { $createParagraphNode, $getRoot } from "lexical";
 import type { LexicalEditor } from "lexical";
-import { exportToHtml, hasContent } from "./exportContent";
+import { exportToPlainText, hasContent } from "./exportContent";
+
+export interface EditorSubmitPayload {
+  // Plaintext fallback — used by bots/old clients/search/notifications.
+  content: string;
+  // Lexical serialized EditorState — canonical source. Rendered directly as
+  // React elements (no dangerouslySetInnerHTML); absence means the caller
+  // bypassed the composer.
+  contentAst?: Record<string, unknown>;
+}
 
 function clearEditor(editor: LexicalEditor) {
   editor.update(
@@ -15,6 +24,13 @@ function clearEditor(editor: LexicalEditor) {
   );
 }
 
+function serializeEditorState(editor: LexicalEditor): Record<string, unknown> {
+  // Lexical's `.toJSON()` returns a JSON-serializable object matching
+  // SerializedEditorState. Cast to Record<string, unknown> for our transport
+  // type — we don't depend on Lexical's internal shape here.
+  return editor.getEditorState().toJSON() as unknown as Record<string, unknown>;
+}
+
 export async function submitEditorContent({
   editor,
   onSubmit,
@@ -23,7 +39,7 @@ export async function submitEditorContent({
   clearOnSubmit = true,
 }: {
   editor: LexicalEditor;
-  onSubmit: (content: string) => Promise<void>;
+  onSubmit: (payload: EditorSubmitPayload) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
   /** Whether to clear the editor after submit (default: true). Set to false for edit mode. */
@@ -34,7 +50,10 @@ export async function submitEditorContent({
   const editorHasContent = hasContent(editor);
   if (!editorHasContent && !hasAttachments) return false;
 
-  const content = editorHasContent ? exportToHtml(editor) : "";
+  const content = editorHasContent ? exportToPlainText(editor) : "";
+  const contentAst = editorHasContent
+    ? serializeEditorState(editor)
+    : undefined;
 
   if (clearOnSubmit) {
     const previousEditorState = editor.getEditorState().clone(null);
@@ -42,7 +61,7 @@ export async function submitEditorContent({
     clearEditor(editor);
 
     try {
-      await onSubmit(content);
+      await onSubmit({ content, contentAst });
     } catch (error) {
       if (!hasContent(editor)) {
         editor.setEditorState(previousEditorState);
@@ -52,7 +71,7 @@ export async function submitEditorContent({
     }
   } else {
     // In edit mode, don't clear — just submit. Content is preserved if the request fails.
-    await onSubmit(content);
+    await onSubmit({ content, contentAst });
   }
 
   return true;
