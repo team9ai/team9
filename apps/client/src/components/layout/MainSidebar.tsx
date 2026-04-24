@@ -400,7 +400,11 @@ export function MainSidebar() {
                         )}
                       </div>
                     </PopoverTrigger>
-                    <PopoverContent side="right" className="w-56 p-2">
+                    <PopoverContent
+                      side="bottom"
+                      align="start"
+                      className="w-56 p-2"
+                    >
                       <div className="space-y-1">
                         <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
                           {tNav("moreWorkspaces")}
