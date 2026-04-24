@@ -79,6 +79,27 @@ export class AhandDevicesService {
     return url;
   }
 
+  /**
+   * Convert the admin-facing HTTPS hub base URL into the WebSocket URL
+   * ahandd uses for device connection (scheme http(s) → ws(s), path → /ws).
+   *
+   * `AHAND_HUB_URL` is configured as the HTTPS admin base (e.g.
+   * `https://ahand-hub.dev.team9.ai`) because the gateway itself calls
+   * admin REST endpoints. The client-facing `hubUrl` returned by
+   * register/refresh is consumed by `ahandd::spawn` which only accepts
+   * ws:// or wss:// (see `DaemonConfig::builder` doc comment).
+   */
+  private hubWebSocketUrl(httpBase: string): string {
+    const u = new URL(httpBase);
+    const wsScheme =
+      u.protocol === 'https:'
+        ? 'wss:'
+        : u.protocol === 'http:'
+          ? 'ws:'
+          : u.protocol;
+    return `${wsScheme}//${u.host}/ws`;
+  }
+
   // ─── registerDeviceForUser ────────────────────────────────────────────
   //
   // Multi-step flow: 1) hub pre-register, 2) DB insert, 3) mint JWT. Each
@@ -173,7 +194,7 @@ export class AhandDevicesService {
     return {
       device: inserted,
       deviceJwt: minted.token,
-      hubUrl,
+      hubUrl: this.hubWebSocketUrl(hubUrl),
       jwtExpiresAt: minted.expiresAt,
     };
   }
