@@ -298,7 +298,7 @@ export function MainSidebar() {
               navigate({ to: targetPath });
             }}
             className={cn(
-              "w-12 h-11 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+              "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
               isActive && "bg-nav-active text-nav-foreground",
             )}
             title={label}
@@ -497,7 +497,7 @@ export function MainSidebar() {
 
             {/* Navigation Items - shown here when sidebar is collapsed */}
             {sidebarCollapsed && (
-              <nav className="w-full flex flex-col items-center space-y-1 border-border">
+              <nav className="w-full flex flex-col items-center space-y-2 border-border">
                 {renderNavigationItems()}
               </nav>
             )}
@@ -727,7 +727,7 @@ export function MainSidebar() {
         {/* Column 2: Navigation items - only when expanded */}
         {!sidebarCollapsed && (
           <>
-            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-1 overflow-y-auto scrollbar-hide">
+            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-2 overflow-y-auto scrollbar-hide">
               {renderNavigationItems()}
             </nav>
             <div className="w-px h-full bg-border shrink-0" />
