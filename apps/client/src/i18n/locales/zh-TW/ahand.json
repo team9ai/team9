@@ -14,6 +14,25 @@
     "auditDescription": "Agent 每次動你裝置的紀錄。",
     "placeholder": "即將推出，我們還在開發。"
   },
+  "browser": {
+    "runtimeTitle": "瀏覽器控制執行環境",
+    "runtimeDescription": "Agent 用它真實地操作網頁——點擊、輸入、讀取頁面內容。底層基於 Playwright。",
+    "runtimeSubtitle": "Agent 打開和控制網頁需要裝它",
+    "statusNotInstalled": "未安裝",
+    "statusInstalled": "已安裝",
+    "install": "安裝",
+    "binaryTitle": "Agent 使用的瀏覽器",
+    "binaryDescription": "選 Agent 預設要打開的瀏覽器。內建版最穩——和你日常用的瀏覽器完全隔離。",
+    "recommended": "建議",
+    "detected": "已在這台 Mac 上偵測到",
+    "notDetected": "未偵測到",
+    "binary": {
+      "bundled": "內建 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "接受遠端控制",
     "masterSwitchDescription": "關閉後，任何 Agent 都不能使用這台電腦，之前授權過的也不行。",

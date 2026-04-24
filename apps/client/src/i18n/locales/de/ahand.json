@@ -14,6 +14,25 @@
     "auditDescription": "Ein Protokoll jeder Nutzung deiner Geräte durch einen Agenten.",
     "placeholder": "Demnächst — wir bauen das noch."
   },
+  "browser": {
+    "runtimeTitle": "Browser-Automatisierungs-Runtime",
+    "runtimeDescription": "Die Bibliothek, mit der Agenten tatsächlich einen Browser bedienen — klicken, tippen, Seiten lesen. Unter der Haube: Playwright.",
+    "runtimeSubtitle": "Nötig, damit Agenten Webseiten öffnen und steuern können",
+    "statusNotInstalled": "Nicht installiert",
+    "statusInstalled": "Installiert",
+    "install": "Installieren",
+    "binaryTitle": "Welchen Browser Agenten verwenden",
+    "binaryDescription": "Wähle den Browser, den Agenten standardmäßig öffnen. Der mitgelieferte ist am sichersten — komplett getrennt von deinem Alltagsbrowser.",
+    "recommended": "Empfohlen",
+    "detected": "Auf diesem Mac gefunden",
+    "notDetected": "Nicht gefunden",
+    "binary": {
+      "bundled": "Mitgeliefertes Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "Fernzugriff erlauben",
     "masterSwitchDescription": "Ausschalten und kein Agent darf diesen Computer benutzen — auch nicht die, die du früher freigegeben hast.",

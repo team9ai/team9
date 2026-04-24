@@ -14,6 +14,25 @@
     "auditDescription": "Een logboek van elke keer dat een agent een van je apparaten gebruikte.",
     "placeholder": "Binnenkort. We bouwen hier nog aan."
   },
+  "browser": {
+    "runtimeTitle": "Browserautomatiserings-runtime",
+    "runtimeDescription": "De bibliotheek waarmee agents echt een browser bedienen — klikken, typen, pagina lezen. Onder de motorkap: Playwright.",
+    "runtimeSubtitle": "Nodig zodat agents webpagina's kunnen openen en besturen",
+    "statusNotInstalled": "Niet geïnstalleerd",
+    "statusInstalled": "Geïnstalleerd",
+    "install": "Installeren",
+    "binaryTitle": "Welke browser agents gebruiken",
+    "binaryDescription": "Kies de browser die agents standaard openen. De meegeleverde is het veiligst — volledig gescheiden van je dagelijkse browser.",
+    "recommended": "Aanbevolen",
+    "detected": "Gedetecteerd op deze Mac",
+    "notDetected": "Niet gedetecteerd",
+    "binary": {
+      "bundled": "Meegeleverde Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "Remote-bediening toestaan",
     "masterSwitchDescription": "Zet dit uit en geen enkele agent mag deze computer gebruiken — ook niet agents die je eerder hebt goedgekeurd.",

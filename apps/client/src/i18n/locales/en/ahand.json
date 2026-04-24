@@ -17,6 +17,25 @@
   "myDevicesHelpAria": "What is this?",
   "myDevicesHelpIntro": "These are the computers you've authorized for AI staff. Once enabled, an agent can run real commands, access files, open apps, and browse the web on that machine — not just chat.",
   "myDevicesHelpAccess": "This computer belongs to you, not to any workspace — switching workspaces won't touch these settings. By default only your Personal Staff can use it, and your Personal Staff only talks to you — nobody else. Any other agent needs your hands-on approval.",
+  "browser": {
+    "runtimeTitle": "Browser automation runtime",
+    "runtimeDescription": "The library agents use to actually drive a browser — click, type, read the page. We use Playwright under the hood.",
+    "runtimeSubtitle": "Needed for agents to open and control web pages",
+    "statusNotInstalled": "Not installed",
+    "statusInstalled": "Installed",
+    "install": "Install",
+    "binaryTitle": "Which browser agents use",
+    "binaryDescription": "Pick the browser agents will open by default. The bundled one is safest — it's isolated from your day-to-day browser.",
+    "recommended": "Recommended",
+    "detected": "Detected on this Mac",
+    "notDetected": "Not detected",
+    "binary": {
+      "bundled": "Bundled Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "Accept remote control",
     "masterSwitchDescription": "Turn this off and no agent can use this computer — even ones you approved before.",

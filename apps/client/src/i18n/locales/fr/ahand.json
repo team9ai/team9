@@ -14,6 +14,25 @@
     "auditDescription": "Historique de chaque fois qu'un agent a utilisé un de tes appareils.",
     "placeholder": "Bientôt — nous travaillons dessus."
   },
+  "browser": {
+    "runtimeTitle": "Runtime d'automatisation du navigateur",
+    "runtimeDescription": "La bibliothèque qui permet aux agents de piloter un vrai navigateur — cliquer, taper, lire la page. On s'appuie sur Playwright.",
+    "runtimeSubtitle": "Nécessaire pour que les agents ouvrent et contrôlent des pages",
+    "statusNotInstalled": "Non installé",
+    "statusInstalled": "Installé",
+    "install": "Installer",
+    "binaryTitle": "Quel navigateur les agents utilisent",
+    "binaryDescription": "Choisis le navigateur que les agents ouvrent par défaut. Celui inclus est le plus sûr — isolé de ton navigateur quotidien.",
+    "recommended": "Recommandé",
+    "detected": "Détecté sur ce Mac",
+    "notDetected": "Non détecté",
+    "binary": {
+      "bundled": "Chromium inclus",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "Autoriser le contrôle à distance",
     "masterSwitchDescription": "Désactive et aucun agent ne pourra utiliser cet ordinateur — même ceux déjà approuvés.",

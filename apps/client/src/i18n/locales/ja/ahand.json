@@ -14,6 +14,25 @@
     "auditDescription": "Agent があなたのデバイスを使用した記録。",
     "placeholder": "近日公開。開発中です。"
   },
+  "browser": {
+    "runtimeTitle": "ブラウザ操作ランタイム",
+    "runtimeDescription": "Agent が実際にブラウザを操作（クリック・入力・ページ読取）するためのライブラリ。内部で Playwright を使います。",
+    "runtimeSubtitle": "Agent がウェブページを開いて操作するために必要",
+    "statusNotInstalled": "未インストール",
+    "statusInstalled": "インストール済み",
+    "install": "インストール",
+    "binaryTitle": "Agent が使うブラウザ",
+    "binaryDescription": "Agent がデフォルトで開くブラウザを選びます。同梱版が最も安全——普段使いのブラウザから完全に分離されています。",
+    "recommended": "推奨",
+    "detected": "この Mac で検出されました",
+    "notDetected": "未検出",
+    "binary": {
+      "bundled": "同梱 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "リモート操作を許可",
     "masterSwitchDescription": "オフにすると、以前に許可した Agent も含めて、この PC を一切使えなくなります。",

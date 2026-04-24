@@ -14,6 +14,25 @@
     "auditDescription": "Agent가 내 기기를 사용한 모든 기록.",
     "placeholder": "출시 예정. 아직 개발 중입니다."
   },
+  "browser": {
+    "runtimeTitle": "브라우저 조작 런타임",
+    "runtimeDescription": "Agent가 실제로 브라우저를 조작(클릭·입력·페이지 읽기)하는 데 쓰는 라이브러리입니다. 내부적으로 Playwright를 사용합니다.",
+    "runtimeSubtitle": "Agent가 웹페이지를 열고 조작하려면 필요",
+    "statusNotInstalled": "설치되지 않음",
+    "statusInstalled": "설치됨",
+    "install": "설치",
+    "binaryTitle": "Agent가 사용할 브라우저",
+    "binaryDescription": "Agent가 기본으로 열 브라우저를 선택하세요. 번들 버전이 가장 안전합니다—평소 쓰는 브라우저와 완전히 분리됩니다.",
+    "recommended": "추천",
+    "detected": "이 Mac에서 감지됨",
+    "notDetected": "감지되지 않음",
+    "binary": {
+      "bundled": "번들 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "원격 제어 허용",
     "masterSwitchDescription": "끄면 이전에 허가한 Agent를 포함해 그 어떤 Agent도 이 컴퓨터를 사용할 수 없습니다.",

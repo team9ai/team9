@@ -14,6 +14,25 @@
     "auditDescription": "Agent 每次动你设备的记录。",
     "placeholder": "即将推出，我们还在开发。"
   },
+  "browser": {
+    "runtimeTitle": "浏览器控制运行时",
+    "runtimeDescription": "Agent 用它真实地操作网页——点击、输入、读取页面内容。底层基于 Playwright。",
+    "runtimeSubtitle": "Agent 打开和控制网页需要装它",
+    "statusNotInstalled": "未安装",
+    "statusInstalled": "已安装",
+    "install": "安装",
+    "binaryTitle": "Agent 使用的浏览器",
+    "binaryDescription": "选 Agent 默认要打开的浏览器。内置版最稳——和你日常用的浏览器完全隔离。",
+    "recommended": "推荐",
+    "detected": "已在这台 Mac 上检测到",
+    "notDetected": "未检测到",
+    "binary": {
+      "bundled": "内置 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
   "overview": {
     "masterSwitchTitle": "接受远程控制",
     "masterSwitchDescription": "关闭后，任何 Agent 都不能使用这台电脑，之前授权过的也不行。",
