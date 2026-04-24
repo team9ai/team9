@@ -1,7 +1,7 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
-import { json, raw } from 'express';
+import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
 import {
@@ -38,17 +38,22 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  const app = await NestFactory.create(AppModule);
+  // Disable Nest's built-in body parser — we register our own below with
+  // a raised 1 MB limit AND a `verify` callback that stashes the raw
+  // request buffer on req.rawBody for the ahand hub webhook HMAC verifier.
+  // The default 100 KB limit is too small for long-text messages; the
+  // raw buffer is needed because Stripe-style signing is sensitive to
+  // key ordering and whitespace.
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Raw body for ahand webhook signature verification — must come BEFORE json().
-  // Path matches the NestJS route after setGlobalPrefix('api').
   app.use(
-    '/api/ahand/hub-webhook',
-    raw({ type: 'application/json', limit: '1mb' }),
+    json({
+      limit: '1mb',
+      verify: (req: unknown, _res, buf: Buffer) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
   );
-
-  // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
-  app.use(json({ limit: '1mb' }));
 
   // Security headers — see security-headers.ts for the policy rationale.
   app.use(securityHeadersMiddleware());

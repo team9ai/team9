@@ -547,7 +547,7 @@ export function ChannelView({
 
   if (channelLoading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+      <div className="h-full flex flex-col items-center justify-center gap-3">
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
         <p className="text-sm text-muted-foreground">{t("loadingChannel")}</p>
       </div>
@@ -556,7 +556,7 @@ export function ChannelView({
 
   if (!channel) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <p className="text-sm text-muted-foreground">{t("channelNotFound")}</p>
       </div>
     );

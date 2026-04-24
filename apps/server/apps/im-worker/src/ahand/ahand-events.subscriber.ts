@@ -33,7 +33,12 @@ export class AhandEventsSubscriber implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    this.subscriber = this.redis.duplicate();
+    // Dedicated Redis connection for pub/sub. Disable readyCheck (which
+    // issues INFO on every (re)connect) — once the connection is in
+    // SUBSCRIBE mode, Redis rejects INFO with "Connection in subscriber
+    // mode, only subscriber commands may be used", which puts ioredis
+    // into an error→reconnect loop that never delivers messages.
+    this.subscriber = this.redis.duplicate({ enableReadyCheck: false });
     // Attach event listeners before the first command so early errors are caught.
     this.subscriber.on('pmessage', this.onMessage);
     this.subscriber.on('error', (e) =>
