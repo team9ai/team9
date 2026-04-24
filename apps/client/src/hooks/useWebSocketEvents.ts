@@ -17,10 +17,7 @@ import type {
   RoutineUpdatedEvent,
   TrackingDeactivatedEvent,
   MessagePropertyChangedEvent,
-  MessageRelationChangedEvent,
-  MessageRelationsPurgedEvent,
 } from "@/types/ws-events";
-import { relationKeys } from "@/lib/query-client";
 import { useAppStore, useSelectedWorkspaceId, useUser } from "@/stores";
 import { api } from "@/services/api";
 import { syncCurrentUser } from "@/hooks/useAuth";
@@ -383,44 +380,6 @@ export function useWebSocketEvents() {
       });
     };
 
-    // ==================== Relation Events ====================
-
-    // When a relation edge changes, invalidate caches for the source message,
-    // the affected target messages (inbound), and the channel's view-tree.
-    const handleRelationChanged = (event: MessageRelationChangedEvent) => {
-      queryClient.invalidateQueries({
-        queryKey: relationKeys.byMessage(event.sourceMessageId),
-      });
-      const affected = [...event.addedTargetIds, ...event.removedTargetIds];
-      for (const targetId of affected) {
-        queryClient.invalidateQueries({
-          queryKey: relationKeys.inbound(targetId),
-        });
-      }
-      queryClient.invalidateQueries({
-        queryKey: ["view-tree", event.channelId],
-      });
-    };
-
-    // When a message is deleted all its relation edges are purged; invalidate
-    // the deleted message's caches plus any source messages that linked to it.
-    const handleRelationsPurged = (event: MessageRelationsPurgedEvent) => {
-      queryClient.invalidateQueries({
-        queryKey: relationKeys.byMessage(event.deletedMessageId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: relationKeys.inbound(event.deletedMessageId),
-      });
-      for (const sourceId of event.affectedSourceIds) {
-        queryClient.invalidateQueries({
-          queryKey: relationKeys.byMessage(sourceId),
-        });
-      }
-      queryClient.invalidateQueries({
-        queryKey: ["view-tree", event.channelId],
-      });
-    };
-
     // ==================== Register All Listeners ====================
 
     // Channel lifecycle events
@@ -459,10 +418,6 @@ export function useWebSocketEvents() {
 
     // Property events
     wsService.onMessagePropertyChanged(handleMessagePropertyChanged);
-
-    // Relation events
-    wsService.onRelationChanged(handleRelationChanged);
-    wsService.onRelationsPurged(handleRelationsPurged);
 
     // ==================== Cleanup ====================
 
@@ -508,10 +463,6 @@ export function useWebSocketEvents() {
 
       // Property events
       wsService.offMessagePropertyChanged(handleMessagePropertyChanged);
-
-      // Relation events
-      wsService.offRelationChanged(handleRelationChanged);
-      wsService.offRelationsPurged(handleRelationsPurged);
     };
   }, [queryClient, workspaceId, currentUser?.id]);
 }

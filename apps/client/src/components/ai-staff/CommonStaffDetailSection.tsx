@@ -42,19 +42,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { DmOutboundPolicyBlock } from "@/components/ai-staff/DmOutboundPolicyBlock";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
-import { useCurrentUser } from "@/hooks/useAuth";
 import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
 import { formatDateTime } from "@/lib/date-format";
 import type {
   CommonStaffBotInfo,
   InstalledApplicationWithBots,
 } from "@/services/api/applications";
-import type { DmOutboundPolicy } from "@/types/bot-dm-policy";
-import type { UserOption } from "@/components/ai-staff/MultiUserPicker";
 
 interface CommonStaffDetailSectionProps {
   bot: CommonStaffBotInfo;
@@ -95,20 +91,6 @@ export function CommonStaffDetailSection({
   const [isGeneratingPersona, setIsGeneratingPersona] = useState(false);
   // Track which field is currently being saved to scope the loading state
   const [savingField, setSavingField] = useState<string | null>(null);
-
-  const { data: currentUser } = useCurrentUser();
-
-  // DM outbound policy state
-  const effectiveDmPolicy: DmOutboundPolicy = bot.dmOutboundPolicy ?? {
-    mode: "same-tenant",
-  };
-  const [dmPolicyWhitelistUsers, setDmPolicyWhitelistUsers] = useState<
-    UserOption[]
-  >([]);
-
-  // Mentor-gated edit: only the assigned mentor may change the policy
-  const isMentor =
-    !!currentUser && !!bot.mentorId && bot.mentorId === currentUser.id;
 
   const displayName = bot.displayName || "Common Staff";
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -278,10 +260,6 @@ export function CommonStaffDetailSection({
     } finally {
       setIsGeneratingPersona(false);
     }
-  };
-
-  const handleDmPolicyChange = (next: DmOutboundPolicy) => {
-    updateMutation.mutate({ dmOutboundPolicy: next });
   };
 
   return (
@@ -748,20 +726,6 @@ export function CommonStaffDetailSection({
             </CardContent>
           </TabsContent>
         </Tabs>
-      </Card>
-
-      {/* DM Outbound Policy */}
-      <Card>
-        <CardContent className="pt-6">
-          <DmOutboundPolicyBlock
-            value={effectiveDmPolicy}
-            onChange={handleDmPolicyChange}
-            hideOwnerOnly={true}
-            disabled={!isMentor || updateMutation.isPending}
-            whitelistUsers={dmPolicyWhitelistUsers}
-            onWhitelistUsersChange={setDmPolicyWhitelistUsers}
-          />
-        </CardContent>
       </Card>
     </div>
   );

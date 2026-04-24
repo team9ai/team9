@@ -45,11 +45,6 @@ apps/client/src-tauri/target/
 .agents/
 .claude/
 
-# Incident forensics: keep cleanup scripts, exclude data artifacts with PII
-.incident/**/*.csv
-.incident/**/*.txt
-.incident/**/*.log
-
 # Git worktrees
 .worktrees/
 

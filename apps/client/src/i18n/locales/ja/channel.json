@@ -1,7 +1,4 @@
 {
-  "table": {
-    "openInChat": "Open in chat"
-  },
   "createChannel": "チャンネルを作成",
   "createChannelDescription": "チャンネルはチームがコミュニケーションする場所です。トピックごとに整理するのが効果的です。例：#project-mars",
   "channelName": "チャンネル名",

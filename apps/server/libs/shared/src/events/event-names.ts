@@ -266,10 +266,6 @@ export const WS_EVENTS = {
     DEFINITION_DELETED: 'property_definition_deleted',
     /** Message property values changed - broadcast by server */
     MESSAGE_CHANGED: 'message_property_changed',
-    /** Message relation edge changed - broadcast by server */
-    RELATION_CHANGED: 'message_relation_changed',
-    /** Message relations purged when message deleted - broadcast by server */
-    RELATIONS_PURGED: 'message_relations_purged',
   },
 
   // ==================== Views ====================

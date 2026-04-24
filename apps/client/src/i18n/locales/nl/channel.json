@@ -1,7 +1,4 @@
 {
-  "table": {
-    "openInChat": "Open in chat"
-  },
   "createChannel": "Een kanaal aanmaken",
   "createChannelDescription": "Kanalen zijn de plek waar je team communiceert. Ze werken het best als ze rond een onderwerp zijn georganiseerd — bijvoorbeeld #project-mars.",
   "channelName": "Kanaalnaam",

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -269,42 +269,6 @@ describe("TableView", () => {
     expect(
       screen.getByText("No messages match the current view configuration."),
     ).toBeInTheDocument();
-  });
-
-  it("renders OPEN button when onJumpToMessage is provided and calls it on click", () => {
-    const onJumpToMessage = vi.fn();
-    mockViewMessagesFlat = [
-      makeViewMessage({ id: "msg-abc", content: "<p>Hello</p>" }),
-    ];
-
-    render(
-      <TableView
-        channelId="ch-1"
-        view={makeView()}
-        onJumpToMessage={onJumpToMessage}
-      />,
-      { wrapper: Wrapper },
-    );
-
-    const btn = screen.getByRole("button", { name: "Open in chat" });
-    expect(btn).toBeInTheDocument();
-
-    fireEvent.click(btn);
-    expect(onJumpToMessage).toHaveBeenCalledWith("msg-abc");
-  });
-
-  it("does not render OPEN button when onJumpToMessage is not provided", () => {
-    mockViewMessagesFlat = [
-      makeViewMessage({ id: "msg-abc", content: "<p>Hello</p>" }),
-    ];
-
-    render(<TableView channelId="ch-1" view={makeView()} />, {
-      wrapper: Wrapper,
-    });
-
-    expect(
-      screen.queryByRole("button", { name: "Open in chat" }),
-    ).not.toBeInTheDocument();
   });
 });
 

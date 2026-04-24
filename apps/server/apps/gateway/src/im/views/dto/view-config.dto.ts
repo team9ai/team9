@@ -7,9 +7,6 @@ import {
   IsIn,
   IsObject,
   IsBoolean,
-  IsInt,
-  Min,
-  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { ViewFilterOperator, ViewSortDirection } from '@team9/shared';
@@ -94,14 +91,4 @@ export class ViewConfigDto {
   @IsOptional()
   @IsBoolean()
   showRecurring?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  hierarchyMode?: boolean;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(5)
-  hierarchyDefaultDepth?: number;
 }

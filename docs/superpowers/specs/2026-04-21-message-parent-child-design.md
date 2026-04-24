@@ -187,16 +187,15 @@ Writes to relation edges generate one `audit_logs` row per property change (not 
 ### Unchanged endpoints (behavior differs internally by `relationKind`)
 
 ```
-PUT    /v1/im/messages/:messageId/properties/:definitionId
-DELETE /v1/im/messages/:messageId/properties/:definitionId
-GET    /v1/im/messages/:messageId/properties
-PATCH  /v1/im/messages/:messageId/properties
+PUT    /channels/:channelId/messages/:messageId/properties/:propertyKey
+DELETE /channels/:channelId/messages/:messageId/properties/:propertyKey
+GET    /channels/:channelId/messages/:messageId/properties
 ```
 
 ### New endpoint: relation inspection
 
 ```
-GET /v1/im/messages/:messageId/properties/relations
+GET /channels/:channelId/messages/:messageId/relations
   ?kind=parent|related|all          (default 'all')
   &direction=outgoing|incoming|both (default 'both')
   &depth=<1..10>                    (default 1; applies only to parent kind)
@@ -217,7 +216,7 @@ Response:
 ### New endpoint: hierarchy tree for table view
 
 ```
-GET /v1/im/channels/:channelId/views/:viewId/tree
+GET /channels/:channelId/views/:viewId/tree
   ?filter=<json>        (reuses existing view filter DTO)
   &sort=<json>
   &maxDepth=<0..5>      (default 3)

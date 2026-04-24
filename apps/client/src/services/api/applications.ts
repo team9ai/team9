@@ -2,7 +2,6 @@ import http, { API_BASE_URL } from "../http";
 import { getValidAccessToken } from "../auth-session";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import type { AgentType } from "@/types/im";
-import type { DmOutboundPolicy } from "@/types/bot-dm-policy";
 
 // Types matching server schemas
 export type ApplicationType = "managed" | "custom";
@@ -121,7 +120,6 @@ export interface UpdatePersonalStaffDto {
     allowMention?: boolean;
     allowDirectMessage?: boolean;
   };
-  dmOutboundPolicy?: DmOutboundPolicy;
 }
 
 export interface StaffBotResult {
@@ -147,17 +145,6 @@ export interface GenerateAvatarDto {
   prompt?: string;
 }
 
-export interface UpdateCommonStaffDto {
-  displayName?: string;
-  roleTitle?: string;
-  persona?: string | null;
-  jobDescription?: string | null;
-  model?: { provider: string; id: string };
-  avatarUrl?: string;
-  mentorId?: string | null;
-  dmOutboundPolicy?: DmOutboundPolicy;
-}
-
 // Common Staff types
 export interface CommonStaffBotInfo {
   botId: string;
@@ -172,7 +159,6 @@ export interface CommonStaffBotInfo {
   mentorId: string | null;
   mentorDisplayName: string | null;
   mentorAvatarUrl: string | null;
-  dmOutboundPolicy?: DmOutboundPolicy;
   isActive: boolean;
   createdAt: string;
   managedMeta: { agentId: string } | null;
@@ -192,7 +178,6 @@ export interface PersonalStaffListBotInfo {
     allowMention: boolean;
     allowDirectMessage: boolean;
   };
-  dmOutboundPolicy?: DmOutboundPolicy;
   isActive: boolean;
   createdAt: string;
   managedMeta: { agentId: string } | null;
@@ -793,7 +778,7 @@ export const applicationsApi = {
   updateCommonStaff: async (
     appId: string,
     botId: string,
-    body: UpdateCommonStaffDto,
+    body: Record<string, unknown>,
   ): Promise<void> => {
     await http.patch(
       `/v1/installed-applications/${appId}/common-staff/staff/${botId}`,

@@ -7,10 +7,8 @@ import {
   Patch,
   Body,
   Param,
-  Query,
   UseGuards,
   ParseUUIDPipe,
-  ParseIntPipe,
   ForbiddenException,
 } from '@nestjs/common';
 import { MessagePropertiesService } from './message-properties.service.js';
@@ -55,33 +53,6 @@ export class MessagePropertiesController {
     await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagePropertiesService.getProperties(messageId, {
       excludeHidden: true,
-    });
-  }
-
-  /**
-   * GET /v1/im/messages/:messageId/properties/relations
-   * Inspect all relation edges for a message (incoming + outgoing).
-   *
-   * Query params:
-   *   kind       – 'parent' | 'related' | 'all' (default: 'all')
-   *   direction  – 'outgoing' | 'incoming' | 'both' (default: 'both')
-   *   depth      – 1–10, how deep to walk the parent chain (default: 1)
-   */
-  @Get('relations')
-  async getRelations(
-    @CurrentUser('sub') userId: string,
-    @Param('messageId', ParseUUIDPipe) messageId: string,
-    @Query('kind') kind?: 'parent' | 'related' | 'all',
-    @Query('direction') direction?: 'outgoing' | 'incoming' | 'both',
-    @Query('depth', new ParseIntPipe({ optional: true })) depth?: number,
-  ) {
-    const channelId =
-      await this.messagePropertiesService.getMessageChannelId(messageId);
-    await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagePropertiesService.getRelationsInspection(messageId, {
-      kind,
-      direction,
-      depth,
     });
   }
 

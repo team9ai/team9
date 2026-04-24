@@ -9,7 +9,6 @@ import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
 import { MessageTitle } from "./MessageTitle";
 import { MessageProperties } from "./properties/MessageProperties";
-import { MessageRelationBar } from "./MessageRelationBar";
 import { PropertySelector } from "./properties/PropertySelector";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
@@ -507,7 +506,6 @@ export function MessageItem({
               canEdit={true}
             />
           )}
-        <MessageRelationBar messageId={message.id} />
         {hasReactions && onAddReaction && onRemoveReaction && (
           <MessageReactions
             reactions={message.reactions!}

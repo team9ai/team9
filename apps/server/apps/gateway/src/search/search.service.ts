@@ -27,8 +27,6 @@ export interface SearchOptions {
   limit?: number;
   offset?: number;
   type?: 'message' | 'channel' | 'user' | 'file';
-  /** Restrict message search to a specific channel */
-  channelId?: string;
 }
 
 export interface SearchResponse extends CombinedSearchResults {
@@ -150,7 +148,6 @@ export class SearchService {
       isPinned: parsed.filters.is?.includes('pinned'),
       isThread: parsed.filters.is?.includes('thread'),
       isDm: parsed.filters.is?.includes('dm'),
-      channelId: options?.channelId,
       limit: options?.limit || DEFAULT_SEARCH_LIMIT,
       offset: options?.offset || 0,
     };

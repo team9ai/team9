@@ -15,12 +15,6 @@ export interface ChannelContentProps {
   hasNewer?: boolean;
   isLoadingNewer?: boolean;
   highlightMessageId?: string;
-  /**
-   * Bumped by the parent each time a "jump to message" action occurs. Applied
-   * as the `key` on <MessageList> so the list remounts (re-running its scroll
-   * + highlight effects) without remounting the composer below.
-   */
-  highlightSeq?: number;
   readOnly?: boolean;
   thinkingBotIds?: string[];
   members?: ChannelMember[];
@@ -55,7 +49,6 @@ export function ChannelContent({
   hasNewer,
   isLoadingNewer,
   highlightMessageId,
-  highlightSeq,
   readOnly = false,
   thinkingBotIds,
   members,
@@ -80,7 +73,7 @@ export function ChannelContent({
       )}
 
       <MessageList
-        key={`${channelId}:${highlightSeq ?? 0}`}
+        key={channelId}
         channelId={channelId}
         channelType={channelType}
         messages={messages}

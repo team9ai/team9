@@ -11,16 +11,14 @@ import {
   eq,
   and,
   asc,
-  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type { MessageRefConfig, PropertyValueType } from '@team9/shared';
+import type { PropertyValueType } from '@team9/shared';
 import {
   CreatePropertyDefinitionDto,
   UpdatePropertyDefinitionDto,
 } from './dto/index.js';
-import { RelationError } from './message-relations.errors.js';
 
 export interface PropertyDefinitionRow {
   id: string;
@@ -137,38 +135,6 @@ export class PropertyDefinitionsService {
       );
     }
 
-    // Normalize message_ref config with defaults and enforce one-parent-per-channel
-    let resolvedConfig: unknown = dto.config ?? {};
-    if (dto.valueType === 'message_ref') {
-      const raw = (dto.config ?? {}) as Partial<MessageRefConfig>;
-      const cfg: MessageRefConfig = {
-        scope: raw.scope ?? 'any',
-        cardinality: raw.cardinality ?? 'multi',
-        ...(raw.relationKind ? { relationKind: raw.relationKind } : {}),
-      };
-      resolvedConfig = cfg;
-
-      if (cfg.relationKind === 'parent') {
-        // NOTE: race window between SELECT and INSERT — two concurrent creates with
-        // relationKind='parent' can both pass this check. A partial unique index on
-        // channel_property_definitions(channel_id) WHERE config->>'relationKind'='parent'
-        // is the proper backstop; see follow-up ticket to add it.
-        const [existingParent] = await this.db
-          .select({ id: schema.channelPropertyDefinitions.id })
-          .from(schema.channelPropertyDefinitions)
-          .where(
-            and(
-              eq(schema.channelPropertyDefinitions.channelId, channelId),
-              sql`${schema.channelPropertyDefinitions.config}->>'relationKind' = 'parent'`,
-            ),
-          )
-          .limit(1);
-        if (existingParent) {
-          throw new RelationError('DEFINITION_CONFLICT');
-        }
-      }
-    }
-
     // Get next order
     const maxOrder = await this.getMaxOrder(channelId);
 
@@ -181,7 +147,7 @@ export class PropertyDefinitionsService {
         description: dto.description,
         valueType: dto.valueType,
         isNative: false,
-        config: resolvedConfig,
+        config: dto.config ?? {},
         order: maxOrder + 1,
         aiAutoFill: dto.aiAutoFill ?? true,
         aiAutoFillPrompt: dto.aiAutoFillPrompt,
@@ -200,83 +166,12 @@ export class PropertyDefinitionsService {
     id: string,
     dto: UpdatePropertyDefinitionDto,
   ): Promise<PropertyDefinitionRow> {
-    const current = await this.findByIdOrThrow(id);
-
-    // Validate message_ref config changes
-    if (current.valueType === 'message_ref' && dto.config !== undefined) {
-      const currentCfg = (current.config ?? {}) as Partial<MessageRefConfig>;
-      const nextCfg = dto.config as Partial<MessageRefConfig>;
-
-      const relChanged =
-        nextCfg.relationKind !== undefined &&
-        nextCfg.relationKind !== currentCfg.relationKind;
-      const scopeChanged =
-        nextCfg.scope !== undefined && nextCfg.scope !== currentCfg.scope;
-
-      if (relChanged || scopeChanged) {
-        const [edgeCount] = await this.db
-          .select({ n: sql<number>`count(*)::int` })
-          .from(schema.messageRelations)
-          .where(eq(schema.messageRelations.propertyDefinitionId, id));
-        if ((edgeCount?.n ?? 0) > 0) {
-          throw new RelationError(
-            'DEFINITION_IMMUTABLE',
-            'Cannot change relationKind/scope on a definition with existing edges',
-          );
-        }
-      }
-
-      // Enforce one-parent-per-channel when promoting to parent.
-      // NOTE: race window between SELECT and INSERT — two concurrent updates with
-      // relationKind='parent' can both pass this check. A partial unique index on
-      // channel_property_definitions(channel_id) WHERE config->>'relationKind'='parent'
-      // is the proper backstop; see follow-up ticket to add it.
-      if (relChanged && nextCfg.relationKind === 'parent') {
-        const [existingParent] = await this.db
-          .select({ id: schema.channelPropertyDefinitions.id })
-          .from(schema.channelPropertyDefinitions)
-          .where(
-            and(
-              eq(
-                schema.channelPropertyDefinitions.channelId,
-                current.channelId,
-              ),
-              sql`${schema.channelPropertyDefinitions.config}->>'relationKind' = 'parent'`,
-            ),
-          )
-          .limit(1);
-        if (existingParent) {
-          throw new RelationError('DEFINITION_CONFLICT');
-        }
-      }
-    }
+    await this.findByIdOrThrow(id);
 
     // Build the update set, omitting undefined fields
     const updateSet: Record<string, unknown> = { updatedAt: new Date() };
     if (dto.description !== undefined) updateSet.description = dto.description;
-    if (dto.config !== undefined) {
-      // For message_ref definitions, merge partial config with current to
-      // ensure scope and cardinality are always present (Spec §2.4).
-      // Explicit relationKind in the incoming dto is preserved; if absent the
-      // current value is kept. Clearing relationKind is not supported (would
-      // break existing edges).
-      if (current.valueType === 'message_ref') {
-        const currentCfg = (current.config ?? {}) as Partial<MessageRefConfig>;
-        const nextCfg = dto.config as Partial<MessageRefConfig>;
-        const merged: MessageRefConfig = {
-          scope: nextCfg.scope ?? currentCfg.scope ?? 'any',
-          cardinality: nextCfg.cardinality ?? currentCfg.cardinality ?? 'multi',
-          ...(nextCfg.relationKind !== undefined
-            ? { relationKind: nextCfg.relationKind }
-            : currentCfg.relationKind !== undefined
-              ? { relationKind: currentCfg.relationKind }
-              : {}),
-        };
-        updateSet.config = merged;
-      } else {
-        updateSet.config = dto.config;
-      }
-    }
+    if (dto.config !== undefined) updateSet.config = dto.config;
     if (dto.aiAutoFill !== undefined) updateSet.aiAutoFill = dto.aiAutoFill;
     if (dto.aiAutoFillPrompt !== undefined)
       updateSet.aiAutoFillPrompt = dto.aiAutoFillPrompt;

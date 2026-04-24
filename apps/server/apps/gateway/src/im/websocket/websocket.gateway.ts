@@ -24,13 +24,7 @@ import {
   MessageResponse,
 } from '../messages/messages.service.js';
 import { RedisService } from '@team9/redis';
-import {
-  env,
-  PingMessage,
-  PongMessage,
-  type MessageRelationChangedEvent,
-  type MessageRelationsPurgedEvent,
-} from '@team9/shared';
+import { env, PingMessage, PongMessage } from '@team9/shared';
 import {
   WS_EVENTS,
   type JoinChannelPayload,
@@ -836,37 +830,6 @@ export class WebsocketGateway
       );
       return false;
     }
-  }
-
-  // ==================== Relation Event Helpers ====================
-
-  /**
-   * Emit a message_relation_changed event to all channel members.
-   * Called by MessagePropertiesService after a relation edge write.
-   */
-  async emitRelationChanged(
-    payload: MessageRelationChangedEvent,
-  ): Promise<void> {
-    await this.sendToChannelMembers(
-      payload.channelId,
-      WS_EVENTS.PROPERTY.RELATION_CHANGED,
-      payload,
-    );
-  }
-
-  /**
-   * Emit a message_relations_purged event to all channel members.
-   * Called by MessagesService after a soft delete when the deleted message
-   * has inbound relation edges.
-   */
-  async emitRelationsPurged(
-    payload: MessageRelationsPurgedEvent,
-  ): Promise<void> {
-    await this.sendToChannelMembers(
-      payload.channelId,
-      WS_EVENTS.PROPERTY.RELATIONS_PURGED,
-      payload,
-    );
   }
 
   // ==================== Workspace Operations ====================

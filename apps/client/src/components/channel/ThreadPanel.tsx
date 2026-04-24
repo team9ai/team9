@@ -57,7 +57,7 @@ export function ThreadPanel({
   rootMessageId,
   highlightMessageId,
   isSnapped = false,
-  width = 600,
+  width = 640,
   onWidthChange,
 }: ThreadPanelProps) {
   const { t } = useTranslation("thread");

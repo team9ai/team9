@@ -24,14 +24,10 @@ export interface PropertyEditorProps {
    * they can be embedded inside an outer popover without nesting.
    */
   inline?: boolean;
-  /** The channel the message belongs to — threaded into MessageRefPicker for scope filtering */
-  channelId?: string;
-  /** The message being edited — used by MessageRefPicker to exclude self from results */
-  currentMessageId?: string;
 }
 
 export function PropertyEditor(props: PropertyEditorProps) {
-  const { definition, inline, channelId, currentMessageId } = props;
+  const { definition, inline } = props;
 
   switch (definition.valueType) {
     case "text":
@@ -61,13 +57,7 @@ export function PropertyEditor(props: PropertyEditorProps) {
       return <UrlEditor {...props} />;
 
     case "message_ref":
-      return (
-        <MessageRefPicker
-          {...props}
-          channelId={channelId ?? definition.channelId}
-          currentMessageId={currentMessageId}
-        />
-      );
+      return <MessageRefPicker {...props} />;
 
     case "file":
     case "image":

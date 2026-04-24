@@ -205,20 +205,13 @@ describe('CommonStaffController', () => {
   describe('updateStaff', () => {
     it('calls service.updateStaff with correct args', async () => {
       const dto = makeUpdateDto();
-      await controller.updateStaff(
-        APP_ID,
-        BOT_ID,
-        TENANT_ID,
-        'actor-uuid',
-        dto,
-      );
+      await controller.updateStaff(APP_ID, BOT_ID, TENANT_ID, dto);
 
       expect(commonStaffService.updateStaff).toHaveBeenCalledWith(
         APP_ID,
         TENANT_ID,
         BOT_ID,
         dto,
-        'actor-uuid',
       );
     });
 
@@ -227,7 +220,6 @@ describe('CommonStaffController', () => {
         APP_ID,
         BOT_ID,
         TENANT_ID,
-        'actor-uuid',
         makeUpdateDto(),
       );
 
@@ -239,32 +231,19 @@ describe('CommonStaffController', () => {
       commonStaffService.updateStaff.mockRejectedValueOnce(error);
 
       await expect(
-        controller.updateStaff(
-          APP_ID,
-          BOT_ID,
-          TENANT_ID,
-          'actor-uuid',
-          makeUpdateDto(),
-        ),
+        controller.updateStaff(APP_ID, BOT_ID, TENANT_ID, makeUpdateDto()),
       ).rejects.toThrow('Update failed');
     });
 
     it('passes empty dto when no fields provided', async () => {
       const dto: UpdateCommonStaffDto = {};
-      await controller.updateStaff(
-        APP_ID,
-        BOT_ID,
-        TENANT_ID,
-        'actor-uuid',
-        dto,
-      );
+      await controller.updateStaff(APP_ID, BOT_ID, TENANT_ID, dto);
 
       expect(commonStaffService.updateStaff).toHaveBeenCalledWith(
         APP_ID,
         TENANT_ID,
         BOT_ID,
         {},
-        'actor-uuid',
       );
     });
 
@@ -277,13 +256,7 @@ describe('CommonStaffController', () => {
         avatarUrl: 'https://example.com/new-avatar.png',
         mentorId: 'new-mentor-id',
       });
-      await controller.updateStaff(
-        APP_ID,
-        BOT_ID,
-        TENANT_ID,
-        'actor-uuid',
-        dto,
-      );
+      await controller.updateStaff(APP_ID, BOT_ID, TENANT_ID, dto);
 
       expect(commonStaffService.updateStaff).toHaveBeenCalledWith(
         APP_ID,
@@ -297,7 +270,6 @@ describe('CommonStaffController', () => {
           avatarUrl: 'https://example.com/new-avatar.png',
           mentorId: 'new-mentor-id',
         }),
-        'actor-uuid',
       );
     });
   });

@@ -53,23 +53,15 @@ export class CommonStaffController {
 
   /**
    * Update an existing common-staff bot.
-   * Caller must be the bot's current mentor OR a workspace admin/owner.
    */
   @Patch('staff/:botId')
   async updateStaff(
     @Param('id') appId: string,
     @Param('botId') botId: string,
     @CurrentTenantId() tenantId: string,
-    @CurrentUser('sub') actorUserId: string,
     @Body() dto: UpdateCommonStaffDto,
   ) {
-    await this.commonStaffService.updateStaff(
-      appId,
-      tenantId,
-      botId,
-      dto,
-      actorUserId,
-    );
+    await this.commonStaffService.updateStaff(appId, tenantId, botId, dto);
   }
 
   /**

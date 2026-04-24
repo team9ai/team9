@@ -38,11 +38,7 @@ import { submitEditorContent } from "./utils/submitEditorContent";
 import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
 import { EditorToolbar } from "./EditorToolbar";
-import {
-  MentionsPlugin,
-  KeyboardShortcutsPlugin,
-  CompositionStateProvider,
-} from "./plugins";
+import { MentionsPlugin, KeyboardShortcutsPlugin } from "./plugins";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { cn } from "@/lib/utils";
 import type { UploadingFile } from "@/hooks/useFileUpload";
@@ -421,164 +417,162 @@ export function RichTextEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <CompositionStateProvider>
-        <div className={cn("relative", className)}>
-          {/* Editor area */}
-          <div
-            className={cn(
-              "relative overflow-y-auto",
-              compact ? "min-h-10 max-h-30" : "min-h-10 max-h-40",
-            )}
-          >
-            <RichTextPlugin
-              contentEditable={
-                <ContentEditable
-                  className={cn(
-                    "outline-none text-sm leading-relaxed",
-                    compact ? "min-h-10" : "min-h-14 px-5 pt-4 pb-2",
-                    disabled && "opacity-50 cursor-not-allowed",
-                  )}
-                  aria-placeholder={placeholder}
-                  placeholder={
-                    <Placeholder text={placeholder} compact={compact} />
-                  }
-                />
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-
-            <HistoryPlugin />
-            <ListPlugin />
-            <MarkdownShortcutPlugin transformers={CHAT_MARKDOWN_TRANSFORMERS} />
-            <CodeHighlightPlugin />
-            <OnChangePlugin onChange={handleChange} />
-            <AutoFocusPlugin />
-            <EditablePlugin editable={!disabled} />
-            <EditorRefPlugin editorRef={editorRef} />
-            <InitialDraftPlugin channelId={channelId} draft={initialDraft} />
-            <InitialHtmlPlugin html={initialHtml} />
-            <EscapePlugin onCancel={onCancel} />
-            <AutoSendDraftPlugin
-              channelId={channelId}
-              draft={initialDraft}
-              enabled={autoSendInitialDraft}
-              onSubmit={onSubmit}
-              disabled={disabled || isUploading}
-              hasAttachments={hasAttachments}
-              onAutoSent={onInitialDraftAutoSent}
-            />
-          </div>
-
-          {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}
-          <MentionsPlugin channelId={channelId} />
-
-          {/* Attachment previews */}
-          {uploadingFiles.length > 0 && onRemoveFile && (
-            <AttachmentPreview
-              files={uploadingFiles}
-              onRemove={onRemoveFile}
-              onRetry={onRetryFile}
-            />
+      <div className={cn("relative", className)}>
+        {/* Editor area */}
+        <div
+          className={cn(
+            "relative overflow-y-auto",
+            compact ? "min-h-10 max-h-30" : "min-h-10 max-h-40",
           )}
-
-          {/* Bottom row: tools on left, send on right */}
-          <div
-            className={cn(
-              "flex items-center justify-between",
-              compact ? "pt-1" : "px-3 pb-3 pt-1",
-            )}
-          >
-            {!compact ? (
-              <EditorToolbar
-                channelId={channelId}
-                onFileSelect={onFileSelect}
-                isBotDm={isBotDm}
-                isDeepResearch={isDeepResearch}
-                onToggleDeepResearch={onToggleDeepResearch}
-              />
-            ) : (
-              <div />
-            )}
-            <div className="flex items-center gap-1.5">
-              {SHOW_COMPOSER_MODEL_CONTROL &&
-                !isDeepResearch &&
-                isBotDm &&
-                botModelSwitch &&
-                botModelSwitch.canSwitchModel && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        disabled={botModelSwitch.isUpdating}
-                        className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {botModelSwitch.isUpdating ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Sparkles size={14} />
-                        )}
-                        <span>{botModelSwitch.currentModelLabel}</span>
-                        <ChevronDown size={11} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="w-60 rounded-xl p-1.5"
-                    >
-                      <DropdownMenuRadioGroup
-                        value={
-                          botModelSwitch.currentModel
-                            ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
-                            : undefined
-                        }
-                        onValueChange={(value) => {
-                          const [provider, id] = value.split("::");
-                          if (!provider || !id) return;
-                          void botModelSwitch.updateModel({ provider, id });
-                        }}
-                      >
-                        {COMMON_STAFF_MODELS.map((model) => (
-                          <DropdownMenuRadioItem
-                            key={`${model.provider}::${model.id}`}
-                            value={`${model.provider}::${model.id}`}
-                            className="cursor-pointer rounded-lg py-2.5"
-                          >
-                            {model.label}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+        >
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                className={cn(
+                  "outline-none text-sm leading-relaxed",
+                  compact ? "min-h-10" : "min-h-14 px-5 pt-4 pb-2",
+                  disabled && "opacity-50 cursor-not-allowed",
                 )}
-              {SHOW_COMPOSER_MODEL_CONTROL &&
-                !isDeepResearch &&
-                isBotDm &&
-                botModelSwitch &&
-                !botModelSwitch.canSwitchModel &&
-                botModelSwitch.currentModelLabel && (
-                  <div className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-muted-foreground">
-                    <Sparkles size={14} />
-                    <span>{botModelSwitch.currentModelLabel}</span>
-                  </div>
-                )}
-              <SendButton
-                onSubmit={onSubmit}
-                disabled={disabled || isUploading}
-                hasAttachments={hasAttachments}
-                clearOnSubmit={clearOnSubmit}
-                submitLabel={submitLabel}
+                aria-placeholder={placeholder}
+                placeholder={
+                  <Placeholder text={placeholder} compact={compact} />
+                }
               />
-            </div>
-          </div>
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
 
-          <KeyboardShortcutsPlugin
+          <HistoryPlugin />
+          <ListPlugin />
+          <MarkdownShortcutPlugin transformers={CHAT_MARKDOWN_TRANSFORMERS} />
+          <CodeHighlightPlugin />
+          <OnChangePlugin onChange={handleChange} />
+          <AutoFocusPlugin />
+          <EditablePlugin editable={!disabled} />
+          <EditorRefPlugin editorRef={editorRef} />
+          <InitialDraftPlugin channelId={channelId} draft={initialDraft} />
+          <InitialHtmlPlugin html={initialHtml} />
+          <EscapePlugin onCancel={onCancel} />
+          <AutoSendDraftPlugin
+            channelId={channelId}
+            draft={initialDraft}
+            enabled={autoSendInitialDraft}
             onSubmit={onSubmit}
             disabled={disabled || isUploading}
             hasAttachments={hasAttachments}
-            clearOnSubmit={clearOnSubmit}
+            onAutoSent={onInitialDraftAutoSent}
           />
         </div>
-      </CompositionStateProvider>
+
+        {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}
+        <MentionsPlugin channelId={channelId} />
+
+        {/* Attachment previews */}
+        {uploadingFiles.length > 0 && onRemoveFile && (
+          <AttachmentPreview
+            files={uploadingFiles}
+            onRemove={onRemoveFile}
+            onRetry={onRetryFile}
+          />
+        )}
+
+        {/* Bottom row: tools on left, send on right */}
+        <div
+          className={cn(
+            "flex items-center justify-between",
+            compact ? "pt-1" : "px-3 pb-3 pt-1",
+          )}
+        >
+          {!compact ? (
+            <EditorToolbar
+              channelId={channelId}
+              onFileSelect={onFileSelect}
+              isBotDm={isBotDm}
+              isDeepResearch={isDeepResearch}
+              onToggleDeepResearch={onToggleDeepResearch}
+            />
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-1.5">
+            {SHOW_COMPOSER_MODEL_CONTROL &&
+              !isDeepResearch &&
+              isBotDm &&
+              botModelSwitch &&
+              botModelSwitch.canSwitchModel && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={botModelSwitch.isUpdating}
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {botModelSwitch.isUpdating ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} />
+                      )}
+                      <span>{botModelSwitch.currentModelLabel}</span>
+                      <ChevronDown size={11} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-60 rounded-xl p-1.5"
+                  >
+                    <DropdownMenuRadioGroup
+                      value={
+                        botModelSwitch.currentModel
+                          ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
+                          : undefined
+                      }
+                      onValueChange={(value) => {
+                        const [provider, id] = value.split("::");
+                        if (!provider || !id) return;
+                        void botModelSwitch.updateModel({ provider, id });
+                      }}
+                    >
+                      {COMMON_STAFF_MODELS.map((model) => (
+                        <DropdownMenuRadioItem
+                          key={`${model.provider}::${model.id}`}
+                          value={`${model.provider}::${model.id}`}
+                          className="cursor-pointer rounded-lg py-2.5"
+                        >
+                          {model.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            {SHOW_COMPOSER_MODEL_CONTROL &&
+              !isDeepResearch &&
+              isBotDm &&
+              botModelSwitch &&
+              !botModelSwitch.canSwitchModel &&
+              botModelSwitch.currentModelLabel && (
+                <div className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-muted-foreground">
+                  <Sparkles size={14} />
+                  <span>{botModelSwitch.currentModelLabel}</span>
+                </div>
+              )}
+            <SendButton
+              onSubmit={onSubmit}
+              disabled={disabled || isUploading}
+              hasAttachments={hasAttachments}
+              clearOnSubmit={clearOnSubmit}
+              submitLabel={submitLabel}
+            />
+          </div>
+        </div>
+
+        <KeyboardShortcutsPlugin
+          onSubmit={onSubmit}
+          disabled={disabled || isUploading}
+          hasAttachments={hasAttachments}
+          clearOnSubmit={clearOnSubmit}
+        />
+      </div>
     </LexicalComposer>
   );
 }

@@ -1,7 +1,4 @@
 {
-  "table": {
-    "openInChat": "Open in chat"
-  },
   "createChannel": "Create a channel",
   "createChannelDescription": "Channels are where your team communicates. They're best when organized around a topic — #project-mars, for example.",
   "channelName": "Channel name",

@@ -81,8 +81,6 @@ export interface SearchOptions {
   limit?: number;
   offset?: number;
   type?: "message" | "channel" | "user" | "file";
-  /** Restrict message search to a specific channel (scope=same_channel) */
-  channelId?: string;
 }
 
 export const searchApi = {

@@ -257,13 +257,6 @@ export class MessagesController {
       !!dto.attachments?.length,
     );
 
-    // Merge top-level clientContext into metadata.clientContext — Stream E
-    // client sends it at the top level per the Tauri/Web contract; im-worker's
-    // AhandBlueprintExtender reads messages.metadata.clientContext.
-    const metadata = dto.clientContext
-      ? { ...(dto.metadata ?? {}), clientContext: dto.clientContext }
-      : dto.metadata;
-
     // Create message via gRPC
     const result = await this.imWorkerGrpcClientService.createMessage({
       clientMsgId,
@@ -274,7 +267,7 @@ export class MessagesController {
       type: messageType,
       workspaceId,
       attachments: dto.attachments,
-      metadata,
+      metadata: dto.metadata,
     });
     const t3 = Date.now();
 

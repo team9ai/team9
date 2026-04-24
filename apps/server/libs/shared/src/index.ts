@@ -15,4 +15,3 @@ export * from './events/index.js';
 
 // Utils
 export * from './utils/mention-parser.js';
-export * from './utils/bootstrap-with-schema-retry.js';

@@ -23,7 +23,6 @@ import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
 import { useChannelTabs } from "@/hooks/useChannelTabs";
 import { useChannelViews } from "@/hooks/useChannelViews";
-import { useMessageJump } from "@/hooks/useMessageJump";
 import { TableView } from "./views/TableView";
 import { BoardView } from "./views/BoardView";
 import { CalendarView } from "./views/CalendarView";
@@ -312,7 +311,7 @@ export function ChannelView({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
-  const [threadPanelWidth, setThreadPanelWidth] = useState(600);
+  const [threadPanelWidth, setThreadPanelWidth] = useState(640);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
@@ -330,14 +329,6 @@ export function ChannelView({
     isPreviewMode ? undefined : channelId,
   );
   const [activeTabId, setActiveTabId] = useState<string>("");
-
-  // Message jump: click OPEN on a table-view row to switch to messages tab and
-  // scroll+highlight the target message. seq forces remount on repeat jumps.
-  const {
-    jumpToMessage,
-    highlightId: jumpHighlightId,
-    seq: jumpSeq,
-  } = useMessageJump(channelTabs, setActiveTabId);
 
   // Auto-select the first tab (messages) when tabs load, or reset on channel change
   useEffect(() => {
@@ -560,13 +551,7 @@ export function ChannelView({
             }
             switch (view.type) {
               case "table":
-                return (
-                  <TableView
-                    channelId={channelId}
-                    view={view}
-                    onJumpToMessage={jumpToMessage}
-                  />
-                );
+                return <TableView channelId={channelId} view={view} />;
               case "board":
                 return <BoardView channelId={channelId} view={view} />;
               case "calendar":
@@ -609,8 +594,7 @@ export function ChannelView({
             }}
             hasNewer={hasPreviousPage}
             isLoadingNewer={isFetchingPreviousPage}
-            highlightMessageId={jumpHighlightId ?? initialMessageId}
-            highlightSeq={jumpSeq}
+            highlightMessageId={initialMessageId}
             readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
             members={members}

@@ -1,4 +1,3 @@
-import { isDeepStrictEqual } from 'node:util';
 import {
   Injectable,
   Inject,
@@ -28,15 +27,23 @@ import type {
   GeneratePersonaDto,
   GenerateAvatarDto,
 } from './dto/generate-persona.dto.js';
-import {
-  PERSONAL_STAFF_ROLE_TITLE,
-  PERSONAL_STAFF_JOB_DESCRIPTION,
-} from './personal-staff.constants.js';
 
 export type { StaffBotResult as PersonalStaffResult };
 
 const PERSONAL_STAFF_APPLICATION_ID = 'personal-staff';
 const HIVE_BLUEPRINT_ID = 'team9-personal-staff';
+const PERSONAL_STAFF_ROLE_TITLE = 'Personal Assistant';
+/**
+ * Fixed job description for every personal staff bot. Not persisted to the
+ * DB and not user-editable — the `UpdatePersonalStaffDto` deliberately does
+ * not expose `jobDescription`, and the agent-side `UpdateStaffProfile` tool
+ * rejects `role` modifications outright for `staffKind: "personal"`. The
+ * constant value is what `getStaff` returns and what the persona/avatar
+ * generators see as context, so wording matters: frame the assistant as
+ * dedicated to one specific owner, not as a generic AI helper.
+ */
+const PERSONAL_STAFF_JOB_DESCRIPTION =
+  'Dedicated personal assistant for your owner';
 
 @Injectable()
 export class PersonalStaffService {
@@ -494,11 +501,6 @@ export class PersonalStaffService {
       allowDirectMessage: false,
     };
 
-    // dm outbound policy: partial-update semantics — undefined means no change
-    const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
-    const nextPolicy = dto.dmOutboundPolicy;
-    let policyChanged = false;
-
     const updatedExtra: BotExtra = {
       ...existingExtra,
       personalStaff: {
@@ -514,16 +516,7 @@ export class PersonalStaffService {
             }
           : {}),
       },
-      ...(nextPolicy !== undefined
-        ? {
-            dmOutboundPolicy: nextPolicy,
-          }
-        : {}),
     };
-
-    if (nextPolicy !== undefined) {
-      policyChanged = !isDeepStrictEqual(currentPolicy, nextPolicy);
-    }
 
     await this.staffService.updateBotAndAgent({
       agentIdPrefix: 'personal-staff',
@@ -536,18 +529,6 @@ export class PersonalStaffService {
       botExtra: updatedExtra,
       currentMentorId: ownerId, // Mentor is always the owner
     });
-
-    if (policyChanged) {
-      this.logger.log({
-        event: 'bot_dm_outbound_policy_changed',
-        botId: bot.botId,
-        botUserId: bot.userId,
-        actorUserId: ownerId,
-        from: currentPolicy,
-        to: nextPolicy,
-        timestamp: new Date().toISOString(),
-      });
-    }
 
     return this.getStaff(installedApplicationId, tenantId, ownerId);
   }

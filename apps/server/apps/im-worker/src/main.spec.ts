@@ -31,14 +31,6 @@ jest.unstable_mockModule('@nestjs/microservices', () => ({
 }));
 jest.unstable_mockModule('@team9/shared', () => ({
   MESSAGE_SERVICE_PROTO_PATH: '/tmp/message.proto',
-  // Execute the bootstrap immediately — retry behaviour is covered by
-  // its own dedicated spec, here we just want to assert that main wires
-  // through to it without interfering with the Nest init path.
-  bootstrapWithSchemaRetry: async (
-    bootstrap: () => Promise<void>,
-  ): Promise<void> => {
-    await bootstrap();
-  },
 }));
 jest.unstable_mockModule('./app.module.js', () => ({
   AppModule: class AppModule {},

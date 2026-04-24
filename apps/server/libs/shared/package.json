@@ -18,8 +18,7 @@
     }
   },
   "scripts": {
-    "build": "tsc && copyfiles -u 1 \"src/proto/*.proto\" dist",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config libs/shared/jest.config.cjs"
+    "build": "tsc && copyfiles -u 1 \"src/proto/*.proto\" dist"
   },
   "dependencies": {},
   "devDependencies": {

@@ -52,9 +52,6 @@ export class PostgresSearchProvider implements SearchProvider {
     if (query.in) {
       conditions.push(sql`ms.channel_name = ${query.in}`);
     }
-    if (query.channelId) {
-      conditions.push(sql`ms.channel_id = ${query.channelId}`);
-    }
     if (query.before) {
       conditions.push(sql`ms.message_created_at < ${query.before}`);
     }
