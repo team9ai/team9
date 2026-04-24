@@ -330,6 +330,13 @@
       "when": 1777536000000,
       "tag": "0046_ahand_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1777012936832,
+      "tag": "0047_fair_blink",
+      "breakpoints": true
     }
   ]
 }
