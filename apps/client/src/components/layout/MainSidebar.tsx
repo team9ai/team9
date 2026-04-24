@@ -574,8 +574,8 @@ export function MainSidebar() {
                 </div>
               </PopoverTrigger>
               <PopoverContent
-                side="right"
-                align="end"
+                side="top"
+                align="start"
                 className="w-72 p-0"
                 sideOffset={8}
               >
@@ -748,7 +748,9 @@ function deriveSidebarLaptopColor(
         return "";
     }
   }
-  return (devices ?? []).some((d) => d.isOnline === true) ? "text-green-500" : "";
+  return (devices ?? []).some((d) => d.isOnline === true)
+    ? "text-green-500"
+    : "";
 }
 
 /** Small overlay glyph at bottom-right. Present only for terminal states
