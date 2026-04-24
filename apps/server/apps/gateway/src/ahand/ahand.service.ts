@@ -112,22 +112,41 @@ export class AhandDevicesService {
     this.validateNickname(input.nickname);
     const hubUrl = this.requireHubUrl();
 
-    // 0. Pre-flight: an active row with this hubDeviceId is a true duplicate
-    //    (same device trying to re-register while still live). A revoked row
-    //    is an audit-trail remnant — we hard-delete it here so the user can
-    //    reclaim the same identity (common after a stop→start cycle where
-    //    revokeDevice soft-deleted the row).
+    // 0. Pre-flight triage of any row with this hubDeviceId:
+    //    - same owner + same pubkey → idempotent re-register. Common case:
+    //      user toggled "Allow as agent target" off then back on, or
+    //      logged in on another window. Return the existing row + a fresh
+    //      JWT instead of 409.
+    //    - same hubDeviceId but different owner/pubkey → 409 (true
+    //      duplicate or pubkey forgery attempt; hubDeviceId is
+    //      SHA256(pubkey) so a collision implies different key material).
+    //    - revoked row → hard-delete the audit remnant and fall through to
+    //      normal register flow.
     const existing = await this.db
       .select()
       .from(schema.ahandDevices)
       .where(eq(schema.ahandDevices.hubDeviceId, input.hubDeviceId));
     if (existing.length > 0) {
-      if (existing[0].status === 'active') {
-        throw new ConflictException('Device already registered');
+      const row = existing[0];
+      if (row.status === 'active') {
+        if (row.ownerId !== userId || row.publicKey !== input.publicKey) {
+          throw new ConflictException('Device already registered');
+        }
+        // Idempotent re-register path: row stays, just mint a fresh JWT.
+        const minted = await this.hub.mintDeviceToken({
+          deviceId: input.hubDeviceId,
+          ttlSeconds: DEVICE_JWT_TTL_SECONDS,
+        });
+        return {
+          device: row,
+          deviceJwt: minted.token,
+          hubUrl: this.hubWebSocketUrl(hubUrl),
+          jwtExpiresAt: minted.expiresAt,
+        };
       }
       await this.db
         .delete(schema.ahandDevices)
-        .where(eq(schema.ahandDevices.id, existing[0].id));
+        .where(eq(schema.ahandDevices.id, row.id));
     }
 
     // 1. Pre-register with hub.
