@@ -36,5 +36,11 @@
   "copied": "Gekopieerd",
   "selected": "Geselecteerd",
   "warning": "Waarschuwing:",
-  "seconds": "s"
+  "seconds": "s",
+  "connection": {
+    "reconnecting": "Opnieuw verbinden…",
+    "reconnectingHint": "Verbinding wordt hersteld.",
+    "disconnected": "Verbinding verbroken",
+    "disconnectedHint": "Controleer je netwerk en vernieuw."
+  }
 }

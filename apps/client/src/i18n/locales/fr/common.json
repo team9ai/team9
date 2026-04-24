@@ -36,5 +36,11 @@
   "copied": "Copié",
   "selected": "Sélectionné",
   "warning": "Avertissement :",
-  "seconds": "s"
+  "seconds": "s",
+  "connection": {
+    "reconnecting": "Reconnexion…",
+    "reconnectingHint": "Tentative de rétablissement de la connexion.",
+    "disconnected": "Connexion perdue",
+    "disconnectedHint": "Vérifiez votre réseau et actualisez."
+  }
 }

@@ -36,5 +36,11 @@
   "copied": "복사됨",
   "selected": "선택됨",
   "warning": "경고:",
-  "seconds": "초"
+  "seconds": "초",
+  "connection": {
+    "reconnecting": "다시 연결 중…",
+    "reconnectingHint": "연결을 복구하고 있습니다.",
+    "disconnected": "연결이 끊겼습니다",
+    "disconnectedHint": "네트워크를 확인하고 새로 고침하세요."
+  }
 }

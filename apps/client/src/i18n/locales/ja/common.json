@@ -36,5 +36,11 @@
   "copied": "コピーしました",
   "selected": "選択済み",
   "warning": "警告：",
-  "seconds": "秒"
+  "seconds": "秒",
+  "connection": {
+    "reconnecting": "再接続中…",
+    "reconnectingHint": "接続を再試行しています。",
+    "disconnected": "接続が切断されました",
+    "disconnectedHint": "ネットワークを確認して再読み込みしてください。"
+  }
 }

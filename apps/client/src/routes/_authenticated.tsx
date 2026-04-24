@@ -7,7 +7,6 @@ import {
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
-import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { UpdateDialog } from "@/components/layout/UpdateDialog";
 import { ChannelSettingsMount } from "@/components/channel/ChannelSettingsMount";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -294,7 +293,6 @@ function AuthenticatedLayout() {
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Global top bar with search */}
       <GlobalTopBar />
-      <ConnectionStatus />
       <UpdateDialog />
       <ChannelSettingsMount />
 

@@ -319,7 +319,7 @@ export function MainSidebar() {
         isOpen={createWorkspaceOpen}
         onClose={() => setCreateWorkspaceOpen(false)}
       />
-      <div className="flex h-full">
+      <div className="flex h-full bg-nav-bg">
         {/* Column 1: Workspace avatars - always visible */}
         <aside
           data-tauri-drag-region
@@ -727,7 +727,7 @@ export function MainSidebar() {
         {/* Column 2: Navigation items - only when expanded */}
         {!sidebarCollapsed && (
           <>
-            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-2 overflow-y-auto scrollbar-hide">
+            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-2 overflow-y-auto scrollbar-hide rounded-tl-lg">
               {renderNavigationItems()}
             </nav>
             <div className="w-px h-full bg-border shrink-0" />

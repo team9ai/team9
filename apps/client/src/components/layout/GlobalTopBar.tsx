@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
+import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import {
   useUser,
   useWorkspaceStore,
@@ -140,10 +141,7 @@ export function GlobalTopBar() {
     <header
       ref={headerRef}
       data-tauri-drag-region
-      className={cn(
-        "shrink-0 border-b border-nav-border bg-nav-bg",
-        isMacDesktop ? "h-12" : "h-11",
-      )}
+      className={cn("shrink-0 bg-nav-bg", isMacDesktop ? "h-12" : "h-11")}
     >
       <div
         data-tauri-drag-region
@@ -243,6 +241,14 @@ export function GlobalTopBar() {
               </Popover>
             </div>
           </div>
+        </div>
+
+        {/* Right section - connection status indicator */}
+        <div
+          data-tauri-drag-region
+          className="flex shrink-0 items-center gap-1 pr-1"
+        >
+          <ConnectionStatus />
         </div>
       </div>
     </header>
