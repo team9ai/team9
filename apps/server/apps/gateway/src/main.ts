@@ -1,7 +1,7 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
-import { json, raw } from 'express';
+import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
 import {
@@ -38,16 +38,11 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  const app = await NestFactory.create(AppModule);
-
-  // Raw body for ahand webhook signature verification — must come BEFORE json().
-  // Path matches the NestJS route after setGlobalPrefix('api') and URI
-  // versioning (defaultVersion: '1') prepends `/v1/` between the global
-  // prefix and the controller path.
-  app.use(
-    '/api/v1/ahand/hub-webhook',
-    raw({ type: 'application/json', limit: '1mb' }),
-  );
+  // rawBody: true caches the raw request Buffer on req.rawBody while still
+  // letting the default JSON parser populate req.body. The ahand hub webhook
+  // HMAC verifier reads req.rawBody to avoid key-order / whitespace drift,
+  // but the controller still wants the parsed DTO for validation.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
   app.use(json({ limit: '1mb' }));
