@@ -84,7 +84,7 @@ export interface CommitPageInput {
  */
 export interface CommitPageResponse {
   commit: { sha: string };
-  proposal: { id: string; status: string } | null;
+  proposal: { id: string; status: ProposalStatus } | null;
 }
 
 /**
