@@ -4,161 +4,161 @@
     {
       "id": 0,
       "subject": "Task 1: Database schema + env vars",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Create the workspace_wikis Drizzle schema, run the migration, and wire three new env vars for folder9.\n\n**Files:**\n- Create: apps/server/libs/database/src/schemas/wiki/workspace-wikis.ts\n- Create: apps/server/libs/database/src/schemas/wiki/index.ts\n- Modify: apps/server/libs/database/src/schemas/index.ts\n- Modify: apps/server/libs/shared/src/env.ts\n- Generated: apps/server/libs/database/migrations/XXXX_add_workspace_wikis.sql\n\n**Verify:** pnpm --filter @team9/server db:push --dry-run && pnpm --filter @team9/server exec tsc --noEmit\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/wiki/workspace-wikis.ts\",\"apps/server/libs/database/src/schemas/wiki/index.ts\",\"apps/server/libs/database/src/schemas/index.ts\",\"apps/server/libs/shared/src/env.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server db:push --dry-run && pnpm --filter @team9/server exec tsc --noEmit\",\"acceptanceCriteria\":[\"workspace_wikis table exists after pnpm db:migrate\",\"wiki_approval_mode and wiki_permission_level enums created\",\"unique indexes on (workspace_id, slug) and folder9_folder_id\",\"env.FOLDER9_API_URL/PSK/WEBHOOK_SECRET available\",\"pnpm build:server passes\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Folder9ClientService + internal types",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Typed fetch-based client that the gateway uses to talk to folder9, with PSK header, error mapping, 100% coverage.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/folder9-client.service.ts\n- Create: apps/server/apps/gateway/src/wikis/types/folder9.types.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/folder9-client.service.spec.ts\n\n**Verify:** pnpm --filter @team9/server test -- folder9-client.service.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/folder9-client.service.ts\",\"apps/server/apps/gateway/src/wikis/types/folder9.types.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/folder9-client.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- folder9-client.service.spec --coverage\",\"acceptanceCriteria\":[\"Typed methods for every folder9 endpoint the gateway needs\",\"Every request includes the PSK header\",\"Non-2xx throws Folder9ApiError; network errors throw Folder9NetworkError\",\"100% unit coverage\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: Frontmatter util (gateway) + shared test fixtures",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Parse/serialize YAML frontmatter with round-trip stability; shared fixture files for cross-stack consistency.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/utils/frontmatter.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/frontmatter.spec.ts\n- Create: apps/server/libs/shared/test-fixtures/wiki-frontmatter/*.md + fixtures.json\n\n**Verify:** pnpm --filter @team9/server test -- frontmatter.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/utils/frontmatter.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/frontmatter.spec.ts\",\"apps/server/libs/shared/test-fixtures/wiki-frontmatter/\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- frontmatter.spec --coverage\",\"acceptanceCriteria\":[\"parseFrontmatter returns {frontmatter, body}\",\"Round-trip preserves unknown keys\",\"Malformed YAML throws FrontmatterParseError\",\"All 4 fixtures pass\",\"100% coverage\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 4: Permission helpers + DTOs",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** resolveWikiPermission + requirePermission guards, plus all NestJS DTOs.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/utils/permission.ts + spec\n- Create: apps/server/apps/gateway/src/wikis/dto/*.ts\n\n**Verify:** pnpm --filter @team9/server test -- permission.spec --coverage && pnpm exec tsc --noEmit\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/utils/permission.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/permission.spec.ts\",\"apps/server/apps/gateway/src/wikis/dto/\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- permission.spec --coverage\",\"acceptanceCriteria\":[\"resolveWikiPermission returns correct per-role perm\",\"requirePermission throws ForbiddenException when below required\",\"Ordering read<propose<write\",\"All DTOs have class-validator decorators\",\"100% coverage on permission.ts\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 5: WikisService (CRUD)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2, 3],
       "description": "**Goal:** Service methods for Wiki lifecycle (list, create, get, update, archive) with folder9 compensation rollback.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/wikis.service.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\n\n**Verify:** pnpm --filter @team9/server test -- wikis.service.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.service.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- wikis.service.spec --coverage\",\"acceptanceCriteria\":[\"createWiki inserts workspace_wikis row after folder9 create\",\"DB failure rolls back folder9 via deleteFolder\",\"Agent callers rejected with Forbidden\",\"Slug auto-derivation + uniqueness check\",\"listWikis filters archived\",\"updateWikiSettings requires write perm\",\"100% coverage\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 6: WikisService (tree / page / commit / proposals)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Extend WikisService with getTree/getPage/commitPage/listProposals/approveProposal/rejectProposal, all permission-gated.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/wikis/wikis.service.ts\n- Modify: apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\n\n**Verify:** pnpm --filter @team9/server test -- wikis.service.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.service.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- wikis.service.spec --coverage\",\"acceptanceCriteria\":[\"getTree requires read\",\"getPage parses frontmatter via util\",\"commitPage computes effective propose flag per spec matrix\",\"commit passes authorName/authorEmail from user profile\",\"approve/reject require write\",\"100% coverage\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 7: WikisController",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** REST endpoints under /api/wikis/* wired thinly to WikisService.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/wikis.controller.ts + spec\n\n**Verify:** pnpm --filter @team9/server test -- wikis.controller.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.controller.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/wikis.controller.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- wikis.controller.spec --coverage\",\"acceptanceCriteria\":[\"All spec API endpoints implemented\",\"AuthGuard + WorkspaceGuard applied\",\"Thin pass-through to service\",\"100% coverage\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 8: Folder9WebhookController + WebSocket broadcast",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Receive folder9 webhook, verify HMAC, rebroadcast on Team9 WS gateway scoped to workspace.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/folder9-webhook.controller.ts + spec\n\n**Verify:** pnpm --filter @team9/server test -- folder9-webhook.controller.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/folder9-webhook.controller.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/folder9-webhook.controller.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- folder9-webhook.controller.spec --coverage\",\"acceptanceCriteria\":[\"HMAC-SHA256 verification\",\"Invalid signature returns 401\",\"4 known events rebroadcast to workspace room\",\"Unknown folder_id logs and returns 200\",\"100% coverage\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 9: WikisModule wiring into AppModule",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** Register the new module and verify gateway boots.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/wikis.module.ts\n- Modify: apps/server/apps/gateway/src/app.module.ts\n\n**Verify:** pnpm dev:server boots; GET /api/wikis returns [] with JWT\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.module.ts\",\"apps/server/apps/gateway/src/app.module.ts\"],\"verifyCommand\":\"pnpm dev:server\",\"acceptanceCriteria\":[\"WikisModule imports DatabaseModule + WebsocketModule via forwardRef\",\"Exports WikisService for WorkspaceModule\",\"Gateway boots with no errors\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 10: Workspace creation seed hook + backfill script",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Goal:** Auto-seed public Wiki on workspace creation; idempotent backfill for existing workspaces.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/workspace/workspace.service.ts + spec\n- Modify: apps/server/apps/gateway/src/workspace/workspace.module.ts\n- Create: apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts + spec\n\n**Verify:** pnpm --filter @team9/server test -- workspace.service backfill-public-wiki --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/workspace/workspace.service.ts\",\"apps/server/apps/gateway/src/workspace/workspace.module.ts\",\"apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- workspace.service backfill-public-wiki --coverage\",\"acceptanceCriteria\":[\"WorkspaceService.create calls wikisService.createWiki after owner membership\",\"Failed seed does not fail workspace creation\",\"Backfill script is idempotent\",\"Existing workspace.service.spec updated\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 11: Integration test against real folder9",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9],
       "description": "**Goal:** Thin E2E test using docker-compose folder9 + real postgres.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/__tests__/integration/wiki-folder9.integration.spec.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/integration/docker-compose.yml\n\n**Verify:** INTEGRATION=1 pnpm --filter @team9/server test -- wiki-folder9.integration\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/__tests__/integration/\"],\"verifyCommand\":\"INTEGRATION=1 pnpm --filter @team9/server test -- wiki-folder9.integration\",\"acceptanceCriteria\":[\"Docker-compose starts folder9 + postgres\",\"Create Wiki -> folder exists\",\"Commit auto -> getPage returns content\",\"Commit review -> proposal created -> approve -> content reflects\",\"Tagged, skipped in normal test run\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 12: i18n + MainSidebar rename + delete old Library",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Rename library nav to wiki across sidebar, unlock list, 12 locales, and DynamicSubSidebar switch. Delete old LibraryMainContent.\n\n**Files:**\n- Modify: apps/client/src/components/layout/MainSidebar.tsx, mainSidebarUnlock.ts, DynamicSubSidebar.tsx\n- Modify: 12 locale files\n- Create: WikiSubSidebar.tsx and WikiMainContent.tsx placeholders\n- Delete: LibraryMainContent.tsx, library route, library tests\n\n**Verify:** pnpm --filter @team9/client test && pnpm --filter @team9/client build\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/layout/MainSidebar.tsx\",\"apps/client/src/components/layout/mainSidebarUnlock.ts\",\"apps/client/src/components/layout/DynamicSubSidebar.tsx\",\"apps/client/src/i18n/locales/\",\"apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test && pnpm --filter @team9/client build\",\"acceptanceCriteria\":[\"MainSidebar shows wiki entry with Library icon\",\"Hidden-nav unlock still works\",\"DynamicSubSidebar routes wiki -> WikiSubSidebar placeholder\",\"All 12 locales updated\",\"Old Library files deleted\",\"Tests + build pass\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 13: Types + API client + React Query hooks + Zustand store",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11],
       "description": "**Goal:** Frontend DTOs, typed apiClient.wikis.*, React Query hooks, Zustand wiki store.\n\n**Files:**\n- Create: apps/client/src/types/wiki.ts\n- Create: apps/client/src/services/api/wikis.ts (+ index re-export)\n- Create: apps/client/src/hooks/useWikis.ts, useWikiTree.ts, useWikiPage.ts, useWikiProposals.ts\n- Create: apps/client/src/stores/wiki.ts\n- Create tests alongside\n\n**Verify:** pnpm --filter @team9/client test -- wiki\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/wiki.ts\",\"apps/client/src/services/api/wikis.ts\",\"apps/client/src/hooks/useWikis.ts\",\"apps/client/src/hooks/useWikiTree.ts\",\"apps/client/src/hooks/useWikiPage.ts\",\"apps/client/src/hooks/useWikiProposals.ts\",\"apps/client/src/stores/wiki.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Types match backend DTOs\",\"All CRUD + tree + page + commit + proposal methods\",\"Query keys structured\",\"Mutations invalidate correct keys\",\"Store selectors follow home.ts pattern\",\"Tests for every file\"]}\n```"
     },
     {
       "id": 13,
       "subject": "Task 14: Frontmatter util (client) + shared fixtures",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Browser-side frontmatter util mirroring gateway's, same fixture-based tests.\n\n**Files:**\n- Create: apps/client/src/lib/wiki-frontmatter.ts + test\n\n**Verify:** pnpm --filter @team9/client test -- wiki-frontmatter\n\n```json:metadata\n{\"files\":[\"apps/client/src/lib/wiki-frontmatter.ts\",\"apps/client/src/lib/__tests__/wiki-frontmatter.test.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki-frontmatter\",\"acceptanceCriteria\":[\"parse/serialize mirrors gateway\",\"Round-trip stable\",\"Uses same fixture JSON as gateway\",\"Passes Vitest\"]}\n```"
     },
     {
       "id": 14,
       "subject": "Task 15: Wiki routes + WikiMainContent shell",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [12],
       "description": "**Goal:** TanStack router files for /wiki, /wiki/$slug, /wiki/$slug/$; WikiMainContent reads store and renders page view or empty state.\n\n**Files:**\n- Create: apps/client/src/routes/_authenticated/wiki/index.tsx, $wikiSlug.tsx, $wikiSlug.$.tsx\n- Modify: WikiMainContent.tsx\n- Create: WikiEmptyState.tsx\n\n**Verify:** pnpm --filter @team9/client build\n\n```json:metadata\n{\"files\":[\"apps/client/src/routes/_authenticated/wiki/\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\",\"apps/client/src/components/wiki/WikiEmptyState.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client build\",\"acceptanceCriteria\":[\"/wiki shows empty state\",\"/wiki/:slug selects wiki + index.md\",\"/wiki/:slug/:path sets store + auto-expands parents\",\"Build passes with generated routeTree\"]}\n```"
     },
     {
       "id": 15,
       "subject": "Task 16: WikiSubSidebar (list + tree)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [12],
       "description": "**Goal:** Real sub-sidebar with wikis list, per-wiki expandable tree derived from flat folder9 response, click-to-navigate.\n\n**Files:**\n- Modify: apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx\n- Create: WikiListItem.tsx, WikiTreeNode.tsx, lib/wiki-tree.ts\n- Create tests\n\n**Verify:** pnpm --filter @team9/client test -- wiki-tree wiki-sub-sidebar\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx\",\"apps/client/src/components/wiki/WikiListItem.tsx\",\"apps/client/src/components/wiki/WikiTreeNode.tsx\",\"apps/client/src/lib/wiki-tree.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Header with wiki title + plus button\",\"Lazy-loaded recursive tree\",\"Dot-prefixed paths filtered\",\"Click file -> navigate\",\"Click dir -> toggle + nav to index.md if present\",\"Active page highlighted\"]}\n```"
     },
     {
       "id": 16,
       "subject": "Task 17: WikiPageView + draft persistence hook",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13, 14],
       "description": "**Goal:** Notion-style page view (cover, overlapping icon, breadcrumb, title, status bar) + useWikiDraft localStorage hook.\n\n**Files:**\n- Create: WikiPageView.tsx, WikiCover.tsx, WikiPageHeader.tsx, WikiStatusBar.tsx\n- Create: hooks/useWikiDraft.ts\n- Also extends gateway with GET /api/wikis/:id/raw endpoint for cover image display\n\n**Verify:** pnpm --filter @team9/client test -- useWikiDraft wiki-page-header\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/WikiPageView.tsx\",\"apps/client/src/components/wiki/WikiCover.tsx\",\"apps/client/src/components/wiki/WikiPageHeader.tsx\",\"apps/client/src/components/wiki/WikiStatusBar.tsx\",\"apps/client/src/hooks/useWikiDraft.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Page view composes cover + header + status + editor slot\",\"Cover shows image or gradient fallback\",\"Header renders icon + breadcrumb + title fallback\",\"Draft debounced 500ms write\",\"Stale-draft alert fires when localStorage newer than server\"]}\n```"
     },
     {
       "id": 17,
       "subject": "Task 18: WikiPageEditor (Lexical wrapper + frontmatter)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [16],
       "description": "**Goal:** Editor combining existing DocumentEditor with frontmatter state + icon/cover popovers + draft hook integration.\n\n**Files:**\n- Create: WikiPageEditor.tsx, IconPickerPopover.tsx, CoverPickerPopover.tsx\n- Create: lib/wiki-permission.ts\n\n**Verify:** pnpm --filter @team9/client test -- WikiPageEditor\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/WikiPageEditor.tsx\",\"apps/client/src/components/wiki/IconPickerPopover.tsx\",\"apps/client/src/components/wiki/CoverPickerPopover.tsx\",\"apps/client/src/lib/wiki-permission.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- WikiPageEditor\",\"acceptanceCriteria\":[\"Wraps DocumentEditor with frontmatter state\",\"Read-only mode for users with read perm\",\"Icon picker updates frontmatter.icon\",\"Every change calls draft.setDraft\",\"Stale alert renders\"]}\n```"
     },
     {
       "id": 18,
       "subject": "Task 19: Save flow (auto + review + proposal banner)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [17],
       "description": "**Goal:** Wire Save button, handle auto vs review mode, show pending-proposal banner, toast error paths.\n\n**Files:**\n- Create: SubmitForReviewDialog.tsx, WikiProposalBanner.tsx\n- Modify: WikiPageEditor.tsx, WikiPageView.tsx, stores/wiki.ts (submittedProposals map)\n\n**Verify:** pnpm --filter @team9/client test -- WikiPageEditor.save\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/SubmitForReviewDialog.tsx\",\"apps/client/src/components/wiki/WikiProposalBanner.tsx\",\"apps/client/src/components/wiki/WikiPageEditor.tsx\",\"apps/client/src/stores/wiki.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- wiki\",\"acceptanceCriteria\":[\"Cmd+S triggers save\",\"Auto mode: direct commit, clears draft\",\"Review mode: dialog -> commit with propose -> banner\",\"Banner links to proposal\",\"409/403 toasted\",\"Draft not cleared in review mode\"]}\n```"
     },
     {
       "id": 19,
       "subject": "Task 20: Create Wiki dialog + settings + archive",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [15],
       "description": "**Goal:** Replace stubbed CreateWikiDialog + add WikiSettingsDialog for renaming, approval mode toggle, permissions, archive.\n\n**Files:**\n- Modify: CreateWikiDialog.tsx, WikiListItem.tsx (kebab)\n- Create: WikiSettingsDialog.tsx\n\n**Verify:** pnpm --filter @team9/client test -- CreateWikiDialog WikiSettingsDialog\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/CreateWikiDialog.tsx\",\"apps/client/src/components/wiki/WikiSettingsDialog.tsx\",\"apps/client/src/components/wiki/WikiListItem.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- Create Settings\",\"acceptanceCriteria\":[\"Create with name+slug+icon\",\"Settings dialog for name/slug/approvalMode/permissions\",\"Archive with confirmation\",\"Validation + server error toast\"]}\n```"
     },
     {
       "id": 20,
       "subject": "Task 21: Review panel (list + diff + approve/reject)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [18],
       "description": "**Goal:** Review workflow UI: sub-sidebar badge + proposals list + diff view + approve/reject with permission gating. Also extends gateway with /proposals/:id/diff endpoint.\n\n**Files:**\n- Create: ReviewPanel.tsx, ProposalDiffView.tsx, two route files\n- Modify: WikiSubSidebar.tsx (badge)\n- Modify: gateway WikisService/Controller for diff endpoint\n\n**Verify:** pnpm --filter @team9/client test -- ReviewPanel && pnpm --filter @team9/server test -- wikis.service\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/wiki/ReviewPanel.tsx\",\"apps/client/src/components/wiki/ProposalDiffView.tsx\",\"apps/client/src/routes/_authenticated/wiki/$wikiSlug.review.tsx\",\"apps/server/apps/gateway/src/wikis/wikis.service.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- Review\",\"acceptanceCriteria\":[\"Review icon with pending count badge\",\"List + detail routes\",\"Diff view renders file-level diffs\",\"Approve/reject gated on write perm\",\"409 -> toast conflict\"]}\n```"
     },
     {
       "id": 21,
       "subject": "Task 22: Image paste/drop upload",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [17],
       "description": "**Goal:** Paste or drop image -> upload as separate commit to attachments/{uuid}.{ext} -> insert markdown image.\n\n**Files:**\n- Create: hooks/useWikiImageUpload.ts\n- Modify: WikiPageEditor.tsx (paste/drop handlers)\n\n**Verify:** pnpm --filter @team9/client test -- useWikiImageUpload\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useWikiImageUpload.ts\",\"apps/client/src/components/wiki/WikiPageEditor.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- upload\",\"acceptanceCriteria\":[\"Paste/drop triggers upload\",\"5MB size limit\",\"Separate commit from page edit\",\"Path attachments/{uuid}.{ext}\",\"Markdown image inserted\",\"Error toast on failure\"]}\n```"
     },
     {
       "id": 22,
       "subject": "Task 23: WebSocket event consumers",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [18, 20],
       "description": "**Goal:** Subscribe to wiki_* events, invalidate React Query cache, clear matching submittedProposals on approve/reject.\n\n**Files:**\n- Create: hooks/useWikiWebSocketSync.ts\n- Modify: WikiMainContent.tsx (mount hook)\n\n**Verify:** pnpm --filter @team9/client test -- useWikiWebSocketSync\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useWikiWebSocketSync.ts\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- WebSocket\",\"acceptanceCriteria\":[\"All 7 wiki_* events subscribed\",\"Correct query invalidations per event\",\"submittedProposals cleared on approve/reject\",\"Unsubscribe on unmount\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-04-13T00:00:00Z"
+  "lastUpdated": "2026-04-22T00:00:00Z"
 }

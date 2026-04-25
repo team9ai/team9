@@ -11270,12 +11270,10 @@ describe("AHandHostComponent", () => {
       const { c, ctx } = setupComponent();
       await c.onInitialize(ctx);
       mockGateway(c, {
-        mintControlPlaneToken: vi
-          .fn()
-          .mockResolvedValue({
-            token: "t",
-            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-          }),
+        mintControlPlaneToken: vi.fn().mockResolvedValue({
+          token: "t",
+          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        }),
       });
       const spawn = vi.fn(async (opts: any) => {
         opts.onStdout("hello ");
@@ -11300,12 +11298,10 @@ describe("AHandHostComponent", () => {
         spawn: vi.fn().mockRejectedValue(new Error("device offline")),
       });
       mockGateway(c, {
-        mintControlPlaneToken: vi
-          .fn()
-          .mockResolvedValue({
-            token: "t",
-            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-          }),
+        mintControlPlaneToken: vi.fn().mockResolvedValue({
+          token: "t",
+          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        }),
       });
       const h = await c.spawn("agent-1", "echo x");
       expect(h.exited).toBe(true);
@@ -11374,12 +11370,10 @@ describe("AHandHostComponent", () => {
     it("reuses cached token when not near expiry", async () => {
       const { c, ctx } = setupComponent();
       await c.onInitialize(ctx);
-      const mint = vi
-        .fn()
-        .mockResolvedValue({
-          token: "fresh",
-          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-        });
+      const mint = vi.fn().mockResolvedValue({
+        token: "fresh",
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      });
       mockGateway(c, { mintControlPlaneToken: mint });
       const a = await (c as any).getOrRefreshControlPlaneJwt();
       const b = await (c as any).getOrRefreshControlPlaneJwt();
@@ -11395,12 +11389,10 @@ describe("AHandHostComponent", () => {
         controlPlaneToken: { value: "old", expiresAt: Date.now() + 30_000 },
       }); // < 60s margin
       mockGateway(c, {
-        mintControlPlaneToken: vi
-          .fn()
-          .mockResolvedValue({
-            token: "new",
-            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-          }),
+        mintControlPlaneToken: vi.fn().mockResolvedValue({
+          token: "new",
+          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        }),
       });
       const t = await (c as any).getOrRefreshControlPlaneJwt();
       expect(t).toBe("new");
@@ -14607,12 +14599,10 @@ describe("useAhandBootstrap", () => {
     const list = vi
       .fn()
       .mockResolvedValue([{ id: "row-1", hubDeviceId: "dev-abc" } as any]);
-    const refresh = vi
-      .fn()
-      .mockResolvedValue({
-        deviceJwt: "j",
-        jwtExpiresAt: "2026-05-01T00:00:00Z",
-      });
+    const refresh = vi.fn().mockResolvedValue({
+      deviceJwt: "j",
+      jwtExpiresAt: "2026-05-01T00:00:00Z",
+    });
     const start = vi.fn().mockResolvedValue({ device_id: "dev-abc" });
     vi.mocked(ahandApi.list).mockImplementation(list);
     vi.mocked(ahandApi.refreshToken).mockImplementation(refresh);
@@ -14804,12 +14794,10 @@ describe("useAhandJwtRefresh", () => {
   });
 
   it("refreshes JWT when local status transitions to error:auth", async () => {
-    const refresh = vi
-      .fn()
-      .mockResolvedValue({
-        deviceJwt: "new",
-        jwtExpiresAt: "2026-05-01T00:00:00Z",
-      });
+    const refresh = vi.fn().mockResolvedValue({
+      deviceJwt: "new",
+      jwtExpiresAt: "2026-05-01T00:00:00Z",
+    });
     const start = vi.fn().mockResolvedValue({ device_id: "dev-abc" });
     vi.mocked(ahandApi.list).mockResolvedValue([
       { id: "row-1", hubDeviceId: "dev-abc" } as any,
@@ -14856,12 +14844,10 @@ describe("useAhandJwtRefresh", () => {
   });
 
   it("rate-limits to one refresh per 30s even on rapid re-emits", async () => {
-    const refresh = vi
-      .fn()
-      .mockResolvedValue({
-        deviceJwt: "x",
-        jwtExpiresAt: "2026-05-01T00:00:00Z",
-      });
+    const refresh = vi.fn().mockResolvedValue({
+      deviceJwt: "x",
+      jwtExpiresAt: "2026-05-01T00:00:00Z",
+    });
     vi.mocked(ahandApi.refreshToken).mockImplementation(refresh);
     vi.mocked(ahandApi.list).mockResolvedValue([
       { id: "row-1", hubDeviceId: "dev-abc" } as any,

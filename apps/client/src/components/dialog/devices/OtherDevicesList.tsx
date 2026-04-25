@@ -40,7 +40,9 @@ export function OtherDevicesList({ excludeLocal }: { excludeLocal: boolean }) {
   if (devices.length === 0) return null;
 
   async function handleRemove(device: DeviceDto): Promise<void> {
-    if (!(await confirmDestructive(t("confirmRemove", { name: device.nickname })))) {
+    if (
+      !(await confirmDestructive(t("confirmRemove", { name: device.nickname })))
+    ) {
       return;
     }
     try {

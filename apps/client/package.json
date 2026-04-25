@@ -107,6 +107,7 @@
     "tailwindcss": "^4.1.18",
     "three": "^0.183.2",
     "transliteration": "^2.6.0",
+    "yaml": "^2.8.3",
     "zustand": "^5.0.9"
   },
   "devDependencies": {

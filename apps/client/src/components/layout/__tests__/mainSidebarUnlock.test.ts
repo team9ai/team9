@@ -16,7 +16,7 @@ const navigationItems = [
   { id: "routines" },
   { id: "skills" },
   { id: "resources" },
-  { id: "library" },
+  { id: "wiki" },
   { id: "application" },
   { id: "more" },
 ];
@@ -60,6 +60,6 @@ describe("mainSidebarUnlock", () => {
   });
 
   it("keeps the hidden-section list stable", () => {
-    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["skills", "resources", "library"]);
+    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["skills", "resources", "wiki"]);
   });
 });

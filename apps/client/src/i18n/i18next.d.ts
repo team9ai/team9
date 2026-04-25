@@ -12,6 +12,7 @@ import enRoutines from "./locales/en/routines.json";
 import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
 import enOnboarding from "./locales/en/onboarding.json";
+import enWiki from "./locales/en/wiki.json";
 import enDeepResearch from "./locales/en/deepResearch.json";
 import enAhand from "./locales/en/ahand.json";
 
@@ -31,6 +32,7 @@ declare module "i18next" {
       resources: typeof enResources;
       skills: typeof enSkills;
       onboarding: typeof enOnboarding;
+      wiki: typeof enWiki;
       deepResearch: typeof enDeepResearch;
       ahand: typeof enAhand;
     };

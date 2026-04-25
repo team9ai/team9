@@ -220,6 +220,17 @@ export const env = {
     return process.env.FILE_KEEPER_JWT_SECRET;
   },
 
+  // Folder9 Managed Folder Service (optional - required for Wiki feature)
+  get FOLDER9_API_URL() {
+    return process.env.FOLDER9_API_URL;
+  },
+  get FOLDER9_PSK() {
+    return process.env.FOLDER9_PSK;
+  },
+  get FOLDER9_WEBHOOK_SECRET() {
+    return process.env.FOLDER9_WEBHOOK_SECRET;
+  },
+
   // Gateway internal URL (used by im-worker to call /internal/* endpoints)
   get GATEWAY_INTERNAL_URL(): string | undefined {
     return process.env.GATEWAY_INTERNAL_URL || undefined;

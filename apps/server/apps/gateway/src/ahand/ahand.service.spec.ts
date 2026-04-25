@@ -378,8 +378,11 @@ describe('AhandDevicesService', () => {
       ).rejects.toThrow('mint err');
     });
 
-    it('pre-flight check throws ConflictException when device already exists in DB', async () => {
-      dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
+    it('pre-flight throws ConflictException when an active row exists with a different owner or pubkey', async () => {
+      // Different owner → not eligible for the idempotent re-register path.
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ ownerId: 'different-user' }),
+      ]);
       await expect(
         service.registerDeviceForUser('u1', {
           hubDeviceId: 'hub-d1',
@@ -388,7 +391,25 @@ describe('AhandDevicesService', () => {
           platform: 'macos',
         }),
       ).rejects.toThrow(ConflictException);
-      // Hub should never be called if DB already has the device
+      expect(hub.registerDevice).not.toHaveBeenCalled();
+    });
+
+    it('pre-flight returns existing row + fresh JWT for same-owner same-pubkey re-register', async () => {
+      const existing = makeDeviceRow();
+      dbFixture.chains.selectWhere.mockResolvedValue([existing]);
+      hub.mintDeviceToken.mockResolvedValue({
+        token: 'new-jwt',
+        expiresAt: new Date('2031-01-01').toISOString(),
+      });
+      const result = await service.registerDeviceForUser('u1', {
+        hubDeviceId: 'hub-d1',
+        publicKey: 'pk',
+        nickname: 'n',
+        platform: 'macos',
+      });
+      expect(result.device).toEqual(existing);
+      expect(result.deviceJwt).toBe('new-jwt');
+      // Idempotent path skips hub pre-register + DB insert; only mints a JWT.
       expect(hub.registerDevice).not.toHaveBeenCalled();
     });
 
