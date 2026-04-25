@@ -38,7 +38,9 @@ const SERVER_EPOCH = new Date(snapshot.lastCommitTime!).getTime();
 describe("buildDraftKey", () => {
   it("includes workspace, wiki, base64(path), and userId", () => {
     const key = buildDraftKey("u-1", "ws-1", "wiki-1", "docs/index.md");
-    const pathB64 = btoa(unescape(encodeURIComponent("docs/index.md")));
+    const pathB64 = btoa(
+      String.fromCharCode(...new TextEncoder().encode("docs/index.md")),
+    );
     expect(key).toBe(`team9.wiki.draft.ws-1.wiki-1.${pathB64}.u-1`);
   });
 

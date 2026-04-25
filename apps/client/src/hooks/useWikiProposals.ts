@@ -30,6 +30,9 @@ export function useApproveProposal(wikiId: string) {
       wikisApi.approveProposal(wikiId, proposalId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wikiKeys.proposals(wikiId) });
+      // Aggregated pending-counts badge in the sub-sidebar must refresh so
+      // the approved proposal no longer contributes to the total.
+      queryClient.invalidateQueries({ queryKey: wikiKeys.pendingCounts() });
     },
   });
 }
@@ -41,6 +44,7 @@ export function useRejectProposal(wikiId: string) {
       wikisApi.rejectProposal(wikiId, input.proposalId, input.reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wikiKeys.proposals(wikiId) });
+      queryClient.invalidateQueries({ queryKey: wikiKeys.pendingCounts() });
     },
   });
 }

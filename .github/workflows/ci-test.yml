@@ -80,18 +80,16 @@ jobs:
   # diff check so only PRs that touch wiki code pay the ~1-2 min docker cold
   # start.
   #
-  # IMPORTANT: requires `team9ai/folder9:latest` (or the tag set in
-  # $FOLDER9_IMAGE) to be reachable from GitHub Actions. If the image is
-  # private this job will fail on the pull step — add `docker login` with a
-  # registry auth secret before the compose step in that case.
+  # Pulls `ghcr.io/team9ai/folder9:latest` (published by folder9/main's Deploy
+  # workflow). Same-org GHCR access uses the built-in GITHUB_TOKEN — no extra
+  # secrets. `packages: read` permission is required on the job.
   wiki-integration:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     timeout-minutes: 10
-    # The folder9 image isn't published yet — allow failures so a missing
-    # image doesn't block merges. Flip to required once team9ai/folder9 is
-    # pushed to a registry GitHub Actions can reach.
-    continue-on-error: true
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout
@@ -133,14 +131,20 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Log in to GHCR
+        if: steps.changes.outputs.changed == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Start folder9 + postgres via docker compose
         if: steps.changes.outputs.changed == 'true'
         env:
-          # Override the default `team9ai/folder9:integration` tag (which is a
-          # local-build-only placeholder) with the published image. If this
-          # tag is private or missing, the pull will fail on this step — flag
-          # that failure to the user rather than silently skipping.
-          FOLDER9_IMAGE: team9ai/folder9:latest
+          # Pulls the image published by folder9/main's Deploy workflow.
+          # Falls back per docker-compose.yml's default if this var is unset.
+          FOLDER9_IMAGE: ghcr.io/team9ai/folder9:latest
         working-directory: apps/server/apps/gateway/src/wikis/__tests__/integration
         run: |
           set -euo pipefail

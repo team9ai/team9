@@ -10,6 +10,7 @@
  * `docker compose up -d` / `docker compose down -v` as a precondition, and
  * the helpers below just wait for folder9 to be reachable.
  */
+import { jest } from '@jest/globals';
 
 /**
  * Poll folder9's /healthz endpoint until it returns 2xx. Folds all transient

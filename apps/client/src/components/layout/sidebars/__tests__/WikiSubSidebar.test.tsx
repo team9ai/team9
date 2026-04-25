@@ -5,10 +5,9 @@ import { useWikiStore } from "@/stores/useWikiStore";
 import type { WikiDto } from "@/types/wiki";
 
 const mockUseWikis = vi.hoisted(() => vi.fn());
+const mockUseWikiPendingCounts = vi.hoisted(() => vi.fn());
 const mockOnOpenChange = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockUseQueries = vi.hoisted(() => vi.fn());
-const mockListProposals = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikis", async () => {
   const actual =
@@ -18,18 +17,9 @@ vi.mock("@/hooks/useWikis", async () => {
   return {
     ...actual,
     useWikis: () => mockUseWikis(),
+    useWikiPendingCounts: () => mockUseWikiPendingCounts(),
   };
 });
-
-vi.mock("@/services/api/wikis", () => ({
-  wikisApi: {
-    listProposals: (...args: unknown[]) => mockListProposals(...args),
-  },
-}));
-
-vi.mock("@tanstack/react-query", () => ({
-  useQueries: (args: unknown) => mockUseQueries(args),
-}));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -78,45 +68,48 @@ function buildWiki(overrides: Partial<WikiDto> = {}): WikiDto {
 }
 
 /**
- * Shortcut for the common "no pending proposals across N wikis" case —
- * returns one `{ data: [] }` result per wiki.
+ * Default-zero helper for the aggregated pending-counts hook. Tests
+ * override via `mockUseWikiPendingCounts.mockReturnValue(...)` when a
+ * non-zero badge is needed.
  */
-function queriesWithCounts(counts: number[]) {
-  return counts.map((n) => ({
-    data: Array.from({ length: n }, (_, i) => ({ id: `p-${i}` })),
-  }));
+function pendingCounts(counts: Record<string, number>) {
+  return {
+    data: { counts },
+    isLoading: false,
+    isError: false,
+  };
 }
 
 describe("WikiSubSidebar", () => {
   beforeEach(() => {
     mockUseWikis.mockReset();
+    mockUseWikiPendingCounts.mockReset();
     mockOnOpenChange.mockReset();
     mockNavigate.mockReset();
-    mockUseQueries.mockReset();
-    mockListProposals.mockReset();
     useWikiStore.getState().reset();
-    // Default: zero proposals so the badge stays hidden unless the test
-    // overrides it.
-    mockUseQueries.mockReturnValue([]);
+    // Default: hook returns no counts data so the badge stays hidden unless
+    // the test explicitly opts in via `mockUseWikiPendingCounts`.
+    mockUseWikiPendingCounts.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
   });
 
   it("shows a loading placeholder while the wiki list is fetching", () => {
     mockUseWikis.mockReturnValue({ data: undefined, isLoading: true });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
     expect(screen.getByText(/Loading…/)).toBeInTheDocument();
   });
 
   it("shows the empty state when there are no wikis", () => {
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
     expect(screen.getByText(/No wikis yet/)).toBeInTheDocument();
   });
 
   it("shows the empty state when the response is undefined after loading", () => {
     mockUseWikis.mockReturnValue({ data: undefined, isLoading: false });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
     expect(screen.getByText(/No wikis yet/)).toBeInTheDocument();
   });
@@ -129,7 +122,9 @@ describe("WikiSubSidebar", () => {
       ],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([0, 0]));
+    mockUseWikiPendingCounts.mockReturnValue(
+      pendingCounts({ "wiki-1": 0, "wiki-2": 0 }),
+    );
 
     render(<WikiSubSidebar />);
 
@@ -141,7 +136,6 @@ describe("WikiSubSidebar", () => {
 
   it("opens the CreateWikiDialog when the + button is clicked", () => {
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
 
     expect(screen.getByTestId("create-wiki-dialog")).toHaveAttribute(
@@ -160,7 +154,6 @@ describe("WikiSubSidebar", () => {
 
   it("forwards onOpenChange so the dialog can close itself", () => {
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
 
     const plusButton = screen.getByRole("button", { name: /create wiki/i });
@@ -181,7 +174,6 @@ describe("WikiSubSidebar", () => {
 
   it("renders the Wiki label from the navigation i18n namespace", () => {
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
     expect(
       screen.getByRole("heading", { name: /Library/ }),
@@ -192,7 +184,6 @@ describe("WikiSubSidebar", () => {
 
   it("hides the Review icon entirely when the user has no wikis", () => {
     mockUseWikis.mockReturnValue({ data: [], isLoading: false });
-    mockUseQueries.mockReturnValue([]);
     render(<WikiSubSidebar />);
     expect(screen.queryByTestId("wiki-sub-sidebar-review")).toBeNull();
   });
@@ -202,17 +193,17 @@ describe("WikiSubSidebar", () => {
       data: [buildWiki()],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([0]));
+    mockUseWikiPendingCounts.mockReturnValue(pendingCounts({ "wiki-1": 0 }));
     render(<WikiSubSidebar />);
     expect(screen.getByTestId("wiki-sub-sidebar-review")).toBeInTheDocument();
   });
 
-  it("omits the badge when there are zero pending proposals", () => {
+  it("omits the badge when every count is zero", () => {
     mockUseWikis.mockReturnValue({
       data: [buildWiki({ id: "w1" }), buildWiki({ id: "w2", slug: "w2" })],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([0, 0]));
+    mockUseWikiPendingCounts.mockReturnValue(pendingCounts({ w1: 0, w2: 0 }));
 
     render(<WikiSubSidebar />);
     const reviewBtn = screen.getByTestId("wiki-sub-sidebar-review");
@@ -221,7 +212,7 @@ describe("WikiSubSidebar", () => {
     expect(reviewBtn.textContent).not.toMatch(/\d/);
   });
 
-  it("aggregates the pending-proposal counts across wikis into the badge", () => {
+  it("sums the aggregated per-wiki counts into the badge", () => {
     mockUseWikis.mockReturnValue({
       data: [
         buildWiki({ id: "w1", slug: "w1" }),
@@ -230,59 +221,31 @@ describe("WikiSubSidebar", () => {
       ],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([2, 0, 5]));
+    mockUseWikiPendingCounts.mockReturnValue(
+      pendingCounts({ w1: 2, w2: 0, w3: 5 }),
+    );
 
     render(<WikiSubSidebar />);
     const reviewBtn = screen.getByTestId("wiki-sub-sidebar-review");
     expect(reviewBtn).toHaveTextContent("7");
   });
 
-  it("wires useQueries with one query per wiki using the pending status", () => {
-    const wikis = [
-      buildWiki({ id: "w1", slug: "w1" }),
-      buildWiki({ id: "w2", slug: "w2" }),
-    ];
-    mockUseWikis.mockReturnValue({ data: wikis, isLoading: false });
-    mockUseQueries.mockReturnValue(queriesWithCounts([0, 0]));
-
-    render(<WikiSubSidebar />);
-
-    expect(mockUseQueries).toHaveBeenCalledTimes(1);
-    const arg = mockUseQueries.mock.calls[0]![0] as {
-      queries: Array<{ queryKey: readonly unknown[]; enabled: boolean }>;
-    };
-    expect(arg.queries).toHaveLength(2);
-    expect(arg.queries[0].queryKey).toEqual([
-      "wikis",
-      "w1",
-      "proposals",
-      "pending",
-    ]);
-    expect(arg.queries[1].queryKey).toEqual([
-      "wikis",
-      "w2",
-      "proposals",
-      "pending",
-    ]);
-    expect(arg.queries[0].enabled).toBe(true);
-  });
-
-  it("invokes wikisApi.listProposals when useQueries fires the queryFn", () => {
+  it("treats missing pending-counts data as zero (still loading)", () => {
     mockUseWikis.mockReturnValue({
-      data: [buildWiki({ id: "wiki-x" })],
+      data: [buildWiki({ id: "w1", slug: "w1" })],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([0]));
+    // Hook hasn't resolved yet → data is undefined; the badge must fall
+    // back to 0 rather than crashing on the optional chain.
+    mockUseWikiPendingCounts.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    });
 
     render(<WikiSubSidebar />);
-
-    // Pull the queryFn out of the configuration and execute it to prove
-    // it wires through to the API layer.
-    const arg = mockUseQueries.mock.calls[0]![0] as {
-      queries: Array<{ queryFn: () => unknown }>;
-    };
-    arg.queries[0].queryFn();
-    expect(mockListProposals).toHaveBeenCalledWith("wiki-x", "pending");
+    const reviewBtn = screen.getByTestId("wiki-sub-sidebar-review");
+    expect(reviewBtn.textContent).not.toMatch(/\d/);
   });
 
   it("navigates to the first wiki's review route when none is selected", () => {
@@ -290,7 +253,7 @@ describe("WikiSubSidebar", () => {
       data: [buildWiki({ id: "w1", slug: "first" })],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([1]));
+    mockUseWikiPendingCounts.mockReturnValue(pendingCounts({ w1: 1 }));
 
     render(<WikiSubSidebar />);
     fireEvent.click(screen.getByTestId("wiki-sub-sidebar-review"));
@@ -299,28 +262,6 @@ describe("WikiSubSidebar", () => {
       to: "/wiki/$wikiSlug/-/review",
       params: { wikiSlug: "first" },
     });
-  });
-
-  it("counts undefined proposal queries as zero (data not loaded yet)", () => {
-    mockUseWikis.mockReturnValue({
-      data: [
-        buildWiki({ id: "w1", slug: "w1" }),
-        buildWiki({ id: "w2", slug: "w2" }),
-      ],
-      isLoading: false,
-    });
-    // Two sibling queries — one resolved with 3 items, one still loading
-    // (data: undefined). The badge must treat the pending one as 0 rather
-    // than crashing on the optional chain.
-    mockUseQueries.mockReturnValue([
-      { data: [{ id: "a" }, { id: "b" }, { id: "c" }] },
-      { data: undefined },
-    ]);
-
-    render(<WikiSubSidebar />);
-    expect(screen.getByTestId("wiki-sub-sidebar-review")).toHaveTextContent(
-      "3",
-    );
   });
 
   it("prefers the currently-selected wiki's slug for the review target", () => {
@@ -332,7 +273,7 @@ describe("WikiSubSidebar", () => {
       ],
       isLoading: false,
     });
-    mockUseQueries.mockReturnValue(queriesWithCounts([0, 3]));
+    mockUseWikiPendingCounts.mockReturnValue(pendingCounts({ w1: 0, w2: 3 }));
 
     render(<WikiSubSidebar />);
     fireEvent.click(screen.getByTestId("wiki-sub-sidebar-review"));

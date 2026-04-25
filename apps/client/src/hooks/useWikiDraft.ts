@@ -39,9 +39,9 @@ export function buildDraftKey(
   wikiId: string,
   path: string,
 ): string {
-  // UTF-8 safe base64 — `unescape(encodeURIComponent(x))` produces a binary
-  // string btoa can safely consume for non-ASCII paths.
-  const pathB64 = btoa(unescape(encodeURIComponent(path)));
+  // UTF-8 safe base64 via TextEncoder (replaces deprecated unescape() pattern).
+  // Produces identical output for ASCII paths; correct bytes for multi-byte chars.
+  const pathB64 = btoa(String.fromCharCode(...new TextEncoder().encode(path)));
   return `team9.wiki.draft.${workspaceId}.${wikiId}.${pathB64}.${userId}`;
 }
 

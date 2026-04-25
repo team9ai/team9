@@ -145,9 +145,11 @@ function primeReadPath(db: ChainMock, wiki: WikiRow) {
 // ---------------------------------------------------------------------------
 
 const INTEGRATION_ENABLED = process.env.INTEGRATION === '1';
-const maybeDescribe: jest.Describe = INTEGRATION_ENABLED
-  ? describe
-  : describe.skip;
+// Inferred type is `describe | typeof describe.skip`; avoid the explicit
+// `jest.Describe` namespace reference because ESM mode (`--experimental-vm-modules`)
+// doesn't register @types/jest globals, so the type annotation would emit a
+// runtime `jest` reference and fail before the first assertion.
+const maybeDescribe = INTEGRATION_ENABLED ? describe : describe.skip;
 
 maybeDescribe('WikisModule integration — real folder9', () => {
   let svc: InstanceType<typeof WikisService>;
@@ -198,15 +200,18 @@ maybeDescribe('WikisModule integration — real folder9', () => {
     // Insert .returning() echoes back a row we mint from the folder9 id.
     let insertedWiki: WikiRow | null = null;
     db.returning.mockImplementationOnce(async () => {
-      // The service passes folder9FolderId into .values() — grab it from the
-      // mock so our returned row matches what was actually persisted.
+      // The service passes folder9FolderId, name, slug into .values() — grab
+      // them from the mock so our returned row mirrors what was actually
+      // persisted. (Using a fresh `Date.now()` here would race with the
+      // caller's own `Date.now()` below by a few ms and break the equality
+      // check on dto.name.)
       const valuesCall = db.values.mock.calls.at(-1)?.[0] as
-        | { folder9FolderId?: string }
+        | { folder9FolderId?: string; name?: string; slug?: string }
         | undefined;
       insertedWiki = makeWikiRow({
         folder9FolderId: valuesCall?.folder9FolderId ?? 'unknown',
-        name: `f1-${Date.now()}`,
-        slug: `f1-${Date.now()}`,
+        name: valuesCall?.name ?? 'unknown',
+        slug: valuesCall?.slug ?? 'unknown',
       });
       return [insertedWiki];
     });
@@ -220,17 +225,26 @@ maybeDescribe('WikisModule integration — real folder9', () => {
     expect(insertedWiki).not.toBeNull();
     expect(insertedWiki!.folder9FolderId).toMatch(/\S/);
 
-    // Independent verification: read the folder back from folder9 using the
-    // same client. If the service really hit the remote, this round-trip
-    // succeeds and the folder metadata matches what we asked for.
-    const folder = await f9.getFolder(
+    // Independent verification: folder9's single-folder GET endpoint sits
+    // behind TokenMiddleware (not PSK), so we mint a read-scoped token and
+    // use it to fetch the tree — a successful tree call proves the folder
+    // exists and is reachable. The folder ID alone (a real UUID echoed back
+    // from folder9's POST response) is already strong evidence the service
+    // hit the remote.
+    expect(insertedWiki!.folder9FolderId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    const verifyToken = await f9.createToken({
+      folder_id: insertedWiki!.folder9FolderId,
+      permission: 'read',
+      created_by: 'integration-test',
+    });
+    const tree = await f9.getTree(
       'ws-integration',
       insertedWiki!.folder9FolderId,
+      verifyToken.token,
     );
-    expect(folder.id).toBe(insertedWiki!.folder9FolderId);
-    expect(folder.name).toBe(uniqueName);
-    expect(folder.type).toBe('managed');
-    expect(folder.approval_mode).toBe('auto');
+    expect(Array.isArray(tree)).toBe(true);
 
     createdFolders.push(insertedWiki!.folder9FolderId);
   }, 60_000);

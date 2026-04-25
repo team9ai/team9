@@ -35,6 +35,11 @@ export const wikiKeys = {
    */
   proposalDiff: (id: string, proposalId: string) =>
     ["wikis", id, "proposals", "diff", proposalId] as const,
+  /**
+   * Aggregated pending-proposal counts across every wiki in the active
+   * workspace. Flat (no id) — one cache entry per workspace.
+   */
+  pendingCounts: () => ["wikis", "pending-counts"] as const,
 };
 
 export function useWikis() {
@@ -72,5 +77,20 @@ export function useArchiveWiki() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: wikiKeys.all });
     },
+  });
+}
+
+/**
+ * Aggregated pending-proposal counts across every wiki in the active
+ * workspace. One HTTP round-trip instead of N (where N = number of wikis).
+ * Sum the values for the workspace-wide badge; look up per-wiki values by
+ * `wikiId` for per-row badges. `refetchOnWindowFocus` stays on so a user
+ * returning to the tab sees fresh counts without an explicit invalidate.
+ */
+export function useWikiPendingCounts() {
+  return useQuery({
+    queryKey: wikiKeys.pendingCounts(),
+    queryFn: () => wikisApi.getPendingCounts(),
+    refetchOnWindowFocus: true,
   });
 }

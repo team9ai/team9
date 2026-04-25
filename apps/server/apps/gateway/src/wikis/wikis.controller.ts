@@ -118,6 +118,24 @@ export class WikisController {
     return this.wikis.listWikis(ws);
   }
 
+  /**
+   * Aggregated pending-proposal counts per Wiki in the workspace. Replaces
+   * an N+1 fan-out from the sub-sidebar (one `/proposals?status=pending`
+   * per wiki) with a single server-side aggregation. Declared BEFORE the
+   * `:wikiId` dynamic routes so `pending-counts` is never mis-matched as
+   * a wiki id.
+   */
+  @Get('pending-counts')
+  async getPendingCounts(
+    @CurrentTenantId() workspaceId: string | undefined,
+    @CurrentUser('sub') userId: string,
+  ) {
+    const ws = this.requireWorkspaceId(workspaceId);
+    const user = await this.actingUser(userId);
+    const counts = await this.wikis.getPendingProposalCounts(ws, user);
+    return { counts };
+  }
+
   @Post()
   async create(
     @CurrentTenantId() workspaceId: string | undefined,

@@ -131,6 +131,11 @@ describe("useApproveProposal", () => {
     expect(spy).toHaveBeenCalledWith({
       queryKey: wikiKeys.proposals("wiki-1"),
     });
+    // Aggregated sub-sidebar badge must refresh so the approved proposal
+    // stops contributing to the workspace total.
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
+    });
   });
 });
 
@@ -167,6 +172,9 @@ describe("useRejectProposal", () => {
     );
     expect(spy).toHaveBeenCalledWith({
       queryKey: wikiKeys.proposals("wiki-1"),
+    });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
     });
   });
 

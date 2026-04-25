@@ -81,6 +81,14 @@ describe("wikisApi", () => {
     expect(result).toEqual([fakeWiki]);
   });
 
+  it("getPendingCounts() GETs the aggregation endpoint and unwraps data", async () => {
+    const payload = { counts: { "wiki-1": 2, "wiki-2": 0 } };
+    mockHttp.get.mockResolvedValueOnce({ data: payload });
+    const result = await wikisApi.getPendingCounts();
+    expect(mockHttp.get).toHaveBeenCalledWith("/v1/wikis/pending-counts");
+    expect(result).toEqual(payload);
+  });
+
   it("create() POSTs to /v1/wikis", async () => {
     mockHttp.post.mockResolvedValueOnce({ data: fakeWiki });
     const dto = { name: "Handbook", slug: "handbook" };

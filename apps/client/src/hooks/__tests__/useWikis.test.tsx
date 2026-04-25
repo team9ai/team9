@@ -16,6 +16,7 @@ const mockWikisApi = vi.hoisted(() => ({
   listProposals: vi.fn(),
   approveProposal: vi.fn(),
   rejectProposal: vi.fn(),
+  getPendingCounts: vi.fn(),
 }));
 
 vi.mock("@/services/api/wikis", () => ({
@@ -26,6 +27,7 @@ import {
   useArchiveWiki,
   useCreateWiki,
   useUpdateWiki,
+  useWikiPendingCounts,
   useWikis,
   wikiKeys,
 } from "../useWikis";
@@ -96,6 +98,7 @@ describe("useWikis hooks", () => {
       "proposals",
       "pending",
     ]);
+    expect(wikiKeys.pendingCounts()).toEqual(["wikis", "pending-counts"]);
   });
 
   it("useWikis fetches and returns the list", async () => {
@@ -154,5 +157,27 @@ describe("useWikis hooks", () => {
 
     expect(mockWikisApi.archive).toHaveBeenCalledWith("wiki-1");
     expect(spy).toHaveBeenCalledWith({ queryKey: wikiKeys.all });
+  });
+
+  describe("useWikiPendingCounts", () => {
+    it("fetches and returns the aggregated counts envelope", async () => {
+      const payload = { counts: { "wiki-1": 2, "wiki-2": 0 } };
+      mockWikisApi.getPendingCounts.mockResolvedValue(payload);
+
+      const { result } = renderHook(() => useWikiPendingCounts(), {
+        wrapper: wrapper(),
+      });
+      await waitFor(() => expect(result.current.data).toEqual(payload));
+      expect(mockWikisApi.getPendingCounts).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns undefined data while the request is pending and surfaces errors", async () => {
+      mockWikisApi.getPendingCounts.mockRejectedValueOnce(new Error("boom"));
+      const { result } = renderHook(() => useWikiPendingCounts(), {
+        wrapper: wrapper(),
+      });
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.data).toBeUndefined();
+    });
   });
 });

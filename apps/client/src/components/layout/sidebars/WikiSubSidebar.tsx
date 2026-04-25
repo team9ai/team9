@@ -2,17 +2,14 @@ import { useState } from "react";
 import { Library, MessageSquareText, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueries } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { NotificationBadge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { useWikis, wikiKeys } from "@/hooks/useWikis";
+import { useWikis, useWikiPendingCounts } from "@/hooks/useWikis";
 import { useSelectedWikiId } from "@/stores/useWikiStore";
-import { wikisApi } from "@/services/api/wikis";
 import { WikiListItem } from "@/components/wiki/WikiListItem";
 import { CreateWikiDialog } from "@/components/wiki/CreateWikiDialog";
-import type { ProposalDto, WikiDto } from "@/types/wiki";
 
 /**
  * Sub-sidebar for the Wiki tab. Renders a list of the user's wikis and
@@ -32,26 +29,14 @@ export function WikiSubSidebar() {
   const navigate = useNavigate();
   const selectedWikiId = useSelectedWikiId();
 
-  // Aggregate the pending-proposal count across every wiki the user can
-  // see. `useQueries` is the idiomatic React Query pattern for a variable-
-  // length batch of sibling queries — hook rules permit it because the
-  // hook itself is called unconditionally with a queries array whose
-  // *contents* vary. Each sub-query shares the same key factory as the
-  // dedicated `useWikiProposals` hook, so invalidations from approve /
-  // reject mutations flush the badge instantly.
-  const proposalQueries = useQueries({
-    queries: (wikis ?? []).map((w: WikiDto) => ({
-      queryKey: wikiKeys.proposals(w.id, "pending"),
-      queryFn: () => wikisApi.listProposals(w.id, "pending"),
-      // Re-fetch when the tab/window regains focus so a reviewer who just
-      // saw a proposal land on the main pane sees the badge update.
-      refetchOnWindowFocus: true,
-      enabled: !!w.id,
-    })),
-  });
-
-  const totalPending = proposalQueries.reduce(
-    (sum, q) => sum + ((q.data as ProposalDto[] | undefined)?.length ?? 0),
+  // Single aggregation request instead of N (N = number of wikis). The
+  // gateway sums pending-proposal counts server-side and the hook keeps
+  // `refetchOnWindowFocus` so a reviewer returning to the tab sees the
+  // badge refresh. Approve / reject mutations + WebSocket events
+  // invalidate `wikiKeys.pendingCounts()` so the badge stays fresh.
+  const { data: pendingCounts } = useWikiPendingCounts();
+  const totalPending = Object.values(pendingCounts?.counts ?? {}).reduce(
+    (sum, n) => sum + n,
     0,
   );
 
