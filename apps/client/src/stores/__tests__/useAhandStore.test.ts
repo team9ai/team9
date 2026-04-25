@@ -61,9 +61,9 @@ describe("useAhandStore", () => {
     expect(useAhandStore.getState().getDeviceIdForUser("u1")).toBe("dev-abc");
   });
 
-  it("returns null when enabled=false even if deviceId is set", () => {
+  it("returns the stored deviceId regardless of enabled (UI tracks 'this Mac' even when toggled off)", () => {
     useAhandStore.getState().setDeviceIdForUser("u1", "dev-abc", false);
-    expect(useAhandStore.getState().getDeviceIdForUser("u1")).toBeNull();
+    expect(useAhandStore.getState().getDeviceIdForUser("u1")).toBe("dev-abc");
   });
 
   it("returns null for unknown user", () => {

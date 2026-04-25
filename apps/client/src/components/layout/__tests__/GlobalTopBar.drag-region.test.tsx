@@ -95,11 +95,15 @@ describe("GlobalTopBar drag regions", () => {
       null,
     );
     expect(container.querySelectorAll("[data-tauri-drag-region]").length).toBe(
-      5,
+      6,
     );
-    expect(screen.getByRole("button")).not.toHaveAttribute(
-      "data-tauri-drag-region",
-    );
+    // Interactive elements (buttons, text inputs) must NEVER carry the
+    // drag-region attribute or Tauri swallows the click. Iterate over every
+    // such element rather than asserting against a single match — the
+    // top-bar contains multiple buttons (search trigger, user menu, etc.).
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).not.toHaveAttribute("data-tauri-drag-region");
+    }
     expect(screen.getByRole("textbox")).not.toHaveAttribute(
       "data-tauri-drag-region",
     );
