@@ -26,7 +26,7 @@ vi.mock("@/components/wiki/ReviewPanel", () => ({
   ),
 }));
 
-import { Route as WikiReviewRoute } from "../$wikiSlug.dash-review";
+import { Route as WikiReviewRoute } from "../$wikiSlug.-.review";
 import { useWikiStore } from "@/stores/useWikiStore";
 
 function renderRouteComponent(route: unknown) {

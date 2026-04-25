@@ -13,6 +13,12 @@ export default defineConfig(async () => ({
   plugins: [
     tanstackRouter({
       autoCodeSplitting: true,
+      // Ignore co-located test files inside `__tests__/` folders. Without this,
+      // the plugin scans `*.test.tsx` looking for `createFileRoute` calls,
+      // can't find them, and (worse) "auto-corrects" the path string in
+      // sibling route files to match filenames — silently undoing
+      // `/-/review` overrides on every dev/build cycle.
+      routeFileIgnorePattern: "\\.test\\.|__tests__",
     }),
     react(),
     tailwindcss(),

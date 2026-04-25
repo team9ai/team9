@@ -29,7 +29,7 @@ vi.mock("@/components/wiki/ProposalDiffView", () => ({
   ),
 }));
 
-import { Route as WikiReviewDetailRoute } from "../$wikiSlug.dash-review.$proposalId";
+import { Route as WikiReviewDetailRoute } from "../$wikiSlug.-.review.$proposalId";
 import { useWikiStore } from "@/stores/useWikiStore";
 
 function renderRouteComponent(route: unknown) {
