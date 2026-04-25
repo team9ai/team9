@@ -5373,7 +5373,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "team9-client"
+name = "team9"
 version = "0.1.0"
 dependencies = [
  "ahandd",
