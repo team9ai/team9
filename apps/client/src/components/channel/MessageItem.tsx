@@ -270,13 +270,18 @@ export function MessageItem({
 
   const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
   const hasReactions = message.reactions && message.reactions.length > 0;
-  const propertiesAvailable =
+  // Hover-toolbar Tags button is the entry point for creating the first
+  // property too, so it must show even before any definitions exist.
+  const propertiesAvailable = supportsProperties;
+  // The reaction-row "+" is a quick add-value shortcut that only makes sense
+  // once the channel already has at least one definition — otherwise it would
+  // duplicate the hover toolbar's create-first-property entry and confuse the
+  // visual contract (a "+" next to chips suggests "add value", not "design
+  // schema"). Keep it gated on having definitions.
+  const propertiesHaveDefs =
     supportsProperties && (propertyDefinitions?.length ?? 0) > 0;
-  // "+" next to reactions appears only when the message has reactions but
-  // no property values yet — it's the empty-state add affordance that lives
-  // beside the reaction chips instead of cluttering an otherwise empty row.
   const showReactionInlineAdd =
-    !!hasReactions && propertiesAvailable && !hasAnyPropertyValue;
+    !!hasReactions && propertiesHaveDefs && !hasAnyPropertyValue;
 
   // Toggle reaction: remove if already reacted, add if not
   const handleReactionToggle = (emoji: string) => {
