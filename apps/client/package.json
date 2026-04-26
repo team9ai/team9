@@ -22,7 +22,7 @@
     "lint:ci": "eslint src vite.config.ts vitest.config.ts",
     "test": "node ./scripts/vitest-run.mjs",
     "test:cov": "node ./scripts/vitest-run.mjs --coverage",
-    "test:watch": "vitest",
+    "test:watch": "node ./scripts/vitest-run.mjs --watch",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install --with-deps chromium",
     "clean": "rm -rf node_modules dist"

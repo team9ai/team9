@@ -440,7 +440,7 @@ export function MainSidebar() {
           <TooltipContent side="right">
             <p>{tAhand("myDevices")}</p>
             <p className="text-xs text-muted-foreground">
-              {deriveSidebarStatusLabel(localStatus, ahandDevices, tAhand)}
+              {tAhand(deriveSidebarStatusLabelKey(localStatus, ahandDevices))}
             </p>
           </TooltipContent>
         </Tooltip>
@@ -677,26 +677,34 @@ function deriveSidebarBadgeIcon(
     : { icon: Ban, className };
 }
 
-function deriveSidebarStatusLabel(
+type SidebarStatusLabelKey =
+  | "statusAnyOnline"
+  | "statusNoneOnline"
+  | "online"
+  | "connecting"
+  | "error.header"
+  | "offline"
+  | "disabled";
+
+function deriveSidebarStatusLabelKey(
   local: ReturnType<typeof useAhandLocalStatus>,
   devices: ReturnType<typeof useAhandDevices>["data"],
-  t: (k: string) => string,
-): string {
+): SidebarStatusLabelKey {
   if (local?.state === "web" || !local) {
     return (devices ?? []).some((d) => d.isOnline)
-      ? t("statusAnyOnline")
-      : t("statusNoneOnline");
+      ? "statusAnyOnline"
+      : "statusNoneOnline";
   }
   switch (local.state) {
     case "online":
-      return t("online");
+      return "online";
     case "connecting":
-      return t("connecting");
+      return "connecting";
     case "error":
-      return t("error.header");
+      return "error.header";
     case "offline":
-      return t("offline");
+      return "offline";
     default:
-      return t("disabled");
+      return "disabled";
   }
 }

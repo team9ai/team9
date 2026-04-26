@@ -29,7 +29,7 @@ export function ThisMacSection() {
   const deviceId = userId ? store.getDeviceIdForUser(userId) : null;
 
   const statusColor = deriveStatusColor(status, enabled);
-  const statusLabel = deriveStatusLabel(status, enabled, t);
+  const statusLabel = t(deriveStatusLabelKey(status, enabled));
 
   const handleToggle = useCallback(
     async (next: boolean) => {
@@ -149,23 +149,30 @@ function deriveStatusColor(status: LocalStatus, enabled: boolean): string {
   }
 }
 
-function deriveStatusLabel(
+type StatusLabelKey =
+  | "disabled"
+  | "online"
+  | "connecting"
+  | "error.header"
+  | "offline"
+  | "notConnected";
+
+function deriveStatusLabelKey(
   status: LocalStatus,
   enabled: boolean,
-  t: (key: string) => string,
-): string {
-  if (!enabled) return t("disabled");
+): StatusLabelKey {
+  if (!enabled) return "disabled";
   switch (status.state) {
     case "online":
-      return t("online");
+      return "online";
     case "connecting":
-      return t("connecting");
+      return "connecting";
     case "error":
-      return t("error.header");
+      return "error.header";
     case "offline":
-      return t("offline");
+      return "offline";
     default:
-      return t("notConnected");
+      return "notConnected";
   }
 }
 

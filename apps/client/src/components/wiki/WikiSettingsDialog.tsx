@@ -55,17 +55,19 @@ const SLUG_MAX_LENGTH = 100;
 
 const PERMISSION_LEVELS: WikiPermissionLevel[] = ["read", "propose", "write"];
 
-function permissionLabel(
-  level: WikiPermissionLevel,
-  t: (key: string) => string,
-): string {
+type PermissionLabelKey =
+  | "settings.permissionRead"
+  | "settings.permissionPropose"
+  | "settings.permissionWrite";
+
+function permissionLabelKey(level: WikiPermissionLevel): PermissionLabelKey {
   switch (level) {
     case "read":
-      return t("settings.permissionRead");
+      return "settings.permissionRead";
     case "propose":
-      return t("settings.permissionPropose");
+      return "settings.permissionPropose";
     case "write":
-      return t("settings.permissionWrite");
+      return "settings.permissionWrite";
   }
 }
 
@@ -406,7 +408,7 @@ export function WikiSettingsDialog({
                           value={level}
                           data-testid={`wiki-settings-human-${level}`}
                         >
-                          {permissionLabel(level, t)}
+                          {t(permissionLabelKey(level))}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -436,7 +438,7 @@ export function WikiSettingsDialog({
                           value={level}
                           data-testid={`wiki-settings-agent-${level}`}
                         >
-                          {permissionLabel(level, t)}
+                          {t(permissionLabelKey(level))}
                         </SelectItem>
                       ))}
                     </SelectContent>
