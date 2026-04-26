@@ -31,7 +31,7 @@
     {
       "id": 4,
       "subject": "Task 5: RoutineRunsTab",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** Implement the Runs tab — full execution list, 20-at-a-time progressive display, polling enabled while active, click-to-navigate.\n\n**Files:**\n- Create: apps/client/src/components/routines/tabs/RoutineRunsTab.tsx\n- Create: apps/client/src/components/routines/tabs/__tests__/RoutineRunsTab.test.tsx\n- Modify: apps/client/src/components/routines/RoutineDetailView.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/tabs/__tests__/RoutineRunsTab\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/tabs/RoutineRunsTab.tsx\", \"apps/client/src/components/routines/tabs/__tests__/RoutineRunsTab.test.tsx\", \"apps/client/src/components/routines/RoutineDetailView.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/tabs/__tests__/RoutineRunsTab\", \"acceptanceCriteria\": [\"First 20 executions visible by default\", \"'Show 20 more' appends next 20 on click\", \"'Show 20 more' hides when all visible\", \"Polling enabled only when active prop is true\", \"Click row navigates to run URL\", \"Empty state when 0 executions\"]}\n```"
     },
