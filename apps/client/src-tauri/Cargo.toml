@@ -43,8 +43,9 @@ base64 = "0.22"
 sha2 = "0.10"
 hex = "0.4"
 
-# ahand library embedding — pinned to aHand dev HEAD (post-Stream-A merge)
-ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "94c4c0af931f6b58750150281acdc4f61b3c65f5" }
+# ahand library embedding — pinned to aHand dev HEAD with WS Ping/Pong
+# zombie-detect fix.
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "1adb5d4b3ac31cbe8128d8bb8d8c515cc0ced622" }
 
 [dev-dependencies]
 tempfile = "3"
