@@ -163,50 +163,12 @@ describe("RoutinesSidebar", () => {
     expect(screen.getByText("Done task")).toBeInTheDocument();
   });
 
-  it("clicking a non-draft routine card navigates to active or first execution", async () => {
+  it("navigates to detail page on non-draft routine click", async () => {
     mockList.mockResolvedValue([
       {
         id: "r1",
-        title: "Has runs",
+        title: "First",
         status: "in_progress",
-        createdAt: new Date().toISOString(),
-        botId: null,
-        tokenUsage: 0,
-        creationChannelId: null,
-      },
-    ]);
-    mockGetExecutions.mockResolvedValue([
-      {
-        id: "exec-old",
-        status: "completed",
-      },
-      {
-        id: "exec-active",
-        status: "in_progress",
-      },
-    ]);
-
-    renderSidebar({ selectedRoutineId: "r1", selectedExecutionId: null });
-
-    const card = await screen.findByText("Has runs");
-    // wait for executions query to settle so onOpenRoutine sees them
-    await waitFor(() => expect(mockGetExecutions).toHaveBeenCalledWith("r1"));
-    fireEvent.click(card);
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({
-        to: "/routines/$routineId/runs/$executionId",
-        params: { routineId: "r1", executionId: "exec-active" },
-      });
-    });
-  });
-
-  it("clicking a non-draft routine with no executions only toggles expand (no navigate)", async () => {
-    mockList.mockResolvedValue([
-      {
-        id: "r-empty",
-        title: "Empty",
-        status: "upcoming",
         createdAt: new Date().toISOString(),
         botId: null,
         tokenUsage: 0,
@@ -217,12 +179,44 @@ describe("RoutinesSidebar", () => {
 
     renderSidebar({ selectedRoutineId: null, selectedExecutionId: null });
 
-    const card = await screen.findByText("Empty");
+    const card = await screen.findByText("First");
     fireEvent.click(card);
 
-    // Wait a microtask cycle; navigation must not happen because there is no
-    // active or recent execution to land on.
-    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/routines/$routineId",
+        params: { routineId: "r1" },
+      });
+    });
+  });
+
+  it("clicking the chevron toggles expansion only — no navigate", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r1",
+        title: "First",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    const { container } = renderSidebar({
+      selectedRoutineId: null,
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("First");
+    // The translation mock returns the key when no fallback is provided in
+    // t() — RoutineCard uses bare-key form `t("detail.toggleExpand")`.
+    const chevron = container.querySelector(
+      '[aria-label="detail.toggleExpand"]',
+    ) as HTMLButtonElement;
+    expect(chevron).not.toBeNull();
+    fireEvent.click(chevron);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
@@ -256,6 +250,166 @@ describe("RoutinesSidebar", () => {
         search: { tab: "overview" },
       });
     });
+  });
+
+  it("expanded card filters to active runs only and hides terminal runs", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-mix",
+        title: "Mix",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([
+      { id: "exec-active", status: "in_progress" },
+      { id: "exec-paused", status: "paused" },
+      { id: "exec-pending", status: "pending_action" },
+      { id: "exec-completed", status: "completed" },
+      { id: "exec-failed", status: "failed" },
+      { id: "exec-stopped", status: "stopped" },
+    ]);
+
+    // selectedRoutineId triggers auto-expand, which fires the executions query.
+    renderSidebar({
+      selectedRoutineId: "r-mix",
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("Mix");
+    await waitFor(() =>
+      expect(mockGetExecutions).toHaveBeenCalledWith("r-mix"),
+    );
+
+    // Active runs visible.
+    await waitFor(() => {
+      expect(screen.getByTestId("run-item-exec-active")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("run-item-exec-paused")).toBeInTheDocument();
+    expect(screen.getByTestId("run-item-exec-pending")).toBeInTheDocument();
+
+    // Terminal runs hidden — they live on the detail page's Runs tab.
+    expect(
+      screen.queryByTestId("run-item-exec-completed"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("run-item-exec-failed"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("run-item-exec-stopped"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expanded card with no active runs and not a draft renders no placeholder", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-done",
+        title: "All done",
+        status: "completed",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([
+      { id: "exec-1", status: "completed" },
+      { id: "exec-2", status: "failed" },
+    ]);
+
+    renderSidebar({
+      selectedRoutineId: "r-done",
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("All done");
+    await waitFor(() =>
+      expect(mockGetExecutions).toHaveBeenCalledWith("r-done"),
+    );
+
+    // No "no runs yet" placeholder, no terminal runs in the sidebar.
+    expect(screen.queryByText("No runs yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("historyTab.empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-item-exec-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-item-exec-2")).not.toBeInTheDocument();
+  });
+
+  it("Show more button is gone — terminal runs never offer pagination", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-many",
+        title: "Many runs",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    // Six terminal runs would have triggered the legacy "Show 3 more" button
+    // (DEFAULT_VISIBLE_RUNS = 3). With active-only filtering they are all
+    // hidden and pagination is moot.
+    mockGetExecutions.mockResolvedValue([
+      { id: "e1", status: "completed" },
+      { id: "e2", status: "completed" },
+      { id: "e3", status: "completed" },
+      { id: "e4", status: "completed" },
+      { id: "e5", status: "completed" },
+      { id: "e6", status: "completed" },
+    ]);
+
+    renderSidebar({
+      selectedRoutineId: "r-many",
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("Many runs");
+    await waitFor(() =>
+      expect(mockGetExecutions).toHaveBeenCalledWith("r-many"),
+    );
+
+    // Neither the i18n key nor any fallback rendering of "Show more" should
+    // appear — the button is removed entirely.
+    expect(
+      screen.queryByText(/showMore|Show \d+ more|earlier runs/i),
+    ).toBeNull();
+  });
+
+  it("chevron click does not bubble to header (stopPropagation)", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r1",
+        title: "First",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    const { container } = renderSidebar({
+      selectedRoutineId: null,
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("First");
+    // The translation mock returns the key when no fallback is provided in
+    // t() — RoutineCard uses bare-key form `t("detail.toggleExpand")`.
+    const chevron = container.querySelector(
+      '[aria-label="detail.toggleExpand"]',
+    ) as HTMLButtonElement;
+    // Use bubbles:true so we can verify stopPropagation actually prevents
+    // the body click handler from firing.
+    fireEvent.click(chevron, { bubbles: true });
+
+    // Microtask flush — header click would have called navigate by now.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it("shows loading spinner while routines query is pending", () => {

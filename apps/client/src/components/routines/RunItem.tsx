@@ -31,6 +31,7 @@ export function RunItem({ execution, isSelected, onClick }: RunItemProps) {
   return (
     <button
       onClick={onClick}
+      data-testid={`run-item-${execution.id}`}
       className={cn(
         "w-full text-left px-2 py-1.5 rounded-md transition-colors",
         isSelected

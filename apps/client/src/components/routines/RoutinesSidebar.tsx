@@ -13,7 +13,7 @@ import { CreateRoutineDialog } from "./CreateRoutineDialog";
 import { RoutineSettingsDialog } from "./RoutineSettingsDialog";
 import { AgenticAgentPicker } from "./AgenticAgentPicker";
 import { DraftRoutineCard } from "./DraftRoutineCard";
-import type { Routine, RoutineStatus, RoutineExecution } from "@/types/routine";
+import type { Routine, RoutineStatus } from "@/types/routine";
 
 export type SelectedRun =
   | { kind: "execution"; routineId: string; executionId: string }
@@ -28,12 +28,6 @@ const STATUS_FILTERS: Record<string, RoutineStatus[]> = {
 
 const TAB_KEYS = ["all", "active", "upcoming", "finished"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
-
-const ACTIVE_STATUSES: RoutineStatus[] = [
-  "in_progress",
-  "pending_action",
-  "paused",
-];
 
 interface RoutinesSidebarProps {
   selectedRoutineId: string | null;
@@ -66,10 +60,9 @@ export function RoutinesSidebar({
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
 
-  // Auto-expand the URL-selected routine. NOTE: until Task 6 splits the
-  // chevron click from the body click, the URL-active routine cannot be
-  // manually collapsed via header click — auto-expansion re-fires every
-  // render. Task 6 introduces an explicit chevron button.
+  // Auto-expand the URL-selected routine on mount / route change so its
+  // active runs are visible in the sidebar. The chevron is a separate button
+  // (Task 6), so the user can still collapse manually after the auto-expand.
   useEffect(() => {
     if (!selectedRoutineId) return;
     setExpandedRoutineIds((prev) => {
@@ -132,7 +125,8 @@ export function RoutinesSidebar({
   }, []);
 
   const handleOpenRoutine = useCallback(
-    (routine: Routine, executions: RoutineExecution[]) => {
+    (routine: Routine) => {
+      // Drafts still land on their creation chat (no detail surface yet).
       if (routine.status === "draft" && routine.creationChannelId) {
         void navigate({
           to: "/routines/$routineId/runs/$executionId",
@@ -140,14 +134,12 @@ export function RoutinesSidebar({
         });
         return;
       }
-      const active = executions.find((e) => ACTIVE_STATUSES.includes(e.status));
-      const target = active ?? executions[0];
-      if (target) {
-        void navigate({
-          to: "/routines/$routineId/runs/$executionId",
-          params: { routineId: routine.id, executionId: target.id },
-        });
-      }
+      // Non-draft body click goes to the detail page; the page itself
+      // decides which run to focus (active first, otherwise overview).
+      void navigate({
+        to: "/routines/$routineId",
+        params: { routineId: routine.id },
+      });
     },
     [navigate],
   );
@@ -253,12 +245,10 @@ export function RoutinesSidebar({
                           ? { kind: "creation", routineId: routine.id }
                           : null
                       }
-                      onOpenCreationSession={(id) =>
-                        handleOpenRoutine(
-                          allRoutines.find((r) => r.id === id)!,
-                          [],
-                        )
-                      }
+                      onOpenCreationSession={(id) => {
+                        const r = allRoutines.find((rr) => rr.id === id);
+                        if (r) handleOpenRoutine(r);
+                      }}
                       onDeleted={handleDraftDeleted}
                     />
                   ))}
@@ -288,7 +278,7 @@ export function RoutinesSidebar({
                     }
                     botNameMap={botNameMap}
                     onToggleExpand={() => handleToggleExpand(routine.id)}
-                    onOpenRoutine={handleOpenRoutine}
+                    onOpenRoutine={() => handleOpenRoutine(routine)}
                     onSelectRun={handleSelectRun}
                     onOpenSettings={() =>
                       void navigate({
@@ -330,9 +320,10 @@ export function RoutinesSidebar({
               setAgenticPickerOpen(false);
               setShowCreateDialog(true);
             }}
-            onOpenCreationSession={(id) =>
-              handleOpenRoutine(allRoutines.find((r) => r.id === id)!, [])
-            }
+            onOpenCreationSession={(id) => {
+              const r = allRoutines.find((rr) => rr.id === id);
+              if (r) handleOpenRoutine(r);
+            }}
           />
         </>
       )}
@@ -347,7 +338,7 @@ interface ExpandableRoutineCardProps {
   selectedExecutionId: string | null;
   botNameMap: Map<string, string>;
   onToggleExpand: () => void;
-  onOpenRoutine: (routine: Routine, executions: RoutineExecution[]) => void;
+  onOpenRoutine: () => void;
   onSelectRun: (routineId: string, executionId: string) => void;
   onOpenSettings: () => void;
 }
@@ -390,9 +381,9 @@ function ExpandableRoutineCard({
       executions={executions}
       botName={routine.botId ? botNameMap.get(routine.botId) : null}
       onToggleExpand={onToggleExpand}
-      onOpenRoutine={() => onOpenRoutine(routine, executions)}
+      onOpenRoutine={onOpenRoutine}
       onSelectRun={(execId) => onSelectRun(routine.id, execId)}
-      onOpenCreationSession={() => onOpenRoutine(routine, executions)}
+      onOpenCreationSession={onOpenRoutine}
       onOpenSettings={onOpenSettings}
     />
   );

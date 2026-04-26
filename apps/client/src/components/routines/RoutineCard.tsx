@@ -38,7 +38,13 @@ const SHOW_TOKEN_STATUSES: RoutineStatus[] = [
   "timeout",
 ];
 
-const DEFAULT_VISIBLE_RUNS = 3;
+// Sidebar expansion only surfaces runs that the user can still influence.
+// Terminal-state runs live on the detail page's Runs tab, not in the sidebar.
+const ACTIVE_STATUSES: RoutineStatus[] = [
+  "in_progress",
+  "paused",
+  "pending_action",
+];
 
 interface RoutineCardProps {
   routine: Routine;
@@ -81,7 +87,6 @@ export function RoutineCard({
   onOpenSettings,
 }: RoutineCardProps) {
   const { t } = useTranslation("routines");
-  const [showAllRuns, setShowAllRuns] = useState(false);
   const [showStartDialog, setShowStartDialog] = useState(false);
 
   const showTokens =
@@ -89,16 +94,23 @@ export function RoutineCard({
     routine.tokenUsage != null &&
     routine.tokenUsage > 0;
 
+  // Body click navigates to the detail page; chevron toggles expansion.
+  // The two are intentionally split so the user can preview active runs
+  // (chevron) without leaving the current page.
   const handleHeaderClick = () => {
-    onToggleExpand();
     onOpenRoutine();
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      handleHeaderClick();
+      onOpenRoutine();
     }
+  };
+
+  const handleChevronClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    onToggleExpand();
   };
 
   const handleSettingsClick = (e: MouseEvent) => {
@@ -111,11 +123,6 @@ export function RoutineCard({
     setShowStartDialog(true);
   };
 
-  const visibleRuns = showAllRuns
-    ? executions
-    : executions.slice(0, DEFAULT_VISIBLE_RUNS);
-  const hiddenCount = executions.length - DEFAULT_VISIBLE_RUNS;
-
   return (
     <div
       className={cn(
@@ -124,7 +131,7 @@ export function RoutineCard({
         !isActive && "hover:border-primary/50",
       )}
     >
-      {/* Task header — clickable to expand/collapse */}
+      {/* Task header — clickable to navigate to the detail page */}
       <div
         onClick={handleHeaderClick}
         role="button"
@@ -133,14 +140,18 @@ export function RoutineCard({
         className="p-3 cursor-pointer group"
       >
         <div className="flex items-center gap-2">
-          {/* Expand/collapse arrow */}
-          <span className="text-muted-foreground shrink-0">
+          {/* Chevron is its own button so expanding doesn't navigate. */}
+          <button
+            onClick={handleChevronClick}
+            className="text-muted-foreground shrink-0 p-0.5 -m-0.5 rounded hover:bg-muted"
+            aria-label={t("detail.toggleExpand")}
+          >
             {isExpanded ? (
               <ChevronDown size={14} />
             ) : (
               <ChevronRight size={14} />
             )}
-          </span>
+          </button>
           <StatusIndicator status={routine.status} />
           <span className="font-medium text-sm truncate flex-1">
             {routine.title}
@@ -194,25 +205,22 @@ export function RoutineCard({
         onClose={() => setShowStartDialog(false)}
       />
 
-      {/* Expanded: Run list */}
-      {isExpanded && (
-        <div className="px-3 pb-3">
-          <div
-            className={cn(
-              "ml-3 pl-2 border-l-2 border-border space-y-0.5",
-              showAllRuns &&
-                executions.length > 6 &&
-                "max-h-75 overflow-y-auto",
-            )}
-          >
-            {executions.length === 0 &&
-            !(routine.status === "draft" && routine.creationChannelId) ? (
-              <p className="text-xs text-muted-foreground py-1">
-                {t("historyTab.empty", "No runs yet")}
-              </p>
-            ) : (
-              <>
-                {visibleRuns.map((exec) => (
+      {/* Expanded: active-only run list (terminal runs live on the detail
+          page's Runs tab; the sidebar surface is reserved for runs the user
+          can act on). Empty active list collapses to header only — no
+          "no runs yet" placeholder. */}
+      {isExpanded &&
+        (() => {
+          const activeRuns = executions.filter((e) =>
+            ACTIVE_STATUSES.includes(e.status),
+          );
+          const showCreationRow =
+            routine.status === "draft" && routine.creationChannelId;
+          if (activeRuns.length === 0 && !showCreationRow) return null;
+          return (
+            <div className="px-3 pb-3">
+              <div className="ml-3 pl-2 border-l-2 border-border space-y-0.5">
+                {activeRuns.map((exec) => (
                   <RunItem
                     key={exec.id}
                     execution={exec}
@@ -223,21 +231,7 @@ export function RoutineCard({
                     onClick={() => onSelectRun(exec.id)}
                   />
                 ))}
-                {!showAllRuns && hiddenCount > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAllRuns(true);
-                    }}
-                    className="w-full text-xs text-muted-foreground hover:text-foreground py-1 transition-colors"
-                  >
-                    {t("historyTab.showMore", {
-                      count: hiddenCount,
-                      defaultValue: `↓ ${hiddenCount} earlier runs`,
-                    })}
-                  </button>
-                )}
-                {routine.status === "draft" && routine.creationChannelId && (
+                {showCreationRow && (
                   <CreationSessionRunItem
                     isSelected={
                       selectedRun?.kind === "creation" &&
@@ -246,11 +240,10 @@ export function RoutineCard({
                     onClick={() => onOpenCreationSession(routine.id)}
                   />
                 )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }
