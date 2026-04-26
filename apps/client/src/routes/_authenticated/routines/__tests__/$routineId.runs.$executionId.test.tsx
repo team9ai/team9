@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const routeParams: { routineId: string; executionId: string } = {
@@ -15,6 +15,26 @@ vi.mock("@tanstack/react-router", () => ({
     useParams: () => routeParams,
   }),
   useNavigate: () => mockNavigate,
+  Link: ({
+    to,
+    params,
+    className,
+    children,
+  }: {
+    to: string;
+    params: Record<string, string>;
+    className?: string;
+    children: ReactNode;
+  }) => (
+    <a
+      data-testid="back-link"
+      data-to={to}
+      data-params={JSON.stringify(params)}
+      className={className}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 const mockGetById = vi.fn();
@@ -225,5 +245,57 @@ describe("/_authenticated/routines/$routineId/runs/$executionId run route", () =
     expect(chat.getAttribute("data-selected-run")).toBe("exec-active");
     expect(chat.getAttribute("data-active-id")).toBe("exec-active");
     expect(chat.getAttribute("data-history")).toBe("false");
+  });
+
+  it("renders run-not-found fallback when executionId is unknown and not the creation sentinel", async () => {
+    routeParams.executionId = "00000000-0000-0000-0000-000000000404";
+    mockGetById.mockResolvedValue({
+      id: "r-1",
+      status: "in_progress",
+      currentExecution: {
+        execution: { id: "exec-active", status: "in_progress" },
+      },
+      creationChannelId: null,
+    });
+    mockGetExecutions.mockResolvedValue([
+      { id: "exec-1", status: "completed" },
+      { id: "exec-active", status: "in_progress" },
+    ]);
+
+    const Component = (RunRoute as unknown as RouteHandle).__config.component;
+    renderWithQuery(<Component />);
+
+    const fallback = await screen.findByTestId("run-not-found");
+    expect(fallback).toBeInTheDocument();
+    expect(screen.queryByTestId("chat-area")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("right-panel")).not.toBeInTheDocument();
+
+    const backLink = await screen.findByTestId("back-link");
+    expect(backLink.getAttribute("data-to")).toBe("/routines/$routineId");
+    expect(backLink.getAttribute("data-params")).toBe(
+      JSON.stringify({ routineId: "r-1" }),
+    );
+  });
+
+  it("does not render run-not-found while executions are still loading", async () => {
+    routeParams.executionId = "00000000-0000-0000-0000-000000000404";
+    mockGetById.mockResolvedValue({
+      id: "r-1",
+      status: "in_progress",
+      currentExecution: {
+        execution: { id: "exec-active", status: "in_progress" },
+      },
+      creationChannelId: null,
+    });
+    // Pending — executionsLoading stays true.
+    mockGetExecutions.mockImplementation(() => new Promise(() => {}));
+
+    const Component = (RunRoute as unknown as RouteHandle).__config.component;
+    renderWithQuery(<Component />);
+
+    // Wait long enough for the routine query to settle, then assert that the
+    // not-found panel did not render while executions are still loading.
+    await screen.findByTestId("routines-sidebar");
+    expect(screen.queryByTestId("run-not-found")).not.toBeInTheDocument();
   });
 });

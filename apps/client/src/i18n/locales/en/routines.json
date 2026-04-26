@@ -94,6 +94,8 @@
     "recentRuns": "Recent runs",
     "viewAllRuns": "View all runs →",
     "showMore": "Show {{count}} more",
+    "runNotFound": "Run not found",
+    "backToRoutine": "Back to routine",
     "toggleExpand": "Toggle expand",
     "assignBot": "AI Staff",
     "noBot": "Not assigned",
