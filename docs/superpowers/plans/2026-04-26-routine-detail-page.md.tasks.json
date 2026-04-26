@@ -24,7 +24,7 @@
     {
       "id": 3,
       "subject": "Task 4: RoutineOverviewTab",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2],
       "description": "**Goal:** Implement the Overview tab — description, metadata grid, bot assignment, recent 5 runs (using RunListItem), and 'View all runs' link.\n\n**Files:**\n- Create: apps/client/src/components/routines/tabs/RoutineOverviewTab.tsx\n- Create: apps/client/src/components/routines/tabs/__tests__/RoutineOverviewTab.test.tsx\n- Modify: apps/client/src/components/routines/RoutineDetailView.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/tabs/__tests__/RoutineOverviewTab\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/tabs/RoutineOverviewTab.tsx\", \"apps/client/src/components/routines/tabs/__tests__/RoutineOverviewTab.test.tsx\", \"apps/client/src/components/routines/RoutineDetailView.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/tabs/__tests__/RoutineOverviewTab\", \"acceptanceCriteria\": [\"Description renders when present, hidden when null\", \"Metadata grid renders 4 cells; tokens hidden when 0\", \"Current execution View link navigates to run\", \"Bot assignment Select calls routinesApi.update and invalidates queries\", \"Recent 5 runs section shows up to 5 / empty state if 0\", \"'View all runs' link calls onSwitchTab('runs')\", \"Click run row navigates to /routines/$id/runs/$execId\"]}\n```"
     },
