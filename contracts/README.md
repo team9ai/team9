@@ -25,11 +25,15 @@ git submodule would force every clone to also pull `aHand` (a large Rust
 
 ## What pins the freshness
 
-The contract test (`apps/server/apps/gateway/test/ahand-contract.e2e-spec.ts`)
-is the freshness gate. If a hub-side schema change goes out, the test
-fails when the gateway DTO drifts from the schema. The `aHand`-side CI
-is where the schema is owned; team9-side CI just enforces alignment.
+Two gates work together:
+
+1. **Bit-for-bit freshness** — `.github/workflows/contracts-freshness.yml` parses the **Last sync** SHA below, fetches `contracts/hub-webhook.json` + `contracts/hub-control-plane.json` from `aHand` at that SHA, and `diff`s against the vendored copies. Fails the build if either file drifts. This catches: someone editing the vendored copy directly, or someone bumping the SHA without re-vendoring (or vice versa).
+2. **Behavioural freshness** — the gateway contract test (`apps/server/apps/gateway/test/contracts/hub-webhook.contract.e2e-spec.ts`) Ajv-validates canonical payloads against the vendored schema and round-trips a signed payload through the controller. Fails when the gateway DTO drifts from the schema even if the schema itself is in sync with upstream.
+
+The `aHand`-side CI owns the schemas; the team9-side gates enforce that whatever ships in this repo matches the `aHand` SHA recorded below.
 
 ## Last sync
 
-`hub-webhook.json` and `hub-control-plane.json` last synced from `aHand` dev @ `a21d9a44107d30ce6765e13f58a735759bc428ab` (with the Phase 9 / Task 9.5 schemas authored in `feat/ahand-contract-schemas` on top — see that branch for the canonical source).
+`hub-webhook.json` and `hub-control-plane.json` last synced from `aHand` dev @ `4b77c0ba1ed4249312080a5130bc8b20aba26230` (PR [team9ai/aHand#12](https://github.com/team9ai/aHand/pull/12)).
+
+> **When refreshing**: bump the SHA on the line above to the new aHand commit, then re-run the `cp` commands at the top of this file. The freshness workflow parses the SHA from this exact line — keep the format `aHand` dev @ `<40-hex>`.
