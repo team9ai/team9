@@ -8,9 +8,24 @@ import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
 
+// E2E-only side-effect entry: exposes Zustand stores on window so
+// Playwright tests can read/seed state. Gated on VITE_E2E_MOCK so the
+// extra script tag is never emitted in dev/build.
+const e2eExposeStoresPlugin = () => ({
+  name: "team9-e2e-expose-stores",
+  transformIndexHtml(html: string) {
+    if (process.env.VITE_E2E_MOCK !== "1") return html;
+    return html.replace(
+      /<\/head>/,
+      '<script type="module" src="/tests/e2e/ahand/fixtures/stubs/expose-stores.ts"></script></head>',
+    );
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [
+    e2eExposeStoresPlugin(),
     tanstackRouter({
       autoCodeSplitting: true,
       // Ignore co-located test files inside `__tests__/` folders. Without this,
@@ -41,9 +56,30 @@ export default defineConfig(async () => ({
     }),
   ],
   resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
+    alias: [
+      // E2E mock mode: swap the websocket singleton for an in-memory bus
+      // the Playwright harness drives. Tauri APIs are mocked at the
+      // `window.__TAURI_INTERNALS__` boundary instead — see
+      // `tests/e2e/ahand/fixtures/mock-hub.ts`. Listed first so the
+      // specific match wins over the `@/` prefix alias below.
+      ...(process.env.VITE_E2E_MOCK === "1"
+        ? [
+            {
+              find: /^@\/services\/websocket$/,
+              replacement: fileURLToPath(
+                new URL(
+                  "./tests/e2e/ahand/fixtures/stubs/ws-service.ts",
+                  import.meta.url,
+                ),
+              ),
+            },
+          ]
+        : []),
+      {
+        find: "@",
+        replacement: fileURLToPath(new URL("./src", import.meta.url)),
+      },
+    ],
   },
   // Exclude @lexical/code from dep pre-bundling. esbuild's code splitting
   // breaks Prism.js language component execution order: it puts prism-objectivec
