@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ahand.team9.ai/contracts/hub-control-plane.json",
+  "title": "Hub control-plane REST + SSE wire contract",
+  "description": "Canonical JSON shapes consumed by `@ahandai/sdk::CloudClient` (`packages/sdk/src/cloud-client.ts`) and emitted by the hub control-plane router (`crates/ahand-hub/src/http/control_plane.rs`). All bodies are camelCase via serde `rename_all = \"camelCase\"`. The SSE channel emits one event per JSON object — keepalives are SSE comments (`:keepalive`) and are NOT covered by these schemas because they aren't `data:` frames.",
+
+  "$defs": {
+    "DeviceId": {
+      "description": "Lowercase hex encoding of the daemon's 32-byte ed25519 public key.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+
+    "JobId": {
+      "description": "Hub-minted ULID assigned at job dispatch.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+
+    "CreateJobRequest": {
+      "description": "Body of `POST /api/control/jobs`. Source: `CreateJobRequest` in `crates/ahand-hub/src/http/control_plane.rs`. The SDK builds this body in `CloudClient.spawn` (`packages/sdk/src/cloud-client.ts`).",
+      "type": "object",
+      "required": ["deviceId", "tool"],
+      "additionalProperties": false,
+      "properties": {
+        "deviceId": { "$ref": "#/$defs/DeviceId" },
+        "tool": {
+          "description": "Executable name resolved by the daemon (e.g. `bash`, `playwright-cli`, or a `$SHELL`/`shell` alias).",
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "description": "Argument vector. Defaults to `[]` on the hub side via `serde(default)`.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cwd": {
+          "description": "Working directory the daemon should `cd` into before spawning. Defaults to the daemon's own cwd.",
+          "type": "string"
+        },
+        "env": {
+          "description": "Extra environment variables. Defaults to `{}`.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "timeoutMs": {
+          "description": "Hard kill after this many milliseconds. Hub default when absent: 5 minutes (`DEFAULT_JOB_TIMEOUT_MS`).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "interactive": {
+          "description": "If true, the daemon runs the job under a PTY. Defaults to false.",
+          "type": "boolean"
+        },
+        "correlationId": {
+          "description": "Idempotency key. Re-submitting the same `(externalUserId, correlationId)` while the original job is still live returns the original `jobId` with HTTP 200 instead of 202.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+
+    "CreateJobResponse": {
+      "description": "Body of a successful `POST /api/control/jobs`. 202 on dispatch, 200 on idempotent replay.",
+      "type": "object",
+      "required": ["jobId"],
+      "additionalProperties": false,
+      "properties": {
+        "jobId": { "$ref": "#/$defs/JobId" }
+      }
+    },
+
+    "ErrorEnvelope": {
+      "description": "Body of a 4xx/5xx response. Hub source: `ErrorEnvelope` in `control_plane.rs`. `code` is one of `UNAUTHORIZED`, `FORBIDDEN`, `VALIDATION_ERROR`, `DEVICE_NOT_FOUND`, `DEVICE_OFFLINE`, `JOB_NOT_FOUND`, `RATE_LIMITED`, `INTERNAL_ERROR` — but the schema does NOT pin the enum because future error codes must not break existing clients.",
+      "type": "object",
+      "required": ["error"],
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    },
+
+    "SseEventStdout": {
+      "description": "`event: stdout` — a stdout chunk. The chunk is emitted as-is; multi-line content is NOT split. Source: `render_sse_event` in `control_plane.rs`.",
+      "type": "object",
+      "required": ["chunk"],
+      "additionalProperties": false,
+      "properties": { "chunk": { "type": "string" } }
+    },
+
+    "SseEventStderr": {
+      "description": "`event: stderr` — a stderr chunk.",
+      "type": "object",
+      "required": ["chunk"],
+      "additionalProperties": false,
+      "properties": { "chunk": { "type": "string" } }
+    },
+
+    "SseEventProgress": {
+      "description": "`event: progress` — opt-in progress reporting from the daemon. `message` is omitted when not provided (Rust serde branches on `Option<String>`).",
+      "type": "object",
+      "required": ["percent"],
+      "additionalProperties": false,
+      "properties": {
+        "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "message": { "type": "string" }
+      }
+    },
+
+    "SseEventFinished": {
+      "description": "`event: finished` — terminal success. The SSE stream closes after this frame. SDK resolves `spawn()` with this shape.",
+      "type": "object",
+      "required": ["exitCode", "durationMs"],
+      "additionalProperties": false,
+      "properties": {
+        "exitCode": { "type": "integer" },
+        "durationMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "SseEventError": {
+      "description": "`event: error` — terminal failure. The SSE stream closes after this frame. SDK rejects `spawn()` with `code = job_error`. `code` and `message` are forwarded to the SDK's `CloudClientError.jobErrorCode` / `.jobErrorMessage`.",
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" }
+      }
+    },
+
+    "SseEventByName": {
+      "description": "Tagged-union helper. `event` is the SSE event name; `data` matches the per-event schema. Used by the contract harness so a single test loop can assert on any frame.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["event", "data"],
+          "additionalProperties": false,
+          "properties": {
+            "event": { "const": "stdout" },
+            "data": { "$ref": "#/$defs/SseEventStdout" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["event", "data"],
+          "additionalProperties": false,
+          "properties": {
+            "event": { "const": "stderr" },
+            "data": { "$ref": "#/$defs/SseEventStderr" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["event", "data"],
+          "additionalProperties": false,
+          "properties": {
+            "event": { "const": "progress" },
+            "data": { "$ref": "#/$defs/SseEventProgress" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["event", "data"],
+          "additionalProperties": false,
+          "properties": {
+            "event": { "const": "finished" },
+            "data": { "$ref": "#/$defs/SseEventFinished" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["event", "data"],
+          "additionalProperties": false,
+          "properties": {
+            "event": { "const": "error" },
+            "data": { "$ref": "#/$defs/SseEventError" }
+          }
+        }
+      ]
+    }
+  },
+
+  "endpoints": {
+    "createJob": {
+      "method": "POST",
+      "path": "/api/control/jobs",
+      "auth": "Bearer <control-plane JWT>",
+      "request": { "$ref": "#/$defs/CreateJobRequest" },
+      "responses": {
+        "200": { "$ref": "#/$defs/CreateJobResponse" },
+        "202": { "$ref": "#/$defs/CreateJobResponse" },
+        "4xx": { "$ref": "#/$defs/ErrorEnvelope" },
+        "5xx": { "$ref": "#/$defs/ErrorEnvelope" }
+      }
+    },
+    "streamJob": {
+      "method": "GET",
+      "path": "/api/control/jobs/{jobId}/stream",
+      "auth": "Bearer <control-plane JWT>",
+      "responses": {
+        "200": {
+          "contentType": "text/event-stream",
+          "events": { "$ref": "#/$defs/SseEventByName" }
+        },
+        "4xx": { "$ref": "#/$defs/ErrorEnvelope" }
+      }
+    },
+    "cancelJob": {
+      "method": "POST",
+      "path": "/api/control/jobs/{jobId}/cancel",
+      "auth": "Bearer <control-plane JWT>",
+      "responses": {
+        "202": { "noBody": true },
+        "4xx": { "$ref": "#/$defs/ErrorEnvelope" }
+      }
+    }
+  }
+}
