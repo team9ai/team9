@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ahand.team9.ai/contracts/hub-webhook.json",
+  "title": "Hub outbound webhook envelope",
+  "description": "Canonical wire format for the JSON body the ahand-hub POSTs to a downstream gateway (e.g. team9 `/api/v1/ahand/hub-webhook`). Source of truth: `crates/ahand-hub/src/webhook/mod.rs::WebhookPayload`. Field order in the Rust serde struct is load-bearing for HMAC signature stability; the schema is order-agnostic, but the canonical payload generator MUST emit fields in the order eventId → eventType → deviceId → externalUserId → occurredAt → data.",
+
+  "type": "object",
+  "required": ["eventId", "eventType", "deviceId", "occurredAt", "data"],
+  "additionalProperties": false,
+
+  "properties": {
+    "eventId": {
+      "$ref": "#/$defs/EventId"
+    },
+    "eventType": {
+      "$ref": "#/$defs/EventType"
+    },
+    "deviceId": {
+      "$ref": "#/$defs/DeviceId"
+    },
+    "externalUserId": {
+      "description": "team9 user id the device is attributed to. Hub omits this field on events where it's unknown — `skip_serializing_if = Option::is_none` in the Rust struct — so the schema marks it optional. Gateway handlers look up the owner server-side by deviceId for non-registered events.",
+      "type": "string",
+      "minLength": 1
+    },
+    "occurredAt": {
+      "description": "RFC3339 / ISO-8601 timestamp the hub stamped when it enqueued the event.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "data": {
+      "description": "Event-specific payload. Empty object for online/offline/registered/revoked; carries cadence telemetry for heartbeat.",
+      "type": "object"
+    }
+  },
+
+  "allOf": [
+    {
+      "if": { "properties": { "eventType": { "const": "device.heartbeat" } } },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/HeartbeatData" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "eventType": {
+            "enum": [
+              "device.online",
+              "device.offline",
+              "device.registered",
+              "device.revoked"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": { "$ref": "#/$defs/EmptyData" }
+        }
+      }
+    }
+  ],
+
+  "$defs": {
+    "EventId": {
+      "description": "ULID (26 Crockford base32 characters), optionally prefixed with `evt_`. The hub emits bare ULIDs via `ulid::Ulid::new()`; the team9 gateway DTO accepts both shapes for backwards compat with earlier designs that used the `evt_` prefix.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(evt_)?[A-Za-z0-9_]+$"
+    },
+
+    "EventType": {
+      "description": "Closed enum of device lifecycle event types. Adding a new value is a breaking change for downstream gateways.",
+      "type": "string",
+      "enum": [
+        "device.registered",
+        "device.online",
+        "device.heartbeat",
+        "device.offline",
+        "device.revoked"
+      ]
+    },
+
+    "DeviceId": {
+      "description": "Lowercase hex encoding of the daemon's 32-byte ed25519 public key. Hub-side validation enforces 64 lowercase hex chars; the gateway DTO mirrors this.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+
+    "EmptyData": {
+      "description": "Empty object — emitted for non-heartbeat lifecycle events. Schema is `{}` (no properties allowed).",
+      "type": "object",
+      "additionalProperties": false
+    },
+
+    "HeartbeatData": {
+      "description": "Heartbeat telemetry. `sentAtMs` is the daemon-stamped epoch-ms when the heartbeat was sent (used for clock skew + RTT tracking). `presenceTtlSeconds` is the hub's hint (cadence × 3) so consumers can decide a device is offline without tracking cadence themselves. Both are REQUIRED — the hub always emits them (`crates/ahand-hub/src/webhook/mod.rs::enqueue_heartbeat`); pinning them required is what catches a regression where the hub silently drops one. `nickname` is preserved for legacy callers; new code SHOULD ignore it. `additionalProperties: true` so future cadence-related fields don't break existing consumers.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["sentAtMs", "presenceTtlSeconds"],
+      "properties": {
+        "sentAtMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "presenceTtlSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "nickname": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
