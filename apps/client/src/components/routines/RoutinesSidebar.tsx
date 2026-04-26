@@ -290,7 +290,13 @@ export function RoutinesSidebar({
                     onToggleExpand={() => handleToggleExpand(routine.id)}
                     onOpenRoutine={handleOpenRoutine}
                     onSelectRun={handleSelectRun}
-                    onOpenSettings={() => setShowSettingsRoutineId(routine.id)}
+                    onOpenSettings={() =>
+                      void navigate({
+                        to: "/routines/$routineId",
+                        params: { routineId: routine.id },
+                        search: { tab: "overview" },
+                      })
+                    }
                   />
                 ))
               )}

@@ -226,6 +226,38 @@ describe("RoutinesSidebar", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it("clicking the settings button navigates to detail route with ?tab=overview", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-settings",
+        title: "Has settings",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    renderSidebar({ selectedRoutineId: null, selectedExecutionId: null });
+
+    // The settings button uses aria-label "settingsTab.title" (translation
+    // mock returns the key when no fallback is provided in t() call).
+    const settingsBtn = await screen.findByRole("button", {
+      name: "Settings",
+    });
+    fireEvent.click(settingsBtn);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/routines/$routineId",
+        params: { routineId: "r-settings" },
+        search: { tab: "overview" },
+      });
+    });
+  });
+
   it("shows loading spinner while routines query is pending", () => {
     let resolveList: (value: unknown) => void = () => {};
     mockList.mockImplementation(
