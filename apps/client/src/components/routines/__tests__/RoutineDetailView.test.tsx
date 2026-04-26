@@ -211,22 +211,19 @@ describe("RoutineDetailView", () => {
     expect(onTabChange).toHaveBeenCalledWith("documents");
   });
 
-  it("hides Delete entry when status is in_progress (not deletable)", async () => {
+  it("hides the kebab trigger when status is in_progress (not deletable)", () => {
     renderView({
       routine: { ...baseRoutine, status: "in_progress" as RoutineStatus },
     });
-    fireEvent.click(screen.getByLabelText("More"));
-    // The disabled 'No actions available' fallback is shown instead.
-    await screen.findByText("No actions available");
+    expect(screen.queryByLabelText("More")).toBeNull();
     expect(screen.queryByText("detail.delete")).toBeNull();
   });
 
   it.each<RoutineStatus>(["draft", "paused", "pending_action"])(
-    "hides Delete entry for non-deletable status '%s'",
-    async (status) => {
+    "hides the kebab trigger for non-deletable status '%s'",
+    (status) => {
       renderView({ routine: { ...baseRoutine, status } });
-      fireEvent.click(screen.getByLabelText("More"));
-      await screen.findByText("No actions available");
+      expect(screen.queryByLabelText("More")).toBeNull();
       expect(screen.queryByText("detail.delete")).toBeNull();
     },
   );
@@ -241,7 +238,6 @@ describe("RoutineDetailView", () => {
     renderView({ routine: { ...baseRoutine, status } });
     fireEvent.click(screen.getByLabelText("More"));
     await screen.findByText("detail.delete");
-    expect(screen.queryByText("No actions available")).toBeNull();
   });
 
   it("shows Delete entry and deletes on confirm for completed routine", async () => {

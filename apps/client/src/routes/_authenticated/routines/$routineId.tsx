@@ -1,25 +1,27 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { RoutinesSidebar } from "@/components/routines/RoutinesSidebar";
-import { RoutineDetailView } from "@/components/routines/RoutineDetailView";
+import {
+  RoutineDetailView,
+  ROUTINE_DETAIL_TABS,
+  type RoutineDetailTabKey,
+} from "@/components/routines/RoutineDetailView";
 import { routinesApi } from "@/services/api/routines";
 
 interface RoutineDetailSearch {
-  tab?: "overview" | "triggers" | "documents" | "runs";
+  tab?: RoutineDetailTabKey;
 }
 
 export const Route = createFileRoute("/_authenticated/routines/$routineId")({
   component: RoutineDetailPage,
   validateSearch: (search: Record<string, unknown>): RoutineDetailSearch => {
-    const tab = search.tab;
     if (
-      tab === "overview" ||
-      tab === "triggers" ||
-      tab === "documents" ||
-      tab === "runs"
+      typeof search.tab === "string" &&
+      ROUTINE_DETAIL_TABS.includes(search.tab as RoutineDetailTabKey)
     ) {
-      return { tab };
+      return { tab: search.tab as RoutineDetailTabKey };
     }
     return {};
   },
@@ -29,11 +31,17 @@ function RoutineDetailPage() {
   const { routineId } = Route.useParams();
   const { tab = "overview" } = Route.useSearch();
   const navigate = useNavigate();
+  const { t } = useTranslation("routines");
 
-  const { data: routine, isLoading } = useQuery({
+  const {
+    data: routine,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["routine", routineId],
     queryFn: () => routinesApi.getById(routineId),
-    refetchInterval: 5000,
+    refetchInterval: (query) => (query.state.error ? false : 5000),
+    retry: 0,
   });
 
   return (
@@ -64,7 +72,12 @@ function RoutineDetailPage() {
           data-testid="routine-not-found"
           className="flex-1 flex items-center justify-center text-sm text-muted-foreground"
         >
-          Routine not found
+          {isError
+            ? t(
+                "detail.loadError",
+                "Couldn't load this routine — please try again.",
+              )
+            : t("detail.notFound", "Routine not found")}
         </div>
       )}
     </div>

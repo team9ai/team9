@@ -16,6 +16,12 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, fallback?: string) => fallback ?? key,
+  }),
+}));
+
 vi.mock("@/components/routines/RoutinesSidebar", () => ({
   RoutinesSidebar: (props: {
     selectedRoutineId: string | null;
@@ -36,6 +42,7 @@ interface RoutineDetailViewMockProps {
 }
 
 vi.mock("@/components/routines/RoutineDetailView", () => ({
+  ROUTINE_DETAIL_TABS: ["overview", "triggers", "documents", "runs"] as const,
   RoutineDetailView: (props: RoutineDetailViewMockProps) => (
     <div
       data-testid="routine-detail-view"
@@ -144,6 +151,34 @@ describe("/_authenticated/routines/$routineId route", () => {
     await waitFor(() => {
       expect(screen.getByTestId("routine-not-found")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("routine-not-found")).toHaveTextContent(
+      "Routine not found",
+    );
+  });
+
+  it("renders the load-error message and stops polling when getById rejects", async () => {
+    mockGetById.mockRejectedValue(new Error("boom"));
+    renderRoute();
+
+    // Settle the error state under real timers so testing-library's waitFor
+    // polling works.
+    await waitFor(() => {
+      expect(screen.getByTestId("routine-not-found")).toHaveTextContent(
+        "Couldn't load this routine",
+      );
+    });
+    expect(mockGetById).toHaveBeenCalledTimes(1);
+
+    // Now switch to fake timers and advance well past the 5s refetchInterval
+    // window. The refetchInterval function returns `false` while the query is
+    // in error state, so no further refetches must fire.
+    vi.useFakeTimers();
+    try {
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mockGetById).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("validateSearch keeps allowed tab values", () => {

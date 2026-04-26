@@ -48,11 +48,13 @@ const DELETABLE_STATUSES: RoutineStatus[] = [
   "timeout",
 ];
 
-export type RoutineDetailTabKey =
-  | "overview"
-  | "triggers"
-  | "documents"
-  | "runs";
+export const ROUTINE_DETAIL_TABS = [
+  "overview",
+  "triggers",
+  "documents",
+  "runs",
+] as const;
+export type RoutineDetailTabKey = (typeof ROUTINE_DETAIL_TABS)[number];
 
 interface RoutineDetailViewProps {
   routine: RoutineDetail;
@@ -86,24 +88,24 @@ export function RoutineDetailView({
         <span
           className={cn(
             "inline-block w-2 h-2 rounded-full shrink-0",
-            STATUS_COLORS[routine.status] ?? "bg-gray-400",
+            STATUS_COLORS[routine.status],
           )}
           aria-label={t(`status.${routine.status}`)}
         />
         <h1 className="text-base font-semibold truncate">{routine.title}</h1>
         <div className="ml-auto">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("detail.more", "More")}
-              >
-                <MoreHorizontal size={16} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {canDelete && (
+          {canDelete && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("detail.more", "More")}
+                >
+                  <MoreHorizontal size={16} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
                   onClick={() => setConfirmDelete(true)}
@@ -111,14 +113,9 @@ export function RoutineDetailView({
                   <Trash2 size={14} className="mr-2" />
                   {t("detail.delete")}
                 </DropdownMenuItem>
-              )}
-              {!canDelete && (
-                <DropdownMenuItem disabled>
-                  {t("detail.noActions", "No actions available")}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </header>
 
