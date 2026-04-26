@@ -10,7 +10,6 @@ import { routinesApi } from "@/services/api/routines";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { RoutineCard } from "./RoutineCard";
 import { CreateRoutineDialog } from "./CreateRoutineDialog";
-import { RoutineSettingsDialog } from "./RoutineSettingsDialog";
 import { AgenticAgentPicker } from "./AgenticAgentPicker";
 import { DraftRoutineCard } from "./DraftRoutineCard";
 import type { Routine, RoutineStatus } from "@/types/routine";
@@ -54,9 +53,6 @@ export function RoutinesSidebar({
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
     new Set(),
   );
-  const [showSettingsRoutineId, setShowSettingsRoutineId] = useState<
-    string | null
-  >(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
 
@@ -108,13 +104,6 @@ export function RoutinesSidebar({
     return nonDraftRoutines.filter((r) => statuses.includes(r.status));
   }, [nonDraftRoutines, tab]);
 
-  // Settings dialog still uses the old query pattern (removed in Task 7).
-  const { data: settingsRoutineDetail } = useQuery({
-    queryKey: ["routine", showSettingsRoutineId],
-    queryFn: () => routinesApi.getById(showSettingsRoutineId!),
-    enabled: !!showSettingsRoutineId,
-  });
-
   const handleToggleExpand = useCallback((routineId: string) => {
     setExpandedRoutineIds((prev) => {
       const next = new Set(prev);
@@ -153,14 +142,6 @@ export function RoutinesSidebar({
     },
     [navigate],
   );
-
-  const handleSettingsDeleted = useCallback(() => {
-    const deletedRoutineId = showSettingsRoutineId;
-    setShowSettingsRoutineId(null);
-    if (selectedRoutineId === deletedRoutineId) {
-      void navigate({ to: "/routines" });
-    }
-  }, [navigate, selectedRoutineId, showSettingsRoutineId]);
 
   const handleDraftDeleted = useCallback(
     (deletedRoutineId: string) => {
@@ -294,13 +275,6 @@ export function RoutinesSidebar({
           </div>
         </>
       )}
-
-      <RoutineSettingsDialog
-        routine={settingsRoutineDetail ?? null}
-        open={!!showSettingsRoutineId}
-        onClose={() => setShowSettingsRoutineId(null)}
-        onDeleted={handleSettingsDeleted}
-      />
 
       {/*
        * Picker / create-dialog are mounted by the sidebar ONLY when the
