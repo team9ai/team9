@@ -9,7 +9,9 @@ import {
 } from 'class-validator';
 
 export class ControlPlaneTokenRequestDto {
-  @IsUUID('4')
+  // team9 user IDs are UUIDv7 (time-ordered). `@IsUUID('4')` would reject
+  // them with "userId must be a UUID". Accept any RFC 4122 version.
+  @IsUUID()
   userId!: string;
 
   @IsOptional()
@@ -26,7 +28,9 @@ export class ControlPlaneTokenResponseDto {
 }
 
 export class ListDevicesForUserRequestDto {
-  @IsUUID('4')
+  // team9 user IDs are UUIDv7 (time-ordered). `@IsUUID('4')` would reject
+  // them with "userId must be a UUID". Accept any RFC 4122 version.
+  @IsUUID()
   userId!: string;
 
   @IsOptional()
