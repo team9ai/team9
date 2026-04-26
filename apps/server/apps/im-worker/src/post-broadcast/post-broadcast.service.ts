@@ -25,6 +25,17 @@ import { ClawHiveService } from '@team9/claw-hive';
 import { MessageRouterService } from '../message/message-router.service.js';
 import { SequenceService } from '../sequence/sequence.service.js';
 
+interface MessageWithContext {
+  message: schema.Message;
+  sender: schema.User;
+  channel: schema.Channel;
+  mentions: ParsedMention[];
+  parentMessage: schema.Message | null;
+  attachments: schema.MessageAttachment[];
+}
+
+type MessageContextLoader = () => Promise<MessageWithContext | null>;
+
 /**
  * Post-Broadcast Service
  *
@@ -87,10 +98,24 @@ export class PostBroadcastService {
       // 3. Process notification tasks (mentions, replies, DMs)
       await this.processNotificationTasks(msgId, channelId, senderId);
 
-      // 4. Push to bot webhooks and hive bots (fire-and-forget, errors logged but not thrown)
+      // 4. Push to bot webhooks and hive bots (fire-and-forget, errors logged but not thrown).
+      //
+      // Both fan-out helpers need the same `getMessageWithContext` payload
+      // (message + sender + channel + parent + attachments). Naively each
+      // ran its own copy, doubling the DB roundtrips on every channel that
+      // had both webhook and hive bots. The lazy memoized loader below
+      // shares one resolution between them — and stays a no-op when both
+      // helpers early-exit because of empty bot lists.
+      let messageContextPromise: Promise<MessageWithContext | null> | undefined;
+      const getMessageContext: MessageContextLoader = () => {
+        if (!messageContextPromise) {
+          messageContextPromise = this.getMessageWithContext(msgId);
+        }
+        return messageContextPromise;
+      };
       await Promise.all([
-        this.pushToBotWebhooks(msgId, senderId, memberIds),
-        this.pushToHiveBots(msgId, senderId, memberIds),
+        this.pushToBotWebhooks(msgId, senderId, memberIds, getMessageContext),
+        this.pushToHiveBots(msgId, senderId, memberIds, getMessageContext),
       ]);
 
       // 5. Mark Outbox as completed
@@ -313,14 +338,9 @@ export class PostBroadcastService {
   /**
    * Get message with all context needed for notifications
    */
-  private async getMessageWithContext(msgId: string): Promise<{
-    message: schema.Message;
-    sender: schema.User;
-    channel: schema.Channel;
-    mentions: ParsedMention[];
-    parentMessage: schema.Message | null;
-    attachments: schema.MessageAttachment[];
-  } | null> {
+  private async getMessageWithContext(
+    msgId: string,
+  ): Promise<MessageWithContext | null> {
     // Get message
     const [message] = await this.db
       .select()
@@ -387,6 +407,7 @@ export class PostBroadcastService {
     msgId: string,
     senderId: string,
     memberIds: string[],
+    getMessageContext?: MessageContextLoader,
   ): Promise<void> {
     try {
       if (memberIds.length === 0) return;
@@ -416,8 +437,11 @@ export class PostBroadcastService {
       const targetBots = botMembers.filter((b) => b.userId !== senderId);
       if (targetBots.length === 0) return;
 
-      // Get message details for webhook payload
-      const messageData = await this.getMessageWithContext(msgId);
+      // Get message details for webhook payload (shared with pushToHiveBots
+      // when called via processTask — see processTask's lazy loader).
+      const messageData = await (getMessageContext
+        ? getMessageContext()
+        : this.getMessageWithContext(msgId));
       if (!messageData) return;
 
       const { message, sender, channel } = messageData;
@@ -602,6 +626,7 @@ export class PostBroadcastService {
     msgId: string,
     senderId: string,
     memberIds: string[],
+    getMessageContext?: MessageContextLoader,
   ): Promise<void> {
     try {
       if (memberIds.length === 0) return;
@@ -630,7 +655,12 @@ export class PostBroadcastService {
       );
       if (targetBots.length === 0) return;
 
-      const messageData = await this.getMessageWithContext(msgId);
+      // Shared with pushToBotWebhooks via processTask's lazy loader so a
+      // channel with both webhook and hive bots only fires the message
+      // context query once.
+      const messageData = await (getMessageContext
+        ? getMessageContext()
+        : this.getMessageWithContext(msgId));
       if (!messageData) return;
 
       const { message, sender, channel, mentions, parentMessage, attachments } =

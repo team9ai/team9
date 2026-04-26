@@ -231,12 +231,23 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       CHANNEL_ID,
       SENDER_ID,
     );
+    // 4th arg is processTask's lazy MessageContextLoader — both fan-out
+    // helpers receive the same closure so they share one DB roundtrip.
     expect(pushToBotWebhooks).toHaveBeenCalledWith(
       MSG_ID,
       SENDER_ID,
       memberIds,
+      expect.any(Function),
     );
-    expect(pushToHiveBots).toHaveBeenCalledWith(MSG_ID, SENDER_ID, memberIds);
+    expect(pushToHiveBots).toHaveBeenCalledWith(
+      MSG_ID,
+      SENDER_ID,
+      memberIds,
+      expect.any(Function),
+    );
+    const webhookLoader = pushToBotWebhooks.mock.calls[0][3];
+    const hiveLoader = pushToHiveBots.mock.calls[0][3];
+    expect(webhookLoader).toBe(hiveLoader);
     expect(markOutboxCompleted).toHaveBeenCalledWith(MSG_ID);
     expect(logger.debug).toHaveBeenCalledWith(
       expect.stringContaining(`Post-broadcast completed for ${MSG_ID}`),
@@ -445,6 +456,70 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       'Webhook returned 503 for bot bot-id-123',
     );
+  });
+
+  // ── #76 regression: getMessageWithContext is fetched once, not twice ──────
+
+  it('shares one getMessageWithContext call between webhook and hive fan-out', async () => {
+    // Reuse the orchestrator: stub the helpers up to step 4 so we can
+    // observe the shared loader. Both pushTo* run with the real impl
+    // because we want them to dereference the same closure.
+    jest
+      .spyOn(service as any, 'getChannelMemberIds')
+      .mockResolvedValue([SENDER_ID, 'recipient-1']);
+    jest
+      .spyOn(service as any, 'updateUnreadCounts')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'processNotificationTasks')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'markOutboxCompleted')
+      .mockResolvedValue(undefined);
+
+    const getMessageWithContext = jest
+      .spyOn(service as any, 'getMessageWithContext')
+      .mockResolvedValue({
+        message: makeMessage(),
+        sender: makeSender(),
+        channel: makeChannel('public'),
+        mentions: [],
+        parentMessage: null,
+        attachments: [],
+      });
+
+    // Each fan-out has at least one bot to consume context. Webhook bot
+    // first (resolved by 1st db.where), hive bot list second.
+    db.where
+      .mockResolvedValueOnce([
+        {
+          userId: 'webhook-bot-uuid',
+          webhookUrl: 'https://example.test/wh',
+          webhookHeaders: {},
+          botId: 'wh-bot-id',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          userId: 'hive-bot-uuid',
+          botId: 'hv-bot-id',
+          managedMeta: { agentId: 'base-model-x' },
+          mentorId: null,
+        },
+      ]);
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as any);
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation((() => 0) as any);
+
+    await service.processTask({
+      msgId: MSG_ID,
+      channelId: CHANNEL_ID,
+      senderId: SENDER_ID,
+      broadcastAt: 1_000,
+    });
+
+    // Single resolution shared by both helpers — without the lazy loader
+    // this would have been called twice (once per helper).
+    expect(getMessageWithContext).toHaveBeenCalledTimes(1);
   });
 
   /** Helper: set up DB responses for one pushToHiveBots call */
