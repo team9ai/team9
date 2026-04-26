@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { routinesApi } from "@/services/api/routines";
 import { RoutineTriggersTab } from "./RoutineTriggersTab";
 import { RoutineDocumentTab } from "./RoutineDocumentTab";
+import { RoutineOverviewTab } from "./tabs/RoutineOverviewTab";
 import type { RoutineDetail, RoutineStatus } from "@/types/routine";
 
 const STATUS_COLORS: Record<RoutineStatus, string> = {
@@ -140,7 +141,7 @@ export function RoutineDetailView({
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 mt-0">
-          <div data-testid="overview-tab-placeholder" className="p-4" />
+          <RoutineOverviewTab routine={routine} onSwitchTab={onTabChange} />
         </TabsContent>
         <TabsContent value="triggers" className="flex-1 min-h-0 mt-0">
           <ScrollArea className="h-full">

@@ -33,6 +33,12 @@ vi.mock("../RoutineDocumentTab", () => ({
   ),
 }));
 
+vi.mock("../tabs/RoutineOverviewTab", () => ({
+  RoutineOverviewTab: ({ routine }: { routine: { id: string } }) => (
+    <div data-testid="overview-tab" data-routine-id={routine.id} />
+  ),
+}));
+
 // Radix DropdownMenu relies on pointer events jsdom doesn't fire from a plain
 // `fireEvent.click`. Swap the UI wrapper for a minimal controlled menu so the
 // tests can drive the exact prop surface the component cares about.
@@ -177,9 +183,11 @@ describe("RoutineDetailView", () => {
     expect(pill).not.toBeNull();
   });
 
-  it("activates the Overview tab by default with the placeholder mounted", () => {
+  it("activates the Overview tab by default and forwards routine.id", () => {
     renderView({ tab: "overview" });
-    expect(screen.getByTestId("overview-tab-placeholder")).toBeInTheDocument();
+    const ov = screen.getByTestId("overview-tab");
+    expect(ov).toBeInTheDocument();
+    expect(ov).toHaveAttribute("data-routine-id", "r1");
   });
 
   it("activates the Triggers tab and forwards routineId when tab='triggers'", () => {
