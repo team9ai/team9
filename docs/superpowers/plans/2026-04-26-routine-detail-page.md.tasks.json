@@ -38,7 +38,7 @@
     {
       "id": 5,
       "subject": "Task 6: Sidebar simplification — chevron split + active runs only + default click → detail",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 4],
       "description": "**Goal:** Switch sidebar default routine click to navigate to detail page. Split chevron click vs body click. Filter sidebar expansion to active runs only.\n\n**Files:**\n- Modify: apps/client/src/components/routines/RoutineCard.tsx\n- Modify: apps/client/src/components/routines/RoutinesSidebar.tsx\n- Modify: apps/client/src/components/routines/__tests__/RoutinesSidebar.test.tsx\n\n**Verify:** pnpm --filter client test --run components/routines\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutineCard.tsx\", \"apps/client/src/components/routines/RoutinesSidebar.tsx\", \"apps/client/src/components/routines/__tests__/RoutinesSidebar.test.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines\", \"acceptanceCriteria\": [\"Non-draft routine body click navigates to /routines/$routineId\", \"Draft body click navigates to /routines/$routineId/runs/creation\", \"Chevron click toggles expansion only, no navigate\", \"Expanded body shows only active-status runs + creation row\", \"Empty active-runs collapses to header (no placeholder)\", \"No 'Show more' button anywhere\"]}\n```"
     },
