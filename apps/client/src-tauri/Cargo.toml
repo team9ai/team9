@@ -45,7 +45,7 @@ hex = "0.4"
 
 # ahand library embedding — pinned to aHand dev HEAD with WS Ping/Pong
 # zombie-detect fix.
-ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "1adb5d4b3ac31cbe8128d8bb8d8c515cc0ced622" }
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "6dac9028ff1f5e1096bbd55911bf7eb96b8e643f" }
 
 [dev-dependencies]
 tempfile = "3"
