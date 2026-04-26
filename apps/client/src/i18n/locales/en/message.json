@@ -49,5 +49,5 @@
   "loadingFullContent": "Loading full content...",
   "loadFullContentFailed": "Failed to load full content. Please cancel and try again.",
   "expandFullContent": "Expand full content",
-  "remainingChars": "(~{{count}} more characters)"
+  "remainingChars": "(~{{chars}} more characters)"
 }

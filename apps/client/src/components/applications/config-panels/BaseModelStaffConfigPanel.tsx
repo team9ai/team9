@@ -9,12 +9,17 @@ import type {
   BaseModelStaffBotInfo,
   CommonStaffBotInfo,
   OpenClawBotInfo,
+  PersonalStaffListBotInfo,
 } from "@/services/api/applications";
 import type { AppConfigPanelProps } from "./registry";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
 function isBaseModelStaffBot(
-  bot: OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo,
+  bot:
+    | OpenClawBotInfo
+    | BaseModelStaffBotInfo
+    | CommonStaffBotInfo
+    | PersonalStaffListBotInfo,
 ): bot is BaseModelStaffBotInfo {
   return "managedMeta" in bot && "agentType" in bot;
 }

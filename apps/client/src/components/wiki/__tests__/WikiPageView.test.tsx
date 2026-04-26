@@ -94,6 +94,7 @@ const wiki: WikiDto = {
 const page: PageDto = {
   path: "index.md",
   content: "# Welcome",
+  encoding: "text",
   frontmatter: {},
   lastCommit: null,
 };

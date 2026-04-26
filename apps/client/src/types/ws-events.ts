@@ -824,7 +824,4 @@ export interface ServerToClientEvents {
   tab_created: TabCreatedEvent;
   tab_updated: TabUpdatedEvent;
   tab_deleted: TabDeletedEvent;
-  // Message relations
-  message_relation_changed: MessageRelationChangedEvent;
-  message_relations_purged: MessageRelationsPurgedEvent;
 }

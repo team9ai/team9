@@ -16,9 +16,11 @@ export const Route = createFileRoute("/_authenticated/channels/")({
 });
 
 function ChannelsLayout() {
-  // Check if we have a channelId param (child route is active)
-  const params = useParams({ strict: false });
-  const hasChannelId = "channelId" in params && params.channelId;
+  // Check if we have a channelId param (child route is active).
+  // See note in `activity/index.tsx` re: `never` widening from
+  // `useParams({ strict: false })`.
+  const params = useParams({ strict: false }) as { channelId?: string };
+  const hasChannelId = params.channelId;
   const { agentId } = Route.useSearch();
 
   // If child route is active, render the Outlet (child content)

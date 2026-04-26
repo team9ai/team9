@@ -49,5 +49,5 @@
   "loadingFullContent": "Chargement du contenu complet...",
   "loadFullContentFailed": "Échec du chargement du contenu complet. Veuillez annuler et réessayer.",
   "expandFullContent": "Afficher le texte complet",
-  "remainingChars": "(~{{count}} caractères de plus)"
+  "remainingChars": "(~{{chars}} caractères de plus)"
 }
