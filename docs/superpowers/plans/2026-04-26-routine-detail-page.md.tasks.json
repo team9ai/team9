@@ -45,7 +45,7 @@
     {
       "id": 6,
       "subject": "Task 7: Cleanup — delete RoutineSettingsDialog + RoutineSettingsTab",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** Remove the now-orphaned settings modal and its tab. Verify no remaining imports.\n\n**Files:**\n- Delete: apps/client/src/components/routines/RoutineSettingsDialog.tsx\n- Delete: apps/client/src/components/routines/RoutineSettingsTab.tsx\n- Modify: apps/client/src/components/routines/RoutinesSidebar.tsx\n\n**Verify:** grep -rn 'RoutineSettingsDialog\\|RoutineSettingsTab' apps/client/src returns empty; pnpm --filter client typecheck && pnpm --filter client test --run components/routines\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutineSettingsDialog.tsx\", \"apps/client/src/components/routines/RoutineSettingsTab.tsx\", \"apps/client/src/components/routines/RoutinesSidebar.tsx\"], \"verifyCommand\": \"grep -rn 'RoutineSettingsDialog\\\\|RoutineSettingsTab' apps/client/src\", \"acceptanceCriteria\": [\"No source file references RoutineSettingsDialog or RoutineSettingsTab\", \"pnpm --filter client typecheck passes\", \"pnpm --filter client test --run components/routines passes\"]}\n```"
     }
