@@ -286,7 +286,8 @@
     "interval": "Interval",
     "schedule": "Schedule",
     "channelMessage": "Channel Message",
-    "retry": "Retry"
+    "retry": "Retry",
+    "running": "running"
   },
   "agentic": {
     "createButton": "Create with Agentic",

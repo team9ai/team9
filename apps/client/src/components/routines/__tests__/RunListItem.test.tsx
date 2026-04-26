@@ -1,12 +1,21 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+const I18N_FIXTURES: Record<string, string> = {
+  "historyTab.manual": "Manual",
+  "historyTab.interval": "Interval",
+  "historyTab.schedule": "Schedule",
+  "historyTab.channelMessage": "Channel Message",
+  "historyTab.retry": "Retry",
+  "historyTab.running": "running",
+};
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, opts?: Record<string, unknown> | string) => {
-      if (typeof opts === "string") return opts;
+      if (typeof opts === "string") return I18N_FIXTURES[key] ?? opts;
       const fallback = opts?.defaultValue as string | undefined;
-      return fallback ?? key;
+      return I18N_FIXTURES[key] ?? fallback ?? key;
     },
   }),
 }));
@@ -77,9 +86,9 @@ describe("RunListItem", () => {
 
   it.each([
     ["manual", "Manual"],
-    ["schedule", "Scheduled"],
+    ["schedule", "Schedule"],
     ["interval", "Interval"],
-    ["channel_message", "Channel"],
+    ["channel_message", "Channel Message"],
   ] as const)(
     "renders trigger badge for triggerType=%s",
     (triggerType, label) => {
@@ -122,9 +131,11 @@ describe("RunListItem", () => {
         onClick={() => {}}
       />,
     );
-    ["Manual", "Scheduled", "Interval", "Channel", "Retry"].forEach((label) => {
-      expect(screen.queryByText(label)).toBeNull();
-    });
+    ["Manual", "Schedule", "Interval", "Channel Message", "Retry"].forEach(
+      (label) => {
+        expect(screen.queryByText(label)).toBeNull();
+      },
+    );
   });
 
   it("renders running prefix for in-progress runs", () => {

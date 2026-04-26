@@ -2,6 +2,11 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/date-format";
+import {
+  HISTORY_TRIGGER_TYPE_LABEL_KEYS,
+  isHistoryTriggerType,
+  type HistoryTriggerType,
+} from "@/lib/routine-trigger-keys";
 import type {
   RoutineExecution,
   RoutineStatus,
@@ -37,24 +42,20 @@ function isRetry(ctx: TriggerContext | null): ctx is RetryTriggerContext {
   return !!ctx && "originalExecutionId" in ctx && !!ctx.originalExecutionId;
 }
 
-function triggerBadgeLabel(
+type HistoryTriggerLabelKey =
+  (typeof HISTORY_TRIGGER_TYPE_LABEL_KEYS)[HistoryTriggerType];
+
+function triggerBadgeKey(
   triggerType: string | null,
   triggerContext: TriggerContext | null,
-  t: TranslateFn,
-): string | null {
-  if (isRetry(triggerContext)) return t("detail.trigger.retry", "Retry");
-  switch (triggerType) {
-    case "manual":
-      return t("detail.trigger.manual", "Manual");
-    case "schedule":
-      return t("detail.trigger.scheduled", "Scheduled");
-    case "interval":
-      return t("detail.trigger.interval", "Interval");
-    case "channel_message":
-      return t("detail.trigger.channel", "Channel");
-    default:
-      return null;
+): HistoryTriggerLabelKey | null {
+  if (isRetry(triggerContext)) {
+    return HISTORY_TRIGGER_TYPE_LABEL_KEYS.retry;
   }
+  if (triggerType && isHistoryTriggerType(triggerType)) {
+    return HISTORY_TRIGGER_TYPE_LABEL_KEYS[triggerType];
+  }
+  return null;
 }
 
 function durationText(
@@ -75,11 +76,13 @@ function durationText(
       );
     return formatDuration(seconds);
   }
+  // elapsed reads Date.now() per render; refresh cadence is driven by
+  // the parent's react-query polling (5s) — no local timer needed.
   const elapsed = Math.max(
     0,
     Math.floor((Date.now() - new Date(execution.startedAt).getTime()) / 1000),
   );
-  return `${t("detail.runListItem.runningPrefix", "running")} ${formatDuration(elapsed)}+`;
+  return `${t("historyTab.running", "running")} ${formatDuration(elapsed)}+`;
 }
 
 interface RunListItemProps {
@@ -94,10 +97,9 @@ export function RunListItem({
   onClick,
 }: RunListItemProps) {
   const { t } = useTranslation("routines");
-  const badge = triggerBadgeLabel(
+  const badgeKey = triggerBadgeKey(
     execution.triggerType,
     execution.triggerContext,
-    t,
   );
   const dur = durationText(execution, t);
 
@@ -135,9 +137,9 @@ export function RunListItem({
             {formatDateTime(execution.startedAt)}
           </span>
         )}
-        {badge && (
+        {badgeKey && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
-            {badge}
+            {t(badgeKey)}
           </span>
         )}
       </div>
