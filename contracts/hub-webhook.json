@@ -36,7 +36,10 @@
 
   "allOf": [
     {
-      "if": { "properties": { "eventType": { "const": "device.heartbeat" } } },
+      "if": {
+        "properties": { "eventType": { "const": "device.heartbeat" } },
+        "required": ["eventType"]
+      },
       "then": {
         "properties": {
           "data": { "$ref": "#/$defs/HeartbeatData" }
@@ -54,7 +57,8 @@
               "device.revoked"
             ]
           }
-        }
+        },
+        "required": ["eventType"]
       },
       "then": {
         "properties": {

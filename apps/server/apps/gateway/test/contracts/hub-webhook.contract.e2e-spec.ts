@@ -368,6 +368,43 @@ describe('hub-webhook contract — gateway round-trip', () => {
     expect(svc.handleEvent).not.toHaveBeenCalled();
   });
 
+  it('rejects heartbeat with empty data — schema-DTO alignment for hub regression catch', async () => {
+    // The schema requires sentAtMs + presenceTtlSeconds for heartbeat
+    // events; the gateway DTO must enforce the same so a hub
+    // regression that drops those fields is caught at the boundary
+    // instead of silently accepted. Without the
+    // HeartbeatDataRequiredConstraint validator on
+    // WebhookEventDto.data, this test would surface as the schema-DTO
+    // drift the round-1 review flagged.
+    const payload = { ...canonicalPayload(), data: {} };
+    expect(validateWebhook(payload)).toBe(false);
+    const { body, headers } = signPayload(payload);
+    await request(app.getHttpServer())
+      .post('/api/v1/ahand/hub-webhook')
+      .set(headers)
+      .send(body)
+      .expect(400);
+    expect(svc.handleEvent).not.toHaveBeenCalled();
+  });
+
+  it('accepts non-heartbeat events with empty data (no regression in lifecycle paths)', async () => {
+    // The HeartbeatDataRequiredConstraint must NOT fire for
+    // online/offline/registered/revoked. This regression-guards the
+    // discrimination logic in the validator.
+    const payload = {
+      ...canonicalPayload(),
+      eventType: 'device.online',
+      data: {},
+    };
+    expect(validateWebhook(payload)).toBe(true);
+    const { body, headers } = signPayload(payload);
+    await request(app.getHttpServer())
+      .post('/api/v1/ahand/hub-webhook')
+      .set(headers)
+      .send(body)
+      .expect(204);
+  });
+
   it('accepts payloads with externalUserId omitted (regression guard for hub omitting it)', async () => {
     // The gateway DTO and the schema both treat externalUserId as
     // optional because the hub omits it on events where the owner is
