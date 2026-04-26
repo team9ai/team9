@@ -108,6 +108,19 @@ export function RoutineCard({
     }
   };
 
+  // stopPropagation on click handles mouse activation, but a synthetic click
+  // dispatched after a keyboard Enter/Space on an inner button still lets the
+  // original keydown bubble to the parent div's onKeyDown — which would then
+  // ALSO call onOpenRoutine(). Stop the keydown explicitly to prevent the
+  // double-fire (navigate + inner action) on keyboard activation.
+  const stopButtonKeyDownPropagation = (
+    e: KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.stopPropagation();
+    }
+  };
+
   const handleChevronClick = (e: MouseEvent) => {
     e.stopPropagation();
     onToggleExpand();
@@ -122,6 +135,18 @@ export function RoutineCard({
     e.stopPropagation();
     setShowStartDialog(true);
   };
+
+  // Pre-compute whether the expanded body would render anything, so the
+  // chevron icon only flips to the open glyph when there is actual content
+  // to reveal. Routines with no active runs and no creation row keep the
+  // closed glyph even after the user clicks the chevron — otherwise the
+  // visual state contradicts the empty body that follows.
+  const activeRuns = executions.filter((e) =>
+    ACTIVE_STATUSES.includes(e.status),
+  );
+  const showCreationRow =
+    routine.status === "draft" && !!routine.creationChannelId;
+  const hasExpandableContent = activeRuns.length > 0 || showCreationRow;
 
   return (
     <div
@@ -142,11 +167,13 @@ export function RoutineCard({
         <div className="flex items-center gap-2">
           {/* Chevron is its own button so expanding doesn't navigate. */}
           <button
+            type="button"
             onClick={handleChevronClick}
+            onKeyDown={stopButtonKeyDownPropagation}
             className="text-muted-foreground shrink-0 p-0.5 -m-0.5 rounded hover:bg-muted"
             aria-label={t("detail.toggleExpand")}
           >
-            {isExpanded ? (
+            {isExpanded && hasExpandableContent ? (
               <ChevronDown size={14} />
             ) : (
               <ChevronRight size={14} />
@@ -158,14 +185,18 @@ export function RoutineCard({
           </span>
           {/* Action buttons — visible on hover */}
           <button
+            type="button"
             onClick={handleStartClick}
+            onKeyDown={stopButtonKeyDownPropagation}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
             aria-label={t("detail.start", "Start")}
           >
             <Play size={14} className="text-muted-foreground" />
           </button>
           <button
+            type="button"
             onClick={handleSettingsClick}
+            onKeyDown={stopButtonKeyDownPropagation}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
             aria-label={t("settingsTab.title", "Settings")}
           >
@@ -209,41 +240,32 @@ export function RoutineCard({
           page's Runs tab; the sidebar surface is reserved for runs the user
           can act on). Empty active list collapses to header only — no
           "no runs yet" placeholder. */}
-      {isExpanded &&
-        (() => {
-          const activeRuns = executions.filter((e) =>
-            ACTIVE_STATUSES.includes(e.status),
-          );
-          const showCreationRow =
-            routine.status === "draft" && routine.creationChannelId;
-          if (activeRuns.length === 0 && !showCreationRow) return null;
-          return (
-            <div className="px-3 pb-3">
-              <div className="ml-3 pl-2 border-l-2 border-border space-y-0.5">
-                {activeRuns.map((exec) => (
-                  <RunItem
-                    key={exec.id}
-                    execution={exec}
-                    isSelected={
-                      selectedRun?.kind === "execution" &&
-                      selectedRun.executionId === exec.id
-                    }
-                    onClick={() => onSelectRun(exec.id)}
-                  />
-                ))}
-                {showCreationRow && (
-                  <CreationSessionRunItem
-                    isSelected={
-                      selectedRun?.kind === "creation" &&
-                      selectedRun.routineId === routine.id
-                    }
-                    onClick={() => onOpenCreationSession(routine.id)}
-                  />
-                )}
-              </div>
-            </div>
-          );
-        })()}
+      {isExpanded && hasExpandableContent && (
+        <div className="px-3 pb-3">
+          <div className="ml-3 pl-2 border-l-2 border-border space-y-0.5">
+            {activeRuns.map((exec) => (
+              <RunItem
+                key={exec.id}
+                execution={exec}
+                isSelected={
+                  selectedRun?.kind === "execution" &&
+                  selectedRun.executionId === exec.id
+                }
+                onClick={() => onSelectRun(exec.id)}
+              />
+            ))}
+            {showCreationRow && (
+              <CreationSessionRunItem
+                isSelected={
+                  selectedRun?.kind === "creation" &&
+                  selectedRun.routineId === routine.id
+                }
+                onClick={() => onOpenCreationSession(routine.id)}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

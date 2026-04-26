@@ -85,6 +85,7 @@
     "restart": "重新開始",
     "delete": "刪除",
     "deleteConfirm": "確定刪除此例行工作嗎？",
+    "toggleExpand": "切換展開",
     "assignBot": "AI 員工",
     "noBot": "未指定",
     "steps": "步驟",

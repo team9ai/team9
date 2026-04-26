@@ -30,6 +30,7 @@ export function RunItem({ execution, isSelected, onClick }: RunItemProps) {
 
   return (
     <button
+      type="button"
       onClick={onClick}
       data-testid={`run-item-${execution.id}`}
       className={cn(

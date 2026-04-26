@@ -412,6 +412,83 @@ describe("RoutinesSidebar", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it("does not double-fire navigate when activating chevron via keyboard", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r1",
+        title: "First",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    const { container } = renderSidebar({
+      selectedRoutineId: null,
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("First");
+    const chevron = container.querySelector(
+      '[aria-label="detail.toggleExpand"]',
+    ) as HTMLButtonElement;
+    expect(chevron).not.toBeNull();
+    // Pressing Enter while the chevron has focus must NOT bubble up to the
+    // parent role="button" div. Without stopPropagation on keydown, the parent
+    // would receive the keydown and call onOpenRoutine() — a navigate — at the
+    // same time as the synthetic click toggles expansion.
+    fireEvent.keyDown(chevron, { key: "Enter", bubbles: true });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    fireEvent.keyDown(chevron, { key: " ", bubbles: true });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("expanded card with no active runs and not a draft keeps ChevronRight glyph", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-done",
+        title: "All done",
+        status: "completed",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    // Only terminal-state executions — they're filtered out of the sidebar's
+    // active-only list, so hasExpandableContent is false.
+    mockGetExecutions.mockResolvedValue([
+      { id: "exec-1", status: "completed" },
+      { id: "exec-2", status: "failed" },
+    ]);
+
+    // selectedRoutineId triggers auto-expand.
+    const { container } = renderSidebar({
+      selectedRoutineId: "r-done",
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("All done");
+    await waitFor(() =>
+      expect(mockGetExecutions).toHaveBeenCalledWith("r-done"),
+    );
+
+    const chevron = container.querySelector(
+      '[aria-label="detail.toggleExpand"]',
+    ) as HTMLButtonElement;
+    // lucide-react renders icons as SVGs with a class containing the icon
+    // name, e.g. `lucide-chevron-right` / `lucide-chevron-down`. The chevron
+    // must remain Right when there is no content to reveal — flipping to Down
+    // with an empty body would be visually incoherent.
+    const svg = chevron.querySelector("svg");
+    expect(svg).not.toBeNull();
+    expect(svg!.getAttribute("class")).toMatch(/chevron-right/);
+    expect(svg!.getAttribute("class")).not.toMatch(/chevron-down/);
+  });
+
   it("shows loading spinner while routines query is pending", () => {
     let resolveList: (value: unknown) => void = () => {};
     mockList.mockImplementation(

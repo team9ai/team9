@@ -86,6 +86,7 @@
     "restart": "重新开始",
     "delete": "删除",
     "deleteConfirm": "确定删除此日常吗？",
+    "toggleExpand": "切换展开",
     "assignBot": "AI 员工",
     "noBot": "未指定",
     "steps": "步骤",

@@ -85,6 +85,7 @@
     "restart": "재시작",
     "delete": "삭제",
     "deleteConfirm": "이 루틴을 삭제하시겠습니까?",
+    "toggleExpand": "확장 전환",
     "assignBot": "AI 스태프",
     "noBot": "미지정",
     "steps": "단계",

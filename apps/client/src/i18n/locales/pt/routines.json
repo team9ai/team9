@@ -78,6 +78,7 @@
     "restart": "Reiniciar",
     "delete": "Excluir",
     "deleteConfirm": "Tem certeza de que deseja excluir esta rotina?",
+    "toggleExpand": "Alternar expansão",
     "assignBot": "Equipe de IA",
     "noBot": "Não atribuído",
     "steps": "Etapas",

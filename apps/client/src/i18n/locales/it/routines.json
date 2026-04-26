@@ -78,6 +78,7 @@
     "restart": "Riavvia",
     "delete": "Elimina",
     "deleteConfirm": "Sei sicuro di voler eliminare questa routine?",
+    "toggleExpand": "Attiva/disattiva espansione",
     "assignBot": "Staff AI",
     "noBot": "Non assegnato",
     "steps": "Passaggi",

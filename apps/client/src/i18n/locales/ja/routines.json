@@ -85,6 +85,7 @@
     "restart": "再起動",
     "delete": "削除",
     "deleteConfirm": "このルーティンを削除しますか？",
+    "toggleExpand": "展開を切り替え",
     "assignBot": "AI スタッフ",
     "noBot": "未割り当て",
     "steps": "ステップ",

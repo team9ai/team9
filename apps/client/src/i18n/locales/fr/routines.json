@@ -82,6 +82,7 @@
     "restart": "Redémarrer",
     "delete": "Supprimer",
     "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette routine ?",
+    "toggleExpand": "Basculer l'expansion",
     "assignBot": "Personnel IA",
     "noBot": "Non assigné",
     "steps": "Étapes",

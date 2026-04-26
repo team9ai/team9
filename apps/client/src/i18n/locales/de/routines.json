@@ -82,6 +82,7 @@
     "restart": "Neu starten",
     "delete": "Löschen",
     "deleteConfirm": "Möchten Sie diese Routine wirklich löschen?",
+    "toggleExpand": "Erweitern umschalten",
     "assignBot": "KI-Personal",
     "noBot": "Nicht zugewiesen",
     "steps": "Schritte",
