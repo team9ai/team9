@@ -25,4 +25,5 @@ export * from './channel-views.js';
 export * from './channel-tabs.js';
 export * from './message-relations.js';
 export * from './ahand-devices.js';
+export * from './hive-send-failures.js';
 export * from './relations.js';

@@ -22,6 +22,7 @@ import {
   type ParsedMention,
 } from '@team9/shared';
 import { ClawHiveService } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import { MessageRouterService } from '../message/message-router.service.js';
 import { SequenceService } from '../sequence/sequence.service.js';
 
@@ -899,26 +900,22 @@ export class PostBroadcastService {
         this.clawHiveService
           .sendInput(sessionId, event, tenantId || undefined)
           .catch((err: Error) => {
-            const context = [
-              `bot ${bot.botId}`,
-              `agent ${agentId}`,
-              `session ${sessionId}`,
-              `channel ${channel.id}`,
-              trackingChannelId
-                ? `tracking ${trackingChannelId}`
-                : `scope ${scope}/${scopeId}`,
-              tenantId ? `tenant ${tenantId}` : null,
-            ]
-              .filter(Boolean)
-              .join(', ');
-
-            const hint = err.message.includes('No available workers')
-              ? ' claw-hive has no connected workers; start claw-hive-worker or the full hive dev stack.'
-              : '';
-
-            this.logger.warn(
-              `Hive bot input failed for ${context}: ${err.message}.${hint}`,
-            );
+            // Outbox is already marked completed by the time this fires
+            // (sendInput is fire-and-forget — see issue #77). Beyond the
+            // log line, surface the failure on a counter for alerting and
+            // persist it to a DLQ table for replay/audit.
+            void this.recordHiveSendFailure({
+              err,
+              bot: { id: bot.botId },
+              agentId,
+              tenantId: tenantId || null,
+              sessionId,
+              scope,
+              scopeId,
+              channelId: channel.id,
+              trackingChannelId,
+              messageId: message.id,
+            });
           });
       }
     } catch (error) {
@@ -1005,4 +1002,130 @@ export class PostBroadcastService {
       isMentorDm,
     };
   }
+
+  /**
+   * Record a `ClawHiveService.sendInput` failure for observability.
+   * Increments the OTEL counter and upserts a row in
+   * `im_hive_send_failures` (the DLQ — see issue #77).
+   *
+   * This is intentionally swallowing all internal errors: the call site
+   * is itself an error handler, and the outbox has already been marked
+   * completed before this runs. We never want a failed observability
+   * write to escape and surface as an unhandled rejection.
+   */
+  private async recordHiveSendFailure(params: {
+    err: Error;
+    bot: { id: string };
+    agentId: string;
+    tenantId: string | null;
+    sessionId: string;
+    scope: 'dm' | 'tracking';
+    scopeId: string;
+    channelId: string;
+    trackingChannelId?: string;
+    messageId: string;
+  }): Promise<void> {
+    const {
+      err,
+      bot,
+      agentId,
+      tenantId,
+      sessionId,
+      scope,
+      scopeId,
+      channelId,
+      trackingChannelId,
+      messageId,
+    } = params;
+
+    const errorKind = classifyHiveSendError(err);
+
+    const context = [
+      `bot ${bot.id}`,
+      `agent ${agentId}`,
+      `session ${sessionId}`,
+      `channel ${channelId}`,
+      trackingChannelId
+        ? `tracking ${trackingChannelId}`
+        : `scope ${scope}/${scopeId}`,
+      tenantId ? `tenant ${tenantId}` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const hint =
+      errorKind === 'no_workers'
+        ? ' claw-hive has no connected workers; start claw-hive-worker or the full hive dev stack.'
+        : '';
+
+    this.logger.warn(
+      `Hive bot input failed for ${context}: ${err.message}.${hint}`,
+    );
+
+    // OTEL counter — primary alerting signal.
+    try {
+      appMetrics.hiveSendFailures.add(1, {
+        error_kind: errorKind,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
+        agent_id: agentId,
+      });
+    } catch (metricErr) {
+      this.logger.debug(
+        `Failed to increment hive send failure counter: ${String(metricErr)}`,
+      );
+    }
+
+    // DLQ table — persist for replay/audit. Upsert on (message_id, bot_id):
+    // increment retry_count + refresh last_seen_at + error_kind/message so
+    // a flapping downstream produces one row per (msg, bot), not a flood.
+    try {
+      await this.db
+        .insert(schema.hiveSendFailures)
+        .values({
+          messageId,
+          botId: bot.id,
+          agentId,
+          tenantId: tenantId ?? null,
+          sessionId,
+          trackingChannelId: trackingChannelId ?? null,
+          errorKind,
+          errorMessage: err.message,
+          retryCount: 1,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.hiveSendFailures.messageId,
+            schema.hiveSendFailures.botId,
+          ],
+          set: {
+            retryCount: sql`${schema.hiveSendFailures.retryCount} + 1`,
+            lastSeenAt: new Date(),
+            errorKind,
+            errorMessage: err.message,
+          },
+        });
+    } catch (dbErr) {
+      this.logger.debug(
+        `Failed to persist hive send failure DLQ row: ${String(dbErr)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Bucket sendInput errors into a small categorical tag so dashboards
+ * can group failures. Buckets: `no_workers`, `timeout`, `http_error`,
+ * `other`.
+ *
+ * `no_workers` is the most actionable bucket — it means claw-hive has
+ * no live workers attached and message delivery to bots is fully down.
+ * Distinct from generic 5xx so an alert can page faster on this case.
+ */
+function classifyHiveSendError(err: Error): string {
+  const msg = err.message;
+  if (msg.includes('No available workers')) return 'no_workers';
+  if (err.name === 'AbortError' || /aborted|timeout/i.test(msg))
+    return 'timeout';
+  if (/Failed to send input: \d{3}/.test(msg)) return 'http_error';
+  return 'other';
 }

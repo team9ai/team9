@@ -21,6 +21,7 @@ let _wsConnections: UpDownCounter | null = null;
 let _messagesTotal: Counter | null = null;
 let _messageLatency: Histogram | null = null;
 let _onlineUsers: UpDownCounter | null = null;
+let _hiveSendFailures: Counter | null = null;
 
 export const appMetrics = {
   get wsConnections(): UpDownCounter {
@@ -58,5 +59,27 @@ export const appMetrics = {
       });
     }
     return _onlineUsers;
+  },
+
+  /**
+   * Counts failures of `ClawHiveService.sendInput` from the im-worker
+   * fan-out path. The call is fire-and-forget against the outbox
+   * (markOutboxCompleted runs before the failure resolves), so this
+   * counter is the primary signal that hive delivery is degraded;
+   * pair it with the `im_hive_send_failures` DLQ table for replay.
+   *
+   * Recommended attributes when incrementing:
+   *   - `error_kind`: one of `no_workers`, `timeout`, `http_error`, `other`
+   *   - `tenant_id`: workspace tenant (when known)
+   *   - `agent_id`: claw-hive agent identifier
+   */
+  get hiveSendFailures(): Counter {
+    if (!_hiveSendFailures) {
+      _hiveSendFailures = getMeter().createCounter('im.hive.send_failures', {
+        description:
+          'ClawHiveService.sendInput failures from the im-worker fan-out',
+      });
+    }
+    return _hiveSendFailures;
   },
 };
