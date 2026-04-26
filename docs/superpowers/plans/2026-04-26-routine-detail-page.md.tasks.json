@@ -17,7 +17,7 @@
     {
       "id": 2,
       "subject": "Task 3: RunListItem component",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** A new richer row component for the detail page that shows status pill, version, relative time, trigger badge (per spec mapping), token usage, and duration. Used by Overview tab recent-5 and Runs tab.\n\n**Files:**\n- Create: apps/client/src/components/routines/RunListItem.tsx\n- Create: apps/client/src/components/routines/__tests__/RunListItem.test.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/__tests__/RunListItem\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RunListItem.tsx\", \"apps/client/src/components/routines/__tests__/RunListItem.test.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/__tests__/RunListItem\", \"acceptanceCriteria\": [\"Renders status dot, version, time, trigger badge in primary row\", \"Renders tokens and duration in secondary row\", \"Trigger badge mapping: Retry > Manual / Scheduled / Interval / Channel / none\", \"Retry detected via triggerContext.originalExecutionId\", \"Duration: 'running Xm Ys+' for in-progress, Xh Ym / Xm Ys / Xs for finished, hidden if no startedAt\", \"Selected styling matches RunItem\", \"onClick fires on click\"]}\n```"
     },
