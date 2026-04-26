@@ -93,7 +93,7 @@
     "view": "View →",
     "recentRuns": "Recent runs",
     "viewAllRuns": "View all runs →",
-    "showMore": "Show 20 more",
+    "showMore": "Show {{count}} more",
     "assignBot": "AI Staff",
     "noBot": "Not assigned",
     "steps": "Steps",

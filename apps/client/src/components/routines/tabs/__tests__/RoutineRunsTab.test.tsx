@@ -12,7 +12,14 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, opts?: Record<string, unknown>) => {
+      if (!opts) return key;
+      // Minimal interpolation to mirror i18next's {{var}} syntax.
+      return Object.entries(opts).reduce(
+        (acc, [k, v]) => acc.replace(`{{${k}}}`, String(v)),
+        key,
+      );
+    },
   }),
 }));
 

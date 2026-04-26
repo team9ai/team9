@@ -22,6 +22,7 @@ export function RoutineRunsTab({
 }: RoutineRunsTabProps) {
   const { t } = useTranslation("routines");
   const navigate = useNavigate();
+  // State resets on tab switch — Radix unmounts inactive TabsContent. Intentional: keeps memory bounded; user re-opens at first 20.
   const [visible, setVisible] = useState(PAGE_SIZE);
 
   const { data: executions = [] } = useQuery({
@@ -65,7 +66,7 @@ export function RoutineRunsTab({
                 onClick={() => setVisible((v) => v + PAGE_SIZE)}
                 className="w-full"
               >
-                {t("detail.showMore")}
+                {t("detail.showMore", { count: PAGE_SIZE })}
               </Button>
             )}
           </>

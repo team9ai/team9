@@ -159,6 +159,7 @@ export function RoutineDetailView({
           </ScrollArea>
         </TabsContent>
         <TabsContent value="runs" className="flex-1 min-h-0 mt-0">
+          {/* selectedExecutionId is always null on the detail-page Runs tab; selection lives on the dedicated /runs/$executionId route. */}
           <RoutineRunsTab
             routineId={routine.id}
             selectedExecutionId={null}
