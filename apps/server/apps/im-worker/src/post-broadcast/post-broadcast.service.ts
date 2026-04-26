@@ -674,8 +674,13 @@ export class PostBroadcastService {
         : extractMentionedUserIds(mentions);
 
       // For thread replies in group channels, check if there's already a
-      // tracking channel in this thread. If so, auto-forward to the same
-      // agent session without requiring @mention.
+      // tracking channel for this bot in this thread. If so, the bot
+      // auto-triggers on follow-ups (no @mention needed). Each reply
+      // still spawns its own fresh tracking channel + agent session
+      // (deliberate — see commit 28907d81 "create new tracking channel
+      // and session for each thread reply"); the existing-tracking
+      // entry is only consulted as a trigger-gate predicate below, not
+      // as a session-id source.
       const threadTrackingMap = new Map<string, string>(); // botUserId → trackingChannelId
       const threadRootId = message.rootId ?? message.parentId;
       if (!alwaysForward && threadRootId) {

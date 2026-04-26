@@ -594,12 +594,17 @@ describe('PostBroadcastService — ahand dynamic-device integration', () => {
         `^team9/${TENANT_ID}/${bot.managedMeta.agentId}/tracking/[0-9a-f-]+$`,
       ),
     );
-    // The trigger gate was passed because of the existing tracking
-    // channel, not @mention. We confirm the createTrackingChannel
-    // transaction did fire (this is the in-source intent: each
-    // follow-up reply spawns a fresh tracking channel — see the
-    // comment at post-broadcast.service.ts:763-768).
+    // `existingTrackingId` is *only* a trigger-gate predicate; each
+    // follow-up reply still spawns a fresh tracking channel + agent
+    // session by design (commit 28907d81 "create new tracking channel
+    // and session for each thread reply" — gives each interaction
+    // independent tracking and a fresh context). The new tracking
+    // channel id is what populates sessionId, NOT existingTrackingId.
+    // We confirm createTrackingChannel did open its transaction.
     expect(db.transaction).toHaveBeenCalledTimes(1);
+    // sessionId carries the freshly-created tracking channel id, not
+    // the existing one — this pins the by-design behaviour.
+    expect(sessionId).not.toContain(existingTrackingChannelId);
     // Location is a thread under the original public channel.
     const [, event] = clawHiveService.sendInput.mock.calls[0] as [
       string,
