@@ -48,9 +48,6 @@ function RoutineRunPage() {
     !!activeExecution &&
     selectedRunExecution.id !== activeExecution.id;
 
-  const creationChannelOverride =
-    isCreation && routine ? (routine.creationChannelId ?? null) : null;
-
   const handleReturnToCurrent = useCallback(() => {
     if (!activeExecution) return;
     void navigate({
@@ -70,6 +67,11 @@ function RoutineRunPage() {
       </div>
     );
   }
+
+  // `routine` is defined below this line — the early-return guards it.
+  const creationChannelOverride = isCreation
+    ? (routine.creationChannelId ?? null)
+    : null;
 
   return (
     <div className="flex h-full">

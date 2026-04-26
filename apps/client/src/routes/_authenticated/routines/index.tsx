@@ -18,7 +18,11 @@ function RoutinesPage() {
 
   return (
     <div className="flex h-full">
-      <RoutinesSidebar selectedRoutineId={null} selectedExecutionId={null} />
+      <RoutinesSidebar
+        selectedRoutineId={null}
+        selectedExecutionId={null}
+        onRequestCreate={() => setAgenticPickerOpen(true)}
+      />
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
         <ListChecks size={40} className="text-muted-foreground/30" />
         <div className="space-y-2 max-w-sm">

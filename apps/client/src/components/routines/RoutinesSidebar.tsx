@@ -38,13 +38,20 @@ const ACTIVE_STATUSES: RoutineStatus[] = [
 interface RoutinesSidebarProps {
   selectedRoutineId: string | null;
   selectedExecutionId: string | null; // can be a UUID or "creation"
-  botId?: string;
+  /**
+   * Optional callback fired when the header `+` button is clicked. When
+   * provided, the sidebar delegates the open-create-flow UI to the parent
+   * (parent owns the picker / create-dialog mounts) — single source of truth.
+   * When omitted, the sidebar falls back to mounting its own picker and
+   * create dialog and toggling them via internal state.
+   */
+  onRequestCreate?: () => void;
 }
 
 export function RoutinesSidebar({
   selectedRoutineId,
   selectedExecutionId,
-  botId,
+  onRequestCreate,
 }: RoutinesSidebarProps) {
   const { t } = useTranslation("routines");
   const navigate = useNavigate();
@@ -59,7 +66,10 @@ export function RoutinesSidebar({
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
 
-  // Auto-expand the URL-selected routine.
+  // Auto-expand the URL-selected routine. NOTE: until Task 6 splits the
+  // chevron click from the body click, the URL-active routine cannot be
+  // manually collapsed via header click — auto-expansion re-fires every
+  // render. Task 6 introduces an explicit chevron button.
   useEffect(() => {
     if (!selectedRoutineId) return;
     setExpandedRoutineIds((prev) => {
@@ -71,8 +81,8 @@ export function RoutinesSidebar({
   }, [selectedRoutineId]);
 
   const { data: allRoutines = [], isLoading } = useQuery({
-    queryKey: ["routines", { botId }],
-    queryFn: () => routinesApi.list({ botId }),
+    queryKey: ["routines"],
+    queryFn: () => routinesApi.list(),
   });
 
   const { data: botNameMap = new Map<string, string>() } = useQuery({
@@ -182,7 +192,10 @@ export function RoutinesSidebar({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => setAgenticPickerOpen(true)}
+          onClick={() => {
+            if (onRequestCreate) onRequestCreate();
+            else setAgenticPickerOpen(true);
+          }}
         >
           <Plus size={16} />
         </Button>
@@ -286,11 +299,6 @@ export function RoutinesSidebar({
         </>
       )}
 
-      <CreateRoutineDialog
-        isOpen={showCreateDialog}
-        onClose={() => setShowCreateDialog(false)}
-      />
-
       <RoutineSettingsDialog
         routine={settingsRoutineDetail ?? null}
         open={!!showSettingsRoutineId}
@@ -298,17 +306,30 @@ export function RoutinesSidebar({
         onDeleted={handleSettingsDeleted}
       />
 
-      <AgenticAgentPicker
-        open={agenticPickerOpen}
-        onClose={() => setAgenticPickerOpen(false)}
-        onManualCreate={() => {
-          setAgenticPickerOpen(false);
-          setShowCreateDialog(true);
-        }}
-        onOpenCreationSession={(id) =>
-          handleOpenRoutine(allRoutines.find((r) => r.id === id)!, [])
-        }
-      />
+      {/*
+       * Picker / create-dialog are mounted by the sidebar ONLY when the
+       * parent has not opted into owning them. The index route owns these
+       * to share state with its empty-state CTA (single source of truth).
+       */}
+      {!onRequestCreate && (
+        <>
+          <CreateRoutineDialog
+            isOpen={showCreateDialog}
+            onClose={() => setShowCreateDialog(false)}
+          />
+          <AgenticAgentPicker
+            open={agenticPickerOpen}
+            onClose={() => setAgenticPickerOpen(false)}
+            onManualCreate={() => {
+              setAgenticPickerOpen(false);
+              setShowCreateDialog(true);
+            }}
+            onOpenCreationSession={(id) =>
+              handleOpenRoutine(allRoutines.find((r) => r.id === id)!, [])
+            }
+          />
+        </>
+      )}
     </div>
   );
 }
