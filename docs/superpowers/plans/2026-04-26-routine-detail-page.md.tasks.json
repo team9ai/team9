@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 2: RoutineDetailView shell + Triggers/Documents tabs",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Create the tabbed detail page with header (title, status pill, [...] Delete menu) and shadcn Tabs (Overview placeholder, Triggers/Documents wired, Runs placeholder). Update sidebar settings button to navigate.\n\n**Files:**\n- Create: apps/client/src/components/routines/RoutineDetailView.tsx\n- Create: apps/client/src/components/routines/__tests__/RoutineDetailView.test.tsx\n- Modify: apps/client/src/routes/_authenticated/routines/$routineId.tsx\n- Modify: apps/client/src/components/routines/RoutinesSidebar.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/__tests__/RoutineDetailView\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutineDetailView.tsx\", \"apps/client/src/components/routines/__tests__/RoutineDetailView.test.tsx\", \"apps/client/src/routes/_authenticated/routines/$routineId.tsx\", \"apps/client/src/components/routines/RoutinesSidebar.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/__tests__/RoutineDetailView\", \"acceptanceCriteria\": [\"Detail route renders header (title, status pill, [...] menu) and 4 tabs\", \"Triggers and Documents tabs render existing components verbatim\", \"Tab selection persists in URL via ?tab=\", \"Tab switch uses replace navigation\", \"Delete entry hidden when status not deletable\", \"Delete confirm calls routinesApi.delete and navigates to /routines\", \"Sidebar settings button navigates to ?tab=overview\"]}\n```"
     },
