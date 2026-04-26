@@ -1,9 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { JSX } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockNavigate = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => ({ __config: config }),
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -35,9 +38,15 @@ vi.mock("@/components/routines/RoutinesSidebar", () => ({
   ),
 }));
 
+let lastOnOpenCreationSession: ((id: string) => void) | null = null;
 vi.mock("@/components/routines/AgenticAgentPicker", () => ({
-  AgenticAgentPicker: (props: { open: boolean }) =>
-    props.open ? <div data-testid="agentic-picker-open" /> : null,
+  AgenticAgentPicker: (props: {
+    open: boolean;
+    onOpenCreationSession: (id: string) => void;
+  }) => {
+    lastOnOpenCreationSession = props.onOpenCreationSession;
+    return props.open ? <div data-testid="agentic-picker-open" /> : null;
+  },
 }));
 
 vi.mock("@/components/routines/CreateRoutineDialog", () => ({
@@ -55,6 +64,11 @@ function renderRoute() {
 }
 
 describe("/_authenticated/routines/ index route", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    lastOnOpenCreationSession = null;
+  });
+
   it("renders sidebar with null selection plus empty-state center pane", () => {
     renderRoute();
 
@@ -92,5 +106,30 @@ describe("/_authenticated/routines/ index route", () => {
     fireEvent.click(screen.getByTestId("sidebar-plus"));
 
     expect(screen.getByTestId("agentic-picker-open")).toBeInTheDocument();
+  });
+
+  it("navigates to creation run when picker calls onOpenCreationSession", () => {
+    renderRoute();
+
+    // Open the picker so the latest onOpenCreationSession callback is
+    // captured by the mock (the mock records the most recent props).
+    fireEvent.click(
+      screen.getByRole("button", { name: /emptyState\.createWithAI/ }),
+    );
+    expect(screen.getByTestId("agentic-picker-open")).toBeInTheDocument();
+    expect(lastOnOpenCreationSession).toBeTypeOf("function");
+
+    // Simulate AgenticAgentPicker firing onOpenCreationSession after
+    // createMutation.onSuccess — the index route should navigate to the
+    // freshly-created draft routine's creation run.
+    act(() => {
+      lastOnOpenCreationSession?.("new-routine-id");
+    });
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/routines/$routineId/runs/$executionId",
+      params: { routineId: "new-routine-id", executionId: "creation" },
+    });
   });
 });

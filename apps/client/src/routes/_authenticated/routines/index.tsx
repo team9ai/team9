@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ListChecks, Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/_authenticated/routines/")({
 
 function RoutinesPage() {
   const { t } = useTranslation("routines");
+  const navigate = useNavigate();
   const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
@@ -53,7 +54,12 @@ function RoutinesPage() {
           setAgenticPickerOpen(false);
           setShowCreateDialog(true);
         }}
-        onOpenCreationSession={() => {}}
+        onOpenCreationSession={(id) =>
+          void navigate({
+            to: "/routines/$routineId/runs/$executionId",
+            params: { routineId: id, executionId: "creation" },
+          })
+        }
       />
     </div>
   );
