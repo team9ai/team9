@@ -14,7 +14,7 @@ import { RunItem } from "./RunItem";
 import { CreationSessionRunItem } from "./CreationSessionRunItem";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import type { Routine, RoutineExecution, RoutineStatus } from "@/types/routine";
-import type { SelectedRun } from "./RoutineList";
+import type { SelectedRun } from "./RoutinesSidebar";
 
 const STATUS_COLORS: Record<RoutineStatus, string> = {
   draft: "bg-yellow-400",
@@ -48,6 +48,7 @@ interface RoutineCardProps {
   executions: RoutineExecution[];
   botName?: string | null;
   onToggleExpand: () => void;
+  onOpenRoutine: () => void;
   onSelectRun: (runId: string) => void;
   onOpenCreationSession: (routineId: string) => void;
   onOpenSettings: () => void;
@@ -74,6 +75,7 @@ export function RoutineCard({
   executions,
   botName,
   onToggleExpand,
+  onOpenRoutine,
   onSelectRun,
   onOpenCreationSession,
   onOpenSettings,
@@ -87,10 +89,15 @@ export function RoutineCard({
     routine.tokenUsage != null &&
     routine.tokenUsage > 0;
 
+  const handleHeaderClick = () => {
+    onToggleExpand();
+    onOpenRoutine();
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onToggleExpand();
+      handleHeaderClick();
     }
   };
 
@@ -119,7 +126,7 @@ export function RoutineCard({
     >
       {/* Task header — clickable to expand/collapse */}
       <div
-        onClick={onToggleExpand}
+        onClick={handleHeaderClick}
         role="button"
         tabIndex={0}
         onKeyDown={handleKeyDown}
