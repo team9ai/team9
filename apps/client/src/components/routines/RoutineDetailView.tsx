@@ -27,6 +27,7 @@ import { routinesApi } from "@/services/api/routines";
 import { RoutineTriggersTab } from "./RoutineTriggersTab";
 import { RoutineDocumentTab } from "./RoutineDocumentTab";
 import { RoutineOverviewTab } from "./tabs/RoutineOverviewTab";
+import { RoutineRunsTab } from "./tabs/RoutineRunsTab";
 import type { RoutineDetail, RoutineStatus } from "@/types/routine";
 
 const STATUS_COLORS: Record<RoutineStatus, string> = {
@@ -158,7 +159,11 @@ export function RoutineDetailView({
           </ScrollArea>
         </TabsContent>
         <TabsContent value="runs" className="flex-1 min-h-0 mt-0">
-          <div data-testid="runs-tab-placeholder" className="p-4" />
+          <RoutineRunsTab
+            routineId={routine.id}
+            selectedExecutionId={null}
+            active={tab === "runs"}
+          />
         </TabsContent>
       </Tabs>
 

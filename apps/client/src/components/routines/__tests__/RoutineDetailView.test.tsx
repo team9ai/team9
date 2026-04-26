@@ -39,6 +39,25 @@ vi.mock("../tabs/RoutineOverviewTab", () => ({
   ),
 }));
 
+vi.mock("../tabs/RoutineRunsTab", () => ({
+  RoutineRunsTab: ({
+    routineId,
+    selectedExecutionId,
+    active,
+  }: {
+    routineId: string;
+    selectedExecutionId: string | null;
+    active: boolean;
+  }) => (
+    <div
+      data-testid="runs-tab"
+      data-routine-id={routineId}
+      data-selected-execution-id={selectedExecutionId ?? ""}
+      data-active={String(active)}
+    />
+  ),
+}));
+
 // Radix DropdownMenu relies on pointer events jsdom doesn't fire from a plain
 // `fireEvent.click`. Swap the UI wrapper for a minimal controlled menu so the
 // tests can drive the exact prop surface the component cares about.
@@ -204,9 +223,13 @@ describe("RoutineDetailView", () => {
     expect(docs).toHaveAttribute("data-routine-id", "r1");
   });
 
-  it("activates the Runs tab placeholder when tab='runs'", () => {
+  it("activates the Runs tab and forwards routine.id with active=true when tab='runs'", () => {
     renderView({ tab: "runs" });
-    expect(screen.getByTestId("runs-tab-placeholder")).toBeInTheDocument();
+    const runs = screen.getByTestId("runs-tab");
+    expect(runs).toBeInTheDocument();
+    expect(runs).toHaveAttribute("data-routine-id", "r1");
+    expect(runs).toHaveAttribute("data-selected-execution-id", "");
+    expect(runs).toHaveAttribute("data-active", "true");
   });
 
   it("calls onTabChange when a tab trigger is activated", () => {
