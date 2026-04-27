@@ -37,7 +37,11 @@ function RoutineRunPage() {
 
   const selectedRunExecution = useMemo(() => {
     if (isCreation) return null;
-    if (routine?.currentExecution?.execution.id === executionId) {
+    if (
+      routine != null &&
+      routine.currentExecution != null &&
+      routine.currentExecution.execution.id === executionId
+    ) {
       return routine.currentExecution.execution;
     }
     return executions.find((e) => e.id === executionId) ?? null;
