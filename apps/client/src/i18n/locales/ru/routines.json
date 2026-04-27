@@ -147,7 +147,10 @@
         "loadError": "Не удалось загрузить версии",
         "noVersions": "Версий пока нет"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "Триггеры",
@@ -289,6 +292,7 @@
     "interval": "Интервал",
     "schedule": "Расписание",
     "channelMessage": "Сообщение в канале",
-    "retry": "Повтор"
+    "retry": "Повтор",
+    "running": "running"
   }
 }

@@ -51,23 +51,46 @@ export function RoutinesSidebar({
   const workspaceId = useSelectedWorkspaceId();
   const [tab, setTab] = useState<TabKey>("all");
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
-    new Set(),
+    () => {
+      try {
+        const stored = sessionStorage.getItem("routines-sidebar-expanded");
+        if (stored) return new Set<string>(JSON.parse(stored) as string[]);
+      } catch {
+        // ignore parse errors
+      }
+      return new Set<string>();
+    },
   );
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
 
+  const persistExpanded = useCallback((next: Set<string>) => {
+    try {
+      sessionStorage.setItem(
+        "routines-sidebar-expanded",
+        JSON.stringify([...next]),
+      );
+    } catch {
+      // ignore storage errors (private browsing / quota)
+    }
+    return next;
+  }, []);
+
   // Auto-expand the URL-selected routine on mount / route change so its
   // active runs are visible in the sidebar. The chevron is a separate button
   // (Task 6), so the user can still collapse manually after the auto-expand.
+  // The expanded set is persisted in sessionStorage so the user's manual
+  // collapse via chevron survives remounts (e.g. navigating between detail
+  // and run routes, which each mount their own sidebar).
   useEffect(() => {
     if (!selectedRoutineId) return;
     setExpandedRoutineIds((prev) => {
       if (prev.has(selectedRoutineId)) return prev;
       const next = new Set(prev);
       next.add(selectedRoutineId);
-      return next;
+      return persistExpanded(next);
     });
-  }, [selectedRoutineId]);
+  }, [selectedRoutineId, persistExpanded]);
 
   const { data: allRoutines = [], isLoading } = useQuery({
     queryKey: ["routines"],
@@ -104,14 +127,17 @@ export function RoutinesSidebar({
     return nonDraftRoutines.filter((r) => statuses.includes(r.status));
   }, [nonDraftRoutines, tab]);
 
-  const handleToggleExpand = useCallback((routineId: string) => {
-    setExpandedRoutineIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(routineId)) next.delete(routineId);
-      else next.add(routineId);
-      return next;
-    });
-  }, []);
+  const handleToggleExpand = useCallback(
+    (routineId: string) => {
+      setExpandedRoutineIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(routineId)) next.delete(routineId);
+        else next.add(routineId);
+        return persistExpanded(next);
+      });
+    },
+    [persistExpanded],
+  );
 
   const handleOpenRoutine = useCallback(
     (routine: Routine) => {
@@ -149,13 +175,13 @@ export function RoutinesSidebar({
         if (!prev.has(deletedRoutineId)) return prev;
         const next = new Set(prev);
         next.delete(deletedRoutineId);
-        return next;
+        return persistExpanded(next);
       });
       if (selectedRoutineId === deletedRoutineId) {
         void navigate({ to: "/routines" });
       }
     },
-    [navigate, selectedRoutineId],
+    [navigate, selectedRoutineId, persistExpanded],
   );
 
   return (

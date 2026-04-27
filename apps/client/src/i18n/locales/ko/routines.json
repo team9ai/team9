@@ -154,7 +154,10 @@
         "loadError": "버전을 불러오지 못했습니다",
         "noVersions": "아직 버전이 없습니다"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "트리거",
@@ -296,6 +299,7 @@
     "interval": "인터벌",
     "schedule": "스케줄",
     "channelMessage": "채널 메시지",
-    "retry": "재시도"
+    "retry": "재시도",
+    "running": "running"
   }
 }

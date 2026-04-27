@@ -64,7 +64,7 @@ vi.mock("@/services/api/routines", () => ({
   },
 }));
 
-import { Route as DetailRoute } from "../$routineId";
+import { Route as DetailRoute } from "../$routineId.index";
 
 type RouteHandle = {
   __config: {

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
@@ -10,23 +10,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
+import { STATUS_COLORS } from "@/lib/routine-status";
 import { RunItem } from "./RunItem";
 import { CreationSessionRunItem } from "./CreationSessionRunItem";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import type { Routine, RoutineExecution, RoutineStatus } from "@/types/routine";
 import type { SelectedRun } from "./RoutinesSidebar";
-
-const STATUS_COLORS: Record<RoutineStatus, string> = {
-  draft: "bg-yellow-400",
-  in_progress: "bg-blue-500",
-  upcoming: "bg-gray-400",
-  paused: "bg-yellow-500",
-  pending_action: "bg-orange-500",
-  completed: "bg-green-500",
-  failed: "bg-red-500",
-  stopped: "bg-gray-500",
-  timeout: "bg-red-400",
-};
 
 const SHOW_TOKEN_STATUSES: RoutineStatus[] = [
   "in_progress",
@@ -101,38 +90,15 @@ export function RoutineCard({
     onOpenRoutine();
   };
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onOpenRoutine();
-    }
-  };
-
-  // stopPropagation on click handles mouse activation, but a synthetic click
-  // dispatched after a keyboard Enter/Space on an inner button still lets the
-  // original keydown bubble to the parent div's onKeyDown — which would then
-  // ALSO call onOpenRoutine(). Stop the keydown explicitly to prevent the
-  // double-fire (navigate + inner action) on keyboard activation.
-  const stopButtonKeyDownPropagation = (
-    e: KeyboardEvent<HTMLButtonElement>,
-  ) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.stopPropagation();
-    }
-  };
-
-  const handleChevronClick = (e: MouseEvent) => {
-    e.stopPropagation();
+  const handleChevronClick = () => {
     onToggleExpand();
   };
 
-  const handleSettingsClick = (e: MouseEvent) => {
-    e.stopPropagation();
+  const handleSettingsClick = () => {
     onOpenSettings();
   };
 
-  const handleStartClick = (e: MouseEvent) => {
-    e.stopPropagation();
+  const handleStartClick = () => {
     setShowStartDialog(true);
   };
 
@@ -156,20 +122,13 @@ export function RoutineCard({
         !isActive && "hover:border-primary/50",
       )}
     >
-      {/* Task header — clickable to navigate to the detail page */}
-      <div
-        onClick={handleHeaderClick}
-        role="button"
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        className="p-3 cursor-pointer group"
-      >
+      {/* Task header — title button navigates; chevron, start, settings are siblings. */}
+      <div className="p-3 group">
         <div className="flex items-center gap-2">
-          {/* Chevron is its own button so expanding doesn't navigate. */}
+          {/* Chevron: toggles expansion without navigating. */}
           <button
             type="button"
             onClick={handleChevronClick}
-            onKeyDown={stopButtonKeyDownPropagation}
             className="text-muted-foreground shrink-0 p-0.5 -m-0.5 rounded hover:bg-muted"
             aria-label={t("detail.toggleExpand")}
           >
@@ -179,15 +138,21 @@ export function RoutineCard({
               <ChevronRight size={14} />
             )}
           </button>
-          <StatusIndicator status={routine.status} />
-          <span className="font-medium text-sm truncate flex-1">
-            {routine.title}
-          </span>
+          {/* Title button: navigates to the detail page. */}
+          <button
+            type="button"
+            onClick={handleHeaderClick}
+            className="flex items-center gap-2 min-w-0 flex-1 text-left hover:opacity-80 transition-opacity"
+          >
+            <StatusIndicator status={routine.status} />
+            <span className="font-medium text-sm truncate">
+              {routine.title}
+            </span>
+          </button>
           {/* Action buttons — visible on hover */}
           <button
             type="button"
             onClick={handleStartClick}
-            onKeyDown={stopButtonKeyDownPropagation}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
             aria-label={t("detail.start", "Start")}
           >
@@ -196,7 +161,6 @@ export function RoutineCard({
           <button
             type="button"
             onClick={handleSettingsClick}
-            onKeyDown={stopButtonKeyDownPropagation}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
             aria-label={t("settingsTab.title", "Settings")}
           >

@@ -147,7 +147,10 @@
         "loadError": "Falha ao carregar versões",
         "noVersions": "Ainda não há versões"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "Gatilhos",
@@ -289,6 +292,7 @@
     "interval": "Intervalo",
     "schedule": "Agendamento",
     "channelMessage": "Mensagem do canal",
-    "retry": "Nova tentativa"
+    "retry": "Nova tentativa",
+    "running": "running"
   }
 }

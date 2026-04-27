@@ -12,23 +12,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/date-format";
+import { STATUS_COLORS } from "@/lib/routine-status";
 import { routinesApi } from "@/services/api/routines";
 import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { RunListItem } from "../RunListItem";
-import type { RoutineDetail, RoutineStatus } from "@/types/routine";
-
-const STATUS_COLORS: Record<RoutineStatus, string> = {
-  draft: "bg-yellow-400",
-  in_progress: "bg-blue-500",
-  upcoming: "bg-gray-400",
-  paused: "bg-yellow-500",
-  pending_action: "bg-orange-500",
-  completed: "bg-green-500",
-  failed: "bg-red-500",
-  stopped: "bg-gray-500",
-  timeout: "bg-red-400",
-};
+import type { RoutineDetail } from "@/types/routine";
 
 interface RoutineOverviewTabProps {
   routine: RoutineDetail;
@@ -74,10 +63,18 @@ export function RoutineOverviewTab({
     },
   });
 
+  const currentStartedAt =
+    routine.currentExecution?.execution.startedAt ?? null;
+  const latestStartedAt = executions[0]?.startedAt ?? null;
   const lastRunAt =
-    routine.currentExecution?.execution.startedAt ??
-    executions[0]?.startedAt ??
-    null;
+    currentStartedAt === null
+      ? latestStartedAt
+      : latestStartedAt === null
+        ? currentStartedAt
+        : new Date(currentStartedAt).getTime() >=
+            new Date(latestStartedAt).getTime()
+          ? currentStartedAt
+          : latestStartedAt;
   const recent5 = executions.slice(0, 5);
   const currentExecution = routine.currentExecution?.execution;
   const tokenUsage = routine.tokenUsage ?? 0;

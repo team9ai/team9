@@ -154,7 +154,10 @@
         "loadError": "Error al cargar versiones",
         "noVersions": "Sin versiones aún"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "Disparadores",
@@ -296,6 +299,7 @@
     "interval": "Intervalo",
     "schedule": "Programado",
     "channelMessage": "Mensaje de canal",
-    "retry": "Reintento"
+    "retry": "Reintento",
+    "running": "running"
   }
 }

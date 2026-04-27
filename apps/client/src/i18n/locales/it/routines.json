@@ -147,7 +147,10 @@
         "loadError": "Impossibile caricare le versioni",
         "noVersions": "Ancora nessuna versione"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "Trigger",
@@ -289,6 +292,7 @@
     "interval": "Intervallo",
     "schedule": "Pianificazione",
     "channelMessage": "Messaggio del canale",
-    "retry": "Nuovo tentativo"
+    "retry": "Nuovo tentativo",
+    "running": "running"
   }
 }

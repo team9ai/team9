@@ -154,7 +154,10 @@
         "loadError": "載入版本失敗",
         "noVersions": "暫無版本"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "觸發條件",
@@ -296,6 +299,7 @@
     "interval": "間隔",
     "schedule": "排程",
     "channelMessage": "頻道訊息",
-    "retry": "重試"
+    "retry": "重試",
+    "running": "running"
   }
 }

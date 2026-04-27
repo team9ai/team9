@@ -155,7 +155,10 @@
         "loadError": "加载版本失败",
         "noVersions": "暂无版本"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "触发器",
@@ -297,7 +300,8 @@
     "interval": "定时",
     "schedule": "计划",
     "channelMessage": "频道消息",
-    "retry": "重试"
+    "retry": "重试",
+    "running": "running"
   },
   "agentic": {
     "createButton": "使用 AI 创建",

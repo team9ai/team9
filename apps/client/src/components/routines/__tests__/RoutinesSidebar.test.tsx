@@ -66,6 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockList.mockResolvedValue([]);
   mockGetExecutions.mockResolvedValue([]);
+  sessionStorage.clear();
 });
 
 describe("RoutinesSidebar", () => {
@@ -412,7 +413,7 @@ describe("RoutinesSidebar", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("does not double-fire navigate when activating chevron via keyboard", async () => {
+  it("activating chevron via keyboard does not trigger navigation", async () => {
     mockList.mockResolvedValue([
       {
         id: "r1",
@@ -436,10 +437,6 @@ describe("RoutinesSidebar", () => {
       '[aria-label="detail.toggleExpand"]',
     ) as HTMLButtonElement;
     expect(chevron).not.toBeNull();
-    // Pressing Enter while the chevron has focus must NOT bubble up to the
-    // parent role="button" div. Without stopPropagation on keydown, the parent
-    // would receive the keydown and call onOpenRoutine() — a navigate — at the
-    // same time as the synthetic click toggles expansion.
     fireEvent.keyDown(chevron, { key: "Enter", bubbles: true });
     expect(mockNavigate).not.toHaveBeenCalled();
     fireEvent.keyDown(chevron, { key: " ", bubbles: true });

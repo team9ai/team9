@@ -218,7 +218,7 @@ describe("RoutineOverviewTab", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("uses currentExecution.startedAt as lastRunAt when present", async () => {
+  it("uses currentExecution.startedAt as lastRunAt when present (no executions)", async () => {
     renderTab({
       currentExecution: {
         execution: makeExecution({
@@ -235,6 +235,73 @@ describe("RoutineOverviewTab", () => {
     expect(
       screen.getByText("formatted:2026-04-26T09:00:00Z"),
     ).toBeInTheDocument();
+  });
+
+  it("picks the more recent of currentExecution.startedAt vs executions[0].startedAt", async () => {
+    const executions = [
+      makeExecution({
+        id: "e-older",
+        startedAt: "2026-04-26T07:00:00Z",
+        completedAt: "2026-04-26T07:01:00Z",
+      }),
+    ];
+    renderTab(
+      {
+        currentExecution: {
+          execution: makeExecution({
+            id: "exec-newer",
+            status: "in_progress",
+            startedAt: "2026-04-26T10:00:00Z",
+            completedAt: null,
+          }),
+          steps: [],
+          interventions: [],
+          deliverables: [],
+        },
+      },
+      executions,
+    );
+    // currentExecution is newer → should show its startedAt
+    await waitFor(() => {
+      expect(
+        screen.getByText("formatted:2026-04-26T10:00:00Z"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("formatted:2026-04-26T07:00:00Z"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("picks executions[0].startedAt when it is newer than currentExecution.startedAt", async () => {
+    const executions = [
+      makeExecution({
+        id: "e-newer",
+        startedAt: "2026-04-26T11:00:00Z",
+        completedAt: "2026-04-26T11:01:00Z",
+      }),
+    ];
+    renderTab(
+      {
+        currentExecution: {
+          execution: makeExecution({
+            id: "exec-older",
+            status: "in_progress",
+            startedAt: "2026-04-26T09:00:00Z",
+            completedAt: null,
+          }),
+          steps: [],
+          interventions: [],
+          deliverables: [],
+        },
+      },
+      executions,
+    );
+    // executions[0] is newer → should show its startedAt
+    await waitFor(() => {
+      expect(
+        screen.getByText("formatted:2026-04-26T11:00:00Z"),
+      ).toBeInTheDocument();
+    });
   });
 
   it("renders current run pill + View link when present and navigates", () => {

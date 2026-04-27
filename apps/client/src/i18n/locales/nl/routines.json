@@ -147,7 +147,10 @@
         "loadError": "Kan versies niet laden",
         "noVersions": "Nog geen versies"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found"
   },
   "triggers": {
     "title": "Triggers",
@@ -289,6 +292,7 @@
     "interval": "Interval",
     "schedule": "Planning",
     "channelMessage": "Kanaalbericht",
-    "retry": "Opnieuw proberen"
+    "retry": "Opnieuw proberen",
+    "running": "running"
   }
 }
