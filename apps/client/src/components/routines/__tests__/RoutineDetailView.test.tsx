@@ -138,6 +138,85 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
   };
 });
 
+vi.mock("@/components/ui/alert-dialog", async () => {
+  const React = await import("react");
+  type CloseFn = (v: boolean) => void;
+  const CloseCtx = React.createContext<CloseFn>(() => {});
+
+  const AlertDialog = ({
+    open,
+    onOpenChange,
+    children,
+  }: {
+    open?: boolean;
+    onOpenChange?: CloseFn;
+    children: React.ReactNode;
+  }) => (
+    <CloseCtx.Provider value={onOpenChange ?? (() => {})}>
+      {open ? children : null}
+    </CloseCtx.Provider>
+  );
+
+  const AlertDialogContent = ({ children }: { children: React.ReactNode }) => (
+    <div role="alertdialog">{children}</div>
+  );
+  const AlertDialogHeader = ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  );
+  const AlertDialogTitle = ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  );
+  const AlertDialogDescription = ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => <p>{children}</p>;
+  const AlertDialogFooter = ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  );
+  const AlertDialogCancel = ({ children }: { children: React.ReactNode }) => {
+    const close = React.useContext(CloseCtx);
+    return (
+      <button type="button" onClick={() => close(false)}>
+        {children}
+      </button>
+    );
+  };
+  // Intentionally does NOT call close(false) so tests can inspect `disabled`
+  // while the mutation is still pending.
+  const AlertDialogAction = ({
+    children,
+    onClick,
+    disabled,
+    className,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+    >
+      {children}
+    </button>
+  );
+
+  return {
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogCancel,
+    AlertDialogAction,
+  };
+});
+
 import { RoutineDetailView } from "../RoutineDetailView";
 import type { RoutineDetail, RoutineStatus } from "@/types/routine";
 
@@ -322,5 +401,36 @@ describe("RoutineDetailView", () => {
       ).not.toBeInTheDocument();
     });
     expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("confirm button is disabled while delete mutation is pending", async () => {
+    let resolveDelete!: (v: undefined) => void;
+    mockDelete.mockImplementation(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+
+    renderView({ routine: { ...baseRoutine, status: "completed" } });
+    fireEvent.click(screen.getByLabelText("More"));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /detail\.delete/ }),
+    );
+
+    const confirmBtn = await screen.findByRole("button", {
+      name: "detail.delete",
+    });
+    expect(confirmBtn).not.toBeDisabled();
+
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "detail.delete" }),
+      ).toBeDisabled();
+    });
+
+    resolveDelete(undefined);
   });
 });
