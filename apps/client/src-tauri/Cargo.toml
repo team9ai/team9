@@ -1,5 +1,5 @@
 [package]
-name = "team9-client"
+name = "team9"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
@@ -11,8 +11,14 @@ edition = "2021"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "team9_client_lib"
+name = "team9_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Capitalized binary name controls the macOS dock label in `tauri dev` (unbundled binary).
+# Production builds use `productName` from tauri.conf.json for the .app bundle name.
+[[bin]]
+name = "Team9"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -23,6 +29,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
@@ -36,8 +43,9 @@ base64 = "0.22"
 sha2 = "0.10"
 hex = "0.4"
 
-# ahand library embedding — pinned to aHand dev HEAD (post-Stream-A merge)
-ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "94c4c0af931f6b58750150281acdc4f61b3c65f5" }
+# ahand library embedding — pinned to aHand dev HEAD with WS Ping/Pong
+# zombie-detect fix.
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "6dac9028ff1f5e1096bbd55911bf7eb96b8e643f" }
 
 [dev-dependencies]
 tempfile = "3"

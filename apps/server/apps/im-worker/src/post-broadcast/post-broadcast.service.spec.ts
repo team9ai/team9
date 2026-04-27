@@ -10,6 +10,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { RabbitMQEventService } from '@team9/rabbitmq';
 import { ClawHiveService } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import { PostBroadcastService } from './post-broadcast.service.js';
 import { MessageRouterService } from '../message/message-router.service.js';
 import { SequenceService } from '../sequence/sequence.service.js';
@@ -231,12 +232,23 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       CHANNEL_ID,
       SENDER_ID,
     );
+    // 4th arg is processTask's lazy MessageContextLoader — both fan-out
+    // helpers receive the same closure so they share one DB roundtrip.
     expect(pushToBotWebhooks).toHaveBeenCalledWith(
       MSG_ID,
       SENDER_ID,
       memberIds,
+      expect.any(Function),
     );
-    expect(pushToHiveBots).toHaveBeenCalledWith(MSG_ID, SENDER_ID, memberIds);
+    expect(pushToHiveBots).toHaveBeenCalledWith(
+      MSG_ID,
+      SENDER_ID,
+      memberIds,
+      expect.any(Function),
+    );
+    const webhookLoader = pushToBotWebhooks.mock.calls[0][3];
+    const hiveLoader = pushToHiveBots.mock.calls[0][3];
+    expect(webhookLoader).toBe(hiveLoader);
     expect(markOutboxCompleted).toHaveBeenCalledWith(MSG_ID);
     expect(logger.debug).toHaveBeenCalledWith(
       expect.stringContaining(`Post-broadcast completed for ${MSG_ID}`),
@@ -445,6 +457,70 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       'Webhook returned 503 for bot bot-id-123',
     );
+  });
+
+  // ── #76 regression: getMessageWithContext is fetched once, not twice ──────
+
+  it('shares one getMessageWithContext call between webhook and hive fan-out', async () => {
+    // Reuse the orchestrator: stub the helpers up to step 4 so we can
+    // observe the shared loader. Both pushTo* run with the real impl
+    // because we want them to dereference the same closure.
+    jest
+      .spyOn(service as any, 'getChannelMemberIds')
+      .mockResolvedValue([SENDER_ID, 'recipient-1']);
+    jest
+      .spyOn(service as any, 'updateUnreadCounts')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'processNotificationTasks')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'markOutboxCompleted')
+      .mockResolvedValue(undefined);
+
+    const getMessageWithContext = jest
+      .spyOn(service as any, 'getMessageWithContext')
+      .mockResolvedValue({
+        message: makeMessage(),
+        sender: makeSender(),
+        channel: makeChannel('public'),
+        mentions: [],
+        parentMessage: null,
+        attachments: [],
+      });
+
+    // Each fan-out has at least one bot to consume context. Webhook bot
+    // first (resolved by 1st db.where), hive bot list second.
+    db.where
+      .mockResolvedValueOnce([
+        {
+          userId: 'webhook-bot-uuid',
+          webhookUrl: 'https://example.test/wh',
+          webhookHeaders: {},
+          botId: 'wh-bot-id',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          userId: 'hive-bot-uuid',
+          botId: 'hv-bot-id',
+          managedMeta: { agentId: 'base-model-x' },
+          mentorId: null,
+        },
+      ]);
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as any);
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation((() => 0) as any);
+
+    await service.processTask({
+      msgId: MSG_ID,
+      channelId: CHANNEL_ID,
+      senderId: SENDER_ID,
+      broadcastAt: 1_000,
+    });
+
+    // Single resolution shared by both helpers — without the lazy loader
+    // this would have been called twice (once per helper).
+    expect(getMessageWithContext).toHaveBeenCalledTimes(1);
   });
 
   /** Helper: set up DB responses for one pushToHiveBots call */
@@ -844,6 +920,180 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     await expect(
       (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]),
     ).resolves.not.toThrow();
+  });
+
+  it('records the failure via recordHiveSendFailure when sendInput rejects (#77)', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('direct') });
+    const recordHiveSendFailure = jest
+      .spyOn(service as any, 'recordHiveSendFailure')
+      .mockResolvedValue(undefined);
+    clawHiveService.sendInput.mockRejectedValueOnce(
+      new Error('No available workers'),
+    );
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+    // .catch -> void this.recordHiveSendFailure(...) is scheduled on the
+    // microtask queue; flush twice (catch callback then the helper call).
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(recordHiveSendFailure).toHaveBeenCalledTimes(1);
+    const arg = recordHiveSendFailure.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(arg).toEqual(
+      expect.objectContaining({
+        err: expect.any(Error),
+        bot: { id: bot.botId },
+        agentId: bot.managedMeta.agentId,
+        tenantId: TENANT_ID,
+        sessionId: expect.stringContaining(
+          `team9/${TENANT_ID}/${bot.managedMeta.agentId}/dm/${CHANNEL_ID}`,
+        ),
+        scope: 'dm',
+        scopeId: CHANNEL_ID,
+        channelId: CHANNEL_ID,
+        messageId: MSG_ID,
+      }),
+    );
+  });
+
+  describe('recordHiveSendFailure (#77)', () => {
+    let counterAdd: MockFn;
+    let insertChain: { values: MockFn; onConflictDoUpdate: MockFn };
+
+    beforeEach(() => {
+      counterAdd = jest.fn<any>();
+      // appMetrics.hiveSendFailures is a lazy getter — replace its
+      // return so we can observe `add(...)` calls without a real
+      // OTEL pipeline.
+      jest
+        .spyOn(appMetrics, 'hiveSendFailures', 'get')
+        .mockReturnValue({ add: counterAdd } as any);
+
+      // db.insert(...).values(...).onConflictDoUpdate(...) — chain that
+      // resolves cleanly. The default makeChainMock has insert returning
+      // the chain itself with all mocks resolving undefined.
+      insertChain = {
+        values: jest.fn<any>().mockReturnThis(),
+        onConflictDoUpdate: jest.fn<any>().mockResolvedValue(undefined),
+      };
+      (insertChain.values as any).mockReturnValue(insertChain);
+      db.insert.mockReturnValue(insertChain);
+    });
+
+    const baseParams = (errOverride?: Error) => ({
+      err: errOverride ?? new Error('Failed to send input: 502 bad gateway'),
+      bot: { id: 'bot-uuid-1' },
+      agentId: 'base-model-claude',
+      tenantId: TENANT_ID,
+      sessionId: `team9/${TENANT_ID}/base-model-claude/dm/${CHANNEL_ID}`,
+      scope: 'dm' as const,
+      scopeId: CHANNEL_ID,
+      channelId: CHANNEL_ID,
+      trackingChannelId: undefined,
+      messageId: MSG_ID,
+    });
+
+    it('classifies "No available workers" as no_workers and tags the counter', async () => {
+      await (service as any).recordHiveSendFailure(
+        baseParams(new Error('No available workers')),
+      );
+      expect(counterAdd).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          error_kind: 'no_workers',
+          tenant_id: TENANT_ID,
+          agent_id: 'base-model-claude',
+        }),
+      );
+    });
+
+    it('classifies AbortError as timeout', async () => {
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      await (service as any).recordHiveSendFailure(baseParams(err));
+      expect(counterAdd).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ error_kind: 'timeout' }),
+      );
+    });
+
+    it('classifies "Failed to send input: 5xx" as http_error', async () => {
+      await (service as any).recordHiveSendFailure(
+        baseParams(new Error('Failed to send input: 503 service unavailable')),
+      );
+      expect(counterAdd).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ error_kind: 'http_error' }),
+      );
+    });
+
+    it('classifies anything else as other', async () => {
+      await (service as any).recordHiveSendFailure(
+        baseParams(new Error('connection refused')),
+      );
+      expect(counterAdd).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ error_kind: 'other' }),
+      );
+    });
+
+    it('upserts the DLQ row with retry_count=1 + errorKind/errorMessage', async () => {
+      await (service as any).recordHiveSendFailure(baseParams());
+      expect(db.insert).toHaveBeenCalled();
+      expect(insertChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageId: MSG_ID,
+          botId: 'bot-uuid-1',
+          agentId: 'base-model-claude',
+          tenantId: TENANT_ID,
+          sessionId: expect.stringContaining(`team9/${TENANT_ID}/`),
+          errorKind: 'http_error',
+          errorMessage: 'Failed to send input: 502 bad gateway',
+          retryCount: 1,
+        }),
+      );
+      expect(insertChain.onConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: expect.any(Array),
+          set: expect.objectContaining({
+            errorKind: 'http_error',
+            errorMessage: 'Failed to send input: 502 bad gateway',
+            lastSeenAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('omits tenant_id from counter attributes when tenantId is null', async () => {
+      await (service as any).recordHiveSendFailure({
+        ...baseParams(),
+        tenantId: null,
+      });
+      const attrs = counterAdd.mock.calls[0][1] as Record<string, unknown>;
+      expect(attrs).not.toHaveProperty('tenant_id');
+    });
+
+    it('does not throw if counter.add throws', async () => {
+      counterAdd.mockImplementation(() => {
+        throw new Error('otel exporter down');
+      });
+      await expect(
+        (service as any).recordHiveSendFailure(baseParams()),
+      ).resolves.not.toThrow();
+    });
+
+    it('does not throw if DLQ insert rejects', async () => {
+      insertChain.onConflictDoUpdate.mockRejectedValueOnce(
+        new Error('PG connection lost'),
+      );
+      await expect(
+        (service as any).recordHiveSendFailure(baseParams()),
+      ).resolves.not.toThrow();
+    });
   });
 
   it('does not throw when a DB query inside pushToHiveBots throws', async () => {

@@ -14,8 +14,10 @@
   "routines": "Рутины",
   "resources": "Ресурсы",
   "skills": "Навыки",
-  "library": "Библ.",
-  "application": "Прил.",
+  "wiki": "Библиотека",
+  "createWiki": "Создать библиотеку",
+  "reviewProposals": "Проверить предложения",
+  "application": "Приложения",
   "more": "Ещё",
   "noWorkspace": "Нет рабочего пространства",
   "moreWorkspaces": "Другие рабочие пространства",
@@ -146,5 +148,7 @@
   "hideConversation": "Скрыть беседу",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Личный ассистент",
-  "agentPillModel": "Модель"
+  "agentPillModel": "Модель",
+  "agentPillPersonalAssistantOf": "Личный ассистент {{owner}}",
+  "agentBadgeAide": "Помощник"
 }

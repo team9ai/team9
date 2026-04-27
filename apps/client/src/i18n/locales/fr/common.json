@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Page introuvable",
+    "description": "La page que vous recherchez n’existe pas ou a été déplacée.",
+    "goBack": "Retour",
+    "goHome": "Accueil"
+  },
   "loading": "Chargement...",
   "loadingMore": "Chargement en cours...",
   "error": "Erreur",
@@ -36,5 +42,12 @@
   "copied": "Copié",
   "selected": "Sélectionné",
   "warning": "Avertissement :",
-  "seconds": "s"
+  "seconds": "s",
+  "connection": {
+    "reconnecting": "Reconnexion…",
+    "reconnectingHint": "Tentative de rétablissement de la connexion.",
+    "disconnected": "Connexion perdue",
+    "disconnectedHint": "Vérifiez votre réseau et actualisez."
+  },
+  "uploadFile": "Téléverser un fichier"
 }

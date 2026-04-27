@@ -149,6 +149,9 @@ export class CommonStaffService {
         'team9-staff-profile': {},
         'team9-staff-bootstrap': {},
         'team9-staff-soul': {},
+        // ahand-integration component in the blueprint resolves
+        // callingUserId from ctx.userId and gateway/hub URLs from
+        // process.env at session start — no per-agent config needed.
       },
     });
 

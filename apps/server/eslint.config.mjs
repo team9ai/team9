@@ -49,7 +49,9 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.spec.ts', '**/*.test.ts'],
+    // `*.e2e-spec.ts` is listed explicitly because minimatch's default `*`
+    // doesn't span dots, so `**/*.spec.ts` would silently miss e2e suites.
+    files: ['**/*.spec.ts', '**/*.test.ts', '**/*.e2e-spec.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',

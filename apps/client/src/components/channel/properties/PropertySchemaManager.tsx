@@ -657,7 +657,7 @@ function DefinitionRow({
           )}
           <span className="text-sm font-medium truncate">
             {nativeLabelKey
-              ? t(`properties.nativeLabels.${nativeLabelKey}`)
+              ? t(`properties.nativeLabels.${nativeLabelKey}` as never)
               : definition.key}
           </span>
           <span className="text-xs text-muted-foreground">

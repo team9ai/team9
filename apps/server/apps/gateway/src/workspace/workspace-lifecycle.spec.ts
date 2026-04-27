@@ -150,6 +150,8 @@ describe('WorkspaceService — member lifecycle hooks', () => {
       personalStaffService, // PersonalStaffService
       {} as any, // OnboardingService (not used in lifecycle tests)
       { capture: jest.fn<any>() }, // PosthogService
+      { grantCredits: jest.fn<any>().mockResolvedValue(undefined) }, // BillingHubService
+      { createWiki: jest.fn<any>().mockResolvedValue(undefined) }, // WikisService
     );
   });
 

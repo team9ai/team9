@@ -27,8 +27,13 @@ export const useAhandStore = create<AhandStore>()(
     (set, get) => ({
       usersEnabled: {},
       getDeviceIdForUser(userId) {
-        const entry = get().usersEnabled[userId];
-        return entry?.enabled ? (entry.deviceId ?? null) : null;
+        // Return the stored deviceId regardless of `enabled`. A disabled
+        // device (toggle off) is still "this Mac" from the UI's point of
+        // view — the daemon is just stopped. Gating on `enabled` here
+        // broke OtherDevicesList's excludeLocal filter after toggle-off,
+        // making the local device incorrectly appear under "My Other
+        // Devices".
+        return get().usersEnabled[userId]?.deviceId ?? null;
       },
       getHubUrlForUser(userId) {
         return get().usersEnabled[userId]?.hubUrl ?? "";

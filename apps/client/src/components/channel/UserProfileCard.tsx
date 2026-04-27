@@ -28,27 +28,22 @@ export function UserProfileCard({
     const CARD_HEIGHT_ESTIMATE = 180;
     const OFFSET = 8;
 
-    let top: number;
-    let left: number;
+    // Prefer below the anchor; when no room, anchor the card's bottom edge
+    // to just above the anchor so actual card height doesn't leave a gap.
+    const placeBelow =
+      anchorRect.bottom + OFFSET + CARD_HEIGHT_ESTIMATE <= window.innerHeight;
 
-    // Prefer below the mention, fallback to above
-    if (
-      anchorRect.bottom + OFFSET + CARD_HEIGHT_ESTIMATE <=
-      window.innerHeight
-    ) {
-      top = anchorRect.bottom + OFFSET;
-    } else {
-      top = anchorRect.top - CARD_HEIGHT_ESTIMATE - OFFSET;
-    }
-
-    // Center horizontally on the mention
-    left = anchorRect.left + anchorRect.width / 2 - CARD_WIDTH / 2;
-
-    // Keep within viewport
+    // Center horizontally on the anchor, clamped to viewport
+    let left = anchorRect.left + anchorRect.width / 2 - CARD_WIDTH / 2;
     left = Math.max(8, Math.min(left, window.innerWidth - CARD_WIDTH - 8));
-    top = Math.max(8, top);
 
-    return { top, left };
+    if (placeBelow) {
+      return { top: Math.max(8, anchorRect.bottom + OFFSET), left };
+    }
+    return {
+      bottom: Math.max(8, window.innerHeight - anchorRect.top + OFFSET),
+      left,
+    };
   }, [anchorRect]);
 
   const name = user?.displayName || user?.username || displayName;
@@ -59,7 +54,7 @@ export function UserProfileCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className="fixed z-50 w-[280px] rounded-lg border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95 duration-150"
-      style={{ top: position.top, left: position.left }}
+      style={position}
     >
       {isLoading ? (
         <div className="p-4 flex items-center gap-3">

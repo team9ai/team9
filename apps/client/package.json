@@ -22,7 +22,9 @@
     "lint:ci": "eslint src vite.config.ts vitest.config.ts",
     "test": "node ./scripts/vitest-run.mjs",
     "test:cov": "node ./scripts/vitest-run.mjs --coverage",
-    "test:watch": "vitest",
+    "test:watch": "node ./scripts/vitest-run.mjs --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium",
     "clean": "rm -rf node_modules dist"
   },
   "dependencies": {
@@ -72,6 +74,7 @@
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-autostart": "^2",
     "@tauri-apps/plugin-deep-link": "^2.4.7",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2",
     "@types/diff": "^8.0.0",
@@ -106,10 +109,12 @@
     "tailwindcss": "^4.1.18",
     "three": "^0.183.2",
     "transliteration": "^2.6.0",
+    "yaml": "^2.8.3",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@playwright/test": "^1.59.1",
     "@sentry/vite-plugin": "^5.1.0",
     "@tanstack/react-query-devtools": "^5.91.2",
     "@tanstack/router-generator": "^1.143.11",

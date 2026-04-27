@@ -13,8 +13,10 @@
   "dmPermissionDenied": "Dit is een privéassistent en staat niet open voor directe berichten.",
   "routines": "Routines",
   "resources": "Bronnen",
-  "skills": "Skills",
-  "library": "Biblio.",
+  "skills": "Vaardigheden",
+  "wiki": "Bibliotheek",
+  "createWiki": "Bibliotheek aanmaken",
+  "reviewProposals": "Voorstellen beoordelen",
   "application": "Apps",
   "more": "Meer",
   "noWorkspace": "Geen werkruimte",
@@ -146,5 +148,7 @@
   "hideConversation": "Gesprek verbergen",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Persoonlijke assistent",
-  "agentPillModel": "Model"
+  "agentPillModel": "Model",
+  "agentPillPersonalAssistantOf": "Persoonlijke assistent van {{owner}}",
+  "agentBadgeAide": "Hulp"
 }

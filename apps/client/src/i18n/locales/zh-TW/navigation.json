@@ -14,8 +14,10 @@
   "routines": "例行",
   "resources": "資源",
   "skills": "技能",
-  "library": "知識庫",
-  "application": "應用",
+  "wiki": "知識庫",
+  "createWiki": "建立知識庫",
+  "reviewProposals": "審核提案",
+  "application": "應用程式",
   "more": "更多",
   "noWorkspace": "無工作空間",
   "moreWorkspaces": "更多工作空間",
@@ -146,5 +148,7 @@
   "hideConversation": "隱藏對話",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "個人助理",
-  "agentPillModel": "模型"
+  "agentPillModel": "模型",
+  "agentPillPersonalAssistantOf": "{{owner}}的個人助理",
+  "agentBadgeAide": "助理"
 }

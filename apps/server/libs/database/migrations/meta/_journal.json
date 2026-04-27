@@ -278,57 +278,57 @@
     {
       "idx": 39,
       "version": "7",
-      "when": 1776211200000,
-      "tag": "0039_replace_onboarding_roles",
+      "when": 1776124800000,
+      "tag": "0039_add_workspace_wikis",
       "breakpoints": true
     },
     {
       "idx": 40,
       "version": "7",
-      "when": 1776300000000,
-      "tag": "0040_echo_channel_unique_index",
+      "when": 1776211200000,
+      "tag": "0040_replace_onboarding_roles",
       "breakpoints": true
     },
     {
       "idx": 41,
       "version": "7",
-      "when": 1776400000000,
-      "tag": "0041_routine_session_channel_type",
+      "when": 1776300000000,
+      "tag": "0041_echo_channel_unique_index",
       "breakpoints": true
     },
     {
       "idx": 42,
       "version": "7",
-      "when": 1776480000000,
-      "tag": "0042_add_user_language_timezone",
+      "when": 1776400000000,
+      "tag": "0042_add_wiki_icon",
       "breakpoints": true
     },
     {
       "idx": 43,
       "version": "7",
-      "when": 1776762069343,
-      "tag": "0043_message_relations",
+      "when": 1776400000000,
+      "tag": "0043_routine_session_channel_type",
       "breakpoints": true
     },
     {
       "idx": 44,
       "version": "7",
-      "when": 1777300000000,
-      "tag": "0044_topic_session_channel_type",
+      "when": 1776480000000,
+      "tag": "0044_add_user_language_timezone",
       "breakpoints": true
     },
     {
       "idx": 45,
       "version": "7",
-      "when": 1777400000000,
-      "tag": "0045_message_content_ast",
+      "when": 1776500000000,
+      "tag": "0045_wiki_workspace_fk",
       "breakpoints": true
     },
     {
       "idx": 46,
       "version": "7",
-      "when": 1777536000000,
-      "tag": "0046_ahand_devices",
+      "when": 1776762069343,
+      "tag": "0046_message_relations",
       "breakpoints": true
     },
     {
@@ -336,6 +336,41 @@
       "version": "7",
       "when": 1777012936832,
       "tag": "0047_fair_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1777100000000,
+      "tag": "0048_wiki_slug_partial_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1777300000000,
+      "tag": "0049_topic_session_channel_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1777400000000,
+      "tag": "0050_message_content_ast",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1777536000000,
+      "tag": "0051_ahand_devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1777622400000,
+      "tag": "0052_hive_send_failures",
       "breakpoints": true
     }
   ]

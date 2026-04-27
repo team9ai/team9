@@ -13,7 +13,8 @@
     "test": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/gateway/jest.config.cjs",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/gateway/jest.config.cjs --watch",
     "test:cov": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/gateway/jest.config.cjs --coverage",
-    "test:e2e": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/gateway/test/jest-e2e.json"
+    "test:e2e": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/gateway/test/jest-e2e.json",
+    "test:contracts": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/gateway/test/jest-e2e.json --testPathPatterns 'apps/gateway/test/contracts'"
   },
   "optionalDependencies": {
     "@team9/enterprise-analytics": "workspace:*",
@@ -69,6 +70,7 @@
     "transliteration": "^2.6.0",
     "uuid": "^13.0.0",
     "web-push": "^3.6.7",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -77,6 +79,8 @@
     "@types/express": "^5.0.0",
     "@types/supertest": "^6.0.2",
     "@types/web-push": "^3.6.4",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "supertest": "^7.0.0",
     "typescript": "^5.7.3"
   }

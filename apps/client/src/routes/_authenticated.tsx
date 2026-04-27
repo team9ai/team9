@@ -6,8 +6,9 @@ import {
 } from "@tanstack/react-router";
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
+import { SidebarNavRail } from "@/components/layout/SidebarNavRail";
+import { useSidebarCollapsed } from "@/stores";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
-import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { UpdateDialog } from "@/components/layout/UpdateDialog";
 import { ChannelSettingsMount } from "@/components/channel/ChannelSettingsMount";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -236,6 +237,7 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthenticatedLayout() {
   const location = useLocation();
   const isOnboardingRoute = location.pathname === ONBOARDING_ROUTE;
+  const sidebarCollapsed = useSidebarCollapsed();
 
   // Resume aHand daemon connection if previously enabled
   useAhandBootstrap();
@@ -294,19 +296,23 @@ function AuthenticatedLayout() {
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Global top bar with search */}
       <GlobalTopBar />
-      <ConnectionStatus />
       <UpdateDialog />
       <ChannelSettingsMount />
 
       {/* Main content area with sidebars */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden bg-nav-bg">
         <MainSidebar />
-        <DynamicSubSidebar />
 
-        {/* Main content area */}
-        <main className="flex-1 overflow-hidden">
-          <Outlet />
-        </main>
+        {/* Content card — single source of truth for the rounded top-left.
+            Everything to the right of the workspace rail lives inside this
+            unified surface. */}
+        <div className="flex flex-1 overflow-hidden rounded-tl-lg">
+          {!sidebarCollapsed && <SidebarNavRail />}
+          <DynamicSubSidebar />
+          <main className="flex-1 overflow-hidden bg-background">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );

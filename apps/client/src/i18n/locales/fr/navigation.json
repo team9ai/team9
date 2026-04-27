@@ -12,9 +12,11 @@
   "chatButton": "Discuter",
   "dmPermissionDenied": "Cet assistant est privé et n'accepte pas les messages directs.",
   "routines": "Routines",
-  "resources": "Ressour.",
-  "skills": "Talents",
-  "library": "Biblio.",
+  "resources": "Ressources",
+  "skills": "Compétences",
+  "wiki": "Bibliothèque",
+  "createWiki": "Créer une bibliothèque",
+  "reviewProposals": "Examiner les propositions",
   "application": "Apps",
   "more": "Plus",
   "noWorkspace": "Aucun espace de travail",
@@ -146,5 +148,7 @@
   "hideConversation": "Masquer la conversation",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Assistant personnel",
-  "agentPillModel": "Modèle"
+  "agentPillModel": "Modèle",
+  "agentPillPersonalAssistantOf": "Assistant personnel de {{owner}}",
+  "agentBadgeAide": "Aide"
 }

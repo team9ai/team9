@@ -40,6 +40,6 @@ describe("UserListItem avatar fallback", () => {
       "min-w-0",
       "truncate",
     );
-    expect(screen.getByText("Openclaw")).toHaveClass("shrink-0");
+    expect(screen.getByText("OpenClaw")).toHaveClass("shrink-0");
   });
 });

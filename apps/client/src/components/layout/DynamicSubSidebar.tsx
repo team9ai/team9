@@ -4,6 +4,7 @@ import { MessagesSubSidebar } from "./sidebars/MessagesSubSidebar";
 import { ActivitySubSidebar } from "./sidebars/ActivitySubSidebar";
 import { FilesSubSidebar } from "./sidebars/FilesSubSidebar";
 import { MoreSubSidebar } from "./sidebars/MoreSubSidebar";
+import { WikiSubSidebar } from "./sidebars/WikiSubSidebar";
 import { useActiveSidebar, type SidebarSection } from "@/stores";
 
 type SidebarType = SidebarSection | null;
@@ -26,6 +27,9 @@ function getSidebarType(
   }
   if (pathname.startsWith("/activity")) {
     return "activity";
+  }
+  if (pathname.startsWith("/wiki")) {
+    return "wiki";
   }
   if (pathname.startsWith("/files")) {
     return "files";
@@ -50,6 +54,8 @@ export function DynamicSubSidebar() {
       return <ActivitySubSidebar />;
     case "files":
       return <FilesSubSidebar />;
+    case "wiki":
+      return <WikiSubSidebar />;
     case "more":
       return <MoreSubSidebar />;
     default:

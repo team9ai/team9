@@ -166,22 +166,23 @@ describe("buildDashboardAgents", () => {
 
     const agents = buildDashboardAgents(installedApps, directChannels, "me");
 
+    // Sort order: personal-staff (0) → openclaw (3) → direct-channel (4)
     expect(agents.map((agent) => agent.userId)).toEqual([
-      "bot-user-existing",
-      "bot-user-open",
       "bot-user-mine",
+      "bot-user-open",
+      "bot-user-existing",
     ]);
+    expect(agents[0]).toMatchObject({
+      channelId: undefined,
+      applicationId: "personal-staff",
+      label: "My Staff",
+      hasExistingChannel: false,
+    });
     expect(agents[1]).toMatchObject({
       channelId: "channel-open",
       applicationId: "openclaw",
       label: "Open Agent",
       hasExistingChannel: true,
-    });
-    expect(agents[2]).toMatchObject({
-      channelId: undefined,
-      applicationId: "personal-staff",
-      label: "My Staff",
-      hasExistingChannel: false,
     });
   });
 });

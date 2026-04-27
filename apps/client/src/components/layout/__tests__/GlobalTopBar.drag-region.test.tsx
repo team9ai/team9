@@ -14,6 +14,16 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+  useRouter: () => ({
+    history: {
+      back: vi.fn(),
+      forward: vi.fn(),
+      subscribe: () => () => {},
+      canGoBack: () => false,
+      length: 1,
+      location: { state: { __TSR_index: 0 } },
+    },
+  }),
 }));
 
 vi.mock("@/stores", () => ({
@@ -60,12 +70,22 @@ vi.mock("@/components/ui/button", () => ({
     children,
     className,
     onClick,
+    disabled,
+    "aria-label": ariaLabel,
   }: {
     children: React.ReactNode;
     className?: string;
     onClick?: () => void;
+    disabled?: boolean;
+    "aria-label"?: string;
   }) => (
-    <button type="button" className={className} onClick={onClick}>
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+    >
       {children}
     </button>
   ),
@@ -95,13 +115,26 @@ describe("GlobalTopBar drag regions", () => {
       null,
     );
     expect(container.querySelectorAll("[data-tauri-drag-region]").length).toBe(
-      5,
+      6,
     );
-    expect(screen.getByRole("button")).not.toHaveAttribute(
-      "data-tauri-drag-region",
-    );
+    // Interactive elements (buttons, text inputs) must NEVER carry the
+    // drag-region attribute or Tauri swallows the click. Iterate over every
+    // such element rather than asserting against a single match — the
+    // top-bar contains multiple buttons (search trigger, user menu, etc.).
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).not.toHaveAttribute("data-tauri-drag-region");
+    }
     expect(screen.getByRole("textbox")).not.toHaveAttribute(
       "data-tauri-drag-region",
     );
+  });
+
+  it("disables back and forward buttons when there is no history to traverse", () => {
+    render(<GlobalTopBar />);
+
+    expect(screen.getByRole("button", { name: "navigateBack" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "navigateForward" }),
+    ).toBeDisabled();
   });
 });

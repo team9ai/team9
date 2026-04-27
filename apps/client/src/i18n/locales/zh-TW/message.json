@@ -49,5 +49,5 @@
   "loadingFullContent": "載入完整內容中...",
   "loadFullContentFailed": "載入完整內容失敗，請取消後重試。",
   "expandFullContent": "展開全文",
-  "remainingChars": "（還有約 {{count}} 字）"
+  "remainingChars": "（還有約 {{chars}} 字）"
 }

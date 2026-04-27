@@ -1,5 +1,157 @@
 {
   "myDevices": "My Devices",
+  "comingSoon": "Coming soon",
+  "devicesTabs": {
+    "overview": "Overview",
+    "overviewDescription": "How this computer is set up to work with your AI staff.",
+    "browser": "Browser setup",
+    "browserDescription": "Install and pick the browser your agents should drive.",
+    "permissions": "Permissions",
+    "permissionsDescription": "Choose who can use this computer, and how they need to be approved.",
+    "myDevices": "My devices",
+    "myDevicesDescription": "Every computer you've linked to your account.",
+    "audit": "Audit log",
+    "auditDescription": "A record of every time an agent used one of your devices.",
+    "placeholder": "Coming soon. We're still building this."
+  },
+  "myDevicesHelpAria": "What is this?",
+  "myDevicesHelpIntro": "These are the computers you've authorized for AI staff. Once enabled, an agent can run real commands, access files, open apps, and browse the web on that machine — not just chat.",
+  "myDevicesHelpAccess": "This computer belongs to you, not to any workspace — switching workspaces won't touch these settings. By default only your Personal Staff can use it, and your Personal Staff only talks to you — nobody else. Any other agent needs your hands-on approval.",
+  "audit": {
+    "recentTitle": "Recent activity",
+    "recentDescription": "Everything an agent has done — or asked to do — on this computer.",
+    "filterAgentAll": "All agents",
+    "filterOutcomeAll": "All outcomes",
+    "filterRange7d": "Last 7 days",
+    "minutesAgo_one": "{{count}} min ago",
+    "minutesAgo_other": "{{count}} min ago",
+    "hoursAgo_one": "{{count}} hr ago",
+    "hoursAgo_other": "{{count}} hrs ago",
+    "yesterday": "Yesterday",
+    "outcome": {
+      "approved": "Approved",
+      "denied": "Denied",
+      "pending": "Waiting"
+    },
+    "source": {
+      "auto": "auto-approved by policy",
+      "userApproved": "you approved",
+      "userDenied": "you denied",
+      "awaitingApproval": "needs your OK"
+    },
+    "verb": {
+      "ranCommand": "ran",
+      "openedUrl": "opened",
+      "readFile": "read",
+      "requestedPermission": "requested permission to use"
+    }
+  },
+  "permissions": {
+    "default": "Default",
+    "approval": {
+      "title": "How approval works",
+      "description": "When an agent asks to use this computer, where can you approve from?",
+      "anyDevice": {
+        "label": "Any signed-in device",
+        "description": "Confirm from your phone, another computer, or the web — wherever you're already signed in."
+      },
+      "thisDevice": {
+        "label": "Only this computer",
+        "description": "Stricter: confirmation must happen here, at this machine."
+      }
+    },
+    "policy": {
+      "title": "Default for new agents",
+      "description": "What happens the first time an agent you haven't configured asks to do something.",
+      "always": {
+        "label": "Always allow",
+        "description": "Approve once and don't ask again."
+      },
+      "once": {
+        "label": "Allow just this time",
+        "description": "Approved only for the current task; asks again next time."
+      },
+      "perCommand": {
+        "label": "Ask for every action",
+        "description": "Check in with you before each command. Very chatty, very safe."
+      },
+      "onlyWhenAsked": {
+        "label": "Only when I ask",
+        "description": "Agents can't act on their own — they need you to start the task."
+      }
+    },
+    "agents": {
+      "title": "Authorized agents",
+      "description": "Agents and workspaces you've given access to this computer. You can tighten the rules per entry."
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Task"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "Auto-approve everything"
+      },
+      "whenTalkingToMe": {
+        "label": "Auto when chatting with me"
+      },
+      "partial": {
+        "label": "Partial (specific commands)"
+      },
+      "onlyWhenAsked": {
+        "label": "Only when I ask"
+      }
+    }
+  },
+  "browser": {
+    "runtimeTitle": "Browser automation runtime",
+    "runtimeDescription": "The library agents use to actually drive a browser — click, type, read the page. We use Playwright under the hood.",
+    "runtimeSubtitle": "Needed for agents to open and control web pages",
+    "statusNotInstalled": "Not installed",
+    "statusInstalled": "Installed",
+    "install": "Install",
+    "binaryTitle": "Which browser agents use",
+    "binaryDescription": "Pick the browser agents will open by default. The bundled one is safest — it's isolated from your day-to-day browser.",
+    "recommended": "Recommended",
+    "detected": "Detected on this Mac",
+    "notDetected": "Not detected",
+    "binary": {
+      "bundled": "Bundled Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
+  "overview": {
+    "masterSwitchTitle": "Accept remote control",
+    "masterSwitchDescription": "Turn this off and no agent can use this computer — even ones you approved before.",
+    "masterSwitchOn": "Remote control is on",
+    "masterSwitchOff": "Remote control is off",
+    "statusTitle": "Connection",
+    "systemPermsTitle": "System permissions",
+    "systemPermsDescription": "macOS needs to grant a few permissions before agents can fully use this machine.",
+    "permNotChecked": "Not checked",
+    "permOpenSettings": "Open Settings",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Screen Recording",
+        "description": "Let agents see what's on your screen."
+      },
+      "accessibility": {
+        "label": "Accessibility",
+        "description": "Let agents click, type, and move windows for you."
+      },
+      "automation": {
+        "label": "Automation",
+        "description": "Let agents run commands and control other apps."
+      },
+      "fullDiskAccess": {
+        "label": "Full Disk Access",
+        "description": "Let agents read and write files anywhere on this Mac."
+      }
+    }
+  },
   "thisMac": "This Mac",
   "otherDevices_zero": "My Other Devices",
   "otherDevices_one": "My Other Devices (1)",
@@ -34,8 +186,8 @@
     "autoRefreshFailed": "aHand: auto-refresh failed — {{msg}}"
   },
 
-  "ctaTitle": "Let agents take over your computer",
-  "ctaBody": "Use the Team9 desktop app to turn this machine into your agent's remote execution arm — at near-zero cost.",
+  "ctaTitle": "Let an agent actually use your computer",
+  "ctaBody": "Want an agent to really drive your computer and browser — not just chat? Grab our desktop app and pair this machine in seconds.",
   "ctaPrimaryAction": "Open Desktop App",
   "ctaSecondaryAction": "Download Desktop App",
   "noAppInstalledHint": "If nothing happened, the desktop app may not be installed yet."

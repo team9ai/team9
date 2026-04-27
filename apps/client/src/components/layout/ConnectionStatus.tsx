@@ -1,52 +1,65 @@
 import { useEffect, useState } from "react";
-import { WifiOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { RefreshCw, WifiOff } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import wsService, {
   type ConnectionStatus as WsConnectionStatus,
 } from "@/services/websocket";
+import { cn } from "@/lib/utils";
 
 export function ConnectionStatus() {
+  const { t } = useTranslation("common");
   const [status, setStatus] = useState<WsConnectionStatus>(
     wsService.connectionStatus,
   );
-  const [showReconnected, setShowReconnected] = useState(false);
 
   useEffect(() => {
-    let hideTimer: ReturnType<typeof setTimeout>;
-
-    const unsubscribe = wsService.onConnectionChange((newStatus) => {
-      setStatus((prev) => {
-        // Show brief "reconnected" toast when recovering from disconnection
-        if (
-          (prev === "disconnected" || prev === "reconnecting") &&
-          newStatus === "connected"
-        ) {
-          setShowReconnected(true);
-          hideTimer = setTimeout(() => setShowReconnected(false), 2000);
-        }
-        return newStatus;
-      });
-    });
-
-    return () => {
-      unsubscribe();
-      clearTimeout(hideTimer);
-    };
+    const unsubscribe = wsService.onConnectionChange(setStatus);
+    return () => unsubscribe();
   }, []);
 
-  if (status === "connected" && !showReconnected) return null;
+  // Always reserve a fixed 7x7 slot so toggling this indicator doesn't
+  // resize sibling elements (e.g. the global search bar).
+  if (status === "connected") {
+    return <div className="w-7 h-7 shrink-0" aria-hidden="true" />;
+  }
 
-  // if (showReconnected) {
-  //   return (
-  //     <div className="bg-green-500/90 text-white text-xs text-center py-1 px-3">
-  //       Connection restored
-  //     </div>
-  //   );
-  // }
+  const isReconnecting = status === "reconnecting";
+  const Icon = isReconnecting ? RefreshCw : WifiOff;
+  const label = isReconnecting
+    ? t("connection.reconnecting")
+    : t("connection.disconnected");
+  const hint = isReconnecting
+    ? t("connection.reconnectingHint")
+    : t("connection.disconnectedHint");
 
   return (
-    <div className="bg-yellow-500/90 text-white text-xs text-center py-1 px-3 flex items-center justify-center gap-1.5">
-      <WifiOff className="h-3 w-3" />
-      <span>Reconnecting… Wait a moment or Refresh</span>
-    </div>
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            className={cn(
+              "inline-flex items-center justify-center w-7 h-7 rounded-md shrink-0 transition-colors cursor-pointer hover:bg-muted",
+              isReconnecting ? "text-muted-foreground" : "text-destructive",
+            )}
+          >
+            <Icon className={cn("h-4 w-4", isReconnecting && "animate-spin")} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6} className="max-w-xs">
+          <div className="text-xs">
+            <div className="font-medium">{label}</div>
+            <div className="opacity-80 mt-0.5">{hint}</div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

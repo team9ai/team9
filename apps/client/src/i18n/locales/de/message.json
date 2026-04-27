@@ -49,5 +49,5 @@
   "loadingFullContent": "Vollständigen Inhalt laden...",
   "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen.",
   "expandFullContent": "Vollständigen Text anzeigen",
-  "remainingChars": "(~{{count}} weitere Zeichen)"
+  "remainingChars": "(~{{chars}} weitere Zeichen)"
 }

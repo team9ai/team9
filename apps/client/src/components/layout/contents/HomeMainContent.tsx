@@ -6,11 +6,12 @@ import {
   ChevronRight,
   Crown,
   Loader2,
+  Paperclip,
   Plus,
   Search,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ParseKeys } from "i18next";
@@ -19,12 +20,15 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
+import { Badge } from "@/components/ui/badge";
 import { useCreateDirectChannel, useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
 import {
@@ -226,7 +230,7 @@ function DashboardHeader({
                 <DropdownMenuRadioItem
                   key={agent.userId}
                   value={agent.userId}
-                  className="!cursor-pointer rounded-2xl py-2.5 pr-3"
+                  className="!cursor-pointer rounded-2xl gap-3 py-2.5 px-3 [&>span:first-child]:hidden data-[state=checked]:bg-[#f3ede3]"
                 >
                   <UserAvatar
                     userId={agent.userId}
@@ -238,15 +242,45 @@ function DashboardHeader({
                     fallbackClassName="text-[0.78rem] font-semibold"
                   />
 
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[#312c27]">
-                      {agent.label}
-                    </p>
-                    {agent.username && agent.username !== agent.label ? (
-                      <p className="truncate text-xs text-[#8f8578]">
-                        @{agent.username}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className="truncate font-medium text-[#312c27]">
+                        {agent.label}
                       </p>
-                    ) : null}
+                      <AgentTypeBadge agentType={agent.agentType} />
+                      {agent.staffKind === "personal" && (
+                        <Badge
+                          variant="outline"
+                          size="sm"
+                          className="h-5 shrink-0 rounded-md border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700"
+                        >
+                          {t("agentBadgeAide")}
+                        </Badge>
+                      )}
+                    </div>
+                    {(() => {
+                      const subtitle =
+                        agent.roleTitle ??
+                        (agent.staffKind === "personal" && agent.ownerName
+                          ? t("agentPillPersonalAssistantOf", {
+                              owner: agent.ownerName,
+                              defaultValue: `${agent.ownerName}'s ${t("agentPillPersonalAssistant")}`,
+                            })
+                          : null);
+                      if (subtitle) {
+                        return (
+                          <p className="truncate text-xs text-[#8f8578]">
+                            {subtitle}
+                          </p>
+                        );
+                      }
+                      return agent.username &&
+                        agent.username !== agent.label ? (
+                        <p className="truncate text-xs text-[#8f8578]">
+                          @{agent.username}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </DropdownMenuRadioItem>
               ))}
@@ -415,6 +449,7 @@ export function HomeMainContent({
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     agentId,
   );
@@ -604,12 +639,44 @@ export function HomeMainContent({
 
                 <div className="mt-3 flex flex-col gap-2.5 px-0.5 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      className="dashboard-composer-plus inline-flex h-[2.375rem] w-[2.375rem] items-center justify-center rounded-full text-[#3e4f68]"
-                    >
-                      <Plus size={17} strokeWidth={2} />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={t("uploadFile", { ns: "common" })}
+                          className="dashboard-composer-plus inline-flex h-[2.375rem] w-[2.375rem] items-center justify-center rounded-full text-[#3e4f68] hover:bg-[#3e4f68]/10 transition-colors cursor-pointer"
+                        >
+                          <Plus size={17} strokeWidth={2} />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="min-w-[160px]"
+                      >
+                        <DropdownMenuItem
+                          onSelect={() => fileInputRef.current?.click()}
+                          className="gap-2 text-sm cursor-pointer"
+                        >
+                          <Paperclip size={14} />
+                          {t("uploadFile", { ns: "common" })}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        // TODO: wire up actual upload; placeholder for now
+                        console.log(
+                          "[dashboard composer] file selected:",
+                          file,
+                        );
+                        e.target.value = "";
+                      }}
+                    />
 
                     {DASHBOARD_ACTION_CHIPS.map((chip) => {
                       const isDeepResearchChip =

@@ -1,0 +1,270 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProposalDto } from "@/types/wiki";
+
+const mockWikisApi = vi.hoisted(() => ({
+  listProposals: vi.fn(),
+  approveProposal: vi.fn(),
+  rejectProposal: vi.fn(),
+  getProposalDiff: vi.fn(),
+}));
+
+vi.mock("@/services/api/wikis", () => ({
+  wikisApi: mockWikisApi,
+}));
+
+import {
+  useApproveProposal,
+  useProposalDiff,
+  useRejectProposal,
+  useWikiProposals,
+} from "../useWikiProposals";
+import { wikiKeys } from "../useWikis";
+
+const proposals: ProposalDto[] = [
+  {
+    id: "p-1",
+    wikiId: "wiki-1",
+    title: "Add page",
+    description: "",
+    status: "pending",
+    authorId: "user-2",
+    authorType: "user",
+    createdAt: "2026-04-02T00:00:00.000Z",
+    reviewedBy: null,
+    reviewedAt: null,
+  },
+];
+
+function makeClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+describe("useWikiProposals", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = makeClient();
+  });
+
+  const wrapper =
+    () =>
+    ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+  it("is disabled when wikiId is null", () => {
+    const { result } = renderHook(() => useWikiProposals(null), {
+      wrapper: wrapper(),
+    });
+    expect(result.current.isFetching).toBe(false);
+    expect(mockWikisApi.listProposals).not.toHaveBeenCalled();
+  });
+
+  it("fetches pending proposals by default", async () => {
+    mockWikisApi.listProposals.mockResolvedValue(proposals);
+
+    const { result } = renderHook(() => useWikiProposals("wiki-1"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(proposals));
+    expect(mockWikisApi.listProposals).toHaveBeenCalledWith(
+      "wiki-1",
+      "pending",
+    );
+  });
+
+  it("fetches proposals with an explicit status", async () => {
+    mockWikisApi.listProposals.mockResolvedValue(proposals);
+
+    const { result } = renderHook(
+      () => useWikiProposals("wiki-1", "approved"),
+      {
+        wrapper: wrapper(),
+      },
+    );
+
+    await waitFor(() => expect(result.current.data).toEqual(proposals));
+    expect(mockWikisApi.listProposals).toHaveBeenCalledWith(
+      "wiki-1",
+      "approved",
+    );
+  });
+});
+
+describe("useApproveProposal", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = makeClient();
+  });
+
+  const wrapper =
+    () =>
+    ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+  it("invalidates proposals on success", async () => {
+    mockWikisApi.approveProposal.mockResolvedValue(undefined);
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useApproveProposal("wiki-1"), {
+      wrapper: wrapper(),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync("p-1");
+    });
+
+    expect(mockWikisApi.approveProposal).toHaveBeenCalledWith("wiki-1", "p-1");
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.proposals("wiki-1"),
+    });
+    // Aggregated sub-sidebar badge must refresh so the approved proposal
+    // stops contributing to the workspace total.
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
+    });
+  });
+});
+
+describe("useRejectProposal", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = makeClient();
+  });
+
+  const wrapper =
+    () =>
+    ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+  it("rejects without reason", async () => {
+    mockWikisApi.rejectProposal.mockResolvedValue(undefined);
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useRejectProposal("wiki-1"), {
+      wrapper: wrapper(),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ proposalId: "p-1" });
+    });
+
+    expect(mockWikisApi.rejectProposal).toHaveBeenCalledWith(
+      "wiki-1",
+      "p-1",
+      undefined,
+    );
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.proposals("wiki-1"),
+    });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: wikiKeys.pendingCounts(),
+    });
+  });
+
+  it("rejects with a reason", async () => {
+    mockWikisApi.rejectProposal.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useRejectProposal("wiki-1"), {
+      wrapper: wrapper(),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ proposalId: "p-1", reason: "nope" });
+    });
+
+    expect(mockWikisApi.rejectProposal).toHaveBeenCalledWith(
+      "wiki-1",
+      "p-1",
+      "nope",
+    );
+  });
+});
+
+describe("useProposalDiff", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = makeClient();
+  });
+
+  const wrapper =
+    () =>
+    ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+  it("is disabled when either arg is null", () => {
+    const { result } = renderHook(() => useProposalDiff(null, null), {
+      wrapper: wrapper(),
+    });
+    expect(result.current.isFetching).toBe(false);
+    expect(mockWikisApi.getProposalDiff).not.toHaveBeenCalled();
+  });
+
+  it("is disabled when only the proposal id is null", () => {
+    const { result } = renderHook(() => useProposalDiff("wiki-1", null), {
+      wrapper: wrapper(),
+    });
+    expect(result.current.isFetching).toBe(false);
+    expect(mockWikisApi.getProposalDiff).not.toHaveBeenCalled();
+  });
+
+  it("fetches the diff when both args are provided", async () => {
+    mockWikisApi.getProposalDiff.mockResolvedValue([
+      {
+        Path: "README.md",
+        Status: "modified",
+        OldContent: "a",
+        NewContent: "b",
+      },
+    ]);
+
+    const { result } = renderHook(() => useProposalDiff("wiki-1", "p-1"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() =>
+      expect(result.current.data).toEqual([
+        {
+          Path: "README.md",
+          Status: "modified",
+          OldContent: "a",
+          NewContent: "b",
+        },
+      ]),
+    );
+    expect(mockWikisApi.getProposalDiff).toHaveBeenCalledWith("wiki-1", "p-1");
+  });
+
+  it("uses the scoped diff query key so proposal invalidations bust it", async () => {
+    mockWikisApi.getProposalDiff.mockResolvedValue([]);
+
+    renderHook(() => useProposalDiff("wiki-1", "p-9"), {
+      wrapper: wrapper(),
+    });
+
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData(wikiKeys.proposalDiff("wiki-1", "p-9")),
+      ).toEqual([]),
+    );
+  });
+});

@@ -77,3 +77,8 @@ tmp
 
 .playwright-mcp
 .incident
+
+# Playwright (E2E) artifacts
+apps/client/playwright-report/
+apps/client/test-results/
+apps/client/playwright/.cache/

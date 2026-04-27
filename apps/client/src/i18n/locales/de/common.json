@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "description": "Die gesuchte Seite existiert nicht oder wurde verschoben.",
+    "goBack": "Zurück",
+    "goHome": "Zur Startseite"
+  },
   "loading": "Laden...",
   "loadingMore": "Weitere laden...",
   "error": "Fehler",
@@ -36,5 +42,12 @@
   "copied": "Kopiert",
   "selected": "Ausgewählt",
   "warning": "Warnung:",
-  "seconds": "s"
+  "seconds": "s",
+  "connection": {
+    "reconnecting": "Verbinde erneut…",
+    "reconnectingHint": "Verbindung wird wiederhergestellt.",
+    "disconnected": "Verbindung verloren",
+    "disconnectedHint": "Netzwerk prüfen und neu laden."
+  },
+  "uploadFile": "Datei hochladen"
 }

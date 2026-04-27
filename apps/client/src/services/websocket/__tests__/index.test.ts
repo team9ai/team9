@@ -12,7 +12,9 @@ type MockSocket = {
 const { ioMock, sockets, sentryMock, queryClientMock } = vi.hoisted(() => {
   const sockets: MockSocket[] = [];
 
-  const ioMock = vi.fn(() => {
+  // Typed as `(...args: unknown[]) => MockSocket` so `mock.calls[i][1]`
+  // (the options arg the production code passes) is reachable.
+  const ioMock = vi.fn((..._args: unknown[]): MockSocket => {
     const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
     const socket: MockSocket = {
       connected: false,

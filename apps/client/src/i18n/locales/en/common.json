@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you’re looking for doesn’t exist or has been moved.",
+    "goBack": "Go back",
+    "goHome": "Back to home"
+  },
   "loading": "Loading...",
   "loadingMore": "Loading more...",
   "error": "Error",
@@ -15,6 +21,8 @@
   "noData": "No data",
   "retry": "Retry",
   "back": "Back",
+  "navigateBack": "Go back",
+  "navigateForward": "Go forward",
   "next": "Next",
   "previous": "Previous",
   "close": "Close",
@@ -36,5 +44,12 @@
   "copied": "Copied",
   "selected": "Selected",
   "warning": "Warning:",
-  "seconds": "s"
+  "seconds": "s",
+  "connection": {
+    "reconnecting": "Reconnecting…",
+    "reconnectingHint": "Trying to restore the connection.",
+    "disconnected": "Connection lost",
+    "disconnectedHint": "Check your network and refresh."
+  },
+  "uploadFile": "Upload file"
 }

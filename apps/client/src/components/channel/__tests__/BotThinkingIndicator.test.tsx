@@ -7,18 +7,10 @@ import type { ChannelMember } from "@/types/im";
 // Mock motion/react — framer-motion components are replaced with plain elements.
 vi.mock("motion/react", () => ({
   motion: {
-    div: ({
-      children,
-      className,
-      ..._rest
-    }: React.HTMLAttributes<HTMLDivElement>) => (
+    div: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
       <div className={className}>{children}</div>
     ),
-    span: ({
-      children,
-      className,
-      ..._rest
-    }: React.HTMLAttributes<HTMLSpanElement>) => (
+    span: ({ children, className }: React.HTMLAttributes<HTMLSpanElement>) => (
       <span className={className}>{children}</span>
     ),
   },

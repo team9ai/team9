@@ -13,8 +13,10 @@
   "dmPermissionDenied": "Este es un asistente privado y no acepta mensajes directos.",
   "routines": "Rutinas",
   "resources": "Recursos",
-  "skills": "Skills",
-  "library": "Biblio.",
+  "skills": "Habilidades",
+  "wiki": "Biblioteca",
+  "createWiki": "Crear biblioteca",
+  "reviewProposals": "Revisar propuestas",
   "application": "Apps",
   "more": "Más",
   "noWorkspace": "Sin espacio de trabajo",
@@ -146,5 +148,7 @@
   "hideConversation": "Ocultar conversación",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Asistente personal",
-  "agentPillModel": "Modelo"
+  "agentPillModel": "Modelo",
+  "agentPillPersonalAssistantOf": "Asistente personal de {{owner}}",
+  "agentBadgeAide": "Ayudante"
 }

@@ -2444,13 +2444,13 @@ describe('ChannelsService', () => {
       expect(result.ownerName).toBeNull();
     });
 
-    it('bot with empty extra → staffKind=other', () => {
+    it('bot with empty extra → staffKind=null (openclaw/base-model use agentType)', () => {
       const result = map({
         ...baseRow,
         botExtra: {},
       });
 
-      expect(result.staffKind).toBe('other');
+      expect(result.staffKind).toBeNull();
       expect(result.roleTitle).toBeNull();
       expect(result.ownerName).toBeNull();
     });

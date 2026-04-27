@@ -33,8 +33,11 @@ pub async fn ahand_start(
 
 /// Stop the embedded daemon. Idempotent.
 #[tauri::command]
-pub async fn ahand_stop(runtime: State<'_, AhandRuntime>) -> Result<(), String> {
-    runtime.stop().await
+pub async fn ahand_stop(
+    app: AppHandle,
+    runtime: State<'_, AhandRuntime>,
+) -> Result<(), String> {
+    runtime.stop(Some(&app)).await
 }
 
 /// Snapshot of the current daemon status. Does not wait for a change.

@@ -1,5 +1,157 @@
 {
   "myDevices": "我的设备",
+  "comingSoon": "即将推出",
+  "devicesTabs": {
+    "overview": "总览",
+    "overviewDescription": "这台电脑当前为 AI 员工做了哪些准备。",
+    "browser": "浏览器配置",
+    "browserDescription": "安装并选择 Agent 要操作的浏览器。",
+    "permissions": "授权管理",
+    "permissionsDescription": "配置谁能用这台电脑，以及需要怎么点同意。",
+    "myDevices": "我的设备",
+    "myDevicesDescription": "你账号下绑定的全部电脑。",
+    "audit": "审计日志",
+    "auditDescription": "Agent 每次动你设备的记录。",
+    "placeholder": "即将推出，我们还在开发。"
+  },
+  "audit": {
+    "recentTitle": "最近动态",
+    "recentDescription": "Agent 在这台电脑上做过的——和想做的——每一件事。",
+    "filterAgentAll": "所有 Agent",
+    "filterOutcomeAll": "所有结果",
+    "filterRange7d": "最近 7 天",
+    "minutesAgo_one": "{{count}} 分钟前",
+    "minutesAgo_other": "{{count}} 分钟前",
+    "hoursAgo_one": "{{count}} 小时前",
+    "hoursAgo_other": "{{count}} 小时前",
+    "yesterday": "昨天",
+    "outcome": {
+      "approved": "已批准",
+      "denied": "已拒绝",
+      "pending": "待批准"
+    },
+    "source": {
+      "auto": "按规则自动批准",
+      "userApproved": "你批准了",
+      "userDenied": "你拒绝了",
+      "awaitingApproval": "等你点同意"
+    },
+    "verb": {
+      "ranCommand": "运行了",
+      "openedUrl": "打开了",
+      "readFile": "读取了",
+      "requestedPermission": "申请使用"
+    }
+  },
+  "permissions": {
+    "default": "默认",
+    "approval": {
+      "title": "批准方式",
+      "description": "当 Agent 要用这台电脑，你在哪里能点同意？",
+      "anyDevice": {
+        "label": "任何已登录设备能同意",
+        "description": "手机、另一台电脑、网页——你登录着的任意一个设备都能确认。"
+      },
+      "thisDevice": {
+        "label": "只能在这台电脑上同意",
+        "description": "更稳：只有坐在这台机器前的人才能点同意。"
+      }
+    },
+    "policy": {
+      "title": "新 Agent 的默认规则",
+      "description": "如果遇到你还没配置过的 Agent，第一次要动手时按这个规则走。",
+      "always": {
+        "label": "以后都自动同意",
+        "description": "同意一次，之后不再打扰。"
+      },
+      "once": {
+        "label": "只这一次",
+        "description": "仅本次任务有效，下次再来还会问。"
+      },
+      "perCommand": {
+        "label": "每个动作都问一下",
+        "description": "每次命令都跟你确认。最啰嗦，也最稳。"
+      },
+      "onlyWhenAsked": {
+        "label": "只在我主动要它做事时才可以",
+        "description": "Agent 不能自己找事做，必须你发起任务。"
+      }
+    },
+    "agents": {
+      "title": "已授权的 Agent",
+      "description": "你给过这台电脑使用权的 Agent / Workspace。每一项都能单独调整规则。"
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Task"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "全部自动"
+      },
+      "whenTalkingToMe": {
+        "label": "只和我说话时自动"
+      },
+      "partial": {
+        "label": "部分自动（指定命令）"
+      },
+      "onlyWhenAsked": {
+        "label": "除非我主动要"
+      }
+    }
+  },
+  "browser": {
+    "runtimeTitle": "浏览器控制运行时",
+    "runtimeDescription": "Agent 用它真实地操作网页——点击、输入、读取页面内容。底层基于 Playwright。",
+    "runtimeSubtitle": "Agent 打开和控制网页需要装它",
+    "statusNotInstalled": "未安装",
+    "statusInstalled": "已安装",
+    "install": "安装",
+    "binaryTitle": "Agent 使用的浏览器",
+    "binaryDescription": "选 Agent 默认要打开的浏览器。内置版最稳——和你日常用的浏览器完全隔离。",
+    "recommended": "推荐",
+    "detected": "已在这台 Mac 上检测到",
+    "notDetected": "未检测到",
+    "binary": {
+      "bundled": "内置 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
+  "overview": {
+    "masterSwitchTitle": "接受远程控制",
+    "masterSwitchDescription": "关闭后，任何 Agent 都不能使用这台电脑，之前授权过的也不行。",
+    "masterSwitchOn": "远程控制已开启",
+    "masterSwitchOff": "远程控制已关闭",
+    "statusTitle": "连接状态",
+    "systemPermsTitle": "系统授权",
+    "systemPermsDescription": "macOS 还需要你给几项系统权限，Agent 才能完整地用这台电脑。",
+    "permNotChecked": "未检测",
+    "permOpenSettings": "打开系统设置",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "屏幕录制",
+        "description": "让 Agent 看到你屏幕上的内容。"
+      },
+      "accessibility": {
+        "label": "辅助功能",
+        "description": "让 Agent 替你点击、输入、移动窗口。"
+      },
+      "automation": {
+        "label": "自动化",
+        "description": "让 Agent 执行命令、控制其他应用。"
+      },
+      "fullDiskAccess": {
+        "label": "完全磁盘访问",
+        "description": "让 Agent 读写这台 Mac 上的任何文件。"
+      }
+    }
+  },
+  "myDevicesHelpAria": "这是什么？",
+  "myDevicesHelpIntro": "这些是你授权给 AI 员工的本地电脑。开启后，Agent 可以在该机器上运行真实命令、访问文件、打开应用、浏览网页 —— 不再只是聊天。",
+  "myDevicesHelpAccess": "控制权归你个人，不归 workspace —— 切换 workspace 时授权不受影响。默认只有你的私人助理 (Personal Staff) 能用，而私人助理只和你本人聊，别人动不到；其他 Agent 要动你的电脑，需要你亲手点同意。",
   "thisMac": "这台电脑",
   "otherDevices_zero": "我的其他设备",
   "otherDevices_one": "我的其他设备 (1)",
@@ -31,8 +183,8 @@
     "deviceRevoked": "aHand：此设备已被撤销，请重新启用。",
     "autoRefreshFailed": "aHand：自动刷新失败 — {{msg}}"
   },
-  "ctaTitle": "让 Agent 接管你的电脑",
-  "ctaBody": "使用 Team9 桌面应用把这台电脑变成你 Agent 的远程执行手臂，以极低的成本获得本机 shell 能力。",
+  "ctaTitle": "让 Agent 真的帮你动电脑",
+  "ctaBody": "想让 Agent 真的帮你动电脑、开浏览器、搞定事情？下载桌面 App，几秒钟就能绑定这台机器。",
   "ctaPrimaryAction": "打开桌面应用",
   "ctaSecondaryAction": "下载桌面应用",
   "noAppInstalledHint": "如果没有反应，桌面应用可能尚未安装。"

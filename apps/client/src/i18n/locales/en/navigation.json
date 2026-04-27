@@ -14,7 +14,9 @@
   "routines": "Routines",
   "resources": "Resources",
   "skills": "Skills",
-  "library": "Library",
+  "wiki": "Library",
+  "createWiki": "Create Wiki",
+  "reviewProposals": "Review proposals",
   "application": "Apps",
   "more": "More",
   "noWorkspace": "No Workspace",
@@ -148,5 +150,7 @@
   "hideConversation": "Hide Conversation",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "Personal Assistant",
-  "agentPillModel": "Model"
+  "agentPillModel": "Model",
+  "agentPillPersonalAssistantOf": "{{owner}}'s Personal Assistant",
+  "agentBadgeAide": "Aide"
 }

@@ -29,7 +29,7 @@ export function DeleteChannelDialog({
   channel,
   onDeleted,
 }: DeleteChannelDialogProps) {
-  const { t } = useTranslation("channel");
+  const { t } = useTranslation(["channel", "common"]);
   const navigate = useNavigate();
   const deleteChannel = useDeleteChannel();
   const [confirmationName, setConfirmationName] = useState("");

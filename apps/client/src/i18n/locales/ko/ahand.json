@@ -1,5 +1,157 @@
 {
   "myDevices": "내 기기",
+  "comingSoon": "출시 예정",
+  "devicesTabs": {
+    "overview": "개요",
+    "overviewDescription": "이 컴퓨터가 AI 스태프용으로 어떻게 준비되어 있는지.",
+    "browser": "브라우저 설정",
+    "browserDescription": "Agent가 사용할 브라우저를 설치하고 선택합니다.",
+    "permissions": "권한 관리",
+    "permissionsDescription": "누가 이 컴퓨터를 쓸 수 있는지, 어떻게 동의해야 하는지 설정합니다.",
+    "myDevices": "내 기기",
+    "myDevicesDescription": "계정에 연결된 모든 컴퓨터.",
+    "audit": "감사 로그",
+    "auditDescription": "Agent가 내 기기를 사용한 모든 기록.",
+    "placeholder": "출시 예정. 아직 개발 중입니다."
+  },
+  "audit": {
+    "recentTitle": "최근 활동",
+    "recentDescription": "이 컴퓨터에서 Agent가 한 일, 하려 한 일 — 전부.",
+    "filterAgentAll": "모든 Agent",
+    "filterOutcomeAll": "모든 결과",
+    "filterRange7d": "최근 7일",
+    "minutesAgo_one": "{{count}}분 전",
+    "minutesAgo_other": "{{count}}분 전",
+    "hoursAgo_one": "{{count}}시간 전",
+    "hoursAgo_other": "{{count}}시간 전",
+    "yesterday": "어제",
+    "outcome": {
+      "approved": "승인",
+      "denied": "거부",
+      "pending": "대기"
+    },
+    "source": {
+      "auto": "정책에 따라 자동 승인",
+      "userApproved": "당신이 승인",
+      "userDenied": "당신이 거부",
+      "awaitingApproval": "당신의 승인 필요"
+    },
+    "verb": {
+      "ranCommand": "실행",
+      "openedUrl": "열기",
+      "readFile": "읽기",
+      "requestedPermission": "사용 요청"
+    }
+  },
+  "permissions": {
+    "default": "기본",
+    "approval": {
+      "title": "승인 방식",
+      "description": "Agent가 이 컴퓨터를 쓰려고 할 때, 어디서 승인할 수 있나요?",
+      "anyDevice": {
+        "label": "로그인된 어떤 기기든 가능",
+        "description": "폰, 다른 PC, 웹—로그인되어 있는 어느 곳에서든 승인할 수 있습니다."
+      },
+      "thisDevice": {
+        "label": "이 컴퓨터에서만 가능",
+        "description": "더 엄격: 이 기기 앞에 있는 사람만 눌러야 합니다."
+      }
+    },
+    "policy": {
+      "title": "새 Agent 기본 규칙",
+      "description": "아직 설정하지 않은 Agent가 처음 작업하려고 할 때 따를 규칙입니다.",
+      "always": {
+        "label": "앞으로 자동 승인",
+        "description": "한 번 허용하면 다시 묻지 않습니다."
+      },
+      "once": {
+        "label": "이번만",
+        "description": "이 작업에만 유효. 다음엔 다시 묻습니다."
+      },
+      "perCommand": {
+        "label": "모든 동작마다 확인",
+        "description": "명령마다 확인합니다. 가장 잔소리 많고 가장 안전."
+      },
+      "onlyWhenAsked": {
+        "label": "내가 시킬 때만",
+        "description": "Agent가 스스로 움직일 수 없음. 반드시 당신이 시작해야 합니다."
+      }
+    },
+    "agents": {
+      "title": "허가한 Agent",
+      "description": "이 컴퓨터 사용을 허가한 Agent / Workspace. 항목별로 규칙을 조정할 수 있습니다."
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Task"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "전부 자동"
+      },
+      "whenTalkingToMe": {
+        "label": "대화 중일 때만 자동"
+      },
+      "partial": {
+        "label": "부분 자동 (지정 명령)"
+      },
+      "onlyWhenAsked": {
+        "label": "내가 시킬 때만"
+      }
+    }
+  },
+  "browser": {
+    "runtimeTitle": "브라우저 조작 런타임",
+    "runtimeDescription": "Agent가 실제로 브라우저를 조작(클릭·입력·페이지 읽기)하는 데 쓰는 라이브러리입니다. 내부적으로 Playwright를 사용합니다.",
+    "runtimeSubtitle": "Agent가 웹페이지를 열고 조작하려면 필요",
+    "statusNotInstalled": "설치되지 않음",
+    "statusInstalled": "설치됨",
+    "install": "설치",
+    "binaryTitle": "Agent가 사용할 브라우저",
+    "binaryDescription": "Agent가 기본으로 열 브라우저를 선택하세요. 번들 버전이 가장 안전합니다—평소 쓰는 브라우저와 완전히 분리됩니다.",
+    "recommended": "추천",
+    "detected": "이 Mac에서 감지됨",
+    "notDetected": "감지되지 않음",
+    "binary": {
+      "bundled": "번들 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
+  "overview": {
+    "masterSwitchTitle": "원격 제어 허용",
+    "masterSwitchDescription": "끄면 이전에 허가한 Agent를 포함해 그 어떤 Agent도 이 컴퓨터를 사용할 수 없습니다.",
+    "masterSwitchOn": "원격 제어 켜짐",
+    "masterSwitchOff": "원격 제어 꺼짐",
+    "statusTitle": "연결 상태",
+    "systemPermsTitle": "시스템 권한",
+    "systemPermsDescription": "Agent가 이 컴퓨터를 완전히 사용하려면 macOS 권한 몇 가지를 추가로 허용해야 합니다.",
+    "permNotChecked": "확인 안 됨",
+    "permOpenSettings": "시스템 설정 열기",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "화면 기록",
+        "description": "Agent가 화면에 표시된 내용을 볼 수 있습니다."
+      },
+      "accessibility": {
+        "label": "손쉬운 사용",
+        "description": "Agent가 클릭, 입력, 창 이동을 대신 수행합니다."
+      },
+      "automation": {
+        "label": "자동화",
+        "description": "Agent가 명령을 실행하고 다른 앱을 제어합니다."
+      },
+      "fullDiskAccess": {
+        "label": "전체 디스크 접근",
+        "description": "Agent가 이 Mac의 어떤 파일이든 읽고 쓸 수 있습니다."
+      }
+    }
+  },
+  "myDevicesHelpAria": "이게 뭐예요?",
+  "myDevicesHelpIntro": "AI 스태프에게 승인한 로컬 컴퓨터입니다. 활성화하면 Agent가 해당 기기에서 실제 명령 실행, 파일 접근, 앱 실행, 웹 탐색까지 할 수 있습니다 —— 단순 채팅이 아닙니다.",
+  "myDevicesHelpAccess": "이 컴퓨터의 제어권은 당신 개인에게 있으며, workspace에 속하지 않습니다 —— workspace를 전환해도 여기 권한은 그대로입니다. 기본값으로는 개인 어시스턴트(Personal Staff)만 사용할 수 있고, 개인 어시스턴트는 본인과만 대화하므로 다른 사람은 접근할 수 없습니다. 다른 Agent가 컴퓨터를 쓰려면 당신이 직접 '동의'를 눌러야 합니다.",
   "thisMac": "이 Mac",
   "otherDevices_zero": "다른 내 기기",
   "otherDevices_one": "다른 내 기기 (1)",
@@ -31,8 +183,8 @@
     "deviceRevoked": "aHand: 이 기기는 더 이상 인증되지 않습니다. 다시 활성화하세요.",
     "autoRefreshFailed": "aHand: 자동 새로 고침 실패 — {{msg}}"
   },
-  "ctaTitle": "에이전트에게 컴퓨터를 맡겨 보세요",
-  "ctaBody": "Team9 데스크톱 앱을 사용하여 이 컴퓨터를 에이전트의 원격 실행 수단으로 바꾸세요. 거의 제로 비용으로 로컬 shell 능력을 얻을 수 있습니다.",
+  "ctaTitle": "에이전트에게 진짜로 컴퓨터를 맡기세요",
+  "ctaBody": "에이전트가 진짜로 컴퓨터와 브라우저를 조작하며 일을 처리하길 원하세요? 데스크톱 앱을 다운로드하고 몇 초 만에 이 기기를 페어링하세요.",
   "ctaPrimaryAction": "데스크톱 앱 열기",
   "ctaSecondaryAction": "데스크톱 앱 다운로드",
   "noAppInstalledHint": "반응이 없다면 데스크톱 앱이 아직 설치되지 않았을 수 있습니다."

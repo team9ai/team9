@@ -490,6 +490,32 @@ export function SubscriptionContent({
     );
   }
 
+  const subscriptionRequiredDialog = (
+    <AlertDialog
+      open={showSubscriptionRequired}
+      onOpenChange={setShowSubscriptionRequired}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("billing.page.subscriptionRequired.title")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("billing.page.subscriptionRequired.description")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            {t("billing.page.subscriptionRequired.cancel")}
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={() => navigateToView("plans")}>
+            {t("billing.page.subscriptionRequired.viewPlans")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (currentView === "credits") {
     const currentPlanName = subscription?.product.name || "Free";
     const currentPlanCreditsLabel = subscription
@@ -510,10 +536,7 @@ export function SubscriptionContent({
 
             <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-5 px-4 pb-6 pt-7 sm:px-5 sm:pt-8 lg:px-6">
               <div className="min-w-0">
-                <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
-                  {account?.ownerName || currentWorkspace.name}
-                </div>
-                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
+                <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
                   Workspace Credits
                 </h1>
               </div>
@@ -556,6 +579,24 @@ export function SubscriptionContent({
                         </span>
                       ) : null}
                     </div>
+
+                    {!subscription ? (
+                      <div
+                        role="status"
+                        className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <span>
+                          {t("billing.page.subscriptionRequired.inlineHint")}
+                        </span>
+                        <Button
+                          variant="link"
+                          className="h-auto self-start p-0 text-sm font-semibold text-amber-900 underline-offset-2 hover:underline sm:self-auto"
+                          onClick={() => navigateToView("plans")}
+                        >
+                          {t("billing.page.subscriptionRequired.viewPlans")}
+                        </Button>
+                      </div>
+                    ) : null}
 
                     {customAmountConfig ? (
                       <div>
@@ -808,6 +849,8 @@ export function SubscriptionContent({
             </div>
           </div>
         </ScrollArea>
+
+        {subscriptionRequiredDialog}
       </main>
     );
   }
@@ -829,12 +872,7 @@ export function SubscriptionContent({
 
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
               <div className="max-w-3xl">
-                <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
-                  {t("billing.page.workspaceBilling", {
-                    workspace: currentWorkspace.name,
-                  })}
-                </div>
-                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
+                <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
                   {t("billing.page.heading")}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-[#6a7d9e] sm:text-base">
@@ -997,29 +1035,7 @@ export function SubscriptionContent({
         </div>
       </ScrollArea>
 
-      <AlertDialog
-        open={showSubscriptionRequired}
-        onOpenChange={setShowSubscriptionRequired}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("billing.page.subscriptionRequired.title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("billing.page.subscriptionRequired.description")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("billing.page.subscriptionRequired.cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigateToView("plans")}>
-              {t("billing.page.subscriptionRequired.viewPlans")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {subscriptionRequiredDialog}
     </main>
   );
 }

@@ -11,7 +11,7 @@ export const MORE_TAP_UNLOCK_THRESHOLD = 5;
 export const HIDDEN_NAV_SECTION_IDS = [
   "skills",
   "resources",
-  "library",
+  "wiki",
 ] as const satisfies readonly SidebarSection[];
 
 const HIDDEN_NAV_SECTION_SET = new Set<string>(HIDDEN_NAV_SECTION_IDS);

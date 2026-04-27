@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "페이지를 찾을 수 없습니다",
+    "description": "찾으시는 페이지가 존재하지 않거나 이동되었습니다.",
+    "goBack": "뒤로 가기",
+    "goHome": "홈으로"
+  },
   "loading": "로딩 중...",
   "loadingMore": "더 불러오는 중...",
   "error": "오류",
@@ -36,5 +42,12 @@
   "copied": "복사됨",
   "selected": "선택됨",
   "warning": "경고:",
-  "seconds": "초"
+  "seconds": "초",
+  "connection": {
+    "reconnecting": "다시 연결 중…",
+    "reconnectingHint": "연결을 복구하고 있습니다.",
+    "disconnected": "연결이 끊겼습니다",
+    "disconnectedHint": "네트워크를 확인하고 새로 고침하세요."
+  },
+  "uploadFile": "파일 업로드"
 }

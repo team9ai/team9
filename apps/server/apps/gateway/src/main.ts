@@ -1,9 +1,10 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
-import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { json } from 'express';
 import {
   securityHeadersMiddleware,
   trustedTypesReportOnlyMiddleware,
@@ -38,17 +39,20 @@ export async function bootstrap(): Promise<void> {
     logger.log('Seed completed successfully');
   }
 
-  // Disable Nest's built-in body parser — we register our own below with
-  // a raised 1 MB limit AND a `verify` callback that stashes the raw
-  // request buffer on req.rawBody for the ahand hub webhook HMAC verifier.
-  // The default 100 KB limit is too small for long-text messages; the
-  // raw buffer is needed because Stripe-style signing is sensitive to
-  // key ordering and whitespace.
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  // Disable Nest's built-in body parser; register our own below with a raised
+  // 10 MB limit and a `verify` callback that stashes the raw request buffer on
+  // req.rawBody. Raw bytes are required by both the folder9 webhook controller
+  // and the ahand hub webhook — both HMAC-SHA256 over the exact byte stream
+  // that arrived on the wire (JSON.stringify of the parsed body is not
+  // byte-stable). 10 MB accommodates wiki image uploads (up to ~5 MB raw →
+  // ~6.7 MB base64) as well as long-text messages.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
 
   app.use(
     json({
-      limit: '1mb',
+      limit: '10mb',
       verify: (req: unknown, _res, buf: Buffer) => {
         (req as { rawBody?: Buffer }).rawBody = buf;
       },

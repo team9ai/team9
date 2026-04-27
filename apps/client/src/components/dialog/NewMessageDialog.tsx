@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Search, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Search } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { OnlineStatusDot } from "@/components/ui/online-status-dot";
@@ -42,25 +47,12 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50">
-      <div className="bg-background rounded-lg shadow-xl w-full max-w-md mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-foreground">
-            {t("newMessage")}
-          </h2>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="h-8 w-8"
-          >
-            <X size={18} />
-          </Button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md gap-0 p-0">
+        <DialogHeader className="p-4 border-b">
+          <DialogTitle>{t("newMessage")}</DialogTitle>
+        </DialogHeader>
 
         {/* Search */}
         <div className="p-4 border-b">
@@ -134,7 +126,7 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
             {t("selectUserToChat")}
           </p>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

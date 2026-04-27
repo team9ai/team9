@@ -14,7 +14,9 @@
   "routines": "日常",
   "resources": "资源",
   "skills": "技能",
-  "library": "知识库",
+  "wiki": "知识库",
+  "createWiki": "创建知识库",
+  "reviewProposals": "审核提案",
   "application": "应用",
   "more": "更多",
   "noWorkspace": "无工作空间",
@@ -148,5 +150,7 @@
   "hideConversation": "隐藏对话",
   "agentPillAi": "AI",
   "agentPillPersonalAssistant": "个人助理",
-  "agentPillModel": "模型"
+  "agentPillModel": "模型",
+  "agentPillPersonalAssistantOf": "{{owner}}的个人助理",
+  "agentBadgeAide": "助理"
 }

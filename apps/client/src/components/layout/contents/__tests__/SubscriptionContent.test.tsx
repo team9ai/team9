@@ -574,6 +574,84 @@ describe("SubscriptionContent", () => {
     expect(mockCheckoutMutateAsync).not.toHaveBeenCalled();
   });
 
+  it("guides unsubscribed users to plans when clicking custom amount Add Credits", async () => {
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          id: "acct_1",
+          ownerExternalId: "tenant:ws-1",
+          ownerType: "organization",
+          ownerName: "Alpha",
+          balance: 0,
+          grantBalance: 0,
+          quota: 0,
+          quotaExpiresAt: null,
+          effectiveQuota: 0,
+          available: 0,
+          creditLimit: 0,
+          status: "active",
+          metadata: null,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
+        },
+        subscription: null,
+        subscriptionProducts: [],
+        creditProducts: [
+          {
+            stripePriceId: "price_open_topup",
+            name: "Open Top-up",
+            type: "one_time",
+            credits: 10000,
+            amountCents: 1000,
+            interval: null,
+            intervalCount: null,
+            active: true,
+            metadata: null,
+            customAmount: {
+              enabled: true,
+              minimumCents: 500,
+              maximumCents: 50000,
+              presetCents: 2500,
+            },
+            display: {
+              description: "Choose any amount.",
+              features: [],
+              sortOrder: 1,
+            },
+          },
+        ],
+        recentTransactions: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SubscriptionContent view="credits" />);
+
+    expect(
+      await screen.findByText(
+        /an active subscription is required before buying credits/i,
+      ),
+    ).toBeInTheDocument();
+
+    // Inline banner's "View Plans" link navigates to the plans view.
+    fireEvent.click(screen.getByRole("button", { name: /^view plans$/i }));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/subscription" }),
+    );
+
+    mockNavigate.mockClear();
+
+    // Clicking custom-amount Add Credits opens the subscription-required dialog
+    // instead of silently doing nothing.
+    fireEvent.click(screen.getByRole("button", { name: /^add credits$/i }));
+
+    expect(
+      await screen.findByText(/subscription required/i),
+    ).toBeInTheDocument();
+    expect(mockCheckoutMutateAsync).not.toHaveBeenCalled();
+  });
+
   it("falls back to fixed packs when custom amount is unavailable", async () => {
     mockUseWorkspaceBillingOverview.mockReturnValue({
       data: {

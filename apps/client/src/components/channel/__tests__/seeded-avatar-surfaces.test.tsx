@@ -232,7 +232,7 @@ describe("seeded avatar channel surfaces", () => {
   it("renders an agent type badge in ChannelHeader for a DM user", () => {
     render(<ChannelHeader channel={makeDirectChannel()} />);
 
-    expect(screen.getByText("Openclaw")).toBeInTheDocument();
+    expect(screen.getByText("OpenClaw")).toBeInTheDocument();
   });
 
   it("renders the bot image in ChannelDetailsModal members when a bot has no avatar", () => {

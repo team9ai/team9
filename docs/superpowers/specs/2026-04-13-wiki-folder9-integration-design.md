@@ -1,8 +1,24 @@
 # Wiki: folder9 Integration Design
 
 > Date: 2026-04-13
-> Status: Draft
+> **Status:** Implemented (2026-04-22)
 > Author: Winrey + Claude
+
+## Implementation Notes (post-merge)
+
+Implementation followed the spec with these notable adjustments:
+
+- **Review URL prefix:** `/wiki/:slug/-/review` and `/wiki/:slug/-/review/:proposalId` (not `/review`). The `/-/` sentinel segment prevents collisions with wiki pages literally named `review/`. `validateWikiPath` now rejects any path whose top-level segment starts with `-`.
+- **Wiki-level icon:** Added `icon` column to `workspace_wikis` (migration `0042_add_wiki_icon`) so the Create/Settings dialogs' icon picker persists. Not in the original spec; added during build-out.
+- **Service-level broadcasts:** `WikisService.createWiki/updateWikiSettings/archiveWiki` now emit `wiki_created/updated/archived` via a `safeBroadcast` helper (non-throwing). The original spec's event table only included webhook-driven events.
+- **Defensive additions:**
+  - Webhook `folder_id` validated as UUID before DB lookup (drops malformed payloads with a 200+warn).
+  - `validateWikiPath` rejects empty path segments, absolute paths, `..`/`.` traversal, null bytes, and control characters.
+  - `proposalId` controller params validated against `/^[a-zA-Z0-9._-]+$/` with length 1-128.
+  - `workspace_wikis.workspace_id` tightened from `TEXT` to `uuid` with `ON DELETE CASCADE` FK to `tenants.id` (migration `0045_wiki_workspace_fk`).
+  - Slug uniqueness is now a PARTIAL index on `WHERE archived_at IS NULL` (migration `0047_wiki_slug_partial_unique`) so archived wikis release their slugs.
+- **Binary file handling:** `PageDto.encoding` field added so the client renders a read-only "Binary file" placeholder for `encoding: 'base64'` blobs instead of allowing the editor to corrupt them on save.
+- **`updateWikiSettings` compensation:** resolved in follow-up (see commit for compensation logic). When `folder9.updateFolder` fails after the DB patch has already committed, the service now restores the pre-patch DB columns (captured from `getWikiOrThrow`) so Team9 and folder9 stay in sync. If the revert itself fails, we log loudly and still re-throw the original folder9 error — the original `createWiki` "create folder first, then DB" compensation pattern is now mirrored on the update path.
 
 ## Overview
 
@@ -82,6 +98,18 @@ Explicitly out of scope for this spec. Tracked under [Future Work](#future-work)
 The browser never talks to folder9 directly. The gateway uses folder9's PSK for all service-to-service traffic. folder9 sends webhooks back to the gateway; the gateway re-broadcasts selected events over Team9's existing WebSocket channel so open clients refresh.
 
 ## Data Model
+
+### Invariant: Wikis are a subset of folder9 folders
+
+folder9 hosts many kinds of managed folders — Wikis today, agent workspaces / task scratch / other uses in the future. Team9's `workspace_wikis` table is the **allow-list** defining which folder9 folders are surfaced as Wikis in this feature.
+
+**All Wikis are folder9 managed folders; not all folder9 managed folders are Wikis.**
+
+Consequences for the gateway:
+
+- Every gateway operation starts from a `wikiId` (Team9 primary key), never from a bare `folder9FolderId`.
+- Webhook events naming a `folder_id` that has no matching `workspace_wikis` row are dropped with a log (not an error).
+- Backfill scripts, enumeration endpoints, and any future admin tooling must filter through `workspace_wikis` — never query folder9's `/api/workspaces/{ws}/folders` and treat the response as "the list of Wikis."
 
 ### New Team9 Table: `workspace_wikis`
 

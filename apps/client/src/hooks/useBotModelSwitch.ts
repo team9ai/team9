@@ -5,7 +5,12 @@ import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
+  type StaffModelFamily,
 } from "@/lib/common-staff-models";
+import {
+  BASE_MODEL_PRODUCT_FAMILY,
+  getBaseModelProductKey,
+} from "@/lib/base-model-agent";
 
 interface BotModelInfo {
   currentModel: { provider: string; id: string } | null;
@@ -14,6 +19,11 @@ interface BotModelInfo {
   applicationId: string | null;
   installedApplicationId: string | null;
   botId: string | null;
+  // Non-null only for base-model agents whose `managedMeta.agentId` matches a
+  // known preset (claude/chatgpt/gemini). Picker UIs use this to lock the
+  // dropdown to a single model family. `null` = no filter (common/personal
+  // staff, or unrecognized base-model bot).
+  agentModelFamily: StaffModelFamily | null;
 }
 
 export function useBotModelSwitch(botUserId: string | null) {
@@ -36,6 +46,7 @@ export function useBotModelSwitch(botUserId: string | null) {
         applicationId: null,
         installedApplicationId: null,
         botId: null,
+        agentModelFamily: null,
       };
     }
 
@@ -59,6 +70,16 @@ export function useBotModelSwitch(botUserId: string | null) {
         const label =
           matchedModel?.label ?? model?.id ?? DEFAULT_STAFF_MODEL.label;
 
+        let agentModelFamily: StaffModelFamily | null = null;
+        if (app.applicationId === "base-model-staff") {
+          const agentId =
+            "managedMeta" in bot ? (bot.managedMeta?.agentId ?? null) : null;
+          const productKey = getBaseModelProductKey(agentId);
+          agentModelFamily = productKey
+            ? BASE_MODEL_PRODUCT_FAMILY[productKey]
+            : null;
+        }
+
         return {
           currentModel: model,
           currentModelLabel: label,
@@ -66,6 +87,7 @@ export function useBotModelSwitch(botUserId: string | null) {
           applicationId: app.applicationId,
           installedApplicationId: app.id,
           botId: "botId" in bot ? (bot.botId as string) : null,
+          agentModelFamily,
         };
       }
     }
@@ -77,6 +99,7 @@ export function useBotModelSwitch(botUserId: string | null) {
       applicationId: null,
       installedApplicationId: null,
       botId: null,
+      agentModelFamily: null,
     };
   }, [installedApps, botUserId]);
 

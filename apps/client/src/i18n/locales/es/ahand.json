@@ -1,5 +1,157 @@
 {
   "myDevices": "Mis dispositivos",
+  "comingSoon": "Próximamente",
+  "devicesTabs": {
+    "overview": "Resumen",
+    "overviewDescription": "Cómo está preparado este ordenador para tu personal de IA.",
+    "browser": "Navegador",
+    "browserDescription": "Instala y elige el navegador que deben manejar tus agentes.",
+    "permissions": "Permisos",
+    "permissionsDescription": "Decide quién puede usar este ordenador y cómo aprobar cada acceso.",
+    "myDevices": "Mis dispositivos",
+    "myDevicesDescription": "Todos los ordenadores vinculados a tu cuenta.",
+    "audit": "Registro de auditoría",
+    "auditDescription": "Historial de cada vez que un agente usó uno de tus dispositivos.",
+    "placeholder": "Próximamente. Todavía lo estamos desarrollando."
+  },
+  "audit": {
+    "recentTitle": "Actividad reciente",
+    "recentDescription": "Todo lo que un agente ha hecho — o intentado hacer — en este ordenador.",
+    "filterAgentAll": "Todos los agentes",
+    "filterOutcomeAll": "Todos los resultados",
+    "filterRange7d": "Últimos 7 días",
+    "minutesAgo_one": "hace {{count}} min",
+    "minutesAgo_other": "hace {{count}} min",
+    "hoursAgo_one": "hace {{count}} h",
+    "hoursAgo_other": "hace {{count}} h",
+    "yesterday": "Ayer",
+    "outcome": {
+      "approved": "Aprobado",
+      "denied": "Denegado",
+      "pending": "En espera"
+    },
+    "source": {
+      "auto": "aprobado automáticamente por regla",
+      "userApproved": "lo aprobaste tú",
+      "userDenied": "lo denegaste tú",
+      "awaitingApproval": "necesita tu OK"
+    },
+    "verb": {
+      "ranCommand": "ejecutó",
+      "openedUrl": "abrió",
+      "readFile": "leyó",
+      "requestedPermission": "solicitó usar"
+    }
+  },
+  "permissions": {
+    "default": "Por defecto",
+    "approval": {
+      "title": "Cómo se aprueba",
+      "description": "Cuando un agente quiere usar este ordenador, ¿desde dónde puedes aprobar?",
+      "anyDevice": {
+        "label": "Cualquier dispositivo con tu sesión",
+        "description": "Confirma desde el móvil, otro ordenador o la web — donde ya hayas iniciado sesión."
+      },
+      "thisDevice": {
+        "label": "Solo este ordenador",
+        "description": "Más estricto: la confirmación debe hacerse aquí, en esta máquina."
+      }
+    },
+    "policy": {
+      "title": "Regla por defecto para agentes nuevos",
+      "description": "Qué pasa la primera vez que un agente sin configurar pide hacer algo.",
+      "always": {
+        "label": "Permitir siempre",
+        "description": "Aprueba una vez y no se vuelve a preguntar."
+      },
+      "once": {
+        "label": "Solo esta vez",
+        "description": "Aprobado solo para la tarea actual; la próxima vez se pregunta otra vez."
+      },
+      "perCommand": {
+        "label": "Preguntar en cada acción",
+        "description": "Confirma cada comando contigo. Muy hablador, muy seguro."
+      },
+      "onlyWhenAsked": {
+        "label": "Solo cuando yo pida",
+        "description": "Los agentes no actúan por su cuenta — tú inicias la tarea."
+      }
+    },
+    "agents": {
+      "title": "Agentes autorizados",
+      "description": "Agentes y workspaces a los que has dado acceso a este ordenador. Puedes afinar las reglas por entrada."
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agente",
+      "task": "Tarea"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "Todo automático"
+      },
+      "whenTalkingToMe": {
+        "label": "Auto mientras chateo"
+      },
+      "partial": {
+        "label": "Parcial (comandos específicos)"
+      },
+      "onlyWhenAsked": {
+        "label": "Solo cuando yo pida"
+      }
+    }
+  },
+  "browser": {
+    "runtimeTitle": "Runtime de automatización del navegador",
+    "runtimeDescription": "La librería que los agentes usan para manejar un navegador de verdad: clicar, escribir, leer la página. Usamos Playwright por debajo.",
+    "runtimeSubtitle": "Necesario para que los agentes abran y controlen páginas",
+    "statusNotInstalled": "No instalado",
+    "statusInstalled": "Instalado",
+    "install": "Instalar",
+    "binaryTitle": "Qué navegador usan los agentes",
+    "binaryDescription": "Elige el navegador que los agentes abren por defecto. El incluido es el más seguro: está aislado de tu navegador del día a día.",
+    "recommended": "Recomendado",
+    "detected": "Detectado en este Mac",
+    "notDetected": "No detectado",
+    "binary": {
+      "bundled": "Chromium incluido",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
+  "overview": {
+    "masterSwitchTitle": "Permitir control remoto",
+    "masterSwitchDescription": "Apágalo y ningún agente podrá usar este ordenador — ni siquiera los que aprobaste antes.",
+    "masterSwitchOn": "Control remoto activado",
+    "masterSwitchOff": "Control remoto desactivado",
+    "statusTitle": "Conexión",
+    "systemPermsTitle": "Permisos del sistema",
+    "systemPermsDescription": "macOS necesita conceder algunos permisos para que los agentes puedan usar plenamente esta máquina.",
+    "permNotChecked": "Sin comprobar",
+    "permOpenSettings": "Abrir Ajustes",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Grabación de pantalla",
+        "description": "Los agentes verán lo que hay en tu pantalla."
+      },
+      "accessibility": {
+        "label": "Accesibilidad",
+        "description": "Los agentes pueden hacer clic, escribir y mover ventanas por ti."
+      },
+      "automation": {
+        "label": "Automatización",
+        "description": "Los agentes pueden ejecutar comandos y controlar otras apps."
+      },
+      "fullDiskAccess": {
+        "label": "Acceso completo al disco",
+        "description": "Los agentes pueden leer y escribir cualquier archivo en este Mac."
+      }
+    }
+  },
+  "myDevicesHelpAria": "¿Qué es esto?",
+  "myDevicesHelpIntro": "Son los ordenadores que has autorizado para el personal de IA. Una vez activado, un agente puede ejecutar comandos reales, acceder a archivos, abrir apps y navegar por la web en esa máquina — no solo chatear.",
+  "myDevicesHelpAccess": "El control de este ordenador te pertenece a ti, no a ningún workspace — cambiar de workspace no afecta a estos ajustes. Por defecto solo tu Personal Staff puede usarlo, y tu Personal Staff solo habla contigo — con nadie más. Cualquier otro agente necesita tu confirmación directa.",
   "thisMac": "Este Mac",
   "otherDevices_zero": "Otros dispositivos míos",
   "otherDevices_one": "Otros dispositivos míos (1)",
@@ -31,8 +183,8 @@
     "deviceRevoked": "aHand: este dispositivo ya no está autorizado. Por favor, vuelve a habilitarlo.",
     "autoRefreshFailed": "aHand: error de actualización automática — {{msg}}"
   },
-  "ctaTitle": "Deja que los agentes tomen el control de tu ordenador",
-  "ctaBody": "Usa la aplicación de escritorio Team9 para convertir esta máquina en el brazo de ejecución remota de tu agente — a coste casi cero.",
+  "ctaTitle": "Deja que un agente use tu ordenador de verdad",
+  "ctaBody": "¿Quieres que un agente realmente maneje tu ordenador y navegador — no solo charlar? Descarga nuestra app de escritorio y vincula esta máquina en segundos.",
   "ctaPrimaryAction": "Abrir app de escritorio",
   "ctaSecondaryAction": "Descargar app de escritorio",
   "noAppInstalledHint": "Si no pasó nada, es posible que la app de escritorio aún no esté instalada."

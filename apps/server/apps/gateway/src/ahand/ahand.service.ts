@@ -112,14 +112,41 @@ export class AhandDevicesService {
     this.validateNickname(input.nickname);
     const hubUrl = this.requireHubUrl();
 
-    // 0. Pre-flight: bail early if device already exists in DB so we don't
-    //    pre-register with hub only to compensate the deletion of a live record.
+    // 0. Pre-flight triage of any row with this hubDeviceId:
+    //    - same owner + same pubkey → idempotent re-register. Common case:
+    //      user toggled "Allow as agent target" off then back on, or
+    //      logged in on another window. Return the existing row + a fresh
+    //      JWT instead of 409.
+    //    - same hubDeviceId but different owner/pubkey → 409 (true
+    //      duplicate or pubkey forgery attempt; hubDeviceId is
+    //      SHA256(pubkey) so a collision implies different key material).
+    //    - revoked row → hard-delete the audit remnant and fall through to
+    //      normal register flow.
     const existing = await this.db
       .select()
       .from(schema.ahandDevices)
       .where(eq(schema.ahandDevices.hubDeviceId, input.hubDeviceId));
     if (existing.length > 0) {
-      throw new ConflictException('Device already registered');
+      const row = existing[0];
+      if (row.status === 'active') {
+        if (row.ownerId !== userId || row.publicKey !== input.publicKey) {
+          throw new ConflictException('Device already registered');
+        }
+        // Idempotent re-register path: row stays, just mint a fresh JWT.
+        const minted = await this.hub.mintDeviceToken({
+          deviceId: input.hubDeviceId,
+          ttlSeconds: DEVICE_JWT_TTL_SECONDS,
+        });
+        return {
+          device: row,
+          deviceJwt: minted.token,
+          hubUrl: this.hubWebSocketUrl(hubUrl),
+          jwtExpiresAt: minted.expiresAt,
+        };
+      }
+      await this.db
+        .delete(schema.ahandDevices)
+        .where(eq(schema.ahandDevices.id, row.id));
     }
 
     // 1. Pre-register with hub.

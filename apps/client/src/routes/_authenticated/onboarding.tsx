@@ -2185,16 +2185,3 @@ function findValidInvitation(invitations: WorkspaceInvitation[]) {
     return true;
   });
 }
-
-async function _goBackTo(
-  step: number,
-  persistProgress: (args?: {
-    nextStep?: number;
-    status?: "in_progress" | "completed";
-    overrides?: Partial<WorkspaceOnboardingStepData>;
-  }) => Promise<unknown>,
-  setCurrentStep: (step: number) => void,
-) {
-  await persistProgress({ nextStep: step });
-  setCurrentStep(step);
-}

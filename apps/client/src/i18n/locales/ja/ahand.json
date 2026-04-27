@@ -1,5 +1,157 @@
 {
   "myDevices": "マイデバイス",
+  "comingSoon": "近日公開",
+  "devicesTabs": {
+    "overview": "概要",
+    "overviewDescription": "この PC が AI スタッフ向けにどう準備されているか。",
+    "browser": "ブラウザ設定",
+    "browserDescription": "Agent に操作させるブラウザをインストール・選択します。",
+    "permissions": "権限管理",
+    "permissionsDescription": "誰がこの PC を使えるか、どう同意するかを設定します。",
+    "myDevices": "マイデバイス",
+    "myDevicesDescription": "アカウントに紐づけた全ての PC。",
+    "audit": "監査ログ",
+    "auditDescription": "Agent があなたのデバイスを使用した記録。",
+    "placeholder": "近日公開。開発中です。"
+  },
+  "audit": {
+    "recentTitle": "最近のアクティビティ",
+    "recentDescription": "この PC で Agent がしたこと、しようとしたこと、すべての記録。",
+    "filterAgentAll": "全ての Agent",
+    "filterOutcomeAll": "全ての結果",
+    "filterRange7d": "直近 7 日",
+    "minutesAgo_one": "{{count}} 分前",
+    "minutesAgo_other": "{{count}} 分前",
+    "hoursAgo_one": "{{count}} 時間前",
+    "hoursAgo_other": "{{count}} 時間前",
+    "yesterday": "昨日",
+    "outcome": {
+      "approved": "承認",
+      "denied": "拒否",
+      "pending": "保留中"
+    },
+    "source": {
+      "auto": "ポリシーにより自動承認",
+      "userApproved": "あなたが承認",
+      "userDenied": "あなたが拒否",
+      "awaitingApproval": "あなたの承認待ち"
+    },
+    "verb": {
+      "ranCommand": "実行",
+      "openedUrl": "開いた",
+      "readFile": "読み取り",
+      "requestedPermission": "使用を申請"
+    }
+  },
+  "permissions": {
+    "default": "デフォルト",
+    "approval": {
+      "title": "承認方法",
+      "description": "Agent がこの PC を使おうとした時、どこから承認できますか？",
+      "anyDevice": {
+        "label": "ログイン済みのどの端末でも OK",
+        "description": "スマホ、別の PC、ウェブ——ログインしていればどこからでも承認できます。"
+      },
+      "thisDevice": {
+        "label": "この PC でしか承認できない",
+        "description": "より厳格：このマシンの前にいる人しか押せません。"
+      }
+    },
+    "policy": {
+      "title": "新しい Agent のデフォルト",
+      "description": "まだ設定していない Agent が初めて動こうとした時のルール。",
+      "always": {
+        "label": "以後ずっと自動で許可",
+        "description": "一度許可すれば、もう聞きません。"
+      },
+      "once": {
+        "label": "今回だけ",
+        "description": "このタスクだけ有効。次回はまた聞きます。"
+      },
+      "perCommand": {
+        "label": "全ての操作で確認",
+        "description": "コマンドごとに確認。一番うるさく、一番安全。"
+      },
+      "onlyWhenAsked": {
+        "label": "自分が頼んだ時だけ",
+        "description": "Agent が勝手に動くのは禁止。タスクはあなたから始める必要があります。"
+      }
+    },
+    "agents": {
+      "title": "許可した Agent",
+      "description": "この PC の使用を許可した Agent / Workspace。項目ごとに個別にルールを調整できます。"
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Task"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "全て自動"
+      },
+      "whenTalkingToMe": {
+        "label": "私と会話中のみ自動"
+      },
+      "partial": {
+        "label": "一部自動（特定コマンド）"
+      },
+      "onlyWhenAsked": {
+        "label": "自分が頼んだ時だけ"
+      }
+    }
+  },
+  "browser": {
+    "runtimeTitle": "ブラウザ操作ランタイム",
+    "runtimeDescription": "Agent が実際にブラウザを操作（クリック・入力・ページ読取）するためのライブラリ。内部で Playwright を使います。",
+    "runtimeSubtitle": "Agent がウェブページを開いて操作するために必要",
+    "statusNotInstalled": "未インストール",
+    "statusInstalled": "インストール済み",
+    "install": "インストール",
+    "binaryTitle": "Agent が使うブラウザ",
+    "binaryDescription": "Agent がデフォルトで開くブラウザを選びます。同梱版が最も安全——普段使いのブラウザから完全に分離されています。",
+    "recommended": "推奨",
+    "detected": "この Mac で検出されました",
+    "notDetected": "未検出",
+    "binary": {
+      "bundled": "同梱 Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
+  "overview": {
+    "masterSwitchTitle": "リモート操作を許可",
+    "masterSwitchDescription": "オフにすると、以前に許可した Agent も含めて、この PC を一切使えなくなります。",
+    "masterSwitchOn": "リモート操作：オン",
+    "masterSwitchOff": "リモート操作：オフ",
+    "statusTitle": "接続状態",
+    "systemPermsTitle": "システム権限",
+    "systemPermsDescription": "Agent がこの PC を完全に使うには、macOS の権限もいくつか許可する必要があります。",
+    "permNotChecked": "未確認",
+    "permOpenSettings": "システム設定を開く",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "画面収録",
+        "description": "Agent に画面の内容を見せます。"
+      },
+      "accessibility": {
+        "label": "アクセシビリティ",
+        "description": "Agent がクリック、入力、ウィンドウ操作を代行します。"
+      },
+      "automation": {
+        "label": "オートメーション",
+        "description": "Agent がコマンド実行や他のアプリを制御できます。"
+      },
+      "fullDiskAccess": {
+        "label": "フルディスクアクセス",
+        "description": "Agent がこの Mac のどのファイルでも読み書きできます。"
+      }
+    }
+  },
+  "myDevicesHelpAria": "これは何？",
+  "myDevicesHelpIntro": "これらはあなたが AI スタッフに許可したローカル PC です。有効にすると、Agent はそのマシン上で実際のコマンド実行、ファイルアクセス、アプリ起動、ウェブ閲覧ができます —— ただのチャットではありません。",
+  "myDevicesHelpAccess": "このコンピュータの制御はあなた個人に属し、workspace には属しません —— workspace を切り替えてもここの許可は変わりません。デフォルトではあなたのパーソナルアシスタント (Personal Staff) のみが使用可能で、パーソナルアシスタントはあなた本人としか会話せず、他人からは触れません。他の Agent があなたの PC を使うには、あなたが直接「同意」を押す必要があります。",
   "thisMac": "この Mac",
   "otherDevices_zero": "その他のデバイス",
   "otherDevices_one": "その他のデバイス (1)",
@@ -31,8 +183,8 @@
     "deviceRevoked": "aHand: このデバイスは認証されていません。再度有効化してください。",
     "autoRefreshFailed": "aHand: 自動更新に失敗しました — {{msg}}"
   },
-  "ctaTitle": "エージェントにあなたの PC を委ねよう",
-  "ctaBody": "Team9 デスクトップアプリで、この PC をあなたのエージェントのリモート実行アームに。ほぼゼロコストでローカル shell を提供します。",
+  "ctaTitle": "Agent に本当に PC を使わせよう",
+  "ctaBody": "Agent に本当に PC とブラウザを操作してもらい、仕事を片付けさせたい？ デスクトップアプリをダウンロードすれば、数秒でこのマシンをペアリングできます。",
   "ctaPrimaryAction": "デスクトップアプリを開く",
   "ctaSecondaryAction": "デスクトップアプリをダウンロード",
   "noAppInstalledHint": "反応がない場合、デスクトップアプリがまだインストールされていない可能性があります。"

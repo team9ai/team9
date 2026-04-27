@@ -1,4 +1,10 @@
 {
+  "notFound": {
+    "title": "Pagina niet gevonden",
+    "description": "De pagina die je zoekt bestaat niet of is verplaatst.",
+    "goBack": "Terug",
+    "goHome": "Naar startpagina"
+  },
   "loading": "Laden...",
   "loadingMore": "Meer laden...",
   "error": "Fout",
@@ -36,5 +42,12 @@
   "copied": "Gekopieerd",
   "selected": "Geselecteerd",
   "warning": "Waarschuwing:",
-  "seconds": "s"
+  "seconds": "s",
+  "connection": {
+    "reconnecting": "Opnieuw verbinden…",
+    "reconnectingHint": "Verbinding wordt hersteld.",
+    "disconnected": "Verbinding verbroken",
+    "disconnectedHint": "Controleer je netwerk en vernieuw."
+  },
+  "uploadFile": "Bestand uploaden"
 }

@@ -66,8 +66,12 @@ export function TrackingModal({
   const sendMessage = useSendMessage(trackingChannelId ?? "");
 
   const handleSend = useCallback(
-    async (content: string, attachments?: AttachmentDto[]) => {
+    async (
+      payload: { content: string; contentAst?: Record<string, unknown> },
+      attachments?: AttachmentDto[],
+    ) => {
       if (!trackingChannelId) return;
+      const { content } = payload;
       if (!content.trim() && (!attachments || attachments.length === 0)) return;
       await sendMessage.mutateAsync({ content, attachments });
     },

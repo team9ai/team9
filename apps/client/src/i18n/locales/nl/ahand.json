@@ -1,5 +1,157 @@
 {
   "myDevices": "Mijn apparaten",
+  "comingSoon": "Binnenkort",
+  "devicesTabs": {
+    "overview": "Overzicht",
+    "overviewDescription": "Hoe deze computer is ingericht voor je AI-personeel.",
+    "browser": "Browser-setup",
+    "browserDescription": "Installeer en kies de browser die je agents moeten bedienen.",
+    "permissions": "Rechten",
+    "permissionsDescription": "Bepaal wie deze computer mag gebruiken en hoe elke toegang wordt goedgekeurd.",
+    "myDevices": "Mijn apparaten",
+    "myDevicesDescription": "Alle computers die aan je account zijn gekoppeld.",
+    "audit": "Auditlog",
+    "auditDescription": "Een logboek van elke keer dat een agent een van je apparaten gebruikte.",
+    "placeholder": "Binnenkort. We bouwen hier nog aan."
+  },
+  "audit": {
+    "recentTitle": "Recente activiteit",
+    "recentDescription": "Alles wat een agent op deze computer heeft gedaan — of geprobeerd te doen.",
+    "filterAgentAll": "Alle agents",
+    "filterOutcomeAll": "Alle uitkomsten",
+    "filterRange7d": "Afgelopen 7 dagen",
+    "minutesAgo_one": "{{count}} min geleden",
+    "minutesAgo_other": "{{count}} min geleden",
+    "hoursAgo_one": "{{count}} uur geleden",
+    "hoursAgo_other": "{{count}} uur geleden",
+    "yesterday": "Gisteren",
+    "outcome": {
+      "approved": "Goedgekeurd",
+      "denied": "Geweigerd",
+      "pending": "In afwachting"
+    },
+    "source": {
+      "auto": "automatisch goedgekeurd door regel",
+      "userApproved": "jij keurde goed",
+      "userDenied": "jij weigerde",
+      "awaitingApproval": "wacht op jouw OK"
+    },
+    "verb": {
+      "ranCommand": "voerde uit",
+      "openedUrl": "opende",
+      "readFile": "las",
+      "requestedPermission": "vroeg om te gebruiken"
+    }
+  },
+  "permissions": {
+    "default": "Standaard",
+    "approval": {
+      "title": "Hoe goedkeuring werkt",
+      "description": "Als een agent deze computer wil gebruiken — vanwaar mag je goedkeuren?",
+      "anyDevice": {
+        "label": "Elk ingelogd apparaat",
+        "description": "Bevestig vanaf je telefoon, een andere computer of het web — waar je al ingelogd bent."
+      },
+      "thisDevice": {
+        "label": "Alleen deze computer",
+        "description": "Strenger: bevestigen kan alleen hier, op deze machine."
+      }
+    },
+    "policy": {
+      "title": "Standaard voor nieuwe agents",
+      "description": "Wat er gebeurt als een agent die je nog niet hebt ingesteld voor het eerst iets wil doen.",
+      "always": {
+        "label": "Altijd toestaan",
+        "description": "Keur één keer goed en wordt niet meer gevraagd."
+      },
+      "once": {
+        "label": "Alleen deze keer",
+        "description": "Alleen voor de huidige taak; de volgende keer wordt het weer gevraagd."
+      },
+      "perCommand": {
+        "label": "Voor elke actie vragen",
+        "description": "Checkt elk commando bij je. Heel praatgraag, heel veilig."
+      },
+      "onlyWhenAsked": {
+        "label": "Alleen als ik erom vraag",
+        "description": "Agents mogen niet op eigen houtje handelen — jij start de taak."
+      }
+    },
+    "agents": {
+      "title": "Toegestane agents",
+      "description": "Agents en workspaces waaraan je toegang tot deze computer hebt gegeven. Je kunt de regels per item aanscherpen."
+    },
+    "scope": {
+      "workspace": "Workspace",
+      "agent": "Agent",
+      "task": "Taak"
+    },
+    "agentPolicy": {
+      "always": {
+        "label": "Alles automatisch"
+      },
+      "whenTalkingToMe": {
+        "label": "Auto tijdens chatten met mij"
+      },
+      "partial": {
+        "label": "Gedeeltelijk (specifieke commando's)"
+      },
+      "onlyWhenAsked": {
+        "label": "Alleen als ik vraag"
+      }
+    }
+  },
+  "browser": {
+    "runtimeTitle": "Browserautomatiserings-runtime",
+    "runtimeDescription": "De bibliotheek waarmee agents echt een browser bedienen — klikken, typen, pagina lezen. Onder de motorkap: Playwright.",
+    "runtimeSubtitle": "Nodig zodat agents webpagina's kunnen openen en besturen",
+    "statusNotInstalled": "Niet geïnstalleerd",
+    "statusInstalled": "Geïnstalleerd",
+    "install": "Installeren",
+    "binaryTitle": "Welke browser agents gebruiken",
+    "binaryDescription": "Kies de browser die agents standaard openen. De meegeleverde is het veiligst — volledig gescheiden van je dagelijkse browser.",
+    "recommended": "Aanbevolen",
+    "detected": "Gedetecteerd op deze Mac",
+    "notDetected": "Niet gedetecteerd",
+    "binary": {
+      "bundled": "Meegeleverde Chromium",
+      "chrome": "Google Chrome",
+      "edge": "Microsoft Edge",
+      "firefox": "Firefox"
+    }
+  },
+  "overview": {
+    "masterSwitchTitle": "Remote-bediening toestaan",
+    "masterSwitchDescription": "Zet dit uit en geen enkele agent mag deze computer gebruiken — ook niet agents die je eerder hebt goedgekeurd.",
+    "masterSwitchOn": "Remote-bediening aan",
+    "masterSwitchOff": "Remote-bediening uit",
+    "statusTitle": "Verbinding",
+    "systemPermsTitle": "Systeemrechten",
+    "systemPermsDescription": "macOS moet een paar rechten verlenen voordat agents deze machine volledig kunnen gebruiken.",
+    "permNotChecked": "Niet gecontroleerd",
+    "permOpenSettings": "Instellingen openen",
+    "systemPerms": {
+      "screenRecording": {
+        "label": "Schermopname",
+        "description": "Agents kunnen zien wat er op je scherm staat."
+      },
+      "accessibility": {
+        "label": "Toegankelijkheid",
+        "description": "Agents mogen voor jou klikken, typen en vensters verplaatsen."
+      },
+      "automation": {
+        "label": "Automatisering",
+        "description": "Agents mogen commando's uitvoeren en andere apps besturen."
+      },
+      "fullDiskAccess": {
+        "label": "Volledige schijftoegang",
+        "description": "Agents mogen elk bestand op deze Mac lezen en schrijven."
+      }
+    }
+  },
+  "myDevicesHelpAria": "Wat is dit?",
+  "myDevicesHelpIntro": "Dit zijn de computers die je hebt geautoriseerd voor AI-personeel. Eenmaal ingeschakeld, kan een agent op die machine echte commando's uitvoeren, bestanden openen, apps starten en op het web surfen — niet alleen chatten.",
+  "myDevicesHelpAccess": "De controle over deze computer is van jou persoonlijk, niet van een workspace — van workspace wisselen verandert deze instellingen niet. Standaard mag alleen jouw Personal Staff hem gebruiken, en jouw Personal Staff praat alleen met jou — met niemand anders. Elke andere agent heeft jouw directe goedkeuring nodig.",
   "thisMac": "Deze Mac",
   "otherDevices_zero": "Mijn andere apparaten",
   "otherDevices_one": "Mijn andere apparaten (1)",
@@ -31,8 +183,8 @@
     "deviceRevoked": "aHand: dit apparaat is niet meer geautoriseerd. Schakel het opnieuw in.",
     "autoRefreshFailed": "aHand: automatisch verversen mislukt — {{msg}}"
   },
-  "ctaTitle": "Laat agents je computer overnemen",
-  "ctaBody": "Gebruik de Team9-desktop-app om deze machine te veranderen in de remote-uitvoeringsarm van je agent — tegen bijna nul kosten.",
+  "ctaTitle": "Laat een agent je computer echt gebruiken",
+  "ctaBody": "Wil je dat een agent echt je computer en browser bestuurt — niet alleen chat? Haal onze desktop-app en koppel deze machine in seconden.",
   "ctaPrimaryAction": "Desktop-app openen",
   "ctaSecondaryAction": "Desktop-app downloaden",
   "noAppInstalledHint": "Als er niets is gebeurd, is de desktop-app mogelijk nog niet geïnstalleerd."

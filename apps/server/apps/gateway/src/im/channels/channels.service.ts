@@ -356,7 +356,8 @@ export class ChannelsService {
    * For bots, classifies into `staffKind`:
    * - `'common'` if `extra.commonStaff` is set (takes precedence over personal)
    * - `'personal'` if `extra.personalStaff` is set (resolves owner via aliased users join)
-   * - `'other'` otherwise (no staff role)
+   * - `null` otherwise — base-model / openclaw bots are identified by their
+   *   `agentType`, so no extra pill is needed.
    *
    * commonStaff/personalStaff are mutually exclusive per the data model
    * (see im_bots.ts BotExtra). If both are present we warn and pick common.
@@ -379,8 +380,6 @@ export class ChannelsService {
       } else if (row.botExtra?.personalStaff) {
         staffKind = 'personal';
         ownerName = row.ownerDisplayName ?? row.ownerUsername ?? null;
-      } else {
-        staffKind = 'other';
       }
     }
 

@@ -1,0 +1,188 @@
+{
+  "sidebar": {
+    "loading": "Laden…",
+    "empty": "Nog geen wiki's. Klik op + om er een te maken.",
+    "createWiki": "Wiki maken",
+    "reviewProposals": "Voorstellen beoordelen",
+    "itemActions": "Acties voor {{name}}"
+  },
+  "empty": {
+    "title": "Selecteer een Wiki-pagina",
+    "description": "Kies een pagina uit de boom links, of maak een nieuwe Wiki met de +-knop."
+  },
+  "route": {
+    "notFound": "Wiki niet gevonden."
+  },
+  "common": {
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "saving": "Opslaan…",
+    "loading": "Laden…",
+    "required": "*",
+    "optional": "(optioneel)"
+  },
+  "create": {
+    "title": "Wiki maken",
+    "description": "Maak een nieuwe Wiki om met je team aan pagina's samen te werken.",
+    "iconLabel": "Pictogram",
+    "nameLabel": "Naam",
+    "namePlaceholder": "Teamhandboek",
+    "slugLabel": "Slug",
+    "slugPlaceholder": "team-handbook",
+    "slugHelp": "Kleine letters, cijfers en streepjes. Moet met een letter of cijfer beginnen. Automatisch afgeleid van de naam totdat je het bewerkt.",
+    "cancel": "Annuleren",
+    "submit": "Wiki maken",
+    "submitting": "Maken…",
+    "errors": {
+      "nameRequired": "Naam is verplicht.",
+      "slugTooLong": "Slug mag maximaal {{max}} tekens bevatten.",
+      "slugPattern": "Slug moet beginnen met een kleine letter of cijfer en mag alleen kleine letters, cijfers en streepjes bevatten.",
+      "slugTaken": "Er bestaat al een Wiki met deze slug. Kies een andere.",
+      "createFailed": "Maken mislukt. Probeer het opnieuw.",
+      "createFailedWithMessage": "Maken mislukt: {{message}}"
+    }
+  },
+  "settings": {
+    "title": "Wiki-instellingen",
+    "description": "Configureer de naam van deze Wiki, wie hem mag bewerken en hoe voorgestelde wijzigingen worden beoordeeld.",
+    "generalHeading": "Algemeen",
+    "iconLabel": "Pictogram",
+    "nameLabel": "Naam",
+    "slugLabel": "Slug",
+    "slugHelp": "Kleine letters, cijfers en streepjes. Moet met een letter of cijfer beginnen.",
+    "approvalHeading": "Goedkeuringsmodus",
+    "approvalLegend": "Goedkeuringsmodus",
+    "approvalAutoLabel": "Automatisch samenvoegen",
+    "approvalAutoDescription": "Schrijfbewerkingen worden direct gepubliceerd zonder beoordeling.",
+    "approvalReviewLabel": "Beoordeling vereist",
+    "approvalReviewDescription": "Schrijfbewerkingen worden ingediend als voorstellen die een beoordelaar moet goedkeuren.",
+    "permissionsHeading": "Rechten",
+    "humanLabel": "Mens",
+    "agentLabel": "Agent",
+    "permissionRead": "Lezen",
+    "permissionPropose": "Voorstellen",
+    "permissionWrite": "Schrijven",
+    "dangerZoneHeading": "Gevarenzone",
+    "dangerZoneDescription": "Archiveren verbergt deze Wiki voor iedereen uit de zijbalk. De inhoud blijft op de server en een admin kan deze herstellen.",
+    "archiveButton": "Wiki archiveren",
+    "cancel": "Annuleren",
+    "save": "Wijzigingen opslaan",
+    "saving": "Opslaan…",
+    "errors": {
+      "nameRequired": "Naam is verplicht.",
+      "slugRequired": "Slug is verplicht.",
+      "slugTooLong": "Slug mag maximaal {{max}} tekens bevatten.",
+      "slugPattern": "Slug moet beginnen met een kleine letter of cijfer en mag alleen kleine letters, cijfers en streepjes bevatten.",
+      "slugTaken": "Er bestaat al een Wiki met deze slug. Kies een andere.",
+      "updateForbidden": "Je hebt geen rechten om deze Wiki bij te werken.",
+      "updateFailed": "Bijwerken mislukt. Probeer het opnieuw.",
+      "updateFailedWithMessage": "Bijwerken mislukt: {{message}}",
+      "archiveForbidden": "Je hebt geen rechten om deze Wiki te archiveren.",
+      "archiveFailed": "Archiveren mislukt. Probeer het opnieuw.",
+      "archiveFailedWithMessage": "Archiveren mislukt: {{message}}"
+    }
+  },
+  "listItem": {
+    "settings": "Instellingen",
+    "archive": "Archiveren",
+    "actionsLabel": "Acties voor {{name}}"
+  },
+  "archive": {
+    "title": "Deze Wiki archiveren?",
+    "description": "“{{name}}” wordt voor iedereen uit de zijbalk verborgen. Je kunt een admin later vragen om het te herstellen.",
+    "cancel": "Annuleren",
+    "confirm": "Archiveren",
+    "archiving": "Archiveren…"
+  },
+  "iconPicker": {
+    "ariaLabel": "Pagina-pictogram kiezen"
+  },
+  "coverPicker": {
+    "addCover": "Omslag toevoegen",
+    "changeCover": "Omslag wijzigen",
+    "addTriggerAria": "Pagina-omslag toevoegen",
+    "changeTriggerAria": "Pagina-omslag wijzigen",
+    "pathLabel": "Pad voor omslagafbeelding",
+    "pathPlaceholder": "attachments/cover.jpg",
+    "pathHelp": "Plak een folder9-pad. Uploads komen in een toekomstige release.",
+    "remove": "Verwijderen",
+    "apply": "Toepassen"
+  },
+  "editor": {
+    "staleAlert": "Je hebt niet-opgeslagen lokale wijzigingen. Je concept wordt weergegeven.",
+    "staleDismissAria": "Waarschuwing voor verouderd concept sluiten",
+    "notifySaved": "Opgeslagen",
+    "notifySubmitted": "Ingediend voor beoordeling",
+    "notifyUploadFailed": "Uploaden mislukt",
+    "errors": {
+      "saveConflict": "Opslaan mislukt: de pagina is op de server gewijzigd. Laad opnieuw en pas je wijzigingen opnieuw toe.",
+      "saveForbidden": "Opslaan mislukt: je hebt geen rechten om deze pagina bij te werken.",
+      "saveFailed": "Opslaan mislukt. Probeer het opnieuw."
+    }
+  },
+  "status": {
+    "synced": "Gesynchroniseerd",
+    "unsaved": "Niet-opgeslagen wijzigingen",
+    "lastSaved": "· laatst opgeslagen {{time}}",
+    "save": "Opslaan",
+    "saving": "Opslaan…"
+  },
+  "page": {
+    "loading": "Laden…",
+    "binaryFile": "Binair bestand — hier niet bewerkbaar."
+  },
+  "proposalBanner": {
+    "message": "Deze pagina heeft een voorstel dat op beoordeling wacht.",
+    "view": "Voorstel bekijken"
+  },
+  "submitReview": {
+    "title": "Indienen voor beoordeling",
+    "description": "Deze Wiki vereist beoordeling voordat wijzigingen worden gepubliceerd. Je concept wordt opgeslagen als voorstel dat een beoordelaar kan goedkeuren.",
+    "titleLabel": "Titel",
+    "titlePlaceholder": "Korte samenvatting van de wijziging",
+    "descriptionLabel": "Beschrijving",
+    "descriptionPlaceholder": "Voeg context toe die beoordelaars over deze wijziging moeten weten",
+    "cancel": "Annuleren",
+    "submit": "Indienen voor beoordeling",
+    "submitting": "Indienen…"
+  },
+  "review": {
+    "heading": "Beoordeling – {{name}}",
+    "description": "Voorstellen die op beoordeling wachten.",
+    "loading": "Laden…",
+    "loadFailed": "Voorstellen laden mislukt.",
+    "empty": "Geen voorstellen in afwachting.",
+    "untitledProposal": "Naamloos voorstel",
+    "authorAgent": "Agent",
+    "authorUser": "Gebruiker"
+  },
+  "proposalDiff": {
+    "back": "Terug naar beoordelingswachtrij",
+    "proposalFallbackTitle": "Voorstel {{id}}",
+    "authorAgent": "Agent",
+    "authorUser": "Gebruiker",
+    "reject": "Afwijzen",
+    "approve": "Goedkeuren",
+    "rejectReasonLabel": "Reden (optioneel)",
+    "rejectReasonPlaceholder": "Laat de auteur weten waarom dit voorstel wordt afgewezen.",
+    "rejectCancel": "Annuleren",
+    "rejectConfirm": "Afwijzing bevestigen",
+    "diffLoading": "Diff laden…",
+    "diffLoadFailed": "Diff laden mislukt.",
+    "diffEmpty": "Dit voorstel bevat geen bestandswijzigingen.",
+    "fileEmpty": "(geen inhoud)",
+    "errors": {
+      "approveConflict": "Conflict — merge afgebroken",
+      "approveForbidden": "Je hebt geen rechten om dit voorstel goed te keuren.",
+      "approveFailed": "Goedkeuren mislukt. Probeer het opnieuw.",
+      "rejectConflict": "Conflict — merge afgebroken",
+      "rejectForbidden": "Je hebt geen rechten om dit voorstel af te wijzen.",
+      "rejectFailed": "Afwijzen mislukt. Probeer het opnieuw."
+    }
+  },
+  "errors": {
+    "wikiNotFound": "Wiki niet gevonden — mogelijk gearchiveerd.",
+    "boundaryMessage": "Er is iets misgegaan — probeer het opnieuw.",
+    "boundaryRetry": "Opnieuw proberen"
+  }
+}

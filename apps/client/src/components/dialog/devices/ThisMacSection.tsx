@@ -8,6 +8,7 @@ import { useAhandStore } from "@/stores/useAhandStore";
 import { useUser } from "@/stores/useAppStore";
 import { ahandTauri } from "@/services/ahand-tauri";
 import { ahandApi } from "@/services/ahand-api";
+import { confirmDestructive } from "@/lib/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { AHAND_DEVICES_QUERY_KEY } from "@/hooks/useAhandDevices";
@@ -28,7 +29,7 @@ export function ThisMacSection() {
   const deviceId = userId ? store.getDeviceIdForUser(userId) : null;
 
   const statusColor = deriveStatusColor(status, enabled);
-  const statusLabel = deriveStatusLabel(status, enabled, t);
+  const statusLabel = t(deriveStatusLabelKey(status, enabled));
 
   const handleToggle = useCallback(
     async (next: boolean) => {
@@ -71,7 +72,7 @@ export function ThisMacSection() {
 
   const handleRemove = useCallback(async () => {
     if (!userId || !deviceId) return;
-    if (!window.confirm(t("confirmRemoveThisMac"))) return;
+    if (!(await confirmDestructive(t("confirmRemoveThisMac")))) return;
     setBusy(true);
     try {
       await ahandTauri.stop();
@@ -148,23 +149,30 @@ function deriveStatusColor(status: LocalStatus, enabled: boolean): string {
   }
 }
 
-function deriveStatusLabel(
+type StatusLabelKey =
+  | "disabled"
+  | "online"
+  | "connecting"
+  | "error.header"
+  | "offline"
+  | "notConnected";
+
+function deriveStatusLabelKey(
   status: LocalStatus,
   enabled: boolean,
-  t: (key: string) => string,
-): string {
-  if (!enabled) return t("disabled");
+): StatusLabelKey {
+  if (!enabled) return "disabled";
   switch (status.state) {
     case "online":
-      return t("online");
+      return "online";
     case "connecting":
-      return t("connecting");
+      return "connecting";
     case "error":
-      return t("error.header");
+      return "error.header";
     case "offline":
-      return t("offline");
+      return "offline";
     default:
-      return t("notConnected");
+      return "notConnected";
   }
 }
 
