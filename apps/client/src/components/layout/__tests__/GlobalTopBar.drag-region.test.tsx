@@ -14,6 +14,16 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+  useRouter: () => ({
+    history: {
+      back: vi.fn(),
+      forward: vi.fn(),
+      subscribe: () => () => {},
+      canGoBack: () => false,
+      length: 1,
+      location: { state: { __TSR_index: 0 } },
+    },
+  }),
 }));
 
 vi.mock("@/stores", () => ({
@@ -60,12 +70,22 @@ vi.mock("@/components/ui/button", () => ({
     children,
     className,
     onClick,
+    disabled,
+    "aria-label": ariaLabel,
   }: {
     children: React.ReactNode;
     className?: string;
     onClick?: () => void;
+    disabled?: boolean;
+    "aria-label"?: string;
   }) => (
-    <button type="button" className={className} onClick={onClick}>
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+    >
       {children}
     </button>
   ),
@@ -107,5 +127,14 @@ describe("GlobalTopBar drag regions", () => {
     expect(screen.getByRole("textbox")).not.toHaveAttribute(
       "data-tauri-drag-region",
     );
+  });
+
+  it("disables back and forward buttons when there is no history to traverse", () => {
+    render(<GlobalTopBar />);
+
+    expect(screen.getByRole("button", { name: "navigateBack" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "navigateForward" }),
+    ).toBeDisabled();
   });
 });

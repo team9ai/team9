@@ -109,7 +109,6 @@
       }
     },
     "page": {
-      "workspaceBilling": "{{workspace}} workspace billing",
       "heading": "Choose your plan",
       "subheading": "Select the plan that fits your workload.",
       "exchangeRate": "1 USD = 1,000 credits across all plans.",
@@ -127,6 +126,7 @@
       "subscriptionRequired": {
         "title": "Subscription Required",
         "description": "You need an active subscription before purchasing credits. Please subscribe to a plan first.",
+        "inlineHint": "An active subscription is required before buying credits.",
         "cancel": "Cancel",
         "viewPlans": "View Plans"
       }

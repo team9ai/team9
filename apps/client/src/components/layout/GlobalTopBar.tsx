@@ -1,6 +1,19 @@
-import { useRef, useEffect, useCallback, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { Search, X, PanelLeft, PanelRight } from "lucide-react";
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Search,
+  X,
+  PanelLeft,
+  PanelRight,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +38,25 @@ import { QuickSearchResults } from "@/components/search/QuickSearchResults";
 export function GlobalTopBar() {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
+  const router = useRouter();
+
+  const subscribeToHistory = useCallback(
+    (callback: () => void) => router.history.subscribe(callback),
+    [router],
+  );
+  const canGoBack = useSyncExternalStore(
+    subscribeToHistory,
+    () => router.history.canGoBack(),
+    () => false,
+  );
+  const canGoForward = useSyncExternalStore(
+    subscribeToHistory,
+    () => {
+      const index = router.history.location.state?.__TSR_index ?? 0;
+      return index < router.history.length - 1;
+    },
+    () => false,
+  );
   useUser();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { data: workspaces } = useUserWorkspaces();
@@ -182,6 +214,26 @@ export function GlobalTopBar() {
             data-tauri-drag-region
             className="mx-auto flex max-w-2xl items-center justify-center gap-1"
           >
+            <Button
+              variant="ghost"
+              size="icon"
+              className={topBarButtonClassName}
+              aria-label={t("navigateBack")}
+              disabled={!canGoBack}
+              onClick={() => router.history.back()}
+            >
+              <ArrowLeft size={16} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={topBarButtonClassName}
+              aria-label={t("navigateForward")}
+              disabled={!canGoForward}
+              onClick={() => router.history.forward()}
+            >
+              <ArrowRight size={16} />
+            </Button>
             <div className="flex-1">
               <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverAnchor asChild>
