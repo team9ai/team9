@@ -21,6 +21,8 @@
   "noData": "No data",
   "retry": "Retry",
   "back": "Back",
+  "navigateBack": "Go back",
+  "navigateForward": "Go forward",
   "next": "Next",
   "previous": "Previous",
   "close": "Close",

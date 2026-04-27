@@ -109,7 +109,6 @@
       }
     },
     "page": {
-      "workspaceBilling": "{{workspace}} 工作空间计费",
       "heading": "选择你的方案",
       "subheading": "选择最适合你当前工作负载的套餐。",
       "exchangeRate": "所有套餐均为 1 美元 = 1,000 点数。",
@@ -127,6 +126,7 @@
       "subscriptionRequired": {
         "title": "需要订阅",
         "description": "购买点数前需要先开通一个有效订阅，请先选择并订阅套餐。",
+        "inlineHint": "购买点数前需要先开通订阅。",
         "cancel": "取消",
         "viewPlans": "查看方案"
       }
