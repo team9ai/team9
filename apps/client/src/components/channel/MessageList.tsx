@@ -1,4 +1,11 @@
-import { useRef, useMemo, useCallback, useEffect, useState } from "react";
+import {
+  useRef,
+  useMemo,
+  useCallback,
+  useEffect,
+  useState,
+  type ComponentProps,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
 import {
@@ -324,6 +331,13 @@ export function MessageList({
     // Default: scroll to bottom (latest message)
     return listData.length - 1;
   }, [highlightMessageId, chronoMessages, firstUnreadIndex, listData.length]);
+
+  const positionProps: Pick<
+    ComponentProps<typeof Virtuoso>,
+    "initialTopMostItemIndex" | "restoreStateFrom"
+  > = savedSnapshot.current
+    ? { restoreStateFrom: savedSnapshot.current }
+    : { initialTopMostItemIndex };
 
   // Load older messages when scrolling to top
   const handleStartReached = useCallback(() => {
@@ -694,10 +708,11 @@ export function MessageList({
         data={listData}
         firstItemIndex={firstItemIndex}
         alignToBottom
-        initialTopMostItemIndex={
-          savedSnapshot.current ? undefined : initialTopMostItemIndex
-        }
-        restoreStateFrom={savedSnapshot.current ?? undefined}
+        // Spread exactly one of the two props. Passing `prop={undefined}`
+        // still puts the key on the props object, and react-virtuoso's
+        // dispatcher publishes that undefined into its urx cell, which then
+        // crashes downstream pipelines that expect a number / IndexLocation.
+        {...positionProps}
         computeItemKey={(_index, item) => {
           if (item.type === "message") return item.message.id;
           if (item.type === "stream") return `stream-${item.stream.streamId}`;
