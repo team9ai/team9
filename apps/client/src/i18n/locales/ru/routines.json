@@ -78,6 +78,17 @@
     "restart": "Перезапустить",
     "delete": "Удалить",
     "deleteConfirm": "Вы уверены, что хотите удалить эту рутину?",
+    "createdAt": "Создано",
+    "lastRunAt": "Последний запуск",
+    "totalTokens": "Всего токенов",
+    "currentRun": "Текущий запуск",
+    "view": "Открыть →",
+    "recentRuns": "Недавние запуски",
+    "viewAllRuns": "Все запуски →",
+    "showMore": "Показать ещё {{count}}",
+    "runNotFound": "Запуск не найден",
+    "backToRoutine": "Назад к рутине",
+    "toggleExpand": "Переключить раскрытие",
     "assignBot": "ИИ-сотрудник",
     "noBot": "Не назначен",
     "steps": "Шаги",
@@ -136,7 +147,11 @@
         "loadError": "Не удалось загрузить версии",
         "noVersions": "Версий пока нет"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "Триггеры",
@@ -278,6 +293,7 @@
     "interval": "Интервал",
     "schedule": "Расписание",
     "channelMessage": "Сообщение в канале",
-    "retry": "Повтор"
+    "retry": "Повтор",
+    "running": "running"
   }
 }

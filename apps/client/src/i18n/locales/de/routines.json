@@ -52,7 +52,10 @@
   },
   "schedule": {
     "type": "Zeitplan",
-    "types": { "once": "Einmalig", "recurring": "Wiederkehrend" },
+    "types": {
+      "once": "Einmalig",
+      "recurring": "Wiederkehrend"
+    },
     "frequency": "Häufigkeit",
     "frequencies": {
       "daily": "Täglich",
@@ -82,6 +85,17 @@
     "restart": "Neu starten",
     "delete": "Löschen",
     "deleteConfirm": "Möchten Sie diese Routine wirklich löschen?",
+    "createdAt": "Erstellt",
+    "lastRunAt": "Letzter Lauf",
+    "totalTokens": "Tokens insgesamt",
+    "currentRun": "Aktueller Lauf",
+    "view": "Ansehen →",
+    "recentRuns": "Letzte Läufe",
+    "viewAllRuns": "Alle Läufe ansehen →",
+    "showMore": "{{count}} weitere anzeigen",
+    "runNotFound": "Lauf nicht gefunden",
+    "backToRoutine": "Zurück zur Routine",
+    "toggleExpand": "Erweitern umschalten",
     "assignBot": "KI-Personal",
     "noBot": "Nicht zugewiesen",
     "steps": "Schritte",
@@ -140,7 +154,11 @@
         "loadError": "Versionen konnten nicht geladen werden",
         "noVersions": "Noch keine Versionen"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "Auslöser",
@@ -282,6 +300,7 @@
     "interval": "Intervall",
     "schedule": "Zeitplan",
     "channelMessage": "Kanalnachricht",
-    "retry": "Wiederholung"
+    "retry": "Wiederholung",
+    "running": "running"
   }
 }

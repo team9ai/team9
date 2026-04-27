@@ -5,19 +5,8 @@ import {
 } from "@/lib/routine-trigger-keys";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/date-format";
-import type { RoutineExecution, RoutineStatus } from "@/types/routine";
-
-const STATUS_COLORS: Record<RoutineStatus, string> = {
-  draft: "bg-yellow-400",
-  in_progress: "bg-blue-500",
-  upcoming: "bg-gray-400",
-  paused: "bg-yellow-500",
-  pending_action: "bg-orange-500",
-  completed: "bg-green-500",
-  failed: "bg-red-500",
-  stopped: "bg-gray-500",
-  timeout: "bg-red-400",
-};
+import { STATUS_COLORS } from "@/lib/routine-status";
+import type { RoutineExecution } from "@/types/routine";
 
 interface RunItemProps {
   execution: RoutineExecution;
@@ -30,7 +19,9 @@ export function RunItem({ execution, isSelected, onClick }: RunItemProps) {
 
   return (
     <button
+      type="button"
       onClick={onClick}
+      data-testid={`run-item-${execution.id}`}
       className={cn(
         "w-full text-left px-2 py-1.5 rounded-md transition-colors",
         isSelected

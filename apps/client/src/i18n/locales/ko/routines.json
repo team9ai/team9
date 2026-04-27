@@ -85,6 +85,17 @@
     "restart": "재시작",
     "delete": "삭제",
     "deleteConfirm": "이 루틴을 삭제하시겠습니까?",
+    "createdAt": "생성됨",
+    "lastRunAt": "마지막 실행",
+    "totalTokens": "총 토큰",
+    "currentRun": "현재 실행",
+    "view": "보기 →",
+    "recentRuns": "최근 실행",
+    "viewAllRuns": "모든 실행 보기 →",
+    "showMore": "{{count}}개 더 보기",
+    "runNotFound": "실행을 찾을 수 없습니다",
+    "backToRoutine": "루틴으로 돌아가기",
+    "toggleExpand": "확장 전환",
     "assignBot": "AI 스태프",
     "noBot": "미지정",
     "steps": "단계",
@@ -143,7 +154,11 @@
         "loadError": "버전을 불러오지 못했습니다",
         "noVersions": "아직 버전이 없습니다"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "트리거",
@@ -285,6 +300,7 @@
     "interval": "인터벌",
     "schedule": "스케줄",
     "channelMessage": "채널 메시지",
-    "retry": "재시도"
+    "retry": "재시도",
+    "running": "running"
   }
 }
