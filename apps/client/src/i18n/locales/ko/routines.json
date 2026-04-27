@@ -157,7 +157,8 @@
     },
     "more": "More",
     "cancel": "Cancel",
-    "notFound": "Routine not found"
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "트리거",

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -70,14 +70,23 @@ function RoutineDetailPage() {
       ) : (
         <div
           data-testid="routine-not-found"
-          className="flex-1 flex items-center justify-center text-sm text-muted-foreground"
+          className="flex-1 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground"
         >
-          {isError
-            ? t(
-                "detail.loadError",
-                "Couldn't load this routine — please try again.",
-              )
-            : t("detail.notFound", "Routine not found")}
+          <span>
+            {isError
+              ? t(
+                  "detail.loadError",
+                  "Couldn't load this routine — please try again.",
+                )
+              : t("detail.notFound", "Routine not found")}
+          </span>
+          <Link
+            to="/routines"
+            className="text-primary hover:underline"
+            data-testid="back-to-routines"
+          >
+            {t("detail.backToList", "Back to routines")}
+          </Link>
         </div>
       )}
     </div>

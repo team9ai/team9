@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type React from "react";
 import type { JSX } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +15,21 @@ vi.mock("@tanstack/react-router", () => ({
     useSearch: () => routeUseSearch(),
   }),
   useNavigate: () => mockNavigate,
+  Link: ({
+    to,
+    children,
+    "data-testid": testId,
+    className,
+  }: {
+    to: string;
+    children: React.ReactNode;
+    "data-testid"?: string;
+    className?: string;
+  }) => (
+    <a data-testid={testId} href={to} className={className}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -144,7 +160,7 @@ describe("/_authenticated/routines/$routineId route", () => {
     });
   });
 
-  it("renders 'Routine not found' when the routine query returns nothing after loading", async () => {
+  it("renders 'Routine not found' with back link when the routine query returns nothing after loading", async () => {
     mockGetById.mockResolvedValue(null);
     renderRoute();
 
@@ -154,9 +170,12 @@ describe("/_authenticated/routines/$routineId route", () => {
     expect(screen.getByTestId("routine-not-found")).toHaveTextContent(
       "Routine not found",
     );
+    const backLink = screen.getByTestId("back-to-routines");
+    expect(backLink).toBeInTheDocument();
+    expect(backLink).toHaveAttribute("href", "/routines");
   });
 
-  it("renders the load-error message and stops polling when getById rejects", async () => {
+  it("renders the load-error message with back link and stops polling when getById rejects", async () => {
     mockGetById.mockRejectedValue(new Error("boom"));
     renderRoute();
 
@@ -167,6 +186,7 @@ describe("/_authenticated/routines/$routineId route", () => {
         "Couldn't load this routine",
       );
     });
+    expect(screen.getByTestId("back-to-routines")).toBeInTheDocument();
     expect(mockGetById).toHaveBeenCalledTimes(1);
 
     // Now switch to fake timers and advance well past the 5s refetchInterval
