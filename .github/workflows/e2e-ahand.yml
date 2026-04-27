@@ -1,0 +1,88 @@
+name: E2E · ahand
+
+on:
+  pull_request:
+    paths:
+      - "apps/client/**"
+      - "apps/server/apps/gateway/src/ahand/**"
+      - ".github/workflows/e2e-ahand.yml"
+  push:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
+jobs:
+  e2e-ahand:
+    name: Playwright (ahand mock)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Non-blocking until flake rate is known. Remove `continue-on-error`
+    # after a soak window of green runs (target: ≥10 consecutive runs).
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/client/package.json') }}
+
+      - name: Install Playwright browsers (chromium only)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: apps/client
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install system deps for Playwright (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: apps/client
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run ahand E2E (mock-hub project)
+        working-directory: apps/client
+        env:
+          RUN_AGAINST_DEV_HUB: "0"
+        run: pnpm test:e2e --project=ahand-mock
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/client/playwright-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload trace + screenshot artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: apps/client/test-results
+          if-no-files-found: ignore
+          retention-days: 14

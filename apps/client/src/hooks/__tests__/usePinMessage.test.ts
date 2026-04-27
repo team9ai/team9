@@ -57,9 +57,8 @@ function makeQueryData(
     pages: [
       {
         messages: [message],
-        total: 1,
-        hasMore: false,
-        cursor: undefined,
+        hasOlder: false,
+        hasNewer: false,
       },
     ],
     pageParams: [undefined],

@@ -22,8 +22,20 @@ import {
   type ParsedMention,
 } from '@team9/shared';
 import { ClawHiveService } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import { MessageRouterService } from '../message/message-router.service.js';
 import { SequenceService } from '../sequence/sequence.service.js';
+
+interface MessageWithContext {
+  message: schema.Message;
+  sender: schema.User;
+  channel: schema.Channel;
+  mentions: ParsedMention[];
+  parentMessage: schema.Message | null;
+  attachments: schema.MessageAttachment[];
+}
+
+type MessageContextLoader = () => Promise<MessageWithContext | null>;
 
 /**
  * Post-Broadcast Service
@@ -87,10 +99,24 @@ export class PostBroadcastService {
       // 3. Process notification tasks (mentions, replies, DMs)
       await this.processNotificationTasks(msgId, channelId, senderId);
 
-      // 4. Push to bot webhooks and hive bots (fire-and-forget, errors logged but not thrown)
+      // 4. Push to bot webhooks and hive bots (fire-and-forget, errors logged but not thrown).
+      //
+      // Both fan-out helpers need the same `getMessageWithContext` payload
+      // (message + sender + channel + parent + attachments). Naively each
+      // ran its own copy, doubling the DB roundtrips on every channel that
+      // had both webhook and hive bots. The lazy memoized loader below
+      // shares one resolution between them — and stays a no-op when both
+      // helpers early-exit because of empty bot lists.
+      let messageContextPromise: Promise<MessageWithContext | null> | undefined;
+      const getMessageContext: MessageContextLoader = () => {
+        if (!messageContextPromise) {
+          messageContextPromise = this.getMessageWithContext(msgId);
+        }
+        return messageContextPromise;
+      };
       await Promise.all([
-        this.pushToBotWebhooks(msgId, senderId, memberIds),
-        this.pushToHiveBots(msgId, senderId, memberIds),
+        this.pushToBotWebhooks(msgId, senderId, memberIds, getMessageContext),
+        this.pushToHiveBots(msgId, senderId, memberIds, getMessageContext),
       ]);
 
       // 5. Mark Outbox as completed
@@ -313,14 +339,9 @@ export class PostBroadcastService {
   /**
    * Get message with all context needed for notifications
    */
-  private async getMessageWithContext(msgId: string): Promise<{
-    message: schema.Message;
-    sender: schema.User;
-    channel: schema.Channel;
-    mentions: ParsedMention[];
-    parentMessage: schema.Message | null;
-    attachments: schema.MessageAttachment[];
-  } | null> {
+  private async getMessageWithContext(
+    msgId: string,
+  ): Promise<MessageWithContext | null> {
     // Get message
     const [message] = await this.db
       .select()
@@ -387,6 +408,7 @@ export class PostBroadcastService {
     msgId: string,
     senderId: string,
     memberIds: string[],
+    getMessageContext?: MessageContextLoader,
   ): Promise<void> {
     try {
       if (memberIds.length === 0) return;
@@ -416,8 +438,11 @@ export class PostBroadcastService {
       const targetBots = botMembers.filter((b) => b.userId !== senderId);
       if (targetBots.length === 0) return;
 
-      // Get message details for webhook payload
-      const messageData = await this.getMessageWithContext(msgId);
+      // Get message details for webhook payload (shared with pushToHiveBots
+      // when called via processTask — see processTask's lazy loader).
+      const messageData = await (getMessageContext
+        ? getMessageContext()
+        : this.getMessageWithContext(msgId));
       if (!messageData) return;
 
       const { message, sender, channel } = messageData;
@@ -602,6 +627,7 @@ export class PostBroadcastService {
     msgId: string,
     senderId: string,
     memberIds: string[],
+    getMessageContext?: MessageContextLoader,
   ): Promise<void> {
     try {
       if (memberIds.length === 0) return;
@@ -630,7 +656,12 @@ export class PostBroadcastService {
       );
       if (targetBots.length === 0) return;
 
-      const messageData = await this.getMessageWithContext(msgId);
+      // Shared with pushToBotWebhooks via processTask's lazy loader so a
+      // channel with both webhook and hive bots only fires the message
+      // context query once.
+      const messageData = await (getMessageContext
+        ? getMessageContext()
+        : this.getMessageWithContext(msgId));
       if (!messageData) return;
 
       const { message, sender, channel, mentions, parentMessage, attachments } =
@@ -674,8 +705,13 @@ export class PostBroadcastService {
         : extractMentionedUserIds(mentions);
 
       // For thread replies in group channels, check if there's already a
-      // tracking channel in this thread. If so, auto-forward to the same
-      // agent session without requiring @mention.
+      // tracking channel for this bot in this thread. If so, the bot
+      // auto-triggers on follow-ups (no @mention needed). Each reply
+      // still spawns its own fresh tracking channel + agent session
+      // (deliberate — see commit 28907d81 "create new tracking channel
+      // and session for each thread reply"); the existing-tracking
+      // entry is only consulted as a trigger-gate predicate below, not
+      // as a session-id source.
       const threadTrackingMap = new Map<string, string>(); // botUserId → trackingChannelId
       const threadRootId = message.rootId ?? message.parentId;
       if (!alwaysForward && threadRootId) {
@@ -864,26 +900,22 @@ export class PostBroadcastService {
         this.clawHiveService
           .sendInput(sessionId, event, tenantId || undefined)
           .catch((err: Error) => {
-            const context = [
-              `bot ${bot.botId}`,
-              `agent ${agentId}`,
-              `session ${sessionId}`,
-              `channel ${channel.id}`,
-              trackingChannelId
-                ? `tracking ${trackingChannelId}`
-                : `scope ${scope}/${scopeId}`,
-              tenantId ? `tenant ${tenantId}` : null,
-            ]
-              .filter(Boolean)
-              .join(', ');
-
-            const hint = err.message.includes('No available workers')
-              ? ' claw-hive has no connected workers; start claw-hive-worker or the full hive dev stack.'
-              : '';
-
-            this.logger.warn(
-              `Hive bot input failed for ${context}: ${err.message}.${hint}`,
-            );
+            // Outbox is already marked completed by the time this fires
+            // (sendInput is fire-and-forget — see issue #77). Beyond the
+            // log line, surface the failure on a counter for alerting and
+            // persist it to a DLQ table for replay/audit.
+            void this.recordHiveSendFailure({
+              err,
+              bot: { id: bot.botId },
+              agentId,
+              tenantId: tenantId || null,
+              sessionId,
+              scope,
+              scopeId,
+              channelId: channel.id,
+              trackingChannelId,
+              messageId: message.id,
+            });
           });
       }
     } catch (error) {
@@ -970,4 +1002,130 @@ export class PostBroadcastService {
       isMentorDm,
     };
   }
+
+  /**
+   * Record a `ClawHiveService.sendInput` failure for observability.
+   * Increments the OTEL counter and upserts a row in
+   * `im_hive_send_failures` (the DLQ — see issue #77).
+   *
+   * This is intentionally swallowing all internal errors: the call site
+   * is itself an error handler, and the outbox has already been marked
+   * completed before this runs. We never want a failed observability
+   * write to escape and surface as an unhandled rejection.
+   */
+  private async recordHiveSendFailure(params: {
+    err: Error;
+    bot: { id: string };
+    agentId: string;
+    tenantId: string | null;
+    sessionId: string;
+    scope: 'dm' | 'tracking';
+    scopeId: string;
+    channelId: string;
+    trackingChannelId?: string;
+    messageId: string;
+  }): Promise<void> {
+    const {
+      err,
+      bot,
+      agentId,
+      tenantId,
+      sessionId,
+      scope,
+      scopeId,
+      channelId,
+      trackingChannelId,
+      messageId,
+    } = params;
+
+    const errorKind = classifyHiveSendError(err);
+
+    const context = [
+      `bot ${bot.id}`,
+      `agent ${agentId}`,
+      `session ${sessionId}`,
+      `channel ${channelId}`,
+      trackingChannelId
+        ? `tracking ${trackingChannelId}`
+        : `scope ${scope}/${scopeId}`,
+      tenantId ? `tenant ${tenantId}` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const hint =
+      errorKind === 'no_workers'
+        ? ' claw-hive has no connected workers; start claw-hive-worker or the full hive dev stack.'
+        : '';
+
+    this.logger.warn(
+      `Hive bot input failed for ${context}: ${err.message}.${hint}`,
+    );
+
+    // OTEL counter — primary alerting signal.
+    try {
+      appMetrics.hiveSendFailures.add(1, {
+        error_kind: errorKind,
+        ...(tenantId ? { tenant_id: tenantId } : {}),
+        agent_id: agentId,
+      });
+    } catch (metricErr) {
+      this.logger.debug(
+        `Failed to increment hive send failure counter: ${String(metricErr)}`,
+      );
+    }
+
+    // DLQ table — persist for replay/audit. Upsert on (message_id, bot_id):
+    // increment retry_count + refresh last_seen_at + error_kind/message so
+    // a flapping downstream produces one row per (msg, bot), not a flood.
+    try {
+      await this.db
+        .insert(schema.hiveSendFailures)
+        .values({
+          messageId,
+          botId: bot.id,
+          agentId,
+          tenantId: tenantId ?? null,
+          sessionId,
+          trackingChannelId: trackingChannelId ?? null,
+          errorKind,
+          errorMessage: err.message,
+          retryCount: 1,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.hiveSendFailures.messageId,
+            schema.hiveSendFailures.botId,
+          ],
+          set: {
+            retryCount: sql`${schema.hiveSendFailures.retryCount} + 1`,
+            lastSeenAt: new Date(),
+            errorKind,
+            errorMessage: err.message,
+          },
+        });
+    } catch (dbErr) {
+      this.logger.debug(
+        `Failed to persist hive send failure DLQ row: ${String(dbErr)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Bucket sendInput errors into a small categorical tag so dashboards
+ * can group failures. Buckets: `no_workers`, `timeout`, `http_error`,
+ * `other`.
+ *
+ * `no_workers` is the most actionable bucket — it means claw-hive has
+ * no live workers attached and message delivery to bots is fully down.
+ * Distinct from generic 5xx so an alert can page faster on this case.
+ */
+function classifyHiveSendError(err: Error): string {
+  const msg = err.message;
+  if (msg.includes('No available workers')) return 'no_workers';
+  if (err.name === 'AbortError' || /aborted|timeout/i.test(msg))
+    return 'timeout';
+  if (/Failed to send input: \d{3}/.test(msg)) return 'http_error';
+  return 'other';
 }

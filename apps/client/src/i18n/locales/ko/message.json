@@ -49,5 +49,5 @@
   "loadingFullContent": "전체 내용 로딩 중...",
   "loadFullContentFailed": "전체 내용을 불러오지 못했습니다. 취소 후 다시 시도해 주세요.",
   "expandFullContent": "전체 내용 펼치기",
-  "remainingChars": "(약 {{count}}자 더)"
+  "remainingChars": "(약 {{chars}}자 더)"
 }

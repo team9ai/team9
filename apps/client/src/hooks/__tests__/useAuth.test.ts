@@ -27,6 +27,7 @@ describe("syncCurrentUser", () => {
       username: "alice",
       displayName: "Alice",
       avatarUrl: "https://cdn.example.com/avatar.png",
+      isActive: true,
       createdAt: "2026-03-31T00:00:00.000Z",
       updatedAt: "2026-04-01T00:00:00.000Z",
     };

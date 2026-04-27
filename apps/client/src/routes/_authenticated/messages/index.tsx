@@ -7,8 +7,8 @@ export const Route = createFileRoute("/_authenticated/messages/")({
 
 function MessagesLayout() {
   // Check if we have a channelId param (child route is active)
-  const params = useParams({ strict: false });
-  const hasChannelId = "channelId" in params && params.channelId;
+  const params = useParams({ strict: false }) as { channelId?: string };
+  const hasChannelId = params.channelId;
 
   // If child route is active, render the Outlet (child content)
   // Otherwise, show the default "Select a conversation" content

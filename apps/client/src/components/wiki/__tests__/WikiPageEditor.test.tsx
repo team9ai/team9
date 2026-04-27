@@ -250,6 +250,7 @@ const baseWiki: WikiDto = {
 const basePage: PageDto = {
   path: "index.md",
   content: "server body",
+  encoding: "text",
   frontmatter: { icon: "🚀", title: "Home" },
   lastCommit: {
     sha: "abc",

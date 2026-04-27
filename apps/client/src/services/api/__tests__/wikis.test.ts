@@ -45,6 +45,7 @@ const fakeTree: TreeEntryDto[] = [
 const fakePage: PageDto = {
   path: "/intro.md",
   content: "hello",
+  encoding: "text",
   frontmatter: {},
   lastCommit: null,
 };

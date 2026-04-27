@@ -196,7 +196,7 @@ function StatusCard() {
             aria-hidden="true"
           />
           <span className="text-sm">
-            {deriveStatusLabel(status, enabled, t)}
+            {t(deriveStatusLabelKey(status, enabled))}
           </span>
         </div>
         {status.state === "error" && "message" in status && (
@@ -209,17 +209,23 @@ function StatusCard() {
   );
 }
 
+type SystemPermissionKey =
+  | "screenRecording"
+  | "accessibility"
+  | "automation"
+  | "fullDiskAccess";
+
 type SystemPermissionItem = {
-  key: string;
+  key: SystemPermissionKey;
   icon: typeof Monitor;
 };
 
-const SYSTEM_PERMISSIONS: SystemPermissionItem[] = [
+const SYSTEM_PERMISSIONS: readonly SystemPermissionItem[] = [
   { key: "screenRecording", icon: Monitor },
   { key: "accessibility", icon: Accessibility },
   { key: "automation", icon: Terminal },
   { key: "fullDiskAccess", icon: HardDrive },
-];
+] as const;
 
 function SystemPermissionsCard() {
   const { t } = useTranslation("ahand");
@@ -292,23 +298,30 @@ function deriveStatusColor(status: LocalStatus, enabled: boolean): string {
   }
 }
 
-function deriveStatusLabel(
+type StatusLabelKey =
+  | "disabled"
+  | "online"
+  | "connecting"
+  | "error.header"
+  | "offline"
+  | "notConnected";
+
+function deriveStatusLabelKey(
   status: LocalStatus,
   enabled: boolean,
-  t: (key: string) => string,
-): string {
-  if (!enabled) return t("disabled");
+): StatusLabelKey {
+  if (!enabled) return "disabled";
   switch (status.state) {
     case "online":
-      return t("online");
+      return "online";
     case "connecting":
-      return t("connecting");
+      return "connecting";
     case "error":
-      return t("error.header");
+      return "error.header";
     case "offline":
-      return t("offline");
+      return "offline";
     default:
-      return t("notConnected");
+      return "notConnected";
   }
 }
 

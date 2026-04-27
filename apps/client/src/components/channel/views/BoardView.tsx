@@ -396,16 +396,16 @@ export function BoardView({ channelId, view }: BoardViewProps) {
       if (previous && "groups" in previous) {
         // Optimistic update: move the message between groups
         const updatedGroups = previous.groups.map((g) => {
-          if (g.groupKey === fromGroup) {
+          if (g.key === fromGroup) {
             return {
               ...g,
               messages: g.messages.filter((m) => m.id !== messageId),
               total: g.total - 1,
             };
           }
-          if (g.groupKey === toGroup) {
+          if (g.key === toGroup) {
             const movedMsg = previous.groups
-              .find((sg) => sg.groupKey === fromGroup)
+              .find((sg) => sg.key === fromGroup)
               ?.messages.find((m) => m.id === messageId);
             if (movedMsg) {
               const updatedMsg = {

@@ -165,7 +165,7 @@ export function MessageItem({
   }, [message.properties, propertyDefinitions]);
 
   // Fetch full content for long_text messages when entering edit mode
-  const isLongText = message.type === "long_text" || message.isTruncated;
+  const isLongText = message.type === "long_text" || !!message.isTruncated;
   const needsFullContent = isEditing && isLongText;
   const {
     data: fullContentData,

@@ -47,7 +47,7 @@ interface ApplicationDetailContentProps {
 export function ApplicationDetailContent({
   appId,
 }: ApplicationDetailContentProps) {
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation(["navigation", "common"]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();

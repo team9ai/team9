@@ -49,5 +49,5 @@
   "loadingFullContent": "加载完整内容中...",
   "loadFullContentFailed": "加载完整内容失败，请取消后重试。",
   "expandFullContent": "展开全文",
-  "remainingChars": "（还有约 {{count}} 字）"
+  "remainingChars": "（还有约 {{chars}} 字）"
 }

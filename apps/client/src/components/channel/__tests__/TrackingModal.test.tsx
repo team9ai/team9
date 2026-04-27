@@ -15,7 +15,10 @@ type WsCallback = (...args: unknown[]) => void;
 
 // Store to capture ChannelContent props so we can invoke callbacks in tests
 interface CapturedProps {
-  onSend?: (content: string, attachments?: unknown[]) => Promise<void>;
+  onSend?: (
+    payload: { content: string; contentAst?: Record<string, unknown> },
+    attachments?: unknown[],
+  ) => Promise<void>;
   onLoadMore?: () => void;
   onLoadNewer?: () => void;
 }
@@ -503,7 +506,7 @@ describe("TrackingModal", () => {
 
     expect(capturedProps.onSend).toBeDefined();
     await act(async () => {
-      await capturedProps.onSend!("hello", undefined);
+      await capturedProps.onSend!({ content: "hello" }, undefined);
     });
 
     expect(mutateAsync).toHaveBeenCalledWith({
@@ -519,7 +522,7 @@ describe("TrackingModal", () => {
     render(<TrackingModal {...BASE_PROPS} isActivated={true} />);
 
     await act(async () => {
-      await capturedProps.onSend!("   ", undefined);
+      await capturedProps.onSend!({ content: "   " }, undefined);
     });
 
     expect(mutateAsync).not.toHaveBeenCalled();
@@ -532,7 +535,7 @@ describe("TrackingModal", () => {
     render(<TrackingModal {...BASE_PROPS} isActivated={true} />);
 
     await act(async () => {
-      await capturedProps.onSend!("", []);
+      await capturedProps.onSend!({ content: "" }, []);
     });
 
     expect(mutateAsync).not.toHaveBeenCalled();
@@ -551,7 +554,7 @@ describe("TrackingModal", () => {
     );
 
     await act(async () => {
-      await capturedProps.onSend!("hello", undefined);
+      await capturedProps.onSend!({ content: "hello" }, undefined);
     });
 
     expect(mutateAsync).not.toHaveBeenCalled();

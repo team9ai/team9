@@ -12,7 +12,8 @@
     "start:prod": "node dist/main.js",
     "test": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/im-worker/jest.config.cjs",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/im-worker/jest.config.cjs --watch",
-    "test:cov": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/im-worker/jest.config.cjs --coverage"
+    "test:cov": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/im-worker/jest.config.cjs --coverage",
+    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config apps/im-worker/jest.config.cjs __integration__"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.12.0",

@@ -87,7 +87,7 @@ export const LongTextCollapse = memo(
             <span>
               {t("expandFullContent")}
               {remainingChars > 0 &&
-                t("remainingChars", { count: formatCharCount(remainingChars) })}
+                t("remainingChars", { chars: formatCharCount(remainingChars) })}
             </span>
           </button>
         )}

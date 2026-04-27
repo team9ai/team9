@@ -11,7 +11,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 [[package]]
 name = "ahand-protocol"
 version = "0.1.2"
-source = "git+https://github.com/team9ai/aHand?rev=94c4c0af931f6b58750150281acdc4f61b3c65f5#94c4c0af931f6b58750150281acdc4f61b3c65f5"
+source = "git+https://github.com/team9ai/aHand?rev=6dac9028ff1f5e1096bbd55911bf7eb96b8e643f#6dac9028ff1f5e1096bbd55911bf7eb96b8e643f"
 dependencies = [
  "prost",
  "prost-build",
@@ -21,7 +21,7 @@ dependencies = [
 [[package]]
 name = "ahandd"
 version = "0.1.2"
-source = "git+https://github.com/team9ai/aHand?rev=94c4c0af931f6b58750150281acdc4f61b3c65f5#94c4c0af931f6b58750150281acdc4f61b3c65f5"
+source = "git+https://github.com/team9ai/aHand?rev=6dac9028ff1f5e1096bbd55911bf7eb96b8e643f#6dac9028ff1f5e1096bbd55911bf7eb96b8e643f"
 dependencies = [
  "ahand-protocol",
  "anyhow",
@@ -6353,7 +6353,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

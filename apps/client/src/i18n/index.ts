@@ -20,11 +20,19 @@ import enAhand from "./locales/en/ahand.json";
 
 import { loadLanguage, NAMESPACES } from "./loadLanguage";
 
-// Backward compat: remap legacy "zh" to "zh-CN"
-if (typeof window !== "undefined" && window.localStorage) {
-  const stored = localStorage.getItem("i18nextLng");
+// Backward compat: remap legacy "zh" to "zh-CN".
+// Truthy `window.localStorage` isn't enough — Node 25's experimental
+// webstorage exposes a global `localStorage` whose methods are
+// undefined when no `--localstorage-file` is set, which crashes module
+// load during Vitest setup. Probe the method explicitly.
+if (
+  typeof window !== "undefined" &&
+  window.localStorage &&
+  typeof window.localStorage.getItem === "function"
+) {
+  const stored = window.localStorage.getItem("i18nextLng");
   if (stored === "zh") {
-    localStorage.setItem("i18nextLng", "zh-CN");
+    window.localStorage.setItem("i18nextLng", "zh-CN");
   }
 }
 

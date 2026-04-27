@@ -19,6 +19,7 @@ import { wikiKeys } from "../useWikis";
 const page: PageDto = {
   path: "/intro.md",
   content: "hi",
+  encoding: "text",
   frontmatter: {},
   lastCommit: null,
 };

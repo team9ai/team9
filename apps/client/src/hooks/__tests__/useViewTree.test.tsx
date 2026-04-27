@@ -208,7 +208,7 @@ describe("useViewTree", () => {
       ({ expandedIds }: { expandedIds: string[] }) =>
         useViewTree("ch-1", "view-1", { expandedIds }),
       {
-        initialProps: { expandedIds: [] },
+        initialProps: { expandedIds: [] as string[] },
         wrapper: createWrapper(queryClient),
       },
     );

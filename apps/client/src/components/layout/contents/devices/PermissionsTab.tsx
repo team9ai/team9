@@ -39,6 +39,12 @@ type OptionMeta = {
   todo?: boolean;
 };
 
+// Cross-product of `groupKey × option.key` doesn't enumerate cleanly in
+// the i18next typed surface (each group only ships keys for its own
+// options), so the template-literal call below uses a runtime-only key.
+// Cast through `as never` to opt out of TFunction overload checking
+// for these dynamic translation keys — i18next resolves them fine at
+// runtime, and the keys are exercised by the screenshot tests.
 function OptionRow({
   option,
   groupKey,
@@ -67,7 +73,7 @@ function OptionRow({
       <div className="flex-1 min-w-0">
         <Label htmlFor={id} className="flex items-center gap-2 cursor-pointer">
           <span className="text-sm font-medium">
-            {t(`permissions.${groupKey}.${option.key}.label` as const)}
+            {t(`permissions.${groupKey}.${option.key}.label` as never)}
           </span>
           {option.todo && (
             <Badge
@@ -89,7 +95,7 @@ function OptionRow({
           )}
         </Label>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {t(`permissions.${groupKey}.${option.key}.description` as const)}
+          {t(`permissions.${groupKey}.${option.key}.description` as never)}
         </p>
       </div>
     </div>

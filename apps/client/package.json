@@ -22,7 +22,9 @@
     "lint:ci": "eslint src vite.config.ts vitest.config.ts",
     "test": "node ./scripts/vitest-run.mjs",
     "test:cov": "node ./scripts/vitest-run.mjs --coverage",
-    "test:watch": "vitest",
+    "test:watch": "node ./scripts/vitest-run.mjs --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium",
     "clean": "rm -rf node_modules dist"
   },
   "dependencies": {
@@ -112,6 +114,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@playwright/test": "^1.59.1",
     "@sentry/vite-plugin": "^5.1.0",
     "@tanstack/react-query-devtools": "^5.91.2",
     "@tanstack/router-generator": "^1.143.11",

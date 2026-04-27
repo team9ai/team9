@@ -60,7 +60,7 @@ export function CreateChannelDialog({
   onClose,
   sectionId,
 }: CreateChannelDialogProps) {
-  const { t } = useTranslation("channel");
+  const { t } = useTranslation(["channel", "common"]);
   const navigate = useNavigate();
   const createChannel = useCreateChannel();
   const moveChannel = useMoveChannel();
