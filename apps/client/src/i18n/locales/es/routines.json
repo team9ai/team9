@@ -85,6 +85,17 @@
     "restart": "Reiniciar",
     "delete": "Eliminar",
     "deleteConfirm": "¿Está seguro de que desea eliminar esta rutina?",
+    "createdAt": "Creado",
+    "lastRunAt": "Última ejecución",
+    "totalTokens": "Total de tokens",
+    "currentRun": "Ejecución actual",
+    "view": "Ver →",
+    "recentRuns": "Ejecuciones recientes",
+    "viewAllRuns": "Ver todas las ejecuciones →",
+    "showMore": "Mostrar {{count}} más",
+    "runNotFound": "Ejecución no encontrada",
+    "backToRoutine": "Volver a la rutina",
+    "toggleExpand": "Alternar expansión",
     "assignBot": "Personal IA",
     "noBot": "No asignado",
     "steps": "Pasos",
@@ -143,7 +154,11 @@
         "loadError": "Error al cargar versiones",
         "noVersions": "Sin versiones aún"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "Disparadores",
@@ -285,6 +300,7 @@
     "interval": "Intervalo",
     "schedule": "Programado",
     "channelMessage": "Mensaje de canal",
-    "retry": "Reintento"
+    "retry": "Reintento",
+    "running": "running"
   }
 }
