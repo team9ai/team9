@@ -744,6 +744,36 @@ function WebLoginView() {
     }
   };
 
+  // Pick up a Google ID token handed off from team9.ai's homepage hero CTA
+  // via URL fragment (#google_credential=<JWT>). The fragment is never sent
+  // to the server (and not logged in HTTP referer headers); we still strip it
+  // immediately so the token does not linger in browser history.
+  const homepageHandoffProcessed = useRef(false);
+  useEffect(() => {
+    if (homepageHandoffProcessed.current) return;
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (!hash || !hash.includes("google_credential=")) return;
+    homepageHandoffProcessed.current = true;
+
+    const params = new URLSearchParams(
+      hash.startsWith("#") ? hash.slice(1) : hash,
+    );
+    const credential = params.get("google_credential");
+    history.replaceState(
+      null,
+      "",
+      window.location.pathname + window.location.search,
+    );
+
+    if (!credential) return;
+    if (localStorage.getItem("auth_token")) return;
+    void handleGoogleSuccess({ credential });
+    // handleGoogleSuccess is recreated each render; the ref above guards
+    // against re-running, so an empty dep array is intentional here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleChangeEmail = () => {
     setAuthState("idle");
     setCode("");
