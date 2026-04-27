@@ -50,6 +50,7 @@ function buildWiki(overrides: Partial<WikiDto> = {}): WikiDto {
     workspaceId: "ws-1",
     name: "Public Wiki",
     slug: "public",
+    icon: null,
     approvalMode: "review",
     humanPermission: "write",
     agentPermission: "read",

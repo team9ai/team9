@@ -209,17 +209,23 @@ function StatusCard() {
   );
 }
 
+type SystemPermissionKey =
+  | "screenRecording"
+  | "accessibility"
+  | "automation"
+  | "fullDiskAccess";
+
 type SystemPermissionItem = {
-  key: string;
+  key: SystemPermissionKey;
   icon: typeof Monitor;
 };
 
-const SYSTEM_PERMISSIONS: SystemPermissionItem[] = [
+const SYSTEM_PERMISSIONS: readonly SystemPermissionItem[] = [
   { key: "screenRecording", icon: Monitor },
   { key: "accessibility", icon: Accessibility },
   { key: "automation", icon: Terminal },
   { key: "fullDiskAccess", icon: HardDrive },
-];
+] as const;
 
 function SystemPermissionsCard() {
   const { t } = useTranslation("ahand");

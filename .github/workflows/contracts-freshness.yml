@@ -1,0 +1,88 @@
+name: Contracts Freshness
+
+# Verifies that the vendored copies of the ahand wire-format schemas
+# under `contracts/` match the upstream `aHand` repo at the SHA pinned
+# in `contracts/README.md`. Catches three drift modes:
+#
+#   1. Vendored copy edited directly in team9 without bumping the SHA.
+#   2. SHA bumped in README without re-vendoring the files.
+#   3. SHA bumped, files re-vendored, but with stale content (e.g. a
+#      partial cp that missed one schema).
+#
+# Runs on every PR or push that touches `contracts/**` or this
+# workflow itself — fast (a few HTTPS GETs + diff), and noise-free
+# because most PRs don't touch contracts at all.
+
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contracts-freshness.yml"
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contracts-freshness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    name: Diff vs aHand@SHA
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract pinned aHand SHA from contracts/README.md
+        id: pin
+        run: |
+          # The README's "Last sync" line is the source of truth. Format:
+          #   ... `aHand` dev @ `<40-hex-sha>` (PR ...).
+          # If the line moves or its format changes, this regex must
+          # be kept in sync — the README explicitly documents the
+          # contract.
+          sha=$(grep -oE '`aHand` dev @ `[0-9a-f]{40}`' contracts/README.md \
+                | head -n 1 \
+                | grep -oE '[0-9a-f]{40}')
+          if [[ -z "${sha}" ]]; then
+            echo "::error file=contracts/README.md::Could not parse pinned aHand SHA from contracts/README.md. Expected a line containing: \`aHand\` dev @ \`<40-hex-sha>\`"
+            exit 1
+          fi
+          echo "Pinned aHand SHA: ${sha}"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch upstream schemas
+        env:
+          SHA: ${{ steps.pin.outputs.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p .freshness/upstream
+          for f in hub-webhook.json hub-control-plane.json; do
+            url="https://raw.githubusercontent.com/team9ai/aHand/${SHA}/contracts/${f}"
+            echo "Fetching ${url}"
+            if ! curl -fsSL --max-time 30 -o ".freshness/upstream/${f}" "${url}"; then
+              echo "::error file=contracts/README.md::Failed to fetch contracts/${f} from aHand@${SHA}. Either the SHA is wrong, the file moved, or the aHand repo is unreachable. URL: ${url}"
+              exit 1
+            fi
+          done
+
+      - name: Diff vendored vs upstream
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in hub-webhook.json hub-control-plane.json; do
+            if ! diff -u ".freshness/upstream/${f}" "contracts/${f}"; then
+              echo "::error file=contracts/${f}::Vendored \`contracts/${f}\` differs from aHand@${{ steps.pin.outputs.sha }}. Either re-vendor (\`cp ../aHand/contracts/${f} contracts/\`) or bump the SHA in \`contracts/README.md\` to a commit that matches what's vendored here."
+              fail=1
+            fi
+          done
+          if [[ "$fail" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "All vendored contracts match aHand@${{ steps.pin.outputs.sha }}."

@@ -110,7 +110,12 @@ describe("useWikiDraft", () => {
     const { result, rerender } = renderHook(
       ({ w, p }: { w: string | null; p: string | null }) =>
         useWikiDraft(w, p, snapshot),
-      { initialProps: { w: null, p: null } },
+      {
+        initialProps: { w: null, p: null } as {
+          w: string | null;
+          p: string | null;
+        },
+      },
     );
     expect(result.current.draft).toBeNull();
     rerender({ w: "wiki-1", p: null });

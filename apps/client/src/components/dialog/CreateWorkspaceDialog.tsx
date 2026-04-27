@@ -58,7 +58,7 @@ export function CreateWorkspaceDialog({
   isOpen,
   onClose,
 }: CreateWorkspaceDialogProps) {
-  const { t } = useTranslation("workspace");
+  const { t } = useTranslation(["workspace", "common"]);
   const createWorkspace = useCreateWorkspace();
   const queryClient = useQueryClient();
   const { setSelectedWorkspaceId } = useWorkspaceStore();

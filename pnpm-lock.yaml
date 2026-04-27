@@ -785,6 +785,12 @@ importers:
       "@types/web-push":
         specifier: ^3.6.4
         version: 3.6.4
+      ajv:
+        specifier: ^8.17.1
+        version: 8.17.1
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.17.1)
       supertest:
         specifier: ^7.0.0
         version: 7.1.4

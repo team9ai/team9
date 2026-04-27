@@ -41,12 +41,17 @@ export function isViewingChannel(
 
 /**
  * Build the options object for `showNotification()`.
+ *
+ * `renotify` is part of the Service Worker Notifications API but TS's
+ * DOM lib still types `NotificationOptions` without it; widen via
+ * intersection so the field passes type-check while staying truthful
+ * about what we send to the browser.
  */
 export function buildNotificationOptions(data: {
   body?: string;
   id?: string;
   actionUrl?: string;
-}): NotificationOptions {
+}): NotificationOptions & { renotify?: boolean } {
   return {
     body: data.body || "",
     icon: "/team9-block.png",

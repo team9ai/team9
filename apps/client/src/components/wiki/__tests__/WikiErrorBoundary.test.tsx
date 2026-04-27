@@ -1,3 +1,4 @@
+import type React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WikiErrorBoundary } from "../WikiErrorBoundary";
@@ -6,7 +7,7 @@ import { WikiErrorBoundary } from "../WikiErrorBoundary";
  * A child that throws synchronously on first render when `shouldThrow` is
  * true. Used to trigger the boundary's `getDerivedStateFromError` path.
  */
-function Boom({ shouldThrow }: { shouldThrow: boolean }): JSX.Element {
+function Boom({ shouldThrow }: { shouldThrow: boolean }): React.JSX.Element {
   if (shouldThrow) {
     throw new Error("boom");
   }

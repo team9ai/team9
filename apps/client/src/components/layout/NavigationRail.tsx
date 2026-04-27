@@ -106,7 +106,7 @@ export function NavigationRail() {
                   section === "home"
                     ? "/channels"
                     : getLastVisitedPath(section);
-                navigate({ to: targetPath });
+                navigate({ to: targetPath as never });
               }}
               className={cn(
                 "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",

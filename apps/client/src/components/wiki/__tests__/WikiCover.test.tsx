@@ -18,7 +18,7 @@ describe("WikiCover", () => {
     mockGetRawObjectUrl.mockReset();
     revokeSpy = vi.fn();
     URL.createObjectURL = vi.fn(() => "blob:mock");
-    URL.revokeObjectURL = revokeSpy;
+    URL.revokeObjectURL = revokeSpy as unknown as typeof URL.revokeObjectURL;
   });
 
   afterEach(() => {

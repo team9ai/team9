@@ -49,5 +49,5 @@
   "loadingFullContent": "全文を読み込み中...",
   "loadFullContentFailed": "全文の読み込みに失敗しました。キャンセルして再試行してください。",
   "expandFullContent": "全文を展開",
-  "remainingChars": "（残り約 {{count}} 文字）"
+  "remainingChars": "（残り約 {{chars}} 文字）"
 }
