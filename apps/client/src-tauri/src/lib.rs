@@ -9,8 +9,8 @@ use objc2::msg_send;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 use serde::Serialize;
-use tauri::{Emitter, State};
-use tauri_plugin_autostart::MacosLauncher;
+use tauri::{Emitter, Manager, State};
+use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 
