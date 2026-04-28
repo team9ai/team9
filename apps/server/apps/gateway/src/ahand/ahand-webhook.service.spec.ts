@@ -619,6 +619,60 @@ describe('AhandWebhookService', () => {
       expect(dbFixture.db.update).not.toHaveBeenCalled();
     });
 
+    it('ignores empty capabilities on device.registered (admin pre-register)', async () => {
+      // Pre-seed an active row with REAL caps (simulating that device.online
+      // already arrived with real caps).
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({
+          hubDeviceId: 'h-empty-reg',
+          capabilities: ['exec', 'browser'],
+        }),
+      ]);
+
+      // Now an admin-pre-register webhook with empty caps arrives later (out-of-order).
+      await svc.handleEvent(
+        baseEvt('device.registered', {
+          deviceId: 'h-empty-reg',
+          data: { capabilities: [] },
+        }),
+      );
+
+      // Caps must remain ['exec','browser'] — the empty registered event must NOT
+      // overwrite them.
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
+      // No DB update at all for registered with empty caps
+      expect(dbFixture.db.update).not.toHaveBeenCalled();
+    });
+
+    it('persists empty capabilities on device.online (daemon explicitly declared none)', async () => {
+      // Pre-seed an active row with non-empty caps.
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({
+          hubDeviceId: 'h-empty-online',
+          capabilities: ['exec', 'browser'],
+        }),
+      ]);
+
+      // device.online with empty caps — daemon explicitly declared none.
+      await svc.handleEvent(
+        baseEvt('device.online', {
+          deviceId: 'h-empty-online',
+          data: {
+            sentAtMs: Date.now(),
+            presenceTtlSeconds: 180,
+            capabilities: [],
+          },
+        }),
+      );
+
+      // Caps SHOULD be wiped to [] — explicit declaration from daemon.
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: [] }),
+      );
+    });
+
     it('idempotent on replay — same capabilities applied twice yields same state', async () => {
       dbFixture.chains.selectWhere.mockResolvedValue([
         makeDeviceRow({ capabilities: [] }),
