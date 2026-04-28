@@ -19,7 +19,7 @@
  * stateful in-memory store so that writes from one service are visible
  * to reads in another — giving real multi-layer integration coverage.
  * This follows the mock-DB pattern used throughout the gateway test suite
- * (see routines-creation-flow.integration.spec.ts, ahand-webhook.service.spec.ts).
+ * (see ahand-webhook.service.spec.ts).
  */
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
@@ -89,10 +89,10 @@ jest.unstable_mockModule('@team9/shared', () => ({
 
 // ─── Lazy service imports (after mocks are registered) ────────────────────────
 
-const { AhandDevicesService } = await import('../ahand.service.js');
-const { AhandWebhookService } = await import('../ahand-webhook.service.js');
+const { AhandDevicesService } = await import('./ahand.service.js');
+const { AhandWebhookService } = await import('./ahand-webhook.service.js');
 const { AhandInternalController } =
-  await import('../ahand-internal.controller.js');
+  await import('./ahand-internal.controller.js');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
