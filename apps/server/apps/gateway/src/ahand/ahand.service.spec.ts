@@ -512,6 +512,26 @@ describe('AhandDevicesService', () => {
       expect(dbFixture.chains.updateSet).toHaveBeenCalledWith({
         capabilities: ['exec', 'browser'],
       });
+      // Assert WHERE clause contains both hubDeviceId equality AND the
+      // status='active' guard — ensures neither can be silently dropped
+      // without breaking this test.
+      expect(dbFixture.chains.updateWhere).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'and',
+          conditions: expect.arrayContaining([
+            expect.objectContaining({
+              kind: 'eq',
+              field: 'ahandDevices.hubDeviceId',
+              value: 'hub-d1',
+            }),
+            expect.objectContaining({
+              kind: 'eq',
+              field: 'ahandDevices.status',
+              value: 'active',
+            }),
+          ]),
+        }),
+      );
     });
 
     it('backfill survives hub error without affecting register', async () => {
