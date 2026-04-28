@@ -211,6 +211,26 @@ export class AhandWebhookService {
       return;
     }
 
+    // Capability persistence: only on device.online / device.registered, only
+    // when the hub provided the field (treat absent as "no information" — leave
+    // existing column value alone). aHand hub-side serializes Vec<String> on
+    // these two events (crates/ahand-hub/src/webhook/sender.rs).
+    if (
+      (evt.eventType === 'device.online' ||
+        evt.eventType === 'device.registered') &&
+      Array.isArray(evt.data.capabilities)
+    ) {
+      await this.db
+        .update(schema.ahandDevices)
+        .set({ capabilities: evt.data.capabilities })
+        .where(
+          and(
+            eq(schema.ahandDevices.hubDeviceId, evt.deviceId),
+            eq(schema.ahandDevices.status, 'active'),
+          ),
+        );
+    }
+
     // Update last_seen_at for state-change events (not heartbeat, not registered)
     if (
       evt.eventType === 'device.online' ||
