@@ -199,19 +199,32 @@ describe('WikisService', () => {
       );
       expect(result.icon).toBeNull();
 
+      const inserted = (db.values.mock.calls[0] as unknown[])[0] as {
+        id: string;
+      };
+      expect(inserted.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
       expect(f9.createFolder).toHaveBeenCalledWith(
         'ws-1',
         expect.objectContaining({
-          name: 'public',
+          name: `team9-wiki-${inserted.id}`,
           type: 'managed',
           owner_type: 'workspace',
           owner_id: 'ws-1',
           approval_mode: 'auto',
+          metadata: {
+            type: 'team9-wiki',
+            wiki_id: inserted.id,
+            wiki_slug: 'public',
+            workspace_id: 'ws-1',
+          },
         }),
       );
       expect(db.insert).toHaveBeenCalled();
       expect(db.values).toHaveBeenCalledWith(
         expect.objectContaining({
+          id: inserted.id,
           workspaceId: 'ws-1',
           folder9FolderId: 'f9-1',
           name: 'public',
@@ -401,6 +414,44 @@ describe('WikisService', () => {
       expect(errorSpy).toHaveBeenCalled();
 
       errorSpy.mockRestore();
+    });
+
+    it('maps folder9 409 during folder creation to ConflictException', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      f9.createFolder.mockRejectedValueOnce(
+        new Folder9ApiError(409, '/api/workspaces/ws-1/folders', {
+          error: 'folder already exists',
+        }) as never,
+      );
+
+      await expect(
+        svc.createWiki(
+          'ws-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'dev', slug: 'dev' },
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('maps folder9 400 during folder creation to BadRequestException', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      f9.createFolder.mockRejectedValueOnce(
+        new Folder9ApiError(400, '/api/workspaces/ws-1/folders', {
+          message: 'invalid folder name',
+        }) as never,
+      );
+
+      await expect(
+        svc.createWiki(
+          'ws-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'bad', slug: 'bad' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(db.insert).not.toHaveBeenCalled();
     });
 
     it('logs string-shaped compensation failure (non-Error throw)', async () => {
@@ -647,7 +698,7 @@ describe('WikisService', () => {
 
   // ── updateWikiSettings ──────────────────────────────────────────────
   describe('updateWikiSettings', () => {
-    it('happy path: write user updates name and approvalMode → mirrors to folder9', async () => {
+    it('happy path: write user updates name and approvalMode → only approvalMode mirrors to folder9', async () => {
       const row = makeWikiRow();
       db.limit.mockResolvedValueOnce([row]); // getWikiOrThrow
       db.returning.mockResolvedValueOnce([
@@ -674,18 +725,16 @@ describe('WikisService', () => {
         }),
       );
       expect(f9.updateFolder).toHaveBeenCalledWith('ws-1', 'f9-1', {
-        name: 'Renamed',
         approval_mode: 'review',
       });
       expect(result.name).toBe('Renamed');
       expect(result.approvalMode).toBe('review');
     });
 
-    it('mirrors only name to folder9 when approvalMode unchanged', async () => {
+    it('does NOT call folder9 when only the display name changes', async () => {
       const row = makeWikiRow();
       db.limit.mockResolvedValueOnce([row]);
       db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
-      f9.updateFolder.mockResolvedValue(undefined as never);
 
       await svc.updateWikiSettings(
         'ws-1',
@@ -694,9 +743,7 @@ describe('WikisService', () => {
         { name: 'Renamed' },
       );
 
-      expect(f9.updateFolder).toHaveBeenCalledWith('ws-1', 'f9-1', {
-        name: 'Renamed',
-      });
+      expect(f9.updateFolder).not.toHaveBeenCalled();
     });
 
     it('mirrors only approvalMode to folder9 when name unchanged', async () => {
@@ -747,6 +794,7 @@ describe('WikisService', () => {
       db.limit.mockResolvedValueOnce([row]); // getWikiOrThrow
       db.limit.mockResolvedValueOnce([]); // dup-slug check returns empty
       db.returning.mockResolvedValueOnce([makeWikiRow({ slug: 'new-slug' })]);
+      f9.updateFolder.mockResolvedValue(undefined as never);
 
       const result = await svc.updateWikiSettings(
         'ws-1',
@@ -756,8 +804,14 @@ describe('WikisService', () => {
       );
 
       expect(result.slug).toBe('new-slug');
-      // folder9 NOT called — slug change alone doesn't mirror
-      expect(f9.updateFolder).not.toHaveBeenCalled();
+      expect(f9.updateFolder).toHaveBeenCalledWith('ws-1', 'f9-1', {
+        metadata: {
+          type: 'team9-wiki',
+          wiki_id: 'wiki-1',
+          wiki_slug: 'new-slug',
+          workspace_id: 'ws-1',
+        },
+      });
     });
 
     it('throws ConflictException when new slug is taken', async () => {
@@ -1039,7 +1093,9 @@ describe('WikisService', () => {
         .mockImplementation(() => {});
       const originalRow = makeWikiRow({ name: 'Original' });
       db.limit.mockResolvedValueOnce([originalRow]); // getWikiOrThrow
-      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      db.returning.mockResolvedValueOnce([
+        makeWikiRow({ approvalMode: 'review' }),
+      ]);
       f9.updateFolder.mockRejectedValue(new Error('folder9 down') as never);
       // Forward UPDATE = chain.update().set().where(...).returning().
       // Revert UPDATE = chain.update().set({...}).where(...) — no returning().
@@ -1060,7 +1116,7 @@ describe('WikisService', () => {
           'ws-1',
           'wiki-1',
           { id: 'user-1', isAgent: false },
-          { name: 'Renamed' },
+          { approvalMode: 'review' },
         ),
       ).rejects.toThrow(/folder9 down/);
 
@@ -1081,7 +1137,9 @@ describe('WikisService', () => {
         .mockImplementation(() => {});
       const originalRow = makeWikiRow();
       db.limit.mockResolvedValueOnce([originalRow]);
-      db.returning.mockResolvedValueOnce([makeWikiRow({ name: 'Renamed' })]);
+      db.returning.mockResolvedValueOnce([
+        makeWikiRow({ approvalMode: 'review' }),
+      ]);
       f9.updateFolder.mockRejectedValue(new Error('folder9 down') as never);
       const brokenChain: Record<string, unknown> = {};
       brokenChain.set = jest.fn().mockReturnValue(brokenChain);
@@ -1098,7 +1156,7 @@ describe('WikisService', () => {
           'ws-1',
           'wiki-1',
           { id: 'user-1', isAgent: false },
-          { name: 'Renamed' },
+          { approvalMode: 'review' },
         ),
       ).rejects.toThrow(/folder9 down/);
       expect(errorSpy).toHaveBeenCalledWith(
