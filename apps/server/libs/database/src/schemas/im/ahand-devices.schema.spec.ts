@@ -26,6 +26,7 @@ describe('im__ahand_devices schema', () => {
       'lastSeenAt',
       'createdAt',
       'revokedAt',
+      'capabilities',
     ] as const;
     for (const name of cols) {
       expect(table[name as keyof typeof table]).toBeDefined();
@@ -54,5 +55,37 @@ describe('im__ahand_devices schema', () => {
     };
     expect(row.ownerType).toBe('user');
     expect(row.platform).toBe('macos');
+  });
+
+  it('NewAhandDevice allows capabilities to be omitted (DB default empty array)', () => {
+    // capabilities defaults to '{}' (empty text[]) in Postgres; callers need not supply it.
+    const row: schema.NewAhandDevice = {
+      ownerType: 'user',
+      ownerId: '00000000-0000-0000-0000-000000000000',
+      hubDeviceId: 'sha256-stub',
+      publicKey: 'base64-stub',
+      nickname: 'MacBook',
+      platform: 'macos',
+    };
+    expect(row.capabilities).toBeUndefined();
+  });
+
+  it('AhandDevice.capabilities accepts string array values', () => {
+    const row: schema.AhandDevice = {
+      id: '00000000-0000-0000-0000-000000000000',
+      ownerType: 'user',
+      ownerId: '00000000-0000-0000-0000-000000000000',
+      hubDeviceId: 'sha256-stub',
+      publicKey: 'base64-stub',
+      nickname: 'MacBook',
+      platform: 'macos',
+      hostname: null,
+      status: 'active',
+      lastSeenAt: null,
+      createdAt: new Date(),
+      revokedAt: null,
+      capabilities: ['exec', 'browser'],
+    };
+    expect(row.capabilities).toEqual(['exec', 'browser']);
   });
 });
