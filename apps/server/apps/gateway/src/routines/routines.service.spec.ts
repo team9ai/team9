@@ -3515,6 +3515,12 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([
         { id: draftRoutine.id } as any,
       ] as any);
+
+      //   9. ensureRoutineFolder (A.8) SELECT ... FOR UPDATE — returning a
+      //      row with a populated folderId puts it on the fast path.
+      db.for.mockResolvedValueOnce([
+        { ...draftRoutine, folderId: 'folder-existing' } as any,
+      ] as any);
     }
 
     it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
@@ -3778,6 +3784,7 @@ describe('RoutinesService — TaskCast integration', () => {
       opts: {
         botTenantRow?: { tenantId: string } | null;
         claimResult?: { id: string }[];
+        ensuredFolderRow?: Record<string, unknown> | null;
       } = {},
     ) {
       const routine = {
@@ -3789,11 +3796,18 @@ describe('RoutinesService — TaskCast integration', () => {
         title: 'Test Draft',
         creationChannelId: null,
         creationSessionId: null,
+        // A.8: startCreationSession now calls ensureRoutineFolder before
+        // createSession to back the `routine.document` mount. Default to
+        // a pre-provisioned folder so tests take the fast path; tests
+        // that exercise the lazy-provision branch override per-call.
+        folderId: 'folder-existing',
+        description: null,
         ...overrides,
       };
       const {
         botTenantRow = { tenantId: TENANT_ID },
         claimResult = [{ id: ROUTINE_ID }],
+        ensuredFolderRow = routine,
       } = opts;
 
       // Step 1: getRoutineOrThrow — db.select().from().where().limit()
@@ -3816,6 +3830,13 @@ describe('RoutinesService — TaskCast integration', () => {
 
       // Step 6: atomic claim UPDATE returning()
       db.returning.mockResolvedValueOnce(claimResult as any);
+
+      // Step 7 (A.8): ensureRoutineFolder runs SELECT ... FOR UPDATE.
+      // Returning a row with a populated folderId puts it on the fast
+      // path (no provision call, no follow-up UPDATE).
+      if (ensuredFolderRow !== null) {
+        db.for.mockResolvedValueOnce([ensuredFolderRow] as any);
+      }
 
       return routine;
     }
@@ -3924,6 +3945,7 @@ describe('RoutinesService — TaskCast integration', () => {
           title: 'Legacy draft',
           creationChannelId: 'legacy-direct-channel',
           creationSessionId: 'legacy-session',
+          folderId: 'folder-existing',
         },
       ]);
 
@@ -3937,6 +3959,11 @@ describe('RoutinesService — TaskCast integration', () => {
 
       // Step 4: atomic claim UPDATE returning 1 row = won
       db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }]);
+
+      // Step 5 (A.8): ensureRoutineFolder fast path
+      db.for.mockResolvedValueOnce([
+        { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
+      ]);
 
       const result = await service.startCreationSession(
         ROUTINE_ID,
@@ -4153,6 +4180,181 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(createSessionOrder).toBeLessThan(sendInputOrder);
     });
 
+    // ── A.8: routine.document folderMap injection ─────────────────────
+    //
+    // The routine-creation channel session must carry a write-scoped
+    // folder9 token in `componentConfigs["just-bash-team9-workspace"]`
+    // so the agent can author SKILL.md to /workspace/routine/document.
+    // The token TTL is calibrated to the creation channel lifetime
+    // (~24h). A.8 owns only the server-side wiring; the agent-pi side
+    // mounts the folder in Phase B.
+    describe('A.8: just-bash-team9-workspace folderMap injection', () => {
+      it('mints a write-scoped 24h token and injects it into componentConfigs', async () => {
+        mockGetRoutine({ folderId: 'folder-existing' });
+        const FAKE_TOKEN = 'tok-write-creation';
+        folder9Client.createToken.mockResolvedValueOnce({
+          token: FAKE_TOKEN,
+          expires_at: '2099-01-01',
+        });
+
+        const before = Date.now();
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+        const after = Date.now();
+
+        // 1. Token mint args — write permission, expires_at ~24h ahead.
+        expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
+        const tokenArgs = folder9Client.createToken.mock.calls[0][0];
+        expect(tokenArgs.folder_id).toBe('folder-existing');
+        expect(tokenArgs.permission).toBe('write');
+        expect(tokenArgs.created_by).toBe(`user:${USER_ID}`);
+        expect(typeof tokenArgs.name).toBe('string');
+        expect(tokenArgs.name).toContain('routine-creation');
+        const expiresMs = Date.parse(tokenArgs.expires_at);
+        const expectedTtl = 24 * 60 * 60_000;
+        // Allow ±5s slack for clock drift between Date.now() calls.
+        expect(expiresMs).toBeGreaterThanOrEqual(before + expectedTtl - 5_000);
+        expect(expiresMs).toBeLessThanOrEqual(after + expectedTtl + 5_000);
+
+        // 2. createSession invoked with the populated componentConfigs.
+        expect(clawHiveService.createSession).toHaveBeenCalledWith(
+          AGENT_ID,
+          expect.objectContaining({
+            componentConfigs: {
+              'just-bash-team9-workspace': {
+                folderMap: {
+                  'routine.document': {
+                    workspaceId: TENANT_ID,
+                    folderId: 'folder-existing',
+                    folderType: 'managed',
+                    token: FAKE_TOKEN,
+                    permission: 'write',
+                    readOnly: false,
+                  },
+                },
+                mountTeam9Skills: true,
+              },
+            },
+          }),
+          TENANT_ID,
+        );
+      });
+
+      it('lazy-provisions the folder when routine.folderId is NULL and uses the new id', async () => {
+        // Routine row read at step 1 has a NULL folderId. The
+        // ensureRoutineFolder transaction will SELECT-FOR-UPDATE,
+        // see the NULL, call provisionFolder9SkillFolder, persist
+        // the new id, then return the row with the populated id.
+        const draft = {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          creationChannelId: null,
+          creationSessionId: null,
+          folderId: null,
+          description: null,
+        };
+        mockGetRoutine(
+          { folderId: null },
+          { ensuredFolderRow: { ...draft, folderId: null } },
+        );
+        // ensureRoutineFolder calls folder9Client.createFolder + commit
+        // via provisionFolder9SkillFolder. The default folder9Client
+        // mocks already paint a happy path that returns folder-new.
+        folder9Client.createFolder.mockResolvedValueOnce({
+          id: 'folder-new',
+          workspace_id: TENANT_ID,
+        });
+        folder9Client.createToken
+          // Token #1: minted INSIDE provisionFolder9SkillFolder for the
+          // initial scaffold commit.
+          .mockResolvedValueOnce({ token: 'scaffold-tok', expires_at: 'x' })
+          // Token #2: the A.8 write-scoped token for the session.
+          .mockResolvedValueOnce({ token: 'session-tok', expires_at: 'y' });
+        folder9Client.commit.mockResolvedValueOnce({
+          commit_id: 'commit-init',
+        });
+
+        await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
+
+        // The session componentConfigs must reference the
+        // newly-provisioned folder id.
+        const createSessionCall = (clawHiveService.createSession as jest.Mock)
+          .mock.calls[0] as [string, Record<string, any>, string];
+        const cfg = createSessionCall[1].componentConfigs as Record<
+          string,
+          any
+        >;
+        expect(
+          cfg['just-bash-team9-workspace'].folderMap['routine.document']
+            .folderId,
+        ).toBe('folder-new');
+        expect(
+          cfg['just-bash-team9-workspace'].folderMap['routine.document'].token,
+        ).toBe('session-tok');
+      });
+
+      it('rolls back channel + claim if the write-token mint fails', async () => {
+        mockGetRoutine();
+        folder9Client.createToken.mockRejectedValueOnce(
+          new Error('folder9 token boom'),
+        );
+
+        await expect(
+          service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+        ).rejects.toThrow('folder9 token boom');
+
+        // Channel hard-deleted
+        expect(
+          channelsService.hardDeleteRoutineSessionChannel,
+        ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+        // Routine fields cleared
+        expect(db.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            creationChannelId: null,
+            creationSessionId: null,
+          }),
+        );
+        // createSession was never called → no Hive session to delete
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        expect(clawHiveService.deleteSession).not.toHaveBeenCalled();
+      });
+
+      it('rolls back channel + claim if ensureRoutineFolder fails (folder9 outage)', async () => {
+        // Lazy-provision branch where folder9.createFolder throws.
+        const draft = {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          creationChannelId: null,
+          creationSessionId: null,
+          folderId: null,
+          description: null,
+        };
+        mockGetRoutine(
+          { folderId: null },
+          { ensuredFolderRow: { ...draft, folderId: null } },
+        );
+        folder9Client.createFolder.mockRejectedValueOnce(
+          new Error('folder9 down'),
+        );
+
+        await expect(
+          service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+        ).rejects.toThrow(ServiceUnavailableException);
+
+        expect(
+          channelsService.hardDeleteRoutineSessionChannel,
+        ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+      });
+    });
+
     it('kickoff payload includes the enriched draft fields when doc is present', async () => {
       const DOCUMENT_ID = 'doc-42';
       mockGetRoutine({
@@ -4339,6 +4541,10 @@ describe('RoutinesService — TaskCast integration', () => {
       db.where.mockResolvedValueOnce(expectedTriggers as any);
       // atomic claim
       db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+      // ensureRoutineFolder (A.8) fast path
+      db.for.mockResolvedValueOnce([
+        { ...DRAFT, folderId: 'folder-existing' } as any,
+      ]);
 
       await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
 
@@ -4377,6 +4583,10 @@ describe('RoutinesService — TaskCast integration', () => {
       });
       // atomic claim
       db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+      // ensureRoutineFolder (A.8) fast path
+      db.for.mockResolvedValueOnce([
+        { ...DRAFT, folderId: 'folder-existing' } as any,
+      ]);
 
       const loggerWarn = jest
         .spyOn((service as any).logger, 'warn')

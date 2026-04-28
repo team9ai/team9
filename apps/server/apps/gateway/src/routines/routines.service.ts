@@ -1514,9 +1514,78 @@ export class RoutinesService {
         ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
       };
 
+      // ── Routine folder + write-scoped token (A.8) ───────────────
+      //
+      // The routine-creation agent authors `SKILL.md` (and optional
+      // `references/`, `scripts/`) into the routine's folder9 folder
+      // mounted at `/workspace/routine/document`. The mount needs a
+      // write-scoped token, which we mint here and ship in the
+      // session's componentConfigs so the agent-pi
+      // `JustBashTeam9WorkspaceComponent` can stand up the mount on
+      // session start. A.8 only owns the server side — the agent-pi
+      // mount runtime is built in Phase B.
+      //
+      // `ensureRoutineFolder` is idempotent: if the routine already
+      // has a `folderId` (most v2+ rows), it short-circuits via the
+      // SELECT ... FOR UPDATE fast path; if it's still NULL (legacy
+      // row pre-A.1, or a brand-new draft whose creation provision
+      // failed and was retried), it lazily provisions a managed
+      // folder + scaffolds SKILL.md inside its own transaction and
+      // back-fills `folder_id`. Either way, on return the row has a
+      // non-null `folderId`. Failure surfaces as a 503 from the
+      // helper itself; we let it propagate so the outer catch-block
+      // rolls back the channel + claim.
+      const ensured = await ensureRoutineFolder(routineId, {
+        db: this.db,
+        provisionDeps: {
+          folder9Client: this.folder9Client,
+          workspaceId: tenantId,
+          psk: '',
+        },
+      });
+      const routineFolderId = ensured.folderId!;
+
+      // 24h TTL is calibrated to the creation channel lifetime: the
+      // creation channel is a one-shot DM that the user typically
+      // closes within minutes. 24h gives plenty of slack for "I'll
+      // come back to it tomorrow" workflows without a token-refresh
+      // dance, while staying inside the bounded leak window the spec
+      // asks for. KNOWN LIMITATION: the idempotent fast-path above
+      // (when the routine already has a routine-session channel)
+      // returns the existing channel ids without re-minting; if the
+      // user revisits >24h after the original mint, the agent's
+      // mount will see a stale token. v2 may add a re-mint endpoint
+      // wired to channel re-open. Acceptable for v1 because creation
+      // sessions almost always complete within minutes.
+      const writeToken = await this.folder9Client.createToken({
+        folder_id: routineFolderId,
+        permission: 'write',
+        name: `routine-creation-${slugifyUuid(routineId)}`,
+        created_by: `user:${userId}`,
+        expires_at: new Date(
+          Date.now() + RoutinesService.CREATION_WRITE_TOKEN_TTL_MS,
+        ).toISOString(),
+      });
+
+      const componentConfigs: Record<string, Record<string, unknown>> = {
+        'just-bash-team9-workspace': {
+          folderMap: {
+            'routine.document': {
+              workspaceId: tenantId,
+              folderId: routineFolderId,
+              folderType: 'managed',
+              token: writeToken.token,
+              permission: 'write',
+              readOnly: false,
+            },
+          },
+          mountTeam9Skills: true,
+        },
+      };
+
       await this.clawHiveService.createSession(
         agentId,
-        { userId, sessionId, team9Context },
+        { userId, sessionId, team9Context, componentConfigs },
         tenantId,
       );
       sessionCreated = true;
@@ -1642,6 +1711,16 @@ export class RoutinesService {
    * still bounded.
    */
   private static readonly WRITE_TOKEN_TTL_MS = 15 * 60_000;
+
+  /**
+   * Write-token TTL for the routine-creation session's mounted folder
+   * (Task A.8). 24h is calibrated to the creation channel lifetime:
+   * channels are one-shot and usually closed within minutes, but we
+   * tolerate "I'll come back to it tomorrow" workflows without a
+   * token-refresh dance. The token is scoped to a single folder under
+   * `permission: 'write'`, so the leak surface is bounded.
+   */
+  private static readonly CREATION_WRITE_TOKEN_TTL_MS = 24 * 60 * 60_000;
 
   /**
    * Resolve a routine + ensure folder + tenant gate, returning the

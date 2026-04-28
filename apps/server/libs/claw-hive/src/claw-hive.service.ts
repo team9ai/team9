@@ -146,6 +146,14 @@ export class ClawHiveService {
       sessionId?: string;
       model?: { provider: string; id: string };
       team9Context?: Record<string, unknown>;
+      /**
+       * Per-session componentConfigs override. When set, the agent-pi
+       * runtime merges these on top of the agent-level configs for this
+       * session only. Used by the routine-creation flow to inject
+       * `just-bash-team9-workspace.folderMap["routine.document"]` with a
+       * write-scoped folder9 token (see Task A.8).
+       */
+      componentConfigs?: Record<string, Record<string, unknown>>;
     },
     tenantId?: string,
   ): Promise<{ sessionId: string }> {

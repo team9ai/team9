@@ -332,6 +332,12 @@ describe('Routine Creation Flow — integration', () => {
     // returning 1-row array means we won the race
     db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
+    // A.8: ensureRoutineFolder fast path — SELECT ... FOR UPDATE returns
+    // a row with a populated folderId so no provision is invoked.
+    db.for.mockResolvedValueOnce([
+      { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
+    ]);
+
     // Mock: clawHiveService.sendInput
     clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
 
@@ -554,6 +560,11 @@ describe('Routine Creation Flow — integration', () => {
 
     // Atomic claim UPDATE returning 1 row = won the race
     db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
+
+    // A.8: ensureRoutineFolder fast path
+    db.for.mockResolvedValueOnce([
+      { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
+    ]);
 
     clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
 
