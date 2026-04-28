@@ -110,6 +110,8 @@
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "深度研究",
   "dashboardActionGenerateImage": "產生圖片",
+  "dashboardActionVideoGeneration": "影片生成",
+  "dashboardVideoGenerationTemplate": "請幫我生成一段影片：\n- 場景：[在此描述畫面、人物、動作、鏡頭]\n- 風格：[寫實 / 卡通 / 電影感 / 留空讓模型決定]\n- 時長：5 秒\n- 比例：16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "按 Enter 傳送，Shift+Enter 換行。",
   "dashboardWarmupNotice": "您的 OpenClaw 正在暖身中，大約 2 分鐘後可用。就緒後，在下方傳送提示詞即可和 {{name}} 開始聊天。",

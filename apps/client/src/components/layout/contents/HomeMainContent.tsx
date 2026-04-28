@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  Video,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -56,12 +57,17 @@ import type { WorkspaceBillingAccount } from "@/types/workspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
-// Deep research / generate image entries temporarily hidden
 const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
   key: ParseKeys<["navigation", "message"]>;
   icon: typeof Search;
   className: string;
-}> = [];
+}> = [
+  {
+    key: "dashboardActionVideoGeneration",
+    icon: Video,
+    className: "",
+  },
+];
 
 function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
   return (
@@ -449,6 +455,7 @@ export function HomeMainContent({
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     agentId,
@@ -505,6 +512,21 @@ export function HomeMainContent({
   useEffect(() => {
     setSessionModelOverride(null);
   }, [selectedAgentUserId]);
+
+  const insertVideoTemplate = () => {
+    const tpl = t("dashboardVideoGenerationTemplate");
+    setPrompt((prev) => (prev.trim() ? `${prev}\n\n${tpl}` : tpl));
+    requestAnimationFrame(() => {
+      const el = promptRef.current;
+      if (!el) return;
+      el.focus();
+      const match = /\[([^\]]+)\]/.exec(el.value);
+      if (match) {
+        const start = match.index;
+        el.setSelectionRange(start, start + match[0].length);
+      }
+    });
+  };
 
   const handleSubmit = async () => {
     const draft = prompt.trim();
@@ -625,6 +647,7 @@ export function HomeMainContent({
 
               <div className="dashboard-landing-surface w-full rounded-[1.9rem] px-3.5 pb-3.5 pt-3 sm:px-4 sm:pb-4 sm:pt-3.5">
                 <Textarea
+                  ref={promptRef}
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={handlePromptKeyDown}
@@ -681,6 +704,8 @@ export function HomeMainContent({
                     {DASHBOARD_ACTION_CHIPS.map((chip) => {
                       const isDeepResearchChip =
                         chip.key === "dashboardActionDeepResearch";
+                      const isVideoChip =
+                        chip.key === "dashboardActionVideoGeneration";
                       return (
                         <DashboardActionChip
                           key={chip.key}
@@ -691,7 +716,9 @@ export function HomeMainContent({
                           onClick={
                             isDeepResearchChip
                               ? () => setIsDeepResearch((prev) => !prev)
-                              : undefined
+                              : isVideoChip
+                                ? insertVideoTemplate
+                                : undefined
                           }
                         />
                       );

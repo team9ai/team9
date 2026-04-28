@@ -112,6 +112,8 @@
   "dashboardDeepResearchPlaceholder": "描述你要研究的主题……",
   "dashboardDeepResearchCreateFailed": "创建深度研究任务失败",
   "dashboardActionGenerateImage": "生成图片",
+  "dashboardActionVideoGeneration": "视频生成",
+  "dashboardVideoGenerationTemplate": "请帮我生成一段视频：\n- 场景：[在此描述画面、人物、动作、镜头]\n- 风格：[写实 / 卡通 / 电影感 / 留空让模型决定]\n- 时长：5 秒\n- 比例：16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "按 Enter 发送，Shift+Enter 换行。",
   "dashboardWarmupNotice": "你的 OpenClaw 正在热身，大约 2 分钟后可用。准备好后，在下方发送提示词即可和 {{name}} 开始聊天。",
