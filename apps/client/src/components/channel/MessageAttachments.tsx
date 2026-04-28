@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { fileApi } from "@/services/api/file";
 import type { MessageAttachment } from "@/types/im";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
+import { VideoAttachment } from "./VideoAttachment";
 
 // Signed download URLs expire after 8h (see file.service.ts).
 // Cache for 7h so remounted image rows reuse the same URL and hit the
@@ -259,15 +260,24 @@ export function MessageAttachments({
 }: MessageAttachmentsProps) {
   if (!attachments || attachments.length === 0) return null;
 
-  const imageAttachments = attachments.filter((a) =>
-    a.mimeType.startsWith("image/"),
-  );
-  const fileAttachments = attachments.filter(
-    (a) => !a.mimeType.startsWith("image/"),
-  );
+  const isImage = (a: MessageAttachment) => a.mimeType.startsWith("image/");
+  const isVideo = (a: MessageAttachment) => a.mimeType.startsWith("video/");
+
+  const imageAttachments = attachments.filter(isImage);
+  const videoAttachments = attachments.filter(isVideo);
+  const fileAttachments = attachments.filter((a) => !isImage(a) && !isVideo(a));
 
   return (
     <div className="mt-2 space-y-2">
+      {/* Video attachments */}
+      {videoAttachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {videoAttachments.map((attachment) => (
+            <VideoAttachment key={attachment.id} attachment={attachment} />
+          ))}
+        </div>
+      )}
+
       {/* Image attachments */}
       {imageAttachments.length > 0 && (
         <div className="flex flex-wrap gap-2">
