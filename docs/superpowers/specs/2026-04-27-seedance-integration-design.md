@@ -1,7 +1,7 @@
 # Seedance Video Generation Integration Design
 
 - **Date:** 2026-04-27
-- **Status:** Draft (awaiting user review)
+- **Status:** Implemented (capability-hub#11, agent-pi#99, team9#84 — Draft PRs awaiting UAT)
 - **Scope:** Add Bytedance Seedance 2.0 video generation as a billed capability in capability-hub; expose it to agent-pi via the existing capability-hub discovery channel; add a dashboard entry-point that injects a video-generation prompt template. As an enabling refactor, extract a generic BullMQ-backed long-task module in capability-hub and migrate the existing deep-research module onto it.
 - **Repos involved:** `team9ai/capability-hub` · `team9ai/agent-pi` · `team9ai/team9` · capability-hub infra (new Redis dependency)
 - **Related specs:** none
