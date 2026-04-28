@@ -14,10 +14,13 @@ edition = "2021"
 name = "team9_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Capitalized binary name controls the macOS dock label in `tauri dev` (unbundled binary).
-# Production builds use `productName` from tauri.conf.json for the .app bundle name.
+# Binary name controls the macOS Dock label in `tauri dev` (unbundled binary, basename of argv[0]).
+# Cargo bin names cannot contain spaces, so we use a hyphen here; the Tauri runtime additionally
+# calls NSProcessInfo.setProcessName to give the menu-bar app name a friendlier "Team9 Local".
+# Bundled builds (`tauri build`) ignore this — they use `productName` from tauri.conf.json
+# for the .app bundle and its inner executable.
 [[bin]]
-name = "Team9"
+name = "Team9-Local"
 path = "src/main.rs"
 
 [build-dependencies]

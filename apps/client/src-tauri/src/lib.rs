@@ -9,9 +9,10 @@ use objc2::{class, msg_send, runtime::AnyObject};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 
-/// Override the macOS process name (Dock label) from the `TEAM9_APP_NAME` env var.
-/// Only takes effect for unbundled binaries (`tauri dev`); for bundled .app builds the
-/// CFBundleName from the generated Info.plist wins, which already reflects productName.
+/// Override the macOS menu-bar app name from the `TEAM9_APP_NAME` env var.
+/// Affects the bold first menu-bar item (via NSProcessInfo processName).
+/// Does NOT affect the Dock label — for unbundled binaries the Dock uses
+/// argv[0]'s basename, which comes from the Cargo `[[bin]]` name.
 #[cfg(target_os = "macos")]
 fn apply_app_name_override() {
     let Ok(name) = std::env::var("TEAM9_APP_NAME") else { return };
