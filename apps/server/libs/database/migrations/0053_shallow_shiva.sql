@@ -1,0 +1,1 @@
+ALTER TABLE "im_ahand_devices" ADD COLUMN "capabilities" text[] DEFAULT '{}'::text[] NOT NULL;

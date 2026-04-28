@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
 
 // ahand_devices tracks every ahand daemon registered against a Team9 user
@@ -24,6 +25,16 @@ export const ahandDevices = pgTable(
     nickname: text('nickname').notNull(),
     platform: text('platform').notNull(),
     hostname: text('hostname'),
+
+    // ahandd's self-declared capabilities, stored as TEXT[] to mirror aHand
+    // hub's `devices.capabilities` schema (crates/ahand-hub-store/migrations/0001_initial.sql).
+    // Examples: ["exec"], ["exec","browser"]. Empty array means "device row exists
+    // but ahandd has not yet completed Hello / hub has not pushed caps yet"; the
+    // worker treats this as 'shell-only' (run_command).
+    capabilities: text('capabilities')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
 
     // Lifecycle state.
     status: text('status').notNull().default('active'),
