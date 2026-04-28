@@ -853,7 +853,14 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       expect(result).toEqual(updatedRoutine);
     });
 
-    it('updates documentContent via documentsService', async () => {
+    // The bot-side bridge `(dto as ...).documentContent` was removed in
+    // A.4 along with its create-side counterpart. Bots no longer write
+    // routine body via PATCH — that path moves to the folder9 SKILL.md
+    // proxy (A.6). The legacy assertion that updateRoutine called
+    // documentsService.update with a documentContent literal is replaced
+    // by a regression check that documentsService is NOT touched at all
+    // on a body-less update.
+    it('does NOT touch documentsService on a routine PATCH', async () => {
       db.limit
         .mockResolvedValueOnce([ROUTINE_ROW] as any)
         .mockResolvedValueOnce([BOT_ROW] as any);
@@ -862,16 +869,12 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
       await service.updateRoutine(
         'routine-1',
-        { documentContent: 'new content' },
+        { title: 'Updated' } as never,
         'bot-user-1',
         'tenant-1',
       );
 
-      expect(documentsService.update).toHaveBeenCalledWith(
-        'doc-1',
-        { content: 'new content' },
-        { type: 'user', id: 'owner-user-1' },
-      );
+      expect(documentsService.update).not.toHaveBeenCalled();
     });
 
     it('replaces triggers when provided', async () => {
@@ -974,22 +977,13 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when updating documentContent but routine has no documentId', async () => {
-      db.limit
-        .mockResolvedValueOnce([{ ...ROUTINE_ROW, documentId: null }] as any)
-        .mockResolvedValueOnce([BOT_ROW] as any);
-
-      await expect(
-        service.updateRoutine(
-          'routine-1',
-          { documentContent: 'new content' },
-          'bot-user-1',
-          'tenant-1',
-        ),
-      ).rejects.toThrow(BadRequestException);
-
-      expect(documentsService.update).not.toHaveBeenCalled();
-    });
+    // The "throws when documentContent provided but routine has no
+    // documentId" test was tied to the bot-side bridge and the old
+    // 'Cannot update document content' guard. Both went away with A.4
+    // (the bridge no longer reads dto.documentContent at all). There is
+    // no documentContent code path left on PATCH to validate against —
+    // the test is intentionally removed rather than skipped because the
+    // behaviour it asserted has been replaced, not deferred.
 
     it('broadcasts routine:updated to the workspace after a successful update', async () => {
       db.limit

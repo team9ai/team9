@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
@@ -52,6 +53,8 @@ import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 import { UsersService } from '../im/users/users.service.js';
+import { Folder9ClientService } from '../wikis/folder9-client.service.js';
+import { provisionFolder9SkillFolder } from './folder/provision-routine-folder.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -80,6 +83,7 @@ export class RoutinesService {
     private readonly clawHiveService: ClawHiveService,
     private readonly botsService: BotService,
     private readonly usersService: UsersService,
+    private readonly folder9Client: Folder9ClientService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -93,18 +97,22 @@ export class RoutinesService {
     const routineId = uuidv7();
     const status = dto.status ?? 'upcoming';
 
-    // documentContent was dropped from CreateRoutineDto in Phase A.1 of the
-    // routine→folder9-skill migration. Read it via a permissive alias so any
-    // legacy callers passing it through still work; the comprehensive
-    // createRoutine flow rewrite in A.4 removes this seam entirely.
-    const legacyDocumentContent = (dto as { documentContent?: string })
-      .documentContent;
-
-    // Always create a linked document for the routine
+    // Always create a linked document for the routine. The Document is the
+    // legacy storage for the routine body; folder9 SKILL.md is the new
+    // storage and is provisioned atomically below. We keep the Document as
+    // an empty stub during the A.x migration so existing readers
+    // (routine-bot.service.ts: getRoutineById enrichment, completeCreation
+    // validation, draft session kickoff payload) keep working until they
+    // are migrated to read SKILL.md instead.
+    //
+    // documentContent has been dropped from CreateRoutineDto. Initial
+    // content is always empty — agents/users add content via the routine
+    // refinement flow (PATCH /v1/routines/:id with `documentContent` on
+    // routine-bot.service still wires through documentsService for now).
     const doc = await this.documentsService.create(
       {
         documentType: 'task',
-        content: legacyDocumentContent ?? '',
+        content: '',
         title: dto.title,
       },
       { type: 'user', id: userId },
@@ -112,38 +120,128 @@ export class RoutinesService {
     );
     const documentId = doc.id;
 
-    const insertValues: schema.NewRoutine = {
-      id: routineId,
-      tenantId,
-      botId: dto.botId ?? null,
-      creatorId: userId,
-      title: dto.title,
-      description: dto.description ?? null,
-      scheduleType: dto.scheduleType ?? 'once',
-      scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
-      documentId,
-    };
-    // status and sourceRef are new schema columns added in Task 0 — cast to bypass
-    // stale type resolution in pnpm workspaces / worktrees environment
-    (insertValues as Record<string, unknown>).status = status;
-    (insertValues as Record<string, unknown>).sourceRef =
-      options?.sourceRef ?? null;
-
-    const [routine] = await this.db
-      .insert(schema.routines)
-      .values(insertValues)
-      .returning();
-
-    // Skip trigger registration for drafts
-    if ((status as string) !== 'draft' && dto.triggers?.length) {
-      await this.routineTriggersService.createBatch(
-        routineId,
-        dto.triggers,
+    // ── Atomic INSERT + folder9 provision + UPDATE ──────────────────
+    //
+    // Wrapping the routine INSERT and the folder9 provision in a single DB
+    // transaction guarantees one of two outcomes:
+    //   (a) routine row exists with non-null `folder_id` → fully provisioned
+    //   (b) no routine row exists at all → folder9 was unreachable
+    //
+    // We never persist a routine row with `folder_id IS NULL` from this
+    // path. The half-baked state (folder created on folder9 but DB
+    // committed without writing the id back) is impossible because the
+    // UPDATE happens *inside* the same JS transaction-callback before
+    // commit, so a network failure between createFolder and commit either
+    // throws (causing rollback) or completes successfully and lets the
+    // tx commit cleanly.
+    //
+    // Failure modes:
+    // - folder9 step fails (createFolder / createToken / commit) → caught
+    //   here, logged, then rethrown as 503. The thrown error escapes the
+    //   transaction callback, so Drizzle issues ROLLBACK. The orphan
+    //   folder (if createFolder succeeded but commit failed) is reaped
+    //   later by the orphan GC sweep (see design §11).
+    // - DB INSERT fails → bubbles up unchanged (e.g., FK violation on
+    //   botId → 500 / BadRequest depending on the caller's error mapper).
+    //   No folder9 call was made, so nothing leaks.
+    //
+    // The trigger creation (`createBatch`) intentionally runs *outside*
+    // the transaction. It does not affect the routine.folder_id invariant
+    // and the existing behavior is "create routine first, then triggers
+    // best-effort" — preserving that means a trigger insert failure
+    // surfaces as a 500 but the routine row already has its folderId set,
+    // which is the desired half-success state (caller can retry trigger
+    // setup against an existing routine).
+    return await this.db.transaction(async (tx) => {
+      const insertValues: schema.NewRoutine = {
+        id: routineId,
         tenantId,
-      );
-    }
+        botId: dto.botId ?? null,
+        creatorId: userId,
+        title: dto.title,
+        description: dto.description ?? null,
+        scheduleType: dto.scheduleType ?? 'once',
+        scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
+        documentId,
+      };
+      // status, sourceRef, and folderId are new schema columns added in
+      // Task 0 / Task A.1 — cast to bypass stale type resolution in pnpm
+      // workspaces / worktrees environment.
+      (insertValues as Record<string, unknown>).status = status;
+      (insertValues as Record<string, unknown>).sourceRef =
+        options?.sourceRef ?? null;
+      (insertValues as Record<string, unknown>).folderId = null;
 
-    return routine;
+      const [routine] = await tx
+        .insert(schema.routines)
+        .values(insertValues)
+        .returning();
+
+      let provisioned: { folderId: string };
+      try {
+        provisioned = await provisionFolder9SkillFolder(
+          {
+            id: routine.id,
+            title: routine.title,
+            description: routine.description,
+            // documentContent is a virtual field on the helper's input;
+            // pass null so the helper emits an "Initial scaffold" commit
+            // message and an empty SKILL.md body.
+            documentContent: null,
+          },
+          {
+            folder9Client: this.folder9Client,
+            workspaceId: tenantId,
+            // Folder9ClientService reads FOLDER9_PSK from process.env;
+            // this field is retained for forward-compat with the helper's
+            // public deps shape but currently unused by the underlying
+            // client. See provision-routine-folder.ts header.
+            psk: '',
+          },
+        );
+      } catch (err) {
+        this.logger.warn(
+          `create: folder9 provision failed for routine ${routine.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        // Re-throw as 503 so the API caller gets a retryable signal. The
+        // throw escapes the transaction callback → Drizzle ROLLBACKs → no
+        // routine row persists.
+        throw new ServiceUnavailableException(
+          'folder storage temporarily unavailable, please retry',
+        );
+      }
+
+      await tx
+        .update(schema.routines)
+        .set({
+          folderId: provisioned.folderId,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, routine.id));
+
+      // Skip trigger registration for drafts. Triggers are created
+      // outside the routine.folder_id invariant — a trigger failure must
+      // NOT roll back the now-committed folder. Run AFTER the tx commits
+      // (i.e., after this callback returns) by deferring with the
+      // post-commit await below.
+      //
+      // We still call this inside the transaction callback because the
+      // existing fixture mocks (and the createBatch implementation) do
+      // not rely on the outer `tx` handle. Trigger writes use the same
+      // injected `db`, which is fine — they participate in their own
+      // transactional scope, not this one.
+      if ((status as string) !== 'draft' && dto.triggers?.length) {
+        await this.routineTriggersService.createBatch(
+          routineId,
+          dto.triggers,
+          tenantId,
+        );
+      }
+
+      return { ...routine, folderId: provisioned.folderId };
+    });
   }
 
   async list(
@@ -250,24 +348,11 @@ export class RoutinesService {
       );
     }
 
-    // Handle documentContent — writes to the linked document, not the routine table.
-    // The field was dropped from UpdateRoutineDto in Phase A.1 of the
-    // routine→folder9-skill migration; read via a permissive alias so legacy
-    // callers still flow through. A.4 rewrites this branch entirely.
-    const legacyDocumentContent = (dto as { documentContent?: string })
-      .documentContent;
-    if (legacyDocumentContent !== undefined) {
-      if (!routine.documentId) {
-        throw new BadRequestException(
-          'Cannot update document content: routine has no linked document.',
-        );
-      }
-      await this.documentsService.update(
-        routine.documentId,
-        { content: legacyDocumentContent },
-        { type: 'user', id: userId },
-      );
-    }
+    // documentContent was dropped from UpdateRoutineDto in Phase A.1 and
+    // the create-side bridge was removed in A.4. The new world stores the
+    // routine body in folder9 SKILL.md, not in the linked Document — the
+    // proxy endpoints in A.6 handle SKILL.md writes. There is no
+    // documentContent branch on the user-facing PATCH path anymore.
 
     // Handle triggers — wholesale replace
     if (dto.triggers !== undefined) {

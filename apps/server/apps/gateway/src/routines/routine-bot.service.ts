@@ -525,23 +525,10 @@ export class RoutineBotService {
       );
     }
 
-    // Handle documentContent. The field was dropped from UpdateRoutineDto in
-    // Phase A.1 of the routine→folder9-skill migration; read via a permissive
-    // alias so legacy callers still flow through. A.4 rewrites this branch.
-    const legacyDocumentContent = (dto as { documentContent?: string })
-      .documentContent;
-    if (legacyDocumentContent !== undefined) {
-      if (!routine.documentId) {
-        throw new BadRequestException(
-          'Cannot update document content: routine has no linked document.',
-        );
-      }
-      await this.documentsService.update(
-        routine.documentId,
-        { content: legacyDocumentContent },
-        { type: 'user', id: routine.creatorId },
-      );
-    }
+    // documentContent was dropped from UpdateRoutineDto in Phase A.1 and
+    // the bot-side bridge was removed in A.4. Bots that previously wrote
+    // routine body via PATCH must now go through the folder9 proxy
+    // endpoints (A.6) which target the SKILL.md backing the routine.
 
     // Handle triggers — wholesale replace
     if (dto.triggers !== undefined) {
