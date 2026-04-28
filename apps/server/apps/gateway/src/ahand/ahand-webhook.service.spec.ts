@@ -474,9 +474,16 @@ describe('AhandWebhookService', () => {
   });
 
   describe('device.registered', () => {
-    it('no DB writes, only fan-out', async () => {
+    it('does not write capabilities to DB when registered event has no caps in data', async () => {
+      // baseEvt('device.registered') has data:{} — no capabilities field.
+      // The invariant here is constrained: when no caps are provided, no DB
+      // update occurs at all. The positive case (registered WITH caps) is
+      // covered by the dedicated test in 'capabilities persistence' below.
       dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
       await svc.handleEvent(baseEvt('device.registered'));
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
       expect(dbFixture.db.update).not.toHaveBeenCalled();
       expect(publisher.publishForOwner).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'device.registered' }),
@@ -627,11 +634,25 @@ describe('AhandWebhookService', () => {
       dbFixture.chains.selectWhere.mockResolvedValue([
         makeDeviceRow({ capabilities: ['exec', 'browser'] }),
       ]);
+      dbFixture.chains.updateWhere.mockImplementation(() => {
+        const thenable = Promise.resolve(undefined) as any;
+        thenable.returning = dbFixture.chains.updateReturning;
+        return thenable;
+      });
+      dbFixture.chains.updateSet.mockReturnValue({
+        where: dbFixture.chains.updateWhere,
+      });
+      dbFixture.db.update.mockReturnValue({ set: dbFixture.chains.updateSet });
       await svc.handleEvent(evt);
       // Caps update should have been called again with the same value — idempotent
       expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
         expect.objectContaining({ capabilities: ['exec', 'browser'] }),
       );
+      // WHERE clause must target the correct hubDeviceId + active status
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.hubDeviceId', 'h1');
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.status', 'active');
+      // Both caps and lastSeenAt updates should have fired (2 update() calls)
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(2);
     });
   });
 
