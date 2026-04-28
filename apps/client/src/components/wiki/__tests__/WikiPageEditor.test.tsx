@@ -511,6 +511,20 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       expect(wikiFolderApiFactory).toHaveBeenCalledWith("wiki-99");
     });
 
+    it("passes hideTree=true so the shell does not render its built-in tree (wiki has its own sub-sidebar)", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md"
+          serverPage={basePage}
+          wiki={baseWiki}
+        />,
+      );
+      expect(folderEditorProps).toHaveBeenCalled();
+      const props = folderEditorProps.mock.lastCall?.[0];
+      expect(props?.hideTree).toBe(true);
+    });
+
     it("wires the image-upload hook into the shell's imageUpload slot", async () => {
       render(
         <WikiPageEditor

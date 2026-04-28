@@ -846,6 +846,97 @@ describe("Folder9FolderEditor — image upload integration", () => {
   });
 });
 
+describe("Folder9FolderEditor — hideTree prop", () => {
+  it("renders the tree sidebar by default (hideTree omitted)", async () => {
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps()} />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("folder9-folder-tree")).toBeInTheDocument(),
+    );
+  });
+
+  it("renders the tree sidebar when hideTree=false", async () => {
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps({ hideTree: false })} />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("folder9-folder-tree")).toBeInTheDocument(),
+    );
+  });
+
+  it("does NOT render the tree sidebar when hideTree=true", async () => {
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    // Editor still mounts (full-width single-column layout).
+    await screen.findByTestId("doc-editor");
+    expect(screen.queryByTestId("folder9-folder-tree")).toBeNull();
+  });
+
+  it("skips api.fetchTree when hideTree=true AND initialPath is provided", async () => {
+    const { api, fetchTree } = makeApi();
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            hideTree: true,
+            initialPath: "SKILL.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    // Wait for the blob to load so the editor finishes its initial
+    // render pass — gives the tree query a chance to fire if it were
+    // going to.
+    await screen.findByTestId("doc-editor");
+    expect(fetchTree).not.toHaveBeenCalled();
+  });
+
+  it("still calls api.fetchTree when hideTree=true but initialPath is undefined (default-path resolution)", async () => {
+    const { api, fetchTree } = makeApi();
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps({ api, hideTree: true })} />
+      </Wrapper>,
+    );
+
+    await waitFor(() => expect(fetchTree).toHaveBeenCalledTimes(1));
+  });
+
+  it("still calls api.fetchTree when hideTree=false (tree must populate)", async () => {
+    const { api, fetchTree } = makeApi();
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: false, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() => expect(fetchTree).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe("Folder9FolderEditor — Cmd/Ctrl+S shortcut", () => {
   it("triggers save on Cmd+S when dirty", async () => {
     const { api, commit } = makeApi();

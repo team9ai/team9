@@ -138,6 +138,21 @@ export interface Folder9FolderEditorProps {
    * the metadata, while the shell itself stays UI-agnostic.
    */
   onProposeReview?: (proceed: (input: ProposeReviewInput) => void) => void;
+  /**
+   * When `true`, the shell does NOT render its internal tree sidebar
+   * and the editor pane fills the full available width. Callers that
+   * already render a tree elsewhere (e.g. wiki's workspace
+   * sub-sidebar) set this to avoid a duplicate tree.
+   *
+   * If `hideTree=true` AND `initialPath` is provided, the shell also
+   * skips `api.fetchTree()` entirely (saves a roundtrip). When
+   * `initialPath` is absent the tree is still fetched so the shell
+   * can resolve a default landing path (e.g. `index.md`).
+   *
+   * Defaults to `false` so callers without an external tree (routine
+   * SKILL editor, standalone usage) keep the built-in sidebar.
+   */
+  hideTree?: boolean;
 }
 
 /**
@@ -197,6 +212,7 @@ export function Folder9FolderEditor({
   renderFile,
   imageUpload,
   onProposeReview,
+  hideTree = false,
 }: Folder9FolderEditorProps) {
   const { t } = useTranslation("wiki");
   const queryClient = useQueryClient();
@@ -210,9 +226,16 @@ export function Folder9FolderEditor({
     () => [FILE_QUERY_KEY, folderId, "tree"] as const,
     [folderId],
   );
+  // Skip the network entirely when the host already has the tree (so
+  // we hid ours) AND a starting path was provided — there's nothing
+  // left for the tree response to feed. When `initialPath` is missing
+  // we still fetch so the directory-with-`index.md` convention can
+  // resolve a default landing file.
+  const treeFetchEnabled = !hideTree || !initialPath;
   const treeQuery = useQuery<TreeEntryDto[]>({
     queryKey: treeKey,
     queryFn: () => api.fetchTree({ recursive: true }),
+    enabled: treeFetchEnabled,
   });
   const treeData = useMemo(
     () => (treeQuery.data ? buildFolderTree(treeQuery.data) : []),
@@ -493,30 +516,32 @@ export function Folder9FolderEditor({
 
   return (
     <div data-testid="folder9-folder-editor" className="flex h-full min-h-0">
-      <aside
-        data-testid="folder9-folder-tree"
-        className="w-64 shrink-0 border-r border-border overflow-auto"
-        role="tree"
-        aria-label={t("page.title", { defaultValue: "Folder" })}
-      >
-        {treeQuery.isLoading && (
-          <div className="p-3 text-xs text-muted-foreground">
-            {t("page.loading", { defaultValue: "Loading…" })}
-          </div>
-        )}
-        {!treeQuery.isLoading &&
-          treeData.map((node: FolderTreeNodeData) => (
-            <FolderTreeNode
-              key={node.path}
-              node={node}
-              depth={0}
-              selectedPath={selectedPath}
-              expandedDirs={expandedDirs}
-              onSelect={handleSelect}
-              onToggleExpand={handleToggleExpand}
-            />
-          ))}
-      </aside>
+      {!hideTree && (
+        <aside
+          data-testid="folder9-folder-tree"
+          className="w-64 shrink-0 border-r border-border overflow-auto"
+          role="tree"
+          aria-label={t("page.title", { defaultValue: "Folder" })}
+        >
+          {treeQuery.isLoading && (
+            <div className="p-3 text-xs text-muted-foreground">
+              {t("page.loading", { defaultValue: "Loading…" })}
+            </div>
+          )}
+          {!treeQuery.isLoading &&
+            treeData.map((node: FolderTreeNodeData) => (
+              <FolderTreeNode
+                key={node.path}
+                node={node}
+                depth={0}
+                selectedPath={selectedPath}
+                expandedDirs={expandedDirs}
+                onSelect={handleSelect}
+                onToggleExpand={handleToggleExpand}
+              />
+            ))}
+        </aside>
+      )}
 
       <div className="flex-1 flex flex-col min-h-0">
         <FolderStatusBar

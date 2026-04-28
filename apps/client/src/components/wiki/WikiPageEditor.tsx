@@ -190,6 +190,10 @@ export function WikiPageEditor({
         imageUpload={imageUpload}
         onProposeReview={handleProposeReview}
         renderFile={renderFile}
+        // The wiki workspace sub-sidebar already renders the page
+        // tree, so we suppress the shell's built-in tree to avoid a
+        // duplicate sidebar.
+        hideTree
       />
       <SubmitForReviewDialog
         open={pendingProceed !== null}
