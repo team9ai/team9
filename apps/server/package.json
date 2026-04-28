@@ -31,7 +31,8 @@
     "clean": "pnpm --recursive exec rm -rf dist node_modules",
     "submodule:init": "git submodule update --init --recursive",
     "submodule:update": "git submodule update --remote --merge",
-    "migrate:routines": "tsx apps/gateway/scripts/migrate-routines-to-folder9.ts"
+    "migrate:routines": "tsx apps/gateway/scripts/migrate-routines-to-folder9.ts",
+    "gc:routine-folders": "tsx apps/gateway/scripts/cleanup-orphan-folder9-routines.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",

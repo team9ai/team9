@@ -194,6 +194,41 @@ describe('Folder9ClientService', () => {
     });
   });
 
+  describe('listFolders', () => {
+    it('GETs /api/workspaces/{wsId}/folders with Authorization: Bearer <psk>', async () => {
+      const fetchFn = jest.fn<typeof fetch>().mockResolvedValue(
+        jsonResponse([
+          { id: 'f-1', name: 'routine-aaaa-bbbb', workspace_id: 'ws-1' },
+          { id: 'f-2', name: 'wiki-cccc-dddd', workspace_id: 'ws-1' },
+        ]),
+      );
+      globalThis.fetch = fetchFn;
+
+      const result = await service.listFolders('ws-1');
+
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('f-1');
+      const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('http://folder9.test/api/workspaces/ws-1/folders');
+      expect(init.method).toBe('GET');
+      expect(init.body).toBeUndefined();
+      expect((init.headers as Record<string, string>)[AUTH_HEADER]).toBe(
+        'Bearer psk-test',
+      );
+    });
+
+    it('returns an empty array when the workspace has no folders', async () => {
+      const fetchFn = jest
+        .fn<typeof fetch>()
+        .mockResolvedValue(jsonResponse([]));
+      globalThis.fetch = fetchFn;
+
+      const result = await service.listFolders('ws-empty');
+
+      expect(result).toEqual([]);
+    });
+  });
+
   // ---------------------------------------------------------------------
   // Token minting (PSK-protected)
   // ---------------------------------------------------------------------

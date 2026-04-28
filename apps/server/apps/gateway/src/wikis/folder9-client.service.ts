@@ -250,6 +250,22 @@ export class Folder9ClientService {
     );
   }
 
+  /**
+   * GET /api/workspaces/{wsId}/folders
+   *
+   * Lists all folders in a workspace. Used by the orphan-folder GC script
+   * (A.10) to enumerate `routine-*` folders for cross-checking against
+   * `routines.folder_id`. PSK-protected like the rest of the folder
+   * management endpoints.
+   */
+  listFolders(wsId: string): Promise<Folder9Folder[]> {
+    return this.request<Folder9Folder[]>(
+      'GET',
+      `/api/workspaces/${wsId}/folders`,
+      'psk',
+    );
+  }
+
   /** PATCH /api/workspaces/{wsId}/folders/{folderId} */
   updateFolder(
     wsId: string,
