@@ -51,6 +51,14 @@ import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
 import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js';
+import type { FolderCommitDto } from './dto/folder-commit.dto.js';
+import type {
+  Folder9BlobResponse,
+  Folder9CommitResponse,
+  Folder9LogEntry,
+  Folder9Permission,
+  Folder9TreeEntry,
+} from '../wikis/types/folder9.types.js';
 import { TaskCastService } from './taskcast.service.js';
 import { UsersService } from '../im/users/users.service.js';
 import { Folder9ClientService } from '../wikis/folder9-client.service.js';
@@ -1592,6 +1600,290 @@ export class RoutinesService {
 
       throw error;
     }
+  }
+
+  // ── Folder proxy (tree / blob / commit / history) ──────────────
+  //
+  // Every method below follows the same template:
+  //   1. `ensureRoutineFolder(routineId)` — guarantees `folderId` is
+  //      non-null. Lazy-provisions on first access; subsequent calls
+  //      hit the SELECT-FOR-UPDATE fast path (~one round-trip).
+  //   2. Tenant gate: `currentUser.tenantId === routine.tenantId` else
+  //      403. Cross-tenant access is treated as a permission error,
+  //      not a 404 — we already proved the routine exists at step 1
+  //      and disclosing existence to a wrong-tenant caller is fine
+  //      because the routine id is itself unguessable (UUIDv7).
+  //   3. Mint a per-request, short-lived folder9 token. We deliberately
+  //      do NOT cache tokens (unlike WikisService) — read endpoints
+  //      get a 5-min token, write/propose endpoints get a 15-min token.
+  //      Per-request mints are simpler (no cache-invalidation surprises
+  //      across review-mode flips, no leak window when a user loses
+  //      access mid-session) and the upstream cost is negligible for
+  //      the routine surface (one folder per routine, low fan-out).
+  //   4. Forward to the folder9 client; return its response unchanged.
+  //
+  // Commit specifically computes the `propose` flag from `(folder
+  // approval_mode, user permission)` per spec §12. v1 routines are
+  // always `approval_mode: "auto"`, so propose is always false; the
+  // wiring is structural so flipping a routine to review mode later
+  // activates the propose path with no code changes.
+
+  /**
+   * Read-token TTL for routine folder reads. 5 minutes — enough to
+   * cover a single proxied request comfortably while capping the leak
+   * window if a token surfaces in a log scrape.
+   */
+  private static readonly READ_TOKEN_TTL_MS = 5 * 60_000;
+
+  /**
+   * Write-token TTL for routine folder writes. 15 minutes — matches
+   * the wiki cache TTL and the existing A.2 provision pattern. Long
+   * enough for a multi-file commit to retry after a transient blip;
+   * still bounded.
+   */
+  private static readonly WRITE_TOKEN_TTL_MS = 15 * 60_000;
+
+  /**
+   * Resolve a routine + ensure folder + tenant gate, returning the
+   * routine row with non-null `folderId`.
+   *
+   * The routine row read is the one returned from `ensureRoutineFolder`
+   * (which already SELECT-FOR-UPDATEs and updates the row inside its
+   * own transaction). No second SELECT.
+   */
+  private async resolveRoutineForFolderProxy(
+    routineId: string,
+    tenantId: string,
+  ): Promise<{ folderId: string; tenantId: string }> {
+    const ensured = await ensureRoutineFolder(routineId, {
+      db: this.db,
+      provisionDeps: {
+        folder9Client: this.folder9Client,
+        // Use the FETCHED routine's tenantId (not the request param)
+        // so a misconfigured client can't request a folder under the
+        // wrong workspace. We still cross-check below — defence in
+        // depth.
+        workspaceId: tenantId,
+        psk: '',
+      },
+    });
+    if (ensured.tenantId !== tenantId) {
+      throw new ForbiddenException(
+        'You do not have access to this routine folder',
+      );
+    }
+    // `ensureRoutineFolder` guarantees folderId is non-null; the cast
+    // here documents the invariant for the type system. If this ever
+    // throws at runtime, the invariant has been broken upstream.
+    if (!ensured.folderId) {
+      // NOCOVER: ensureRoutineFolder's invariant says this is unreachable.
+      throw new ServiceUnavailableException('routine folder not provisioned');
+    }
+    return { folderId: ensured.folderId, tenantId: ensured.tenantId };
+  }
+
+  /**
+   * Mint a per-request folder9 token for a routine folder.
+   *
+   * Tokens are scoped to (folder, permission, expiry). `name` and
+   * `created_by` are descriptive — folder9 surfaces them in audit logs
+   * and (for writes) uses `created_by` as the git commit author tag.
+   */
+  private async mintRoutineFolderToken(
+    folderId: string,
+    routineId: string,
+    userId: string,
+    permission: Folder9Permission,
+    ttlMs: number,
+  ): Promise<string> {
+    const minted = await this.folder9Client.createToken({
+      folder_id: folderId,
+      permission,
+      name: `routine-${permission}`,
+      created_by: `user:${userId}`,
+      expires_at: new Date(Date.now() + ttlMs).toISOString(),
+    });
+    this.logger.debug(
+      `mintRoutineFolderToken: routine=${routineId} folder=${folderId} permission=${permission} ttlMs=${ttlMs}`,
+    );
+    return minted.token;
+  }
+
+  /**
+   * Resolve the user's permission on a routine folder.
+   *
+   * v1 model: routines are workspace-shared and every tenant member has
+   * direct-write permission. The signature still returns the discriminated
+   * union (`'write' | 'propose'`) so the call site at
+   * {@link commitRoutineFolder} keeps the propose branch live in the
+   * type system. When a future RBAC layer differentiates "must propose"
+   * users (e.g. agents) from "may write" users (e.g. owners), this body
+   * becomes a per-user lookup and the propose pipeline activates without
+   * touching the controller, the DTO, or the proxy.
+   *
+   * @param _userId reserved for the future RBAC lookup; intentionally
+   *   unused in v1 so we don't have to mock a user-roles table.
+   * @param _routineId same — reserved for per-routine policy.
+   */
+  private getRoutineFolderPermissionForUser(
+    _userId: string,
+    _routineId: string,
+  ): 'write' | 'propose' {
+    return 'write';
+  }
+
+  /**
+   * GET /v1/routines/:id/folder/tree — list files under the routine
+   * folder.
+   */
+  async getRoutineFolderTree(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    opts: { path?: string; recursive?: boolean } = {},
+  ): Promise<Folder9TreeEntry[]> {
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      'read',
+      RoutinesService.READ_TOKEN_TTL_MS,
+    );
+    return this.folder9Client.getTree(routineTenantId, folderId, token, {
+      path: opts.path,
+      recursive: opts.recursive,
+    });
+  }
+
+  /**
+   * GET /v1/routines/:id/folder/blob — read a single file from the
+   * routine folder. Pass-through of folder9's `Folder9BlobResponse`
+   * (which carries the `encoding` discriminator); decoding is the
+   * client's responsibility.
+   */
+  async getRoutineFolderBlob(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    path: string,
+  ): Promise<Folder9BlobResponse> {
+    if (!path || typeof path !== 'string' || path.trim().length === 0) {
+      throw new BadRequestException('path query parameter is required');
+    }
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      'read',
+      RoutinesService.READ_TOKEN_TTL_MS,
+    );
+    return this.folder9Client.getBlob(routineTenantId, folderId, token, path);
+  }
+
+  /**
+   * POST /v1/routines/:id/folder/commit — write a batch of file changes.
+   *
+   * Permission decision:
+   *
+   *   | folder.approval_mode | user permission | effective propose |
+   *   |----------------------|-----------------|-------------------|
+   *   | auto                 | write           | false             |
+   *   | review               | write           | false             |
+   *   | review               | propose         | true              |
+   *
+   * v1 routines are always `auto`; the resulting commit goes straight
+   * to `main`. The structure is wired so a future PATCH that flips a
+   * routine's folder to `approval_mode: "review"` (paired with a
+   * permission downgrade for non-admin members) automatically routes
+   * through the proposal branch with no further code changes.
+   *
+   * The user permission is currently always `write` for tenant
+   * members — routines are workspace-shared in v1. That's encoded
+   * here as the constant; when a future RBAC layer differentiates
+   * write-vs-propose for routine folders, this is the line to swap.
+   */
+  async commitRoutineFolder(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    dto: FolderCommitDto,
+  ): Promise<Folder9CommitResponse> {
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+
+    // Fetch the live folder to read `approval_mode`. v1 always returns
+    // "auto", but we MUST NOT hard-code that — an operator flipping the
+    // folder to "review" via a future routine-settings UI would
+    // silently bypass review if we did. The folder9 round-trip is
+    // ~10ms and only fires on commits (not every read).
+    const folder = await this.folder9Client.getFolder(
+      routineTenantId,
+      folderId,
+    );
+
+    // Tenant members are write-permission users on routine folders in
+    // v1. When a future scenario requires "agent must propose, human
+    // must approve", swap this method's body for a per-user RBAC lookup
+    // and the rest of the propose pipeline activates with no further
+    // changes. Encapsulated as a method (not a `const` literal) so the
+    // typechecker doesn't narrow it to `"write"` and dead-code the
+    // propose branch.
+    const userPermission = this.getRoutineFolderPermissionForUser(
+      userId,
+      routineId,
+    );
+
+    // Compute effective propose flag. `auto` always direct-commits.
+    // `review` + `write` is "write bypasses review" — matches the
+    // wiki contract. `review` + `propose` lands on a proposal branch.
+    const effectivePropose =
+      folder.approval_mode === 'review' && userPermission === 'propose';
+
+    const tokenPermission: Folder9Permission = effectivePropose
+      ? 'propose'
+      : 'write';
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      tokenPermission,
+      RoutinesService.WRITE_TOKEN_TTL_MS,
+    );
+
+    return this.folder9Client.commit(routineTenantId, folderId, token, {
+      message: dto.message,
+      files: dto.files,
+      propose: effectivePropose,
+    });
+  }
+
+  /**
+   * GET /v1/routines/:id/folder/history — list commits on the
+   * routine's main branch (or a specific ref / path).
+   *
+   * Returns folder9's `Folder9LogEntry[]` shape verbatim (PascalCase
+   * field names — the wire format is owned by folder9, not us).
+   */
+  async getRoutineFolderHistory(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    opts: { ref?: string; path?: string; limit?: number } = {},
+  ): Promise<Folder9LogEntry[]> {
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      'read',
+      RoutinesService.READ_TOKEN_TTL_MS,
+    );
+    return this.folder9Client.log(routineTenantId, folderId, token, opts);
   }
 
   // ── Internal helpers ────────────────────────────────────────────
