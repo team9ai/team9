@@ -29,7 +29,8 @@ const baseContext: ExecutionContext = {
   botId: 'bot-001',
   channelId: 'ch-task-001',
   title: 'Write a report',
-  documentContent: 'Research and write about AI trends',
+  folderId: 'folder-abc',
+  folder9Token: 'token-xyz',
   taskcastTaskId: 'agent_task_exec_exec-001',
   tenantId: 'tenant-abc',
 };
@@ -74,11 +75,18 @@ describe('HiveStrategy', () => {
             executionId: 'exec-001',
             channelId: 'ch-task-001',
             title: 'Write a report',
-            documentContent: 'Research and write about AI trends',
+            // Post A.7: payload carries folderId + folder9Token instead
+            // of documentContent.
+            folderId: 'folder-abc',
+            folder9Token: 'token-xyz',
           }),
         }),
         'tenant-abc',
       );
+      // documentContent must NOT leak through the new payload.
+      const payload = (mockClawHive.sendInput.mock.calls[0] as any[])[1]
+        .payload;
+      expect(payload.documentContent).toBeUndefined();
     });
 
     it('throws when bot has no managedMeta.agentId', async () => {
@@ -106,16 +114,28 @@ describe('HiveStrategy', () => {
       expect(payload.location).toEqual({ type: 'task', id: 'ch-task-001' });
     });
 
-    it('omits documentContent from payload when undefined', async () => {
-      const ctxNoDoc: ExecutionContext = {
+    it('throws when folderId is missing on the execute() path', async () => {
+      const ctxNoFolder: ExecutionContext = {
         ...baseContext,
-        documentContent: undefined,
+        folderId: undefined,
       };
-      await strategy.execute(ctxNoDoc);
 
-      const payload = (mockClawHive.sendInput.mock.calls[0] as any[])[1]
-        .payload;
-      expect(payload.documentContent).toBeUndefined();
+      await expect(strategy.execute(ctxNoFolder)).rejects.toThrow(
+        /folderId \+ folder9Token/,
+      );
+      expect(mockClawHive.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('throws when folder9Token is missing on the execute() path', async () => {
+      const ctxNoToken: ExecutionContext = {
+        ...baseContext,
+        folder9Token: undefined,
+      };
+
+      await expect(strategy.execute(ctxNoToken)).rejects.toThrow(
+        /folderId \+ folder9Token/,
+      );
+      expect(mockClawHive.sendInput).not.toHaveBeenCalled();
     });
   });
 

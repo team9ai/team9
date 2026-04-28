@@ -30,6 +30,20 @@ export class HiveStrategy implements ExecutionStrategy {
       context.routineId,
     );
 
+    // The execute() path requires folderId + folder9Token: the agent
+    // session uses these to mount the routine's SKILL.md folder via
+    // JustBashTeam9WorkspaceConfig.folderMap["routine.document"]. The
+    // executor (executor.service.ts triggerExecution) calls
+    // ensureRoutineFolder + mints a read-scoped token before invoking
+    // execute(), so they must be present here. If they aren't, fail
+    // loudly — silently dropping them would surface as the agent unable
+    // to read its own SKILL.md, which is much harder to diagnose.
+    if (!context.folderId || !context.folder9Token) {
+      throw new Error(
+        `HiveStrategy.execute requires folderId + folder9Token for routine ${context.routineId}`,
+      );
+    }
+
     await this.clawHiveService.sendInput(
       sessionId,
       {
@@ -41,9 +55,8 @@ export class HiveStrategy implements ExecutionStrategy {
           executionId: context.executionId,
           channelId: context.channelId,
           title: context.title,
-          ...(context.documentContent !== undefined
-            ? { documentContent: context.documentContent }
-            : {}),
+          folderId: context.folderId,
+          folder9Token: context.folder9Token,
           location: { type: 'task', id: context.channelId },
         },
       },

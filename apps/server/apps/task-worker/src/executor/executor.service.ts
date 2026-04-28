@@ -13,6 +13,19 @@ import type {
   ExecutionStrategy,
 } from './execution-strategy.interface.js';
 import { TaskCastClient } from '../taskcast/taskcast.client.js';
+import { Folder9Client } from '../folder9/folder9.client.js';
+import { ensureRoutineFolder } from '../folder9/ensure-routine-folder.js';
+
+/**
+ * Read-token TTL for the folder9 token attached to ExecutionContext.
+ *
+ * Sized to comfortably exceed the expected execution wall-clock duration
+ * (~6 hours): the agent reads SKILL.md from the folder on session start
+ * and may re-read on long-running tasks, but never holds the token past
+ * end-of-execution. Matches the value documented in the routine→skill
+ * folder spec §"Backend Contract — team9 Server Changes".
+ */
+const FOLDER9_READ_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
 
 @Injectable()
 export class ExecutorService {
@@ -23,6 +36,7 @@ export class ExecutorService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly taskCastClient: TaskCastClient,
+    private readonly folder9Client: Folder9Client,
   ) {}
 
   /**
@@ -121,27 +135,62 @@ export class ExecutorService {
       role: 'owner',
     });
 
-    // ── 3. Fetch document content (if linked) ─────────────────────────
-    let documentContent: string | undefined;
-    let documentVersionId: string | undefined;
-    if (routine.documentId) {
-      const [docVersion] = await this.db
-        .select({
-          content: schema.documentVersions.content,
-          versionId: schema.documentVersions.id,
-        })
-        .from(schema.documents)
-        .innerJoin(
-          schema.documentVersions,
-          eq(schema.documentVersions.id, schema.documents.currentVersionId),
-        )
-        .where(eq(schema.documents.id, routine.documentId))
-        .limit(1);
+    // ── 3. Ensure routine folder + mint read token ────────────────────
+    //
+    // Replaces the legacy `documents` / `document_versions` fetch. After
+    // the A.1–A.6 migration, routine instructions live in folder9 as
+    // SKILL.md inside a managed folder; the agent reads it via the read
+    // token we mint here. `ensureRoutineFolder` is the lazy-provision
+    // invariant — after it returns, `routine.folderId` is non-null.
+    //
+    // The earlier `documentVersionId` plumbing is now legacy: callers
+    // (scheduler / channel-trigger) don't pass it on the new path. We
+    // honour `opts.documentVersionId` if present for backward
+    // compatibility but no longer derive one from the routine itself.
+    let folderId: string;
+    let folder9Token: string;
+    try {
+      const ensured = await ensureRoutineFolder(routineId, {
+        db: this.db,
+        provisionDeps: {
+          folder9Client: this.folder9Client,
+          workspaceId: routine.tenantId,
+          psk: '',
+        },
+      });
+      // ensureRoutineFolder guarantees folderId is non-null on success.
+      // The cast documents the invariant for the type system; an
+      // unprovisioned row would have thrown above.
+      folderId = ensured.folderId!;
 
-      documentContent = docVersion?.content;
-      documentVersionId = docVersion?.versionId;
+      const minted = await this.folder9Client.createToken({
+        folder_id: folderId,
+        permission: 'read',
+        name: 'routine-execute',
+        created_by: `routine:${routineId}`,
+        expires_at: new Date(
+          Date.now() + FOLDER9_READ_TOKEN_TTL_MS,
+        ).toISOString(),
+      });
+      folder9Token = minted.token;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Failed to ensure folder / mint read token for routine ${routineId}: ${errorMessage}`,
+      );
+      // Mark the routine as failed so the run isn't left in_progress
+      // forever. We don't have an executionId yet (it's minted below),
+      // so the failure is recorded by reverting the CAS-claimed routine
+      // status directly.
+      await this.db
+        .update(schema.routines)
+        .set({ status: 'failed', updatedAt: new Date() })
+        .where(eq(schema.routines.id, routineId));
+      return;
     }
 
+    let documentVersionId: string | undefined;
     if (opts?.documentVersionId) {
       documentVersionId = opts.documentVersionId;
     }
@@ -215,7 +264,8 @@ export class ExecutorService {
       botId: routine.botId,
       channelId,
       title: routine.title,
-      documentContent,
+      folderId,
+      folder9Token,
       taskcastTaskId,
       tenantId: routine.tenantId,
     };
