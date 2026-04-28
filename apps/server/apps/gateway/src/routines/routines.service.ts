@@ -93,11 +93,18 @@ export class RoutinesService {
     const routineId = uuidv7();
     const status = dto.status ?? 'upcoming';
 
+    // documentContent was dropped from CreateRoutineDto in Phase A.1 of the
+    // routine→folder9-skill migration. Read it via a permissive alias so any
+    // legacy callers passing it through still work; the comprehensive
+    // createRoutine flow rewrite in A.4 removes this seam entirely.
+    const legacyDocumentContent = (dto as { documentContent?: string })
+      .documentContent;
+
     // Always create a linked document for the routine
     const doc = await this.documentsService.create(
       {
         documentType: 'task',
-        content: dto.documentContent ?? '',
+        content: legacyDocumentContent ?? '',
         title: dto.title,
       },
       { type: 'user', id: userId },
@@ -243,8 +250,13 @@ export class RoutinesService {
       );
     }
 
-    // Handle documentContent — writes to the linked document, not the routine table
-    if (dto.documentContent !== undefined) {
+    // Handle documentContent — writes to the linked document, not the routine table.
+    // The field was dropped from UpdateRoutineDto in Phase A.1 of the
+    // routine→folder9-skill migration; read via a permissive alias so legacy
+    // callers still flow through. A.4 rewrites this branch entirely.
+    const legacyDocumentContent = (dto as { documentContent?: string })
+      .documentContent;
+    if (legacyDocumentContent !== undefined) {
       if (!routine.documentId) {
         throw new BadRequestException(
           'Cannot update document content: routine has no linked document.',
@@ -252,7 +264,7 @@ export class RoutinesService {
       }
       await this.documentsService.update(
         routine.documentId,
-        { content: dto.documentContent },
+        { content: legacyDocumentContent },
         { type: 'user', id: userId },
       );
     }

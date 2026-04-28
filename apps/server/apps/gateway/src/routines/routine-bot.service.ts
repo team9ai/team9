@@ -525,8 +525,12 @@ export class RoutineBotService {
       );
     }
 
-    // Handle documentContent
-    if (dto.documentContent !== undefined) {
+    // Handle documentContent. The field was dropped from UpdateRoutineDto in
+    // Phase A.1 of the routine→folder9-skill migration; read via a permissive
+    // alias so legacy callers still flow through. A.4 rewrites this branch.
+    const legacyDocumentContent = (dto as { documentContent?: string })
+      .documentContent;
+    if (legacyDocumentContent !== undefined) {
       if (!routine.documentId) {
         throw new BadRequestException(
           'Cannot update document content: routine has no linked document.',
@@ -534,7 +538,7 @@ export class RoutineBotService {
       }
       await this.documentsService.update(
         routine.documentId,
-        { content: dto.documentContent },
+        { content: legacyDocumentContent },
         { type: 'user', id: routine.creatorId },
       );
     }
