@@ -712,6 +712,28 @@ describe('AhandDevicesService', () => {
       const lastAndCall = mockAnd.mock.calls.at(-1)!;
       expect(lastAndCall.length).toBe(3); // owner type, owner id, status=active
     });
+
+    it('returns capabilities from the persisted column on listActiveDevicesForUser', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: ['exec', 'browser'] }),
+      ]);
+      redis.mget.mockResolvedValue(['online']);
+      const [device] = await service.listActiveDevicesForUser('user-uuid', {
+        includeOffline: true,
+      });
+      expect(device.capabilities).toEqual(['exec', 'browser']);
+    });
+
+    it('returns empty array when capabilities column has the default', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: [] }),
+      ]);
+      redis.mget.mockResolvedValue(['online']);
+      const [device] = await service.listActiveDevicesForUser('user-uuid', {
+        includeOffline: true,
+      });
+      expect(device.capabilities).toEqual([]);
+    });
   });
 
   // ─── refreshDeviceToken / requireOwnedDevice ────────────────────────

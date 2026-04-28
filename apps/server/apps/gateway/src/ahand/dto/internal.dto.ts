@@ -49,4 +49,8 @@ export class InternalDeviceDto {
   isOnline!: boolean | null;
   lastSeenAt!: string | null;
   createdAt!: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  capabilities!: string[];
 }

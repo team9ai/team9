@@ -144,6 +144,22 @@ describe('AhandInternalController', () => {
       const res = await controller.listDevicesForUser({ userId: 'u' });
       expect(res[0].lastSeenAt).toBeNull();
     });
+
+    it('passes capabilities through in the response', async () => {
+      svc.listActiveDevicesForUser.mockResolvedValue([
+        makeDevice({ capabilities: ['exec', 'browser'] }),
+      ]);
+      const res = await controller.listDevicesForUser({ userId: 'u' });
+      expect(res[0].capabilities).toEqual(['exec', 'browser']);
+    });
+
+    it('defaults capabilities to [] when service returns undefined', async () => {
+      svc.listActiveDevicesForUser.mockResolvedValue([
+        makeDevice({ capabilities: undefined }),
+      ]);
+      const res = await controller.listDevicesForUser({ userId: 'u' });
+      expect(res[0].capabilities).toEqual([]);
+    });
   });
 
   // ─── Guard behaviour ─────────────────────────────────────────────────
