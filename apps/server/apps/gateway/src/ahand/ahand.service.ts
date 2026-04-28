@@ -218,6 +218,8 @@ export class AhandDevicesService {
       data: { hubDeviceId: input.hubDeviceId, nickname: input.nickname },
     });
 
+    this.fireCapabilitiesBackfill(userId, input.hubDeviceId);
+
     return {
       device: inserted,
       deviceJwt: minted.token,
@@ -438,6 +440,51 @@ export class AhandDevicesService {
       throw new ConflictException('Device has been revoked');
     }
     return row;
+  }
+
+  /**
+   * Best-effort cold-start refresh of a single device's capabilities from hub.
+   * Fire-and-forget: returns void, never throws, never blocks the caller.
+   *
+   * Race rationale: `device.online` / `device.registered` webhook handlers are
+   * ownership-gated (skip events for unknown deviceId). If ahandd Hello lands
+   * before team9's row exists, the caps event is dropped. This method covers
+   * that gap by polling hub right after the team9 row is created.
+   */
+  private fireCapabilitiesBackfill(
+    externalUserId: string,
+    hubDeviceId: string,
+  ): void {
+    void (async () => {
+      try {
+        const hubDevices =
+          await this.hub.listDevicesForExternalUser(externalUserId);
+        const match = hubDevices.find((d) => d.deviceId === hubDeviceId);
+        if (!match) {
+          this.logger.warn(
+            `Capabilities backfill: hub returned no device matching ${hubDeviceId} for user ${externalUserId} — skipping update`,
+          );
+          return;
+        }
+        if (match.capabilities === undefined) {
+          // Old hub deployment without the field — leave column at default '{}' .
+          return;
+        }
+        await this.db
+          .update(schema.ahandDevices)
+          .set({ capabilities: match.capabilities })
+          .where(
+            and(
+              eq(schema.ahandDevices.hubDeviceId, hubDeviceId),
+              eq(schema.ahandDevices.status, 'active'),
+            ),
+          );
+      } catch (e) {
+        this.logger.warn(
+          `Capabilities backfill failed for ${hubDeviceId}: ${describe(e)}`,
+        );
+      }
+    })();
   }
 
   private validateNickname(nickname: string): void {

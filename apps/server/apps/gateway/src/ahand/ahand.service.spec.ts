@@ -452,6 +452,151 @@ describe('AhandDevicesService', () => {
     });
   });
 
+  // ─── fireCapabilitiesBackfill (via registerDeviceForUser) ─────────────
+
+  describe('registerDeviceForUser — capabilities backfill', () => {
+    // Shared helpers for deferred promises and flushing microtask queue.
+    function createDeferred<T>() {
+      let resolve!: (v: T) => void;
+      let reject!: (e: unknown) => void;
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+    const flushPromises = () => new Promise<void>((r) => setImmediate(r));
+
+    // Shared happy-path setup: hub register + DB insert + mint all succeed.
+    function setupHappyRegister(hubDeviceId = 'hub-d1') {
+      hub.registerDevice.mockResolvedValue({ deviceId: hubDeviceId });
+      hub.mintDeviceToken.mockResolvedValue({
+        token: 'jwt.xxx',
+        expiresAt: '2026-04-29T10:00:00Z',
+      });
+      dbFixture.chains.insertReturning.mockResolvedValue([
+        makeDeviceRow({ hubDeviceId }),
+      ]);
+    }
+
+    it('registerDevice fires backfill without awaiting hub call', async () => {
+      setupHappyRegister('hub-d1');
+
+      // Hub listDevicesForExternalUser hangs indefinitely.
+      const deferred =
+        createDeferred<{ deviceId: string; capabilities: string[] }[]>();
+      hub.listDevicesForExternalUser.mockReturnValue(deferred.promise);
+
+      const start = Date.now();
+      const result = await service.registerDeviceForUser('u1', {
+        hubDeviceId: 'hub-d1',
+        publicKey: 'pk',
+        nickname: 'MyMac',
+        platform: 'macos',
+      });
+      const elapsed = Date.now() - start;
+
+      // Register returned promptly (well under 50 ms) despite hub hanging.
+      expect(elapsed).toBeLessThan(50);
+      expect(result.device).toBeDefined();
+      expect(result.device.hubDeviceId).toBe('hub-d1');
+
+      // Resolve the hub call now; backfill should write capabilities.
+      deferred.resolve([
+        { deviceId: 'hub-d1', capabilities: ['exec', 'browser'] },
+      ]);
+      await flushPromises();
+
+      // The backfill UPDATE should have been called.
+      expect(dbFixture.db.update).toHaveBeenCalled();
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith({
+        capabilities: ['exec', 'browser'],
+      });
+    });
+
+    it('backfill survives hub error without affecting register', async () => {
+      setupHappyRegister('hub-d2');
+      hub.listDevicesForExternalUser.mockRejectedValue(new Error('hub down'));
+
+      const result = await service.registerDeviceForUser('u1', {
+        hubDeviceId: 'hub-d2',
+        publicKey: 'pk',
+        nickname: 'MyMac',
+        platform: 'macos',
+      });
+
+      // Register succeeded despite hub error.
+      expect(result.device).toBeDefined();
+
+      await flushPromises();
+
+      // DB update should NOT have been called (backfill failed silently).
+      // We check: update() was not called for capabilities (update IS called by
+      // other parts, but updateSet should NOT have been called with capabilities).
+      const capsCalls = dbFixture.chains.updateSet.mock.calls.filter(
+        (args: unknown[]) =>
+          typeof args[0] === 'object' &&
+          args[0] !== null &&
+          'capabilities' in args[0],
+      );
+      expect(capsCalls).toHaveLength(0);
+    });
+
+    it('backfill skips DB update when hub returns no matching device', async () => {
+      setupHappyRegister('hub-d3');
+      // Hub returns a device but with a different deviceId.
+      hub.listDevicesForExternalUser.mockResolvedValue([
+        { deviceId: 'unrelated', capabilities: ['exec'] },
+      ]);
+
+      const result = await service.registerDeviceForUser('u1', {
+        hubDeviceId: 'hub-d3',
+        publicKey: 'pk',
+        nickname: 'MyMac',
+        platform: 'macos',
+      });
+      expect(result.device).toBeDefined();
+
+      await flushPromises();
+
+      // No capabilities update should have been made.
+      const capsCalls = dbFixture.chains.updateSet.mock.calls.filter(
+        (args: unknown[]) =>
+          typeof args[0] === 'object' &&
+          args[0] !== null &&
+          'capabilities' in args[0],
+      );
+      expect(capsCalls).toHaveLength(0);
+    });
+
+    it('backfill leaves caps untouched when hub omits the capabilities field', async () => {
+      setupHappyRegister('hub-d4');
+      // Hub returns matching device but without capabilities field.
+      hub.listDevicesForExternalUser.mockResolvedValue([
+        { deviceId: 'hub-d4' /* no capabilities */ },
+      ]);
+
+      const result = await service.registerDeviceForUser('u1', {
+        hubDeviceId: 'hub-d4',
+        publicKey: 'pk',
+        nickname: 'MyMac',
+        platform: 'macos',
+      });
+      expect(result.device).toBeDefined();
+
+      await flushPromises();
+
+      // No capabilities update should have been made (undefined caps → skip).
+      const capsCalls = dbFixture.chains.updateSet.mock.calls.filter(
+        (args: unknown[]) =>
+          typeof args[0] === 'object' &&
+          args[0] !== null &&
+          'capabilities' in args[0],
+      );
+      expect(capsCalls).toHaveLength(0);
+    });
+  });
+
   // ─── listDevicesForOwner ────────────────────────────────────────────
 
   describe('listDevicesForOwner', () => {
