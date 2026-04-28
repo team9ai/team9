@@ -45,12 +45,20 @@ function mockDb() {
     'delete',
     'leftJoin',
     'innerJoin',
+    // `.for('update')` issues SELECT ... FOR UPDATE in Drizzle. The mock
+    // returns the chain itself (resolves like other chained methods)
+    // unless a specific test overrides via mockResolvedValueOnce.
+    'for',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
   }
   chain.limit.mockResolvedValue([]);
   chain.returning.mockResolvedValue([]);
+  // `for('update')` resolves to a row array (matches the SELECT ... FOR
+  // UPDATE shape that ensureRoutineFolder reads). Default empty so tests
+  // pin specific outcomes via mockResolvedValueOnce.
+  chain.for.mockResolvedValue([]);
   // `transaction(cb)` invokes the callback with a tx handle that mirrors
   // the same chain (so tx.insert/tx.update/tx.select all use the existing
   // mocks). Returns whatever the callback returns. Throws propagate
@@ -110,6 +118,7 @@ describe('RoutinesService — TaskCast integration', () => {
     createFolder: MockFn;
     createToken: MockFn;
     commit: MockFn;
+    getBlob: MockFn;
   };
 
   beforeEach(async () => {
@@ -173,6 +182,12 @@ describe('RoutinesService — TaskCast integration', () => {
         .fn<any>()
         .mockResolvedValue({ token: 'tok-new', expires_at: '2099-01-01' }),
       commit: jest.fn<any>().mockResolvedValue({ commit_id: 'commit-1' }),
+      // getBlob is the SKILL.md read in completeCreation (A.5). The
+      // top-level default is unused — every consumer (currently only
+      // the completeCreation describe block) overrides via beforeEach
+      // with a payload that matches its fixture's name/description.
+      // We still wire the spy so tests can assertHaveBeenCalled.
+      getBlob: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -2415,6 +2430,8 @@ describe('RoutinesService — TaskCast integration', () => {
   // ── completeCreation ──────────────────────────────────────────────
 
   describe('completeCreation', () => {
+    const ROUTINE_DESCRIPTION = 'My routine description';
+
     const DRAFT_ROUTINE = {
       ...BASE_TASK,
       id: 'routine-1',
@@ -2422,9 +2439,36 @@ describe('RoutinesService — TaskCast integration', () => {
       creatorId: 'user-1',
       botId: 'bot-1',
       title: 'My Routine',
+      // SKILL.md frontmatter `description` must equal this. Non-null +
+      // non-empty so the new A.5 SKILL.md validation can compare against
+      // a canonical value.
+      description: ROUTINE_DESCRIPTION,
+      // folderId pre-populated so `ensureRoutineFolder` takes the fast
+      // path (no folder9 createFolder call) — the SELECT ... FOR UPDATE
+      // returns this row, sees folderId, returns immediately. Individual
+      // tests that need the slow-path (lazy provision) override the `for`
+      // mock per-call.
+      folderId: 'folder-existing',
       documentId: 'doc-1',
       creationChannelId: 'channel-1',
     };
+
+    /**
+     * SKILL.md content that satisfies validateSkillMd against
+     * DRAFT_ROUTINE: name slug derived from `routine-1`, description
+     * matches DRAFT_ROUTINE.description, body well past 20 chars.
+     *
+     * `slugifyUuid("routine-1")` → "routine-1" (one segment), so the
+     * expected name is `routine-routine-1`.
+     */
+    const VALID_SKILL_MD = [
+      '---',
+      'name: routine-routine-1',
+      `description: ${ROUTINE_DESCRIPTION}`,
+      '---',
+      '',
+      'A complete routine body that easily clears the 20-char threshold.',
+    ].join('\n');
 
     const UPDATED_ROUTINE = {
       ...DRAFT_ROUTINE,
@@ -2439,6 +2483,20 @@ describe('RoutinesService — TaskCast integration', () => {
         botId: 'bot-1',
         userId: 'user-1',
       } as any);
+
+      // `for('update')` is the SELECT ... FOR UPDATE inside
+      // ensureRoutineFolder. Default to the DRAFT_ROUTINE so the fast
+      // path returns immediately. Individual tests override per-call.
+      db.for.mockResolvedValue([DRAFT_ROUTINE]);
+
+      // Default SKILL.md read returns the valid fixture so happy-path
+      // tests don't have to redeclare it. Failure-path tests override.
+      folder9Client.getBlob.mockResolvedValue({
+        path: 'SKILL.md',
+        size: VALID_SKILL_MD.length,
+        content: VALID_SKILL_MD,
+        encoding: 'text' as const,
+      });
     });
 
     it('transitions draft → upcoming and archives the creation channel', async () => {
@@ -3044,6 +3102,302 @@ describe('RoutinesService — TaskCast integration', () => {
 
       expect(startSpy).not.toHaveBeenCalled();
       startSpy.mockRestore();
+    });
+
+    // ── A.5 SKILL.md validation ────────────────────────────────────
+    //
+    // These tests pin the integration: completeCreation must call
+    // ensureRoutineFolder, mint a read-token, fetch SKILL.md, and run
+    // validateSkillMd before flipping status. Validation FAILURE returns
+    // `{ success: false, error }` (no throw) so the agent can retry.
+    describe('SKILL.md validation (A.5)', () => {
+      it('calls ensureRoutineFolder and reads SKILL.md before flipping status', async () => {
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+
+        await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+        // ensureRoutineFolder ran exactly once (SELECT ... FOR UPDATE).
+        expect(db.for).toHaveBeenCalledWith('update');
+        // Read token minted with read scope, short TTL, and routine-scoped
+        // creator label.
+        expect(folder9Client.createToken).toHaveBeenCalledWith(
+          expect.objectContaining({
+            folder_id: 'folder-existing',
+            permission: 'read',
+            name: 'routine-finish-validate',
+            created_by: 'routine:routine-1',
+          }),
+        );
+        // The minted token's expires_at must be within ~5 minutes of now.
+        const ttlIso = folder9Client.createToken.mock.calls[0][0]
+          .expires_at as string;
+        const ttlMs = new Date(ttlIso).getTime() - Date.now();
+        expect(ttlMs).toBeGreaterThan(0);
+        expect(ttlMs).toBeLessThanOrEqual(5 * 60_000 + 1000); // small clock fudge
+        // SKILL.md fetched at folder root using the freshly-minted token.
+        const mintedToken = folder9Client.createToken.mock.results[0]
+          .value as Promise<{ token: string }>;
+        const tokenStr = (await mintedToken).token;
+        expect(folder9Client.getBlob).toHaveBeenCalledWith(
+          'tenant-1',
+          'folder-existing',
+          tokenStr,
+          'SKILL.md',
+        );
+      });
+
+      it('returns { success: false, error } when SKILL.md frontmatter name is wrong', async () => {
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        // Override default valid SKILL.md with a name-mismatched fixture.
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: 100,
+          content: [
+            '---',
+            'name: routine-bogus',
+            `description: ${ROUTINE_DESCRIPTION}`,
+            '---',
+            '',
+            'A complete body that easily clears the threshold.',
+          ].join('\n'),
+          encoding: 'text' as const,
+        });
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toEqual({
+          success: false,
+          error: expect.stringContaining('name'),
+        });
+        // Status flip MUST NOT have happened.
+        expect(db.update).not.toHaveBeenCalled();
+        // Channel archive MUST NOT have happened.
+        expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      });
+
+      it('returns { success: false, error } when SKILL.md description does not match', async () => {
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: 100,
+          content: [
+            '---',
+            'name: routine-routine-1',
+            'description: a totally different description',
+            '---',
+            '',
+            'A complete body that easily clears the threshold.',
+          ].join('\n'),
+          encoding: 'text' as const,
+        });
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toEqual({
+          success: false,
+          error: expect.stringContaining('description'),
+        });
+        expect(db.update).not.toHaveBeenCalled();
+      });
+
+      it('returns { success: false, error } when SKILL.md body is too short', async () => {
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: 50,
+          content: [
+            '---',
+            'name: routine-routine-1',
+            `description: ${ROUTINE_DESCRIPTION}`,
+            '---',
+            '',
+            'too short',
+          ].join('\n'),
+          encoding: 'text' as const,
+        });
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toEqual({
+          success: false,
+          error: expect.stringContaining('body'),
+        });
+        expect(db.update).not.toHaveBeenCalled();
+      });
+
+      it('returns { success: false, error } when SKILL.md frontmatter is malformed', async () => {
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: 30,
+          content: 'no frontmatter here',
+          encoding: 'text' as const,
+        });
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toMatchObject({
+          success: false,
+          error: expect.stringMatching(/frontmatter/i),
+        });
+      });
+
+      it('decodes base64 SKILL.md content before validating', async () => {
+        const base64 = Buffer.from(VALID_SKILL_MD, 'utf8').toString('base64');
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: base64.length,
+          content: base64,
+          encoding: 'base64' as const,
+        });
+
+        // Validation should succeed → status flip happens, return shape
+        // is the upcoming row, not the failure object.
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toEqual(UPDATED_ROUTINE);
+      });
+
+      it('returns { success: false, error } when getBlob throws (e.g. SKILL.md missing)', async () => {
+        db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        folder9Client.getBlob.mockRejectedValueOnce(new Error('404 Not Found'));
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toMatchObject({
+          success: false,
+          error: expect.stringMatching(/SKILL\.md.*could not be read/i),
+        });
+        expect(db.update).not.toHaveBeenCalled();
+      });
+
+      it('lazy-provisions folder9 folder when folderId is null then validates', async () => {
+        // routine.folderId is null on the initial fetch (slow path of
+        // ensureRoutineFolder will call provision via the folder9 client).
+        const draftNoFolder = { ...DRAFT_ROUTINE, folderId: null };
+        db.limit.mockResolvedValueOnce([draftNoFolder] as any);
+        // ensureRoutineFolder reads via SELECT ... FOR UPDATE; the row
+        // also lacks folderId, so the provision branch fires.
+        db.for.mockResolvedValueOnce([draftNoFolder] as any);
+        // Provision creates folder, mints write token, commits, then
+        // UPDATEs the row. Mock the folder creation chain.
+        folder9Client.createFolder.mockResolvedValueOnce({
+          id: 'folder-fresh',
+          workspace_id: 'tenant-1',
+        } as any);
+        folder9Client.createToken
+          .mockResolvedValueOnce({
+            // First mint: write-scoped token for provision
+            id: 'tok-write',
+            token: 'opaque-write',
+            permission: 'write',
+            folder_id: 'folder-fresh',
+            created_by: 'routine:routine-1',
+            created_at: '2026-04-27T00:00:00Z',
+          } as any)
+          .mockResolvedValueOnce({
+            // Second mint: read-scoped token for the validation read
+            token: 'tok-read',
+            expires_at: '2099-01-01',
+          } as any);
+        folder9Client.commit.mockResolvedValueOnce({
+          commit: 'sha-1',
+          branch: 'main',
+        } as any);
+        documentsService.getById.mockResolvedValueOnce({
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          currentVersion: { versionIndex: 1, content: 'some content' },
+        } as any);
+        db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toEqual(UPDATED_ROUTINE);
+        // Provision happened.
+        expect(folder9Client.createFolder).toHaveBeenCalledTimes(1);
+        // Two tokens: one for provision (write), one for validation (read).
+        expect(folder9Client.createToken).toHaveBeenCalledTimes(2);
+        expect(folder9Client.getBlob).toHaveBeenCalledWith(
+          'tenant-1',
+          'folder-fresh',
+          'tok-read',
+          'SKILL.md',
+        );
+      });
     });
   });
 
@@ -4221,17 +4575,23 @@ describe('RoutinesService — completeCreation race guard', () => {
       'delete',
       'leftJoin',
       'innerJoin',
+      // SELECT ... FOR UPDATE — invoked by ensureRoutineFolder (A.5
+      // wires this into completeCreation's pre-flight checks).
+      'for',
     ];
     for (const m of methods) {
       chain[m] = jest.fn<any>().mockReturnValue(chain);
     }
     chain.limit.mockResolvedValue([]);
     chain.returning.mockResolvedValue([]);
+    chain.for.mockResolvedValue([]);
     chain.transaction = jest
       .fn<any>()
       .mockImplementation((cb: (tx: any) => any) => cb(chain));
     return chain;
   }
+
+  const ROUTINE_DESCRIPTION = 'Race guard routine';
 
   const DRAFT_ROUTINE = {
     id: 'routine-1',
@@ -4244,11 +4604,26 @@ describe('RoutinesService — completeCreation race guard', () => {
     creationChannelId: 'channel-1',
     scheduleType: 'once',
     scheduleConfig: null,
-    description: null,
+    // Non-null description so SKILL.md validation has something to
+    // compare against. Empty would short-circuit on the empty-frontmatter
+    // rule before exercising the race-guard branches we want to test.
+    description: ROUTINE_DESCRIPTION,
+    // folderId pre-populated → ensureRoutineFolder takes the fast path.
+    folderId: 'folder-existing',
     createdAt: new Date(),
     updatedAt: new Date(),
     currentExecutionId: null,
   };
+
+  /** SKILL.md content that satisfies validateSkillMd against DRAFT_ROUTINE. */
+  const VALID_SKILL_MD = [
+    '---',
+    'name: routine-routine-1',
+    `description: ${ROUTINE_DESCRIPTION}`,
+    '---',
+    '',
+    'A complete routine body that easily clears the 20-char threshold.',
+  ].join('\n');
 
   let service: RoutinesService;
   let db: ReturnType<typeof mockDb>;
@@ -4275,6 +4650,12 @@ describe('RoutinesService — completeCreation race guard', () => {
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let wsGateway: { broadcastToWorkspace: MockFn };
   let usersService: { getLocalePreferences: MockFn };
+  let folder9Client: {
+    createFolder: MockFn;
+    createToken: MockFn;
+    commit: MockFn;
+    getBlob: MockFn;
+  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -4328,6 +4709,28 @@ describe('RoutinesService — completeCreation race guard', () => {
         .fn<any>()
         .mockResolvedValue({ language: null, timeZone: null }),
     };
+    // Folder9 mock — stubbed for both create() (unused here) and the A.5
+    // SKILL.md read path (createToken + getBlob). Default getBlob returns
+    // the valid fixture so tests proceed past validation; race-guard
+    // tests want to exercise the post-validation status flip, not the
+    // SKILL.md gate itself.
+    folder9Client = {
+      createFolder: jest.fn<any>(),
+      createToken: jest
+        .fn<any>()
+        .mockResolvedValue({ token: 'tok-read', expires_at: '2099-01-01' }),
+      commit: jest.fn<any>(),
+      getBlob: jest.fn<any>().mockResolvedValue({
+        path: 'SKILL.md',
+        size: VALID_SKILL_MD.length,
+        content: VALID_SKILL_MD,
+        encoding: 'text' as const,
+      }),
+    };
+    // Default `for` mock returns the draft routine so ensureRoutineFolder
+    // takes the fast path. Tests that need the slow-path (lazy provision)
+    // override per-call.
+    db.for.mockResolvedValue([DRAFT_ROUTINE]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -4342,16 +4745,7 @@ describe('RoutinesService — completeCreation race guard', () => {
         { provide: BotService, useValue: botsService },
         { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
         { provide: UsersService, useValue: usersService },
-        // create() isn't exercised in the race-guard suite, but DI still
-        // needs a stub so the RoutinesService can be instantiated.
-        {
-          provide: Folder9ClientService,
-          useValue: {
-            createFolder: jest.fn<any>(),
-            createToken: jest.fn<any>(),
-            commit: jest.fn<any>(),
-          },
-        },
+        { provide: Folder9ClientService, useValue: folder9Client },
       ],
     }).compile();
 

@@ -83,8 +83,13 @@ export interface ProvisionRoutineFolderDeps {
  *
  * Example: `slugifyUuid("7f3a2b1c-1111-2222-3333-444455556666")` →
  * `"7f3a2b1c-1111"`.
+ *
+ * Exported so downstream consumers (e.g. `validateSkillMd` in A.5) can
+ * derive the same expected `routine-<slug>` value without redefining the
+ * algorithm. Keeping a single source of truth means a slug-format change
+ * (should we ever decide to widen it) only has to be made here.
  */
-function slugifyUuid(id: string): string {
+export function slugifyUuid(id: string): string {
   return id.split('-').slice(0, 2).join('-');
 }
 

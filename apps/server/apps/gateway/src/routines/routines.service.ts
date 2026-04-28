@@ -54,7 +54,12 @@ import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js'
 import { TaskCastService } from './taskcast.service.js';
 import { UsersService } from '../im/users/users.service.js';
 import { Folder9ClientService } from '../wikis/folder9-client.service.js';
-import { provisionFolder9SkillFolder } from './folder/provision-routine-folder.js';
+import {
+  provisionFolder9SkillFolder,
+  slugifyUuid,
+} from './folder/provision-routine-folder.js';
+import { ensureRoutineFolder } from './folder/ensure-routine-folder.js';
+import { validateSkillMd } from './folder/validate-skill-md.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -992,6 +997,93 @@ export class RoutinesService {
         message: 'Missing required fields',
         errors,
       });
+    }
+
+    // ── Step 5b: SKILL.md validation (A.5) ───────────────────────────
+    //
+    // Now that the legacy required-field gate has passed, ensure the
+    // routine has a folder9 folder and that the agent populated SKILL.md
+    // correctly. `ensureRoutineFolder` is the Layer 2 invariant: after it
+    // returns, `routine.folderId` is guaranteed non-null. We then mint a
+    // short-lived read-scoped token and fetch SKILL.md, run the
+    // validation, and on any rule violation return `{ success: false,
+    // error }` so the calling agent can fix the file and retry via the
+    // `finishRoutineCreation` tool (no 4xx — surfaces cleanly through the
+    // tool result channel).
+    //
+    // We pass `null` for `documentContent` to the underlying provision
+    // helper indirectly via ensureRoutineFolder's internal default. The
+    // very first call here will lazily create the folder with an empty
+    // SKILL.md scaffold — that scaffold WILL fail this validation
+    // (frontmatter description doesn't match the routine description if
+    // the routine has one, OR body is too short). That's the correct
+    // behaviour: the agent then fills in the content and retries.
+    const ensured = await ensureRoutineFolder(routineId, {
+      db: this.db,
+      provisionDeps: {
+        folder9Client: this.folder9Client,
+        workspaceId: routine.tenantId,
+        psk: '',
+      },
+    });
+
+    // Mint a 5-minute read token. The validation reads SKILL.md exactly
+    // once on this code path, so a tight TTL caps the leak window if a
+    // log scrape ever surfaces the token. `name` is descriptive for
+    // folder9-side audit; `created_by` namespaces routine activity from
+    // wiki activity for traceability.
+    const readToken = await this.folder9Client.createToken({
+      folder_id: ensured.folderId!,
+      permission: 'read',
+      name: 'routine-finish-validate',
+      created_by: `routine:${routineId}`,
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+
+    let skillMdContent: string;
+    try {
+      const blob = await this.folder9Client.getBlob(
+        routine.tenantId,
+        ensured.folderId!,
+        readToken.token,
+        'SKILL.md',
+      );
+      // folder9 returns base64-encoded content for non-UTF8 blobs. SKILL.md
+      // must be plain text — anything else is treated as missing/invalid.
+      skillMdContent =
+        blob.encoding === 'text'
+          ? blob.content
+          : Buffer.from(blob.content, 'base64').toString('utf8');
+    } catch (err) {
+      this.logger.warn(
+        `completeCreation: failed to read SKILL.md for routine ${routineId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return {
+        success: false as const,
+        error:
+          'SKILL.md could not be read from the routine folder. Please write the file before finishing creation.',
+      };
+    }
+
+    const expectedSkillName = `routine-${slugifyUuid(routineId)}`;
+    // Use `ensured.description` — the row read INSIDE the
+    // ensureRoutineFolder transaction. That's the freshest authoritative
+    // value (the row was SELECT ... FOR UPDATE locked at provision time),
+    // so it cannot be stale relative to whatever the agent saw when it
+    // wrote SKILL.md.
+    const expectedDescription = ensured.description ?? '';
+    const validation = validateSkillMd(
+      skillMdContent,
+      expectedSkillName,
+      expectedDescription,
+    );
+    if (!validation.ok) {
+      this.logger.log(
+        `completeCreation: SKILL.md validation rejected routine ${routineId}: ${validation.reason}`,
+      );
+      return { success: false as const, error: validation.reason };
     }
 
     // Step 6: Conditionally update status to upcoming only if still draft.
