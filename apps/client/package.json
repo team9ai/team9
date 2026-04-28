@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:web": "vite",
-    "dev:desktop": "tauri dev --config src-tauri/tauri.local.conf.json",
-    "dev:desktop:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "dev:desktop": "cross-env TEAM9_APP_NAME=\"Team9 Local\" tauri dev --config src-tauri/tauri.local.conf.json",
+    "dev:desktop:dev": "cross-env TEAM9_APP_NAME=\"Team9 Dev\" tauri dev --config src-tauri/tauri.dev.conf.json",
     "dev:ios": "tauri ios dev",
     "dev:android": "tauri android dev",
     "build": "vite build",
@@ -133,6 +133,7 @@
     "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^4.6.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "cross-env": "^10.1.0",
     "eslint": "^9.18.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.0.0",
