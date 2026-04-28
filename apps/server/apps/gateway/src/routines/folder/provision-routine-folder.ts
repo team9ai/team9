@@ -153,11 +153,14 @@ export async function provisionFolder9SkillFolder(
   // for routines so observability/audit trails can tell the two apart. The
   // routine id (full UUID, not slug) is embedded so a leaked token entry can
   // be traced back to the originating routine.
+  // 15-minute TTL — the token is consumed by the immediately-following commit
+  // call, so a tight expiry caps the leak window if commit fails partway.
   const tokenResp = await folder9Client.createToken({
     folder_id: folder.id,
     permission: 'write',
     name: 'routine-provision',
     created_by: `routine:${routine.id}`,
+    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
   });
 
   // Step 3 — compose SKILL.md and commit it as the seed of the folder.
