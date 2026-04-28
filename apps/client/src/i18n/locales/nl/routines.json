@@ -78,6 +78,17 @@
     "restart": "Opnieuw starten",
     "delete": "Verwijderen",
     "deleteConfirm": "Weet je zeker dat je deze routine wilt verwijderen?",
+    "createdAt": "Gemaakt",
+    "lastRunAt": "Laatste uitvoering",
+    "totalTokens": "Totaal tokens",
+    "currentRun": "Huidige uitvoering",
+    "view": "Bekijken →",
+    "recentRuns": "Recente uitvoeringen",
+    "viewAllRuns": "Alle uitvoeringen bekijken →",
+    "showMore": "{{count}} meer tonen",
+    "runNotFound": "Uitvoering niet gevonden",
+    "backToRoutine": "Terug naar routine",
+    "toggleExpand": "Uitvouwen wisselen",
     "assignBot": "AI-medewerker",
     "noBot": "Niet toegewezen",
     "steps": "Stappen",
@@ -136,7 +147,11 @@
         "loadError": "Kan versies niet laden",
         "noVersions": "Nog geen versies"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "Triggers",
@@ -278,6 +293,7 @@
     "interval": "Interval",
     "schedule": "Planning",
     "channelMessage": "Kanaalbericht",
-    "retry": "Opnieuw proberen"
+    "retry": "Opnieuw proberen",
+    "running": "running"
   }
 }

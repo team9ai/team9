@@ -78,6 +78,17 @@
     "restart": "Reiniciar",
     "delete": "Excluir",
     "deleteConfirm": "Tem certeza de que deseja excluir esta rotina?",
+    "createdAt": "Criado",
+    "lastRunAt": "Última execução",
+    "totalTokens": "Total de tokens",
+    "currentRun": "Execução atual",
+    "view": "Ver →",
+    "recentRuns": "Execuções recentes",
+    "viewAllRuns": "Ver todas as execuções →",
+    "showMore": "Mostrar mais {{count}}",
+    "runNotFound": "Execução não encontrada",
+    "backToRoutine": "Voltar para rotina",
+    "toggleExpand": "Alternar expansão",
     "assignBot": "Equipe de IA",
     "noBot": "Não atribuído",
     "steps": "Etapas",
@@ -136,7 +147,11 @@
         "loadError": "Falha ao carregar versões",
         "noVersions": "Ainda não há versões"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "Gatilhos",
@@ -278,6 +293,7 @@
     "interval": "Intervalo",
     "schedule": "Agendamento",
     "channelMessage": "Mensagem do canal",
-    "retry": "Nova tentativa"
+    "retry": "Nova tentativa",
+    "running": "running"
   }
 }

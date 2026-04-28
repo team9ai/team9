@@ -52,7 +52,10 @@
   },
   "schedule": {
     "type": "Planification",
-    "types": { "once": "Une fois", "recurring": "Récurrent" },
+    "types": {
+      "once": "Une fois",
+      "recurring": "Récurrent"
+    },
     "frequency": "Fréquence",
     "frequencies": {
       "daily": "Quotidien",
@@ -82,6 +85,17 @@
     "restart": "Redémarrer",
     "delete": "Supprimer",
     "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette routine ?",
+    "createdAt": "Créé",
+    "lastRunAt": "Dernière exécution",
+    "totalTokens": "Total de jetons",
+    "currentRun": "Exécution en cours",
+    "view": "Voir →",
+    "recentRuns": "Exécutions récentes",
+    "viewAllRuns": "Voir toutes les exécutions →",
+    "showMore": "Afficher {{count}} de plus",
+    "runNotFound": "Exécution introuvable",
+    "backToRoutine": "Retour à la routine",
+    "toggleExpand": "Basculer l'expansion",
     "assignBot": "Personnel IA",
     "noBot": "Non assigné",
     "steps": "Étapes",
@@ -140,7 +154,11 @@
         "loadError": "Échec du chargement des versions",
         "noVersions": "Aucune version pour le moment"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "Déclencheurs",
@@ -235,7 +253,9 @@
       "paused": "Routine en pause"
     }
   },
-  "chat": { "placeholder": "Démarrez la routine pour discuter avec le bot" },
+  "chat": {
+    "placeholder": "Démarrez la routine pour discuter avec le bot"
+  },
   "manualTrigger": {
     "title": "Démarrer la routine",
     "notesPlaceholder": "Ajoutez des notes ou du contexte pour cette exécution (facultatif)..."
@@ -280,6 +300,7 @@
     "interval": "Intervalle",
     "schedule": "Planifié",
     "channelMessage": "Message de canal",
-    "retry": "Nouvelle tentative"
+    "retry": "Nouvelle tentative",
+    "running": "running"
   }
 }

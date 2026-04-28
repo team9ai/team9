@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-26-routine-detail-page.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Routes + URL-driven RoutinesSidebar",
+      "status": "completed",
+      "description": "**Goal:** Move sidebar selection state from internal React state into TanStack Router URL params. Add the two new routes ($routineId.tsx, $routineId.runs.$executionId.tsx). Detail route renders a placeholder for now; run route mounts the existing ChatArea + RightPanel. Click behavior preserved.\n\n**Files:**\n- Create: apps/client/src/components/routines/RoutinesSidebar.tsx\n- Create: apps/client/src/components/routines/__tests__/RoutinesSidebar.test.tsx\n- Create: apps/client/src/routes/_authenticated/routines/$routineId.tsx\n- Create: apps/client/src/routes/_authenticated/routines/$routineId.runs.$executionId.tsx\n- Modify: apps/client/src/routes/_authenticated/routines/index.tsx\n- Delete: apps/client/src/components/routines/RoutineList.tsx\n\n**Verify:** pnpm --filter client test --run components/routines\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutinesSidebar.tsx\", \"apps/client/src/components/routines/__tests__/RoutinesSidebar.test.tsx\", \"apps/client/src/routes/_authenticated/routines/$routineId.tsx\", \"apps/client/src/routes/_authenticated/routines/$routineId.runs.$executionId.tsx\", \"apps/client/src/routes/_authenticated/routines/index.tsx\", \"apps/client/src/components/routines/RoutineCard.tsx\", \"apps/client/src/components/routines/DraftRoutineCard.tsx\", \"apps/client/src/components/routines/RoutineList.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines\", \"acceptanceCriteria\": [\"/routines renders sidebar + empty state\", \"/routines/$routineId/runs/$executionId renders sidebar + ChatArea + RightPanel\", \"/routines/$routineId renders placeholder\", \"Routine card body click navigates to first/active run URL\", \"Draft click navigates to /routines/$routineId/runs/creation\", \"creation sentinel renders creation-session ChatArea\", \"SelectedRun type re-exported from RoutinesSidebar; RoutineCard and DraftRoutineCard imports updated\", \"No RoutineList references remain\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: RoutineDetailView shell + Triggers/Documents tabs",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "**Goal:** Create the tabbed detail page with header (title, status pill, [...] Delete menu) and shadcn Tabs (Overview placeholder, Triggers/Documents wired, Runs placeholder). Update sidebar settings button to navigate.\n\n**Files:**\n- Create: apps/client/src/components/routines/RoutineDetailView.tsx\n- Create: apps/client/src/components/routines/__tests__/RoutineDetailView.test.tsx\n- Modify: apps/client/src/routes/_authenticated/routines/$routineId.tsx\n- Modify: apps/client/src/components/routines/RoutinesSidebar.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/__tests__/RoutineDetailView\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutineDetailView.tsx\", \"apps/client/src/components/routines/__tests__/RoutineDetailView.test.tsx\", \"apps/client/src/routes/_authenticated/routines/$routineId.tsx\", \"apps/client/src/components/routines/RoutinesSidebar.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/__tests__/RoutineDetailView\", \"acceptanceCriteria\": [\"Detail route renders header (title, status pill, [...] menu) and 4 tabs\", \"Triggers and Documents tabs render existing components verbatim\", \"Tab selection persists in URL via ?tab=\", \"Tab switch uses replace navigation\", \"Delete entry hidden when status not deletable\", \"Delete confirm calls routinesApi.delete and navigates to /routines\", \"Sidebar settings button navigates to ?tab=overview\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: RunListItem component",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** A new richer row component for the detail page that shows status pill, version, relative time, trigger badge (per spec mapping), token usage, and duration. Used by Overview tab recent-5 and Runs tab.\n\n**Files:**\n- Create: apps/client/src/components/routines/RunListItem.tsx\n- Create: apps/client/src/components/routines/__tests__/RunListItem.test.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/__tests__/RunListItem\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RunListItem.tsx\", \"apps/client/src/components/routines/__tests__/RunListItem.test.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/__tests__/RunListItem\", \"acceptanceCriteria\": [\"Renders status dot, version, time, trigger badge in primary row\", \"Renders tokens and duration in secondary row\", \"Trigger badge mapping: Retry > Manual / Scheduled / Interval / Channel / none\", \"Retry detected via triggerContext.originalExecutionId\", \"Duration: 'running Xm Ys+' for in-progress, Xh Ym / Xm Ys / Xs for finished, hidden if no startedAt\", \"Selected styling matches RunItem\", \"onClick fires on click\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: RoutineOverviewTab",
+      "status": "completed",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** Implement the Overview tab — description, metadata grid, bot assignment, recent 5 runs (using RunListItem), and 'View all runs' link.\n\n**Files:**\n- Create: apps/client/src/components/routines/tabs/RoutineOverviewTab.tsx\n- Create: apps/client/src/components/routines/tabs/__tests__/RoutineOverviewTab.test.tsx\n- Modify: apps/client/src/components/routines/RoutineDetailView.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/tabs/__tests__/RoutineOverviewTab\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/tabs/RoutineOverviewTab.tsx\", \"apps/client/src/components/routines/tabs/__tests__/RoutineOverviewTab.test.tsx\", \"apps/client/src/components/routines/RoutineDetailView.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/tabs/__tests__/RoutineOverviewTab\", \"acceptanceCriteria\": [\"Description renders when present, hidden when null\", \"Metadata grid renders 4 cells; tokens hidden when 0\", \"Current execution View link navigates to run\", \"Bot assignment Select calls routinesApi.update and invalidates queries\", \"Recent 5 runs section shows up to 5 / empty state if 0\", \"'View all runs' link calls onSwitchTab('runs')\", \"Click run row navigates to /routines/$id/runs/$execId\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: RoutineRunsTab",
+      "status": "completed",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** Implement the Runs tab — full execution list, 20-at-a-time progressive display, polling enabled while active, click-to-navigate.\n\n**Files:**\n- Create: apps/client/src/components/routines/tabs/RoutineRunsTab.tsx\n- Create: apps/client/src/components/routines/tabs/__tests__/RoutineRunsTab.test.tsx\n- Modify: apps/client/src/components/routines/RoutineDetailView.tsx\n\n**Verify:** pnpm --filter client test --run components/routines/tabs/__tests__/RoutineRunsTab\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/tabs/RoutineRunsTab.tsx\", \"apps/client/src/components/routines/tabs/__tests__/RoutineRunsTab.test.tsx\", \"apps/client/src/components/routines/RoutineDetailView.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines/tabs/__tests__/RoutineRunsTab\", \"acceptanceCriteria\": [\"First 20 executions visible by default\", \"'Show 20 more' appends next 20 on click\", \"'Show 20 more' hides when all visible\", \"Polling enabled only when active prop is true\", \"Click row navigates to run URL\", \"Empty state when 0 executions\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Sidebar simplification — chevron split + active runs only + default click → detail",
+      "status": "completed",
+      "blockedBy": [3, 4],
+      "description": "**Goal:** Switch sidebar default routine click to navigate to detail page. Split chevron click vs body click. Filter sidebar expansion to active runs only.\n\n**Files:**\n- Modify: apps/client/src/components/routines/RoutineCard.tsx\n- Modify: apps/client/src/components/routines/RoutinesSidebar.tsx\n- Modify: apps/client/src/components/routines/__tests__/RoutinesSidebar.test.tsx\n\n**Verify:** pnpm --filter client test --run components/routines\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutineCard.tsx\", \"apps/client/src/components/routines/RoutinesSidebar.tsx\", \"apps/client/src/components/routines/__tests__/RoutinesSidebar.test.tsx\"], \"verifyCommand\": \"pnpm --filter client test --run components/routines\", \"acceptanceCriteria\": [\"Non-draft routine body click navigates to /routines/$routineId\", \"Draft body click navigates to /routines/$routineId/runs/creation\", \"Chevron click toggles expansion only, no navigate\", \"Expanded body shows only active-status runs + creation row\", \"Empty active-runs collapses to header (no placeholder)\", \"No 'Show more' button anywhere\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: Cleanup — delete RoutineSettingsDialog + RoutineSettingsTab",
+      "status": "completed",
+      "blockedBy": [5],
+      "description": "**Goal:** Remove the now-orphaned settings modal and its tab. Verify no remaining imports.\n\n**Files:**\n- Delete: apps/client/src/components/routines/RoutineSettingsDialog.tsx\n- Delete: apps/client/src/components/routines/RoutineSettingsTab.tsx\n- Modify: apps/client/src/components/routines/RoutinesSidebar.tsx\n\n**Verify:** grep -rn 'RoutineSettingsDialog\\|RoutineSettingsTab' apps/client/src returns empty; pnpm --filter client typecheck && pnpm --filter client test --run components/routines\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/routines/RoutineSettingsDialog.tsx\", \"apps/client/src/components/routines/RoutineSettingsTab.tsx\", \"apps/client/src/components/routines/RoutinesSidebar.tsx\"], \"verifyCommand\": \"grep -rn 'RoutineSettingsDialog\\\\|RoutineSettingsTab' apps/client/src\", \"acceptanceCriteria\": [\"No source file references RoutineSettingsDialog or RoutineSettingsTab\", \"pnpm --filter client typecheck passes\", \"pnpm --filter client test --run components/routines passes\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-27T03:10:00+08:00"
+}
