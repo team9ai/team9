@@ -6,6 +6,7 @@ import {
   IsISO8601,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -114,6 +115,7 @@ export class WebhookEventDto {
   @IsNotEmpty()
   externalUserId?: string;
 
+  @IsObject()
   @ValidateNested()
   @Type(() => WebhookEventDataDto)
   @Validate(HeartbeatDataRequiredConstraint)

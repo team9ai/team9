@@ -51,13 +51,23 @@ describe('WebhookEventDto.data.capabilities', () => {
   it('rejects non-array capabilities', async () => {
     const dto = makeEvent('device.online', { capabilities: 'browser' });
     const errors = await validate(dto);
-    expect(errors.length).toBeGreaterThan(0);
+    const dataErrors =
+      errors.find((e) => e.property === 'data')?.children ?? [];
+    const capErr = dataErrors.find((e) => e.property === 'capabilities');
+    expect(capErr?.constraints).toHaveProperty('isArray');
   });
 
   it('rejects non-string entries', async () => {
     const dto = makeEvent('device.online', { capabilities: [123] });
     const errors = await validate(dto);
-    expect(errors.length).toBeGreaterThan(0);
+    const dataErrors =
+      errors.find((e) => e.property === 'data')?.children ?? [];
+    const capErr = dataErrors.find((e) => e.property === 'capabilities');
+    // class-validator reports per-element isString failures on the array property itself
+    expect(capErr?.constraints || capErr?.children).toBeTruthy();
+    if (capErr?.constraints) {
+      expect(capErr.constraints).toHaveProperty('isString');
+    }
   });
 
   it('rejects oversized arrays (>32 entries)', async () => {
@@ -65,7 +75,38 @@ describe('WebhookEventDto.data.capabilities', () => {
       capabilities: Array(33).fill('x'),
     });
     const errors = await validate(dto);
-    expect(errors.length).toBeGreaterThan(0);
+    const dataErrors =
+      errors.find((e) => e.property === 'data')?.children ?? [];
+    const capErr = dataErrors.find((e) => e.property === 'capabilities');
+    expect(capErr?.constraints).toHaveProperty('arrayMaxSize');
+  });
+});
+
+describe('WebhookEventDto.data — object shape validation', () => {
+  it('rejects null data', async () => {
+    const dto = plainToInstance(WebhookEventDto, {
+      eventId: '01KPZXF939E45M8ZQN9GWFM0DY',
+      eventType: 'device.online',
+      occurredAt: '2026-04-28T00:00:00.000Z',
+      deviceId: 'a'.repeat(64),
+      data: null,
+    });
+    const errors = await validate(dto);
+    const dataErr = errors.find((e) => e.property === 'data');
+    expect(dataErr?.constraints).toHaveProperty('isObject');
+  });
+
+  it('rejects string data', async () => {
+    const dto = plainToInstance(WebhookEventDto, {
+      eventId: '01KPZXF939E45M8ZQN9GWFM0DY',
+      eventType: 'device.online',
+      occurredAt: '2026-04-28T00:00:00.000Z',
+      deviceId: 'a'.repeat(64),
+      data: 'text',
+    });
+    const errors = await validate(dto);
+    const dataErr = errors.find((e) => e.property === 'data');
+    expect(dataErr?.constraints).toHaveProperty('isObject');
   });
 });
 
