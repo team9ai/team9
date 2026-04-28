@@ -30,7 +30,8 @@
     "db:studio": "pnpm --filter @team9/database db:studio",
     "clean": "pnpm --recursive exec rm -rf dist node_modules",
     "submodule:init": "git submodule update --init --recursive",
-    "submodule:update": "git submodule update --remote --merge"
+    "submodule:update": "git submodule update --remote --merge",
+    "migrate:routines": "tsx apps/gateway/scripts/migrate-routines-to-folder9.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.50",
