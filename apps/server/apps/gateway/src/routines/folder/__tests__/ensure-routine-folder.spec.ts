@@ -1,5 +1,6 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { appMetrics } from '@team9/observability';
 
 import {
   ensureRoutineFolder,
@@ -461,6 +462,100 @@ describe('ensureRoutineFolder', () => {
       expect(provision).toHaveBeenCalledTimes(1);
       expect(r1.folderId).toBe('folder-seq-1');
       expect(r2.folderId).toBe('folder-seq-1');
+    });
+  });
+
+  // ── A.11 — lazy-provision metrics ─────────────────────────────────
+  //
+  // ensureRoutineFolder emits two metrics on the slow path:
+  //   - counter `routines_lazy_provision_total{result="ok|fail"}`
+  //   - histogram `routines_lazy_provision_duration_ms`
+  // Fast path emits neither — the counter measures slow-path frequency
+  // and the histogram would flatten if we logged sub-ms fast samples.
+  describe('lazy provision metrics', () => {
+    let counterAdd: ReturnType<typeof jest.fn>;
+    let histogramRecord: ReturnType<typeof jest.fn>;
+
+    beforeEach(() => {
+      counterAdd = jest.fn();
+      histogramRecord = jest.fn();
+      jest
+        .spyOn(appMetrics, 'routinesLazyProvisionTotal', 'get')
+        .mockReturnValue({ add: counterAdd } as any);
+      jest
+        .spyOn(appMetrics, 'routinesLazyProvisionDurationMs', 'get')
+        .mockReturnValue({ record: histogramRecord } as any);
+    });
+
+    it('slow-path success: increments counter with result=ok and records duration', async () => {
+      db.__state.selectResults.push([makeRow({ folderId: null })]);
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-metric-ok' });
+
+      await ensureRoutineFolder(ROUTINE_ID, {
+        db: db as unknown as EnsureRoutineFolderDeps['db'],
+        provisionDeps,
+        provision,
+      });
+
+      expect(counterAdd).toHaveBeenCalledTimes(1);
+      expect(counterAdd).toHaveBeenCalledWith(1, { result: 'ok' });
+      expect(histogramRecord).toHaveBeenCalledTimes(1);
+      // Sample is a small non-negative number (mocked clock not used —
+      // assert it's a finite number ≥ 0 to avoid timing flakes).
+      const [sample] = histogramRecord.mock.calls[0];
+      expect(typeof sample).toBe('number');
+      expect(sample).toBeGreaterThanOrEqual(0);
+    });
+
+    it('slow-path failure: increments counter with result=fail, still records duration, then throws 503', async () => {
+      db.__state.selectResults.push([makeRow({ folderId: null })]);
+      const provision = jest.fn<any>().mockRejectedValue(new Error('boom'));
+
+      await expect(
+        ensureRoutineFolder(ROUTINE_ID, {
+          db: db as unknown as EnsureRoutineFolderDeps['db'],
+          provisionDeps,
+          provision,
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
+
+      expect(counterAdd).toHaveBeenCalledTimes(1);
+      expect(counterAdd).toHaveBeenCalledWith(1, { result: 'fail' });
+      // Histogram fires on both success and failure — we want to see
+      // fail-mode tail latency on the dashboard.
+      expect(histogramRecord).toHaveBeenCalledTimes(1);
+    });
+
+    it('fast path: emits NEITHER counter NOR histogram', async () => {
+      db.__state.selectResults.push([makeRow({ folderId: 'pre-existing' })]);
+
+      await ensureRoutineFolder(ROUTINE_ID, {
+        db: db as unknown as EnsureRoutineFolderDeps['db'],
+        provisionDeps,
+        provision: jest.fn<any>(),
+      });
+
+      expect(counterAdd).not.toHaveBeenCalled();
+      expect(histogramRecord).not.toHaveBeenCalled();
+    });
+
+    it('NotFound (routine missing) emits NEITHER metric', async () => {
+      // 404 is a caller mistake (or a cleanup race), not a Layer 2
+      // signal. The slow-path code never runs, so neither metric fires.
+      db.__state.selectResults.push([undefined]);
+
+      await expect(
+        ensureRoutineFolder('missing', {
+          db: db as unknown as EnsureRoutineFolderDeps['db'],
+          provisionDeps,
+          provision: jest.fn<any>(),
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(counterAdd).not.toHaveBeenCalled();
+      expect(histogramRecord).not.toHaveBeenCalled();
     });
   });
 });

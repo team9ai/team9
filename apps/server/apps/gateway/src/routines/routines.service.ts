@@ -39,6 +39,7 @@ import {
 } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
@@ -213,6 +214,11 @@ export class RoutinesService {
           },
         );
       } catch (err) {
+        // Metric: per-failure counter that pairs with the
+        // request-rate alert in §10.8 of the design doc (5-min rate >
+        // 1% pages on-call). Increment BEFORE the throw — once the
+        // 503 escapes, the OTEL pipeline already has the sample.
+        appMetrics.routinesCreateFolder9FailureTotal.add(1);
         this.logger.warn(
           `create: folder9 provision failed for routine ${routine.id}: ${
             err instanceof Error ? err.message : String(err)
@@ -1063,6 +1069,17 @@ export class RoutinesService {
           ? blob.content
           : Buffer.from(blob.content, 'base64').toString('utf8');
     } catch (err) {
+      // Treat a SKILL.md read miss as a validation failure with the
+      // synthetic rule `read_failed` — same metric, same alert pipeline,
+      // distinct label so dashboards can split "agent never wrote the
+      // file" from "agent wrote the file but it failed validation".
+      // The rule code intentionally lives outside the
+      // ValidationFailureRule union (which is reserved for
+      // validateSkillMd's bounded set); it's still a stable, low-
+      // cardinality value that fits the same label.
+      appMetrics.routinesCompleteCreationValidationFailureTotal.add(1, {
+        rule: 'read_failed',
+      });
       this.logger.warn(
         `completeCreation: failed to read SKILL.md for routine ${routineId}: ${
           err instanceof Error ? err.message : String(err)
@@ -1088,6 +1105,12 @@ export class RoutinesService {
       expectedDescription,
     );
     if (!validation.ok) {
+      // `validation.rule` is one of the closed-set codes in
+      // ValidationFailureRule — safe to use directly as a metric label
+      // without high-cardinality concerns.
+      appMetrics.routinesCompleteCreationValidationFailureTotal.add(1, {
+        rule: validation.rule,
+      });
       this.logger.log(
         `completeCreation: SKILL.md validation rejected routine ${routineId}: ${validation.reason}`,
       );

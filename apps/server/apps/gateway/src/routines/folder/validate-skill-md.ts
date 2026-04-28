@@ -45,11 +45,55 @@ import { parse as parseYaml } from 'yaml';
 export const MIN_BODY_CHARS = 20;
 
 /**
+ * Stable rule identifier emitted on validation failure.
+ *
+ * The id space is closed (this exact string union) so it can be used as
+ * a Prometheus/OTEL label value without high-cardinality concerns —
+ * adding a new rule requires updating this type and the few call sites
+ * that exhaustively switch on it. Consumers (dashboards, alert rules)
+ * can rely on the label set being bounded.
+ *
+ * Rule meanings:
+ * - `empty`: content is null, undefined, or zero-length.
+ * - `frontmatter_missing`: opening or closing `---` fence is absent.
+ * - `frontmatter_parse`: YAML inside the fences failed to parse.
+ * - `frontmatter_not_object`: YAML parsed to a scalar/array/null instead
+ *   of an object.
+ * - `name_invalid`: `name` field missing or non-string.
+ * - `name_mismatch`: `name` doesn't equal the expected `routine-<slug>`.
+ * - `description_invalid`: `description` field missing or non-string.
+ * - `description_empty`: `description` trimmed to zero length.
+ * - `description_mismatch`: `description` doesn't equal routine.description
+ *   after trim on both sides.
+ * - `body_empty`: post-frontmatter body is empty (or whitespace only).
+ * - `body_too_short`: body trims to a length below {@link MIN_BODY_CHARS}.
+ */
+export type ValidationFailureRule =
+  | 'empty'
+  | 'frontmatter_missing'
+  | 'frontmatter_parse'
+  | 'frontmatter_not_object'
+  | 'name_invalid'
+  | 'name_mismatch'
+  | 'description_invalid'
+  | 'description_empty'
+  | 'description_mismatch'
+  | 'body_empty'
+  | 'body_too_short';
+
+/**
  * Result of a single validation pass. Always one of two shapes — never
  * a partial object — so consumers can `if (!result.ok) ...` and TypeScript
  * narrows `reason` correctly.
+ *
+ * On failure, `rule` is one of the closed-set codes in
+ * {@link ValidationFailureRule}; metrics consumers use it as a stable
+ * label value. `reason` carries the human-readable message surfaced
+ * back to the agent through the `finishRoutineCreation` tool result.
  */
-export type ValidationResult = { ok: true } | { ok: false; reason: string };
+export type ValidationResult =
+  | { ok: true }
+  | { ok: false; rule: ValidationFailureRule; reason: string };
 
 /**
  * Match a leading `---` fence on its own line, then capture frontmatter
@@ -87,6 +131,7 @@ export function validateSkillMd(
   if (typeof content !== 'string' || content.length === 0) {
     return {
       ok: false,
+      rule: 'empty',
       reason: 'SKILL.md is empty or missing',
     };
   }
@@ -95,6 +140,7 @@ export function validateSkillMd(
   if (!match) {
     return {
       ok: false,
+      rule: 'frontmatter_missing',
       reason:
         'SKILL.md frontmatter block is missing or malformed (expected leading and closing "---" fences)',
     };
@@ -109,6 +155,7 @@ export function validateSkillMd(
     const msg = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
+      rule: 'frontmatter_parse',
       reason: `SKILL.md frontmatter parse failed: ${msg}`,
     };
   }
@@ -120,6 +167,7 @@ export function validateSkillMd(
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return {
       ok: false,
+      rule: 'frontmatter_not_object',
       reason: 'SKILL.md frontmatter must be a YAML object',
     };
   }
@@ -129,12 +177,14 @@ export function validateSkillMd(
   if (typeof fm.name !== 'string') {
     return {
       ok: false,
+      rule: 'name_invalid',
       reason: `SKILL.md frontmatter "name" must be a string`,
     };
   }
   if (fm.name !== expectedSkillName) {
     return {
       ok: false,
+      rule: 'name_mismatch',
       reason: `SKILL.md frontmatter "name" must equal "${expectedSkillName}" (got "${fm.name}")`,
     };
   }
@@ -142,6 +192,7 @@ export function validateSkillMd(
   if (typeof fm.description !== 'string') {
     return {
       ok: false,
+      rule: 'description_invalid',
       reason: 'SKILL.md frontmatter "description" must be a string',
     };
   }
@@ -149,6 +200,7 @@ export function validateSkillMd(
   if (fmDesc.length === 0) {
     return {
       ok: false,
+      rule: 'description_empty',
       reason: 'SKILL.md frontmatter "description" must be non-empty',
     };
   }
@@ -158,6 +210,7 @@ export function validateSkillMd(
   if (fmDesc !== expectedDescription.trim()) {
     return {
       ok: false,
+      rule: 'description_mismatch',
       reason:
         'SKILL.md frontmatter "description" must match the routine description exactly',
     };
@@ -167,12 +220,14 @@ export function validateSkillMd(
   if (body.length === 0) {
     return {
       ok: false,
+      rule: 'body_empty',
       reason: 'SKILL.md body must not be empty',
     };
   }
   if (body.length < MIN_BODY_CHARS) {
     return {
       ok: false,
+      rule: 'body_too_short',
       reason: `SKILL.md body must be at least ${MIN_BODY_CHARS} characters after trim`,
     };
   }

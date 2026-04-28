@@ -13,6 +13,7 @@ import { RoutineBotService } from './routine-bot.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import { RoutinesStreamController } from './routines-stream.controller.js';
+import { RoutinesFolderIdNullSampler } from './metrics/routines-folder-id-null.sampler.js';
 
 @Module({
   imports: [
@@ -37,6 +38,10 @@ import { RoutinesStreamController } from './routines-stream.controller.js';
     RoutineBotService,
     TaskCastService,
     RoutineTriggersService,
+    // Layer 2 monitoring (A.11). Periodic sampler that pushes
+    // `routines.folder_id_null_total` to the OTEL pipeline; lifecycle
+    // is owned by Nest via OnModuleInit/OnModuleDestroy.
+    RoutinesFolderIdNullSampler,
   ],
   exports: [RoutinesService, TaskCastService, RoutineTriggersService],
 })

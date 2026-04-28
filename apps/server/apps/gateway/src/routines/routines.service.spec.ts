@@ -22,6 +22,7 @@ import {
 } from '@team9/rabbitmq';
 import { UsersService } from '../im/users/users.service.js';
 import { Folder9ClientService } from '../wikis/folder9-client.service.js';
+import { appMetrics } from '@team9/observability';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -913,6 +914,86 @@ describe('RoutinesService — TaskCast integration', () => {
           .where({} as any)
           .limit(1);
         expect(after).toEqual([]);
+      });
+
+      // ── A.11 — folder9-failure metric ─────────────────────────────
+      it('increments routines.create.folder9_failure_total exactly once when provision throws', async () => {
+        const counterAdd = jest.fn();
+        const spy = jest
+          .spyOn(appMetrics, 'routinesCreateFolder9FailureTotal', 'get')
+          .mockReturnValue({ add: counterAdd } as any);
+
+        const draftRow = {
+          id: 'task-atomic-metric',
+          tenantId: 'tenant-1',
+          creatorId: 'user-1',
+          title: 'Atomic metric',
+          description: null,
+          documentId: 'doc-atomic-metric',
+          folderId: null,
+        };
+        documentsService.create.mockResolvedValueOnce({
+          id: 'doc-atomic-metric',
+        } as any);
+        db.returning.mockResolvedValueOnce([draftRow] as any);
+        folder9Client.createFolder.mockRejectedValueOnce(
+          new Error('folder9 down'),
+        );
+
+        await expect(
+          service.create(
+            { title: 'Atomic metric', botId: 'bot-1' } as never,
+            'user-1',
+            'tenant-1',
+          ),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+        expect(counterAdd).toHaveBeenCalledTimes(1);
+        // No labels — counter is unlabeled (alert is on its 5-min rate).
+        expect(counterAdd).toHaveBeenCalledWith(1);
+        spy.mockRestore();
+      });
+
+      it('does NOT increment folder9_failure_total when create succeeds', async () => {
+        const counterAdd = jest.fn();
+        const spy = jest
+          .spyOn(appMetrics, 'routinesCreateFolder9FailureTotal', 'get')
+          .mockReturnValue({ add: counterAdd } as any);
+
+        documentsService.create.mockResolvedValueOnce({
+          id: 'doc-happy-metric',
+        } as any);
+        db.returning.mockResolvedValueOnce([
+          {
+            id: 'task-happy-metric',
+            tenantId: 'tenant-1',
+            creatorId: 'user-1',
+            title: 'Happy metric',
+            description: null,
+            documentId: 'doc-happy-metric',
+            folderId: null,
+          },
+        ] as any);
+        folder9Client.createFolder.mockResolvedValueOnce({
+          id: 'folder-happy-metric',
+          workspace_id: 'tenant-1',
+        });
+        folder9Client.createToken.mockResolvedValueOnce({
+          token: 'tok-happy-metric',
+          expires_at: '2099-01-01',
+        });
+        folder9Client.commit.mockResolvedValueOnce({
+          commit_id: 'commit-happy-metric',
+        });
+
+        await service.create(
+          { title: 'Happy metric', botId: 'bot-1' } as never,
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(counterAdd).not.toHaveBeenCalled();
+        spy.mockRestore();
       });
     });
   });
@@ -3416,6 +3497,133 @@ describe('RoutinesService — TaskCast integration', () => {
           'tok-read',
           'SKILL.md',
         );
+      });
+
+      // ── A.11 — validation-failure metric ──────────────────────────
+      describe('validation_failure_total counter (A.11)', () => {
+        let counterAdd: jest.Mock<(...args: any[]) => any>;
+
+        beforeEach(() => {
+          counterAdd = jest.fn<any>();
+          jest
+            .spyOn(
+              appMetrics,
+              'routinesCompleteCreationValidationFailureTotal',
+              'get',
+            )
+            .mockReturnValue({ add: counterAdd } as any);
+        });
+
+        it('emits rule="name_mismatch" when SKILL.md name is wrong', async () => {
+          db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+          documentsService.getById.mockResolvedValueOnce({
+            id: 'doc-1',
+            tenantId: 'tenant-1',
+            currentVersion: { versionIndex: 1, content: 'some content' },
+          } as any);
+          folder9Client.getBlob.mockResolvedValueOnce({
+            path: 'SKILL.md',
+            size: 200,
+            content: [
+              '---',
+              'name: routine-WRONG',
+              `description: ${ROUTINE_DESCRIPTION}`,
+              '---',
+              '',
+              'A complete routine body that easily clears the 20-char threshold.',
+            ].join('\n'),
+            encoding: 'text' as const,
+          } as any);
+
+          const result = await service.completeCreation(
+            'routine-1',
+            {},
+            'user-1',
+            'tenant-1',
+          );
+          expect(result).toMatchObject({ success: false });
+          expect(counterAdd).toHaveBeenCalledTimes(1);
+          expect(counterAdd).toHaveBeenCalledWith(1, { rule: 'name_mismatch' });
+        });
+
+        it('emits rule="body_too_short" when SKILL.md body is too short', async () => {
+          db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+          documentsService.getById.mockResolvedValueOnce({
+            id: 'doc-1',
+            tenantId: 'tenant-1',
+            currentVersion: { versionIndex: 1, content: 'some content' },
+          } as any);
+          folder9Client.getBlob.mockResolvedValueOnce({
+            path: 'SKILL.md',
+            size: 100,
+            content: [
+              '---',
+              'name: routine-routine-1',
+              `description: ${ROUTINE_DESCRIPTION}`,
+              '---',
+              '',
+              'short',
+            ].join('\n'),
+            encoding: 'text' as const,
+          } as any);
+
+          await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+          expect(counterAdd).toHaveBeenCalledWith(1, {
+            rule: 'body_too_short',
+          });
+        });
+
+        it('emits rule="read_failed" when SKILL.md cannot be fetched', async () => {
+          db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+          documentsService.getById.mockResolvedValueOnce({
+            id: 'doc-1',
+            tenantId: 'tenant-1',
+            currentVersion: { versionIndex: 1, content: 'some content' },
+          } as any);
+          folder9Client.getBlob.mockRejectedValueOnce(
+            new Error('404 Not Found'),
+          );
+
+          await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+          expect(counterAdd).toHaveBeenCalledTimes(1);
+          expect(counterAdd).toHaveBeenCalledWith(1, { rule: 'read_failed' });
+        });
+
+        it('does NOT emit the validation counter on the happy path', async () => {
+          db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+          db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+          documentsService.getById.mockResolvedValueOnce({
+            id: 'doc-1',
+            tenantId: 'tenant-1',
+            currentVersion: { versionIndex: 1, content: 'some content' },
+          } as any);
+
+          await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
+          expect(counterAdd).not.toHaveBeenCalled();
+        });
+
+        it('does NOT emit the validation counter on legacy required-field failures', async () => {
+          // The legacy gate ("title is required" etc) throws BEFORE the
+          // SKILL.md branch — those counter labels would muddy the
+          // dashboard, so no metric fires for them.
+          db.limit.mockResolvedValueOnce([
+            { ...DRAFT_ROUTINE, title: '' },
+          ] as any);
+          documentsService.getById.mockResolvedValueOnce({
+            id: 'doc-1',
+            tenantId: 'tenant-1',
+            currentVersion: { versionIndex: 1, content: 'some content' },
+          } as any);
+
+          await expect(
+            service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+          ).rejects.toMatchObject({
+            response: { message: 'Missing required fields' },
+          });
+
+          expect(counterAdd).not.toHaveBeenCalled();
+        });
       });
     });
   });

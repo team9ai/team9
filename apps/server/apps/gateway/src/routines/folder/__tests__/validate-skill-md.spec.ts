@@ -1,6 +1,10 @@
 import { describe, it, expect } from '@jest/globals';
 
-import { MIN_BODY_CHARS, validateSkillMd } from '../validate-skill-md.js';
+import {
+  MIN_BODY_CHARS,
+  validateSkillMd,
+  type ValidationFailureRule,
+} from '../validate-skill-md.js';
 
 // ── fixtures ─────────────────────────────────────────────────────────
 
@@ -280,6 +284,76 @@ describe('validateSkillMd', () => {
         expect(result.reason.toLowerCase()).toContain('body');
         expect(result.reason).toContain(String(MIN_BODY_CHARS));
       }
+    });
+  });
+
+  // ── A.11 — rule discriminator (metric label source) ───────────────
+  //
+  // Each failure path returns a stable `rule` code so the
+  // `routines_complete_creation_validation_failure_total{rule}` counter
+  // sees a closed-set label space. The test below pins one fixture per
+  // rule so a future maintainer can't accidentally rename a rule string
+  // without updating dashboards/alerts.
+
+  describe('rule discriminator', () => {
+    const cases: Array<{ rule: ValidationFailureRule; build: () => string }> = [
+      { rule: 'empty', build: () => '' },
+      { rule: 'frontmatter_missing', build: () => 'just a body, no fences' },
+      {
+        rule: 'frontmatter_parse',
+        build: () =>
+          compose({ rawFrontmatter: 'name: [unclosed\ndescription: x' }),
+      },
+      {
+        rule: 'frontmatter_not_object',
+        build: () => compose({ rawFrontmatter: 'just-a-string' }),
+      },
+      {
+        rule: 'name_invalid',
+        build: () =>
+          compose({
+            rawFrontmatter: `name: 42\ndescription: ${EXPECTED_DESC}`,
+          }),
+      },
+      {
+        rule: 'name_mismatch',
+        build: () => compose({ name: 'routine-wrong-id' }),
+      },
+      {
+        rule: 'description_invalid',
+        build: () =>
+          compose({
+            rawFrontmatter: `name: ${EXPECTED_NAME}\ndescription: 42`,
+          }),
+      },
+      {
+        rule: 'description_empty',
+        build: () =>
+          compose({
+            rawFrontmatter: `name: ${EXPECTED_NAME}\ndescription: "   "`,
+          }),
+      },
+      {
+        rule: 'description_mismatch',
+        build: () => compose({ description: 'totally different' }),
+      },
+      { rule: 'body_empty', build: () => compose({ body: '   \n  ' }) },
+      { rule: 'body_too_short', build: () => compose({ body: 'short' }) },
+    ];
+
+    for (const { rule, build } of cases) {
+      it(`returns rule="${rule}" on the matching failure`, () => {
+        const result = validateSkillMd(build(), EXPECTED_NAME, EXPECTED_DESC);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.rule).toBe(rule);
+        }
+      });
+    }
+
+    it('happy path does not have a `rule` field (ok:true is exhaustive)', () => {
+      const result = validateSkillMd(compose({}), EXPECTED_NAME, EXPECTED_DESC);
+      expect(result).toEqual({ ok: true });
     });
   });
 });
