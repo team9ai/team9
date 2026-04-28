@@ -44,10 +44,16 @@ jobs:
             echo "env_name=production" >> $GITHUB_OUTPUT
             echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" >> $GITHUB_OUTPUT
             echo "manifest_name=latest.json" >> $GITHUB_OUTPUT
+            echo "product_name=Team9" >> $GITHUB_OUTPUT
+            echo "dmg_basename=Team9" >> $GITHUB_OUTPUT
+            echo "tauri_extra_config=" >> $GITHUB_OUTPUT
           else
             echo "env_name=development" >> $GITHUB_OUTPUT
             echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/download/dev-latest/latest-dev.json" >> $GITHUB_OUTPUT
             echo "manifest_name=latest-dev.json" >> $GITHUB_OUTPUT
+            echo "product_name=Team9 Dev" >> $GITHUB_OUTPUT
+            echo "dmg_basename=Team9-Dev" >> $GITHUB_OUTPUT
+            echo "tauri_extra_config=--config src-tauri/tauri.dev.conf.json" >> $GITHUB_OUTPUT
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           # Extract semver from tag (strip leading v or dev prefix)
@@ -118,7 +124,7 @@ jobs:
             tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
 
       - name: Build desktop app (skip DMG, create it separately)
-        run: pnpm -C apps/client tauri build --target ${{ matrix.target }} --bundles app
+        run: pnpm -C apps/client tauri build --target ${{ matrix.target }} --bundles app ${{ steps.env.outputs.tauri_extra_config }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_WINREY_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_WINREY_CERTIFICATE_PASSWORD }}
@@ -137,20 +143,22 @@ jobs:
 
           TARGET="${{ matrix.target }}"
           VERSION="${{ steps.env.outputs.version }}"
-          APP_PATH="apps/client/src-tauri/target/$TARGET/release/bundle/macos/Team9.app"
+          PRODUCT_NAME="${{ steps.env.outputs.product_name }}"
+          DMG_BASENAME="${{ steps.env.outputs.dmg_basename }}"
+          APP_PATH="apps/client/src-tauri/target/$TARGET/release/bundle/macos/${PRODUCT_NAME}.app"
           DMG_DIR="apps/client/src-tauri/target/$TARGET/release/bundle/dmg"
-          DMG_PATH="$DMG_DIR/Team9_${VERSION}_${{ matrix.artifact-suffix }}.dmg"
+          DMG_PATH="$DMG_DIR/${DMG_BASENAME}_${VERSION}_${{ matrix.artifact-suffix }}.dmg"
           BACKGROUND="apps/client/src-tauri/icons/dmg-background.png"
 
           mkdir -p "$DMG_DIR"
 
           create-dmg \
-            --volname "Team9" \
+            --volname "$PRODUCT_NAME" \
             --window-pos 200 120 \
             --window-size 660 408 \
             --icon-size 128 \
             --text-size 16 \
-            --icon "Team9.app" 180 175 \
+            --icon "${PRODUCT_NAME}.app" 180 175 \
             --app-drop-link 480 175 \
             --background "$BACKGROUND" \
             --no-internet-enable \
@@ -167,13 +175,14 @@ jobs:
           TARGET="${{ matrix.target }}"
           UPDATE_PLATFORM="${{ matrix.update-platform }}"
           ARCH_SUFFIX="${{ matrix.artifact-suffix }}"
+          DMG_BASENAME="${{ steps.env.outputs.dmg_basename }}"
 
           DMG_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
-          cp "$DMG_SRC" "release-assets/Team9_${VERSION}_${ARCH_SUFFIX}.dmg"
+          cp "$DMG_SRC" "release-assets/${DMG_BASENAME}_${VERSION}_${ARCH_SUFFIX}.dmg"
 
           APP_TAR_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
           SIG_SRC="${APP_TAR_SRC}.sig"
-          UPDATE_ASSET="Team9_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
+          UPDATE_ASSET="${DMG_BASENAME}_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
 
           cp "$APP_TAR_SRC" "release-assets/$UPDATE_ASSET"
           cp "$SIG_SRC" "release-assets/$UPDATE_ASSET.sig"

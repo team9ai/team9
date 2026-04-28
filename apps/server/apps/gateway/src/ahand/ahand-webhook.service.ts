@@ -211,6 +211,36 @@ export class AhandWebhookService {
       return;
     }
 
+    // Capability persistence: only on device.online / device.registered, only
+    // when the hub provided the field (treat absent as "no information" — leave
+    // existing column value alone). aHand hub-side serializes Vec<String> on
+    // these two events (crates/ahand-hub/src/webhook/sender.rs).
+    //
+    // Special case: device.registered with empty capabilities is ALSO ignored.
+    // The aHand hub's admin pre-register call fires `device.registered{caps:[]}`
+    // before the daemon has connected. If that event were delivered AFTER a
+    // `device.online{caps:[...]}` (out-of-order delivery is possible across the
+    // hub's webhook queue), the empty array would wipe real caps. device.online
+    // caps are trusted as-is because they always come from a daemon Hello —
+    // even an explicit empty list reflects the daemon's declared state.
+    if (
+      (evt.eventType === 'device.online' &&
+        Array.isArray(evt.data.capabilities)) ||
+      (evt.eventType === 'device.registered' &&
+        Array.isArray(evt.data.capabilities) &&
+        evt.data.capabilities.length > 0)
+    ) {
+      await this.db
+        .update(schema.ahandDevices)
+        .set({ capabilities: evt.data.capabilities })
+        .where(
+          and(
+            eq(schema.ahandDevices.hubDeviceId, evt.deviceId),
+            eq(schema.ahandDevices.status, 'active'),
+          ),
+        );
+    }
+
     // Update last_seen_at for state-change events (not heartbeat, not registered)
     if (
       evt.eventType === 'device.online' ||
