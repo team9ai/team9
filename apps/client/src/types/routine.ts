@@ -68,6 +68,14 @@ export interface Routine {
   nextRunAt: string | null;
   version: number;
   documentId: string | null;
+  /**
+   * folder9 folder id hosting this routine's `SKILL.md` + `references/*` +
+   * `scripts/*`. Provisioned synchronously when the routine row is created
+   * (see `provisionFolder9SkillFolder` server-side); guaranteed non-null
+   * for v2+ rows. Null is only ever observed for legacy routines that
+   * predate the routine→folder9 migration.
+   */
+  folderId: string | null;
   currentExecutionId: string | null;
   /** Token usage from the current execution (included in list responses) */
   tokenUsage?: number;
