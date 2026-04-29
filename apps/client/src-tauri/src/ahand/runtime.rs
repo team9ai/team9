@@ -93,6 +93,8 @@ pub struct StartResult {
 
 struct ActiveSession {
     handle: ahandd::DaemonHandle,
+    team9_user_id: String,
+    hub_url: String,
     hub_device_id: String,
     status_forwarder: JoinHandle<()>,
 }
@@ -123,6 +125,19 @@ impl AhandRuntime {
         let id = ahandd::load_or_create_identity(&identity_dir)
             .map_err(|e| format!("load_or_create_identity: {e}"))?;
         let device_id = identity::device_id_from_pubkey(&id.public_key_bytes());
+
+        if let Some(prev) = guard.as_ref() {
+            if should_reuse_active_session(
+                prev,
+                &cfg.team9_user_id,
+                &cfg.hub_url,
+                &device_id,
+            ) {
+                return Ok(StartResult {
+                    device_id: prev.hub_device_id.clone(),
+                });
+            }
+        }
 
         let daemon_cfg = ahandd::DaemonConfig::builder(
             &cfg.hub_url,
@@ -155,6 +170,8 @@ impl AhandRuntime {
 
         *guard = Some(ActiveSession {
             handle,
+            team9_user_id: cfg.team9_user_id,
+            hub_url: cfg.hub_url,
             hub_device_id: device_id.clone(),
             status_forwarder,
         });
@@ -202,6 +219,41 @@ impl AhandRuntime {
         session.status_forwarder.abort();
         let _ = session.status_forwarder.await;
     }
+}
+
+fn should_reuse_active_session(
+    session: &ActiveSession,
+    requested_user_id: &str,
+    requested_hub_url: &str,
+    requested_device_id: &str,
+) -> bool {
+    should_reuse_session_keys_and_status(
+        &session.team9_user_id,
+        &session.hub_url,
+        &session.hub_device_id,
+        requested_user_id,
+        requested_hub_url,
+        requested_device_id,
+        &session.handle.status(),
+    )
+}
+
+fn should_reuse_session_keys_and_status(
+    existing_user_id: &str,
+    existing_hub_url: &str,
+    existing_device_id: &str,
+    requested_user_id: &str,
+    requested_hub_url: &str,
+    requested_device_id: &str,
+    status: &ahandd::DaemonStatus,
+) -> bool {
+    existing_user_id == requested_user_id
+        && existing_hub_url == requested_hub_url
+        && existing_device_id == requested_device_id
+        && matches!(
+            status,
+            ahandd::DaemonStatus::Connecting | ahandd::DaemonStatus::Online { .. }
+        )
 }
 
 impl Default for AhandRuntime {
@@ -315,6 +367,66 @@ mod tests {
         }"#;
         let cfg: StartConfig = serde_json::from_str(json).unwrap();
         assert_eq!(cfg.heartbeat_interval_seconds, 30);
+    }
+
+    #[test]
+    fn duplicate_start_reuses_live_matching_session() {
+        assert!(should_reuse_session_keys_and_status(
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            &ahandd::DaemonStatus::Connecting,
+        ));
+        assert!(should_reuse_session_keys_and_status(
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            &ahandd::DaemonStatus::Online {
+                device_id: "device-1".into(),
+            },
+        ));
+    }
+
+    #[test]
+    fn duplicate_start_does_not_reuse_mismatched_or_terminal_session() {
+        assert!(!should_reuse_session_keys_and_status(
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            "user-2",
+            "wss://hub/ws",
+            "device-1",
+            &ahandd::DaemonStatus::Online {
+                device_id: "device-1".into(),
+            },
+        ));
+        assert!(!should_reuse_session_keys_and_status(
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            "user-1",
+            "wss://other/ws",
+            "device-1",
+            &ahandd::DaemonStatus::Connecting,
+        ));
+        assert!(!should_reuse_session_keys_and_status(
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            "user-1",
+            "wss://hub/ws",
+            "device-1",
+            &ahandd::DaemonStatus::Error {
+                kind: ahandd::ErrorKind::Auth,
+                message: "jwt expired".into(),
+            },
+        ));
     }
 
     #[test]

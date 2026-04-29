@@ -25,7 +25,7 @@ import { z } from 'zod';
 // drift should not take the gateway down -- we prefer to log + fail closed
 // on the fields the gateway actually reads.
 
-const DeviceRecordSchema = z.object({
+export const DeviceRecordSchema = z.object({
   deviceId: z.string(),
   publicKey: z.string().optional(),
   nickname: z.string().optional(),
@@ -33,6 +33,11 @@ const DeviceRecordSchema = z.object({
   isOnline: z.boolean().optional(),
   lastSeenAt: z.string().optional(),
   createdAt: z.string().optional(),
+  // Hub-side device.capabilities (e.g. ["exec"], ["exec","browser"]). Optional
+  // for forward-compat with hub deployments that pre-date the field; absent
+  // ⇒ undefined, which downstream callers treat as "unknown / use existing
+  // DB value". Empty array ⇒ "hub knows this device has no caps yet".
+  capabilities: z.array(z.string()).optional(),
 });
 export type HubDeviceRecord = z.infer<typeof DeviceRecordSchema>;
 

@@ -58,6 +58,7 @@ export class AhandInternalController {
       isOnline: r.isOnline,
       lastSeenAt: r.lastSeenAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),
+      capabilities: r.capabilities ?? [],
     }));
   }
 }

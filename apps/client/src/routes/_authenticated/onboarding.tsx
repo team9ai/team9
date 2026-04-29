@@ -201,11 +201,12 @@ function OnboardingRoute() {
   useEffect(() => {
     if (!workspaceId) return;
     if (lastViewedStepRef.current === currentStep) return;
-    lastViewedStepRef.current = currentStep;
 
     const stepName =
       ONBOARDING_STEPS[currentStep as keyof typeof ONBOARDING_STEPS];
     if (!stepName) return;
+    if (!phClient) return;
+    lastViewedStepRef.current = currentStep;
 
     captureWithBridge(phClient, EVENTS.ONBOARDING_STEP_VIEWED, {
       step_name: stepName,
@@ -220,6 +221,7 @@ function OnboardingRoute() {
       return;
     }
     if (planPageViewFiredRef.current) return;
+    if (!phClient) return;
     planPageViewFiredRef.current = true;
 
     captureWithBridge(phClient, EVENTS.SUBSCRIPTION_PLAN_PAGE_VIEWED, {

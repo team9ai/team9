@@ -18,7 +18,7 @@ import {
 import { api } from "@/services/api";
 import type { Routine } from "@/types/routine";
 import { CreationSessionRunItem } from "./CreationSessionRunItem";
-import type { SelectedRun } from "./RoutineList";
+import type { SelectedRun } from "./RoutinesSidebar";
 
 interface DraftRoutineCardProps {
   routine: Routine;

@@ -19,6 +19,8 @@ export type Folder9ProposalStatus =
   | 'rejected'
   | 'merged';
 
+export type Folder9Metadata = Record<string, unknown>;
+
 /** Response shape for folder CRUD endpoints. */
 export interface Folder9Folder {
   id: string;
@@ -28,6 +30,7 @@ export interface Folder9Folder {
   owner_id: string;
   workspace_id: string;
   approval_mode: Folder9ApprovalMode;
+  metadata?: Folder9Metadata;
   created_at: string;
   updated_at: string;
 }
@@ -39,12 +42,14 @@ export interface Folder9CreateFolderInput {
   owner_type: Folder9OwnerType;
   owner_id: string;
   approval_mode?: Folder9ApprovalMode;
+  metadata?: Folder9Metadata;
 }
 
 /** Patch body for PATCH /api/workspaces/{wsId}/folders/{folderId}. */
 export interface Folder9UpdateFolderInput {
   name?: string;
   approval_mode?: Folder9ApprovalMode;
+  metadata?: Folder9Metadata;
 }
 
 /** One entry in the response of GET .../tree. */

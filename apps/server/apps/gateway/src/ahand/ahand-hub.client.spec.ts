@@ -16,7 +16,8 @@ const mockEnv = {
 };
 jest.unstable_mockModule('@team9/shared', () => ({ env: mockEnv }));
 
-const { AhandHubClient } = await import('./ahand-hub.client.js');
+const { AhandHubClient, DeviceRecordSchema } =
+  await import('./ahand-hub.client.js');
 
 function okResponse(body: unknown, status = 200): Response {
   const text = typeof body === 'string' ? body : JSON.stringify(body);
@@ -37,6 +38,29 @@ function errorResponse(status: number, body: unknown = null): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+// ─── DeviceRecordSchema.capabilities ────────────────────────────────────
+
+describe('DeviceRecordSchema.capabilities', () => {
+  it('parses capabilities array on DeviceRecord', () => {
+    const parsed = DeviceRecordSchema.parse({
+      deviceId: 'abc123',
+      capabilities: ['exec', 'browser'],
+    });
+    expect(parsed.capabilities).toEqual(['exec', 'browser']);
+  });
+
+  it('treats missing capabilities as undefined (forward-compat with old hub)', () => {
+    const parsed = DeviceRecordSchema.parse({ deviceId: 'abc123' });
+    expect(parsed.capabilities).toBeUndefined();
+  });
+
+  it('rejects non-string capability entries', () => {
+    expect(() =>
+      DeviceRecordSchema.parse({ deviceId: 'abc123', capabilities: [123] }),
+    ).toThrow();
+  });
+});
 
 describe('AhandHubClient', () => {
   let client: InstanceType<typeof AhandHubClient>;

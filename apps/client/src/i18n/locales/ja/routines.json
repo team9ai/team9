@@ -85,6 +85,17 @@
     "restart": "再起動",
     "delete": "削除",
     "deleteConfirm": "このルーティンを削除しますか？",
+    "createdAt": "作成日",
+    "lastRunAt": "最終実行",
+    "totalTokens": "トークン合計",
+    "currentRun": "現在の実行",
+    "view": "表示 →",
+    "recentRuns": "最近の実行",
+    "viewAllRuns": "すべての実行を表示 →",
+    "showMore": "さらに{{count}}件表示",
+    "runNotFound": "実行が見つかりません",
+    "backToRoutine": "ルーチンに戻る",
+    "toggleExpand": "展開を切り替え",
     "assignBot": "AI スタッフ",
     "noBot": "未割り当て",
     "steps": "ステップ",
@@ -143,7 +154,11 @@
         "loadError": "バージョンの読み込みに失敗しました",
         "noVersions": "バージョンはまだありません"
       }
-    }
+    },
+    "more": "More",
+    "cancel": "Cancel",
+    "notFound": "Routine not found",
+    "backToList": "Back to routines"
   },
   "triggers": {
     "title": "トリガー",
@@ -285,6 +300,7 @@
     "interval": "インターバル",
     "schedule": "スケジュール",
     "channelMessage": "チャンネルメッセージ",
-    "retry": "リトライ"
+    "retry": "リトライ",
+    "running": "running"
   }
 }

@@ -37,6 +37,7 @@ jest.unstable_mockModule('@team9/database/schemas', () => ({
     status: 'ahandDevices.status',
     revokedAt: 'ahandDevices.revokedAt',
     lastSeenAt: 'ahandDevices.lastSeenAt',
+    capabilities: 'ahandDevices.capabilities',
   },
 }));
 
@@ -473,13 +474,239 @@ describe('AhandWebhookService', () => {
   });
 
   describe('device.registered', () => {
-    it('no DB writes, only fan-out', async () => {
+    it('does not write capabilities to DB when registered event has no caps in data', async () => {
+      // baseEvt('device.registered') has data:{} — no capabilities field.
+      // The invariant here is constrained: when no caps are provided, no DB
+      // update occurs at all. The positive case (registered WITH caps) is
+      // covered by the dedicated test in 'capabilities persistence' below.
       dbFixture.chains.selectWhere.mockResolvedValue([makeDeviceRow()]);
       await svc.handleEvent(baseEvt('device.registered'));
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
       expect(dbFixture.db.update).not.toHaveBeenCalled();
       expect(publisher.publishForOwner).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'device.registered' }),
       );
+    });
+  });
+
+  // ─── capabilities persistence ────────────────────────────────────────────
+
+  describe('capabilities persistence', () => {
+    it('persists capabilities on device.online when hub provides them', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: [] }),
+      ]);
+      await svc.handleEvent(
+        baseEvt('device.online', {
+          deviceId: 'h-online',
+          data: {
+            sentAtMs: Date.now(),
+            presenceTtlSeconds: 180,
+            capabilities: ['exec', 'browser'],
+          },
+        }),
+      );
+      // Capabilities update: update() called twice (caps + lastSeenAt)
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(2);
+      // The caps update must set { capabilities: ['exec', 'browser'] }
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: ['exec', 'browser'] }),
+      );
+      // WHERE clause must include hubDeviceId AND status='active'
+      expect(mockEq).toHaveBeenCalledWith(
+        'ahandDevices.hubDeviceId',
+        'h-online',
+      );
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.status', 'active');
+    });
+
+    it('persists capabilities on device.registered when hub provides them', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ hubDeviceId: 'h-registered', capabilities: [] }),
+      ]);
+      await svc.handleEvent(
+        baseEvt('device.registered', {
+          deviceId: 'h-registered',
+          data: { capabilities: ['exec'] },
+        }),
+      );
+      // Capabilities update: update() called once (no lastSeenAt for registered)
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(1);
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: ['exec'] }),
+      );
+      expect(mockEq).toHaveBeenCalledWith(
+        'ahandDevices.hubDeviceId',
+        'h-registered',
+      );
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.status', 'active');
+    });
+
+    it('leaves capabilities untouched when hub omits the field (old hub)', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: ['existing'] }),
+      ]);
+      await svc.handleEvent(
+        baseEvt('device.online', {
+          data: { presenceTtlSeconds: 180 /* no capabilities field */ },
+        }),
+      );
+      // Only lastSeenAt update — no capabilities update
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(1);
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
+    });
+
+    it('non-cap events (heartbeat / offline / revoked) do not touch capabilities', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: ['existing'] }),
+      ]);
+      dbFixture.chains.updateReturning.mockResolvedValue([
+        makeDeviceRow({ status: 'revoked' }),
+      ]);
+
+      // device.heartbeat — should not touch capabilities
+      await svc.handleEvent(
+        baseEvt('device.heartbeat', {
+          data: { presenceTtlSeconds: 30, capabilities: ['injected'] },
+        }),
+      );
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
+
+      jest.clearAllMocks();
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: ['existing'] }),
+      ]);
+
+      // device.offline — should not touch capabilities
+      await svc.handleEvent(baseEvt('device.offline', { data: {} }));
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
+
+      jest.clearAllMocks();
+      dbFixture.chains.updateReturning.mockResolvedValue([
+        makeDeviceRow({ status: 'revoked' }),
+      ]);
+
+      // device.revoked — should not touch capabilities
+      await svc.handleEvent(baseEvt('device.revoked', { data: {} }));
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
+    });
+
+    it('no UPDATE issued when deviceId is unknown (no row)', async () => {
+      // Do not pre-seed any row
+      dbFixture.chains.selectWhere.mockResolvedValue([]);
+      await expect(
+        svc.handleEvent(
+          baseEvt('device.online', {
+            deviceId: 'h-unknown',
+            data: {
+              presenceTtlSeconds: 180,
+              capabilities: ['exec', 'browser'],
+            },
+          }),
+        ),
+      ).resolves.toBeUndefined();
+      // Early return after "row absent" check — no DB update at all
+      expect(dbFixture.db.update).not.toHaveBeenCalled();
+    });
+
+    it('ignores empty capabilities on device.registered (admin pre-register)', async () => {
+      // Pre-seed an active row with REAL caps (simulating that device.online
+      // already arrived with real caps).
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({
+          hubDeviceId: 'h-empty-reg',
+          capabilities: ['exec', 'browser'],
+        }),
+      ]);
+
+      // Now an admin-pre-register webhook with empty caps arrives later (out-of-order).
+      await svc.handleEvent(
+        baseEvt('device.registered', {
+          deviceId: 'h-empty-reg',
+          data: { capabilities: [] },
+        }),
+      );
+
+      // Caps must remain ['exec','browser'] — the empty registered event must NOT
+      // overwrite them.
+      expect(dbFixture.chains.updateSet).not.toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: expect.anything() }),
+      );
+      // No DB update at all for registered with empty caps
+      expect(dbFixture.db.update).not.toHaveBeenCalled();
+    });
+
+    it('persists empty capabilities on device.online (daemon explicitly declared none)', async () => {
+      // Pre-seed an active row with non-empty caps.
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({
+          hubDeviceId: 'h-empty-online',
+          capabilities: ['exec', 'browser'],
+        }),
+      ]);
+
+      // device.online with empty caps — daemon explicitly declared none.
+      await svc.handleEvent(
+        baseEvt('device.online', {
+          deviceId: 'h-empty-online',
+          data: {
+            sentAtMs: Date.now(),
+            presenceTtlSeconds: 180,
+            capabilities: [],
+          },
+        }),
+      );
+
+      // Caps SHOULD be wiped to [] — explicit declaration from daemon.
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: [] }),
+      );
+    });
+
+    it('idempotent on replay — same capabilities applied twice yields same state', async () => {
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: [] }),
+      ]);
+      const evt = baseEvt('device.online', {
+        eventId: 'evt-idem',
+        data: { presenceTtlSeconds: 180, capabilities: ['exec', 'browser'] },
+      });
+      // First apply
+      await svc.handleEvent(evt);
+      // Second apply — reset mocks counts but keep same resolved values
+      jest.clearAllMocks();
+      dbFixture.chains.selectWhere.mockResolvedValue([
+        makeDeviceRow({ capabilities: ['exec', 'browser'] }),
+      ]);
+      dbFixture.chains.updateWhere.mockImplementation(() => {
+        const thenable = Promise.resolve(undefined) as any;
+        thenable.returning = dbFixture.chains.updateReturning;
+        return thenable;
+      });
+      dbFixture.chains.updateSet.mockReturnValue({
+        where: dbFixture.chains.updateWhere,
+      });
+      dbFixture.db.update.mockReturnValue({ set: dbFixture.chains.updateSet });
+      await svc.handleEvent(evt);
+      // Caps update should have been called again with the same value — idempotent
+      expect(dbFixture.chains.updateSet).toHaveBeenCalledWith(
+        expect.objectContaining({ capabilities: ['exec', 'browser'] }),
+      );
+      // WHERE clause must target the correct hubDeviceId + active status
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.hubDeviceId', 'h1');
+      expect(mockEq).toHaveBeenCalledWith('ahandDevices.status', 'active');
+      // Both caps and lastSeenAt updates should have fired (2 update() calls)
+      expect(dbFixture.db.update).toHaveBeenCalledTimes(2);
     });
   });
 

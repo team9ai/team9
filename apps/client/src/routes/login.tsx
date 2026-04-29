@@ -440,6 +440,9 @@ function WebLoginView() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [authState, setAuthState] = useState<AuthState>("idle");
+  // Email login is collapsed by default to favor Google. When Google is not
+  // configured, expand it immediately so users still have a way in.
+  const [showEmailForm, setShowEmailForm] = useState(!googleClientId);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [countdown, setCountdown] = useState(0);
@@ -537,6 +540,7 @@ function WebLoginView() {
 
   useEffect(() => {
     if (pageViewFiredRef.current) return;
+    if (!phClient) return;
     pageViewFiredRef.current = true;
     captureWithBridge(phClient, EVENTS.SIGNUP_PAGE_VIEWED, {
       page_key: "signup",
@@ -783,6 +787,11 @@ function WebLoginView() {
     setDisplayName("");
     setTurnstileToken(null);
     postAuthRedirectMode.current = "default";
+  };
+
+  const handleRevealEmailForm = () => {
+    setShowEmailForm(true);
+    setError("");
   };
 
   // Loading state
@@ -1036,112 +1045,142 @@ function WebLoginView() {
           </>
         )}
 
-        <form onSubmit={handleEmailSubmit} className="space-y-5">
-          {/* Email Field */}
-          <div className="space-y-2">
-            <label
-              htmlFor="email"
-              className="block text-sm font-semibold text-foreground"
+        {/* Collapsed: subtle email entry — sized to match the GoogleLogin
+            button above (compact width + 40px height). */}
+        {!showEmailForm && (
+          <div className="flex justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleRevealEmailForm}
+              className="h-10 px-6"
             >
-              {t("email")}
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t("emailPlaceholder")}
-              className="w-full h-11 px-3 rounded-xl"
-              required
-              autoFocus={authState === "idle"}
-              disabled={authState === "need_display_name"}
-            />
+              <Mail />
+              {t("continueWithEmail")}
+            </Button>
           </div>
+        )}
 
-          {/* Display Name Field (shown for new users) */}
-          {authState === "need_display_name" && (
-            <div
-              className="space-y-2"
-              style={{ animation: "loginFadeIn 0.3s ease-out" }}
-            >
+        {/* Expanded: full email form */}
+        {showEmailForm && (
+          <form
+            onSubmit={handleEmailSubmit}
+            className="space-y-5"
+            style={{ animation: "loginFadeIn 0.3s ease-out" }}
+          >
+            {/* Email Field */}
+            <div className="space-y-2">
               <label
-                htmlFor="displayName"
+                htmlFor="email"
                 className="block text-sm font-semibold text-foreground"
               >
-                {t("displayName")}
+                {t("email")}
               </label>
               <Input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={t("displayNamePlaceholder")}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t("emailPlaceholder")}
                 className="w-full h-11 px-3 rounded-xl"
                 required
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">
-                {t("displayNameHint")}
-              </p>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Turnstile Widget */}
-          {TURNSTILE_SITE_KEY && (
-            <div className="flex justify-center">
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={TURNSTILE_SITE_KEY}
-                options={{
-                  action: "auth-start",
-                  theme: "auto",
-                  language: turnstileLanguage,
-                }}
-                onSuccess={setTurnstileToken}
-                onError={() => setTurnstileToken(null)}
-                onExpire={() => setTurnstileToken(null)}
+                autoFocus={authState === "idle"}
+                disabled={authState === "need_display_name"}
               />
             </div>
-          )}
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-xl"
-            disabled={
-              authStart.isPending ||
-              (authState === "need_display_name" && !displayName.trim()) ||
-              (!!TURNSTILE_SITE_KEY && !turnstileToken)
-            }
-          >
-            {authStart.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                {t("sending")}
-              </>
-            ) : (
-              t("continueWithEmail")
+            {/* Display Name Field (shown for new users) */}
+            {authState === "need_display_name" && (
+              <div
+                className="space-y-2"
+                style={{ animation: "loginFadeIn 0.3s ease-out" }}
+              >
+                <label
+                  htmlFor="displayName"
+                  className="block text-sm font-semibold text-foreground"
+                >
+                  {t("displayName")}
+                </label>
+                <Input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={t("displayNamePlaceholder")}
+                  className="w-full h-11 px-3 rounded-xl"
+                  required
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("displayNameHint")}
+                </p>
+              </div>
             )}
-          </Button>
 
-          {/* Change email link when in need_display_name state */}
-          {authState === "need_display_name" && (
-            <button
-              type="button"
-              onClick={handleChangeEmail}
-              className="block w-full text-center text-sm text-primary font-medium hover:underline"
+            {/* Error Message */}
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Turnstile Widget */}
+            {TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={TURNSTILE_SITE_KEY}
+                  options={{
+                    action: "auth-start",
+                    theme: "auto",
+                    language: turnstileLanguage,
+                  }}
+                  onSuccess={setTurnstileToken}
+                  onError={() => setTurnstileToken(null)}
+                  onExpire={() => setTurnstileToken(null)}
+                />
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <Button
+              type="submit"
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-xl"
+              disabled={
+                authStart.isPending ||
+                (authState === "need_display_name" && !displayName.trim()) ||
+                (!!TURNSTILE_SITE_KEY && !turnstileToken)
+              }
             >
-              {t("changeEmail")}
-            </button>
-          )}
-        </form>
+              {authStart.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  {t("sending")}
+                </>
+              ) : (
+                t("continueWithEmail")
+              )}
+            </Button>
+
+            {/* Change email link when in need_display_name state */}
+            {authState === "need_display_name" && (
+              <button
+                type="button"
+                onClick={handleChangeEmail}
+                className="block w-full text-center text-sm text-primary font-medium hover:underline"
+              >
+                {t("changeEmail")}
+              </button>
+            )}
+          </form>
+        )}
+
+        {/* Error in collapsed state (e.g. Google login failure) */}
+        {!showEmailForm && error && (
+          <div className="mt-4 bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl text-sm">
+            {error}
+          </div>
+        )}
       </GlassCard>
 
       {/* Footer */}

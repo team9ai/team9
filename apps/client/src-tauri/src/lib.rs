@@ -5,12 +5,40 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 #[cfg(target_os = "macos")]
-use objc2::msg_send;
+use objc2::{class, msg_send, runtime::AnyObject};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
+
+/// Override the macOS menu-bar app name from the `TEAM9_APP_NAME` env var.
+/// Affects the bold first menu-bar item (via NSProcessInfo processName).
+/// Does NOT affect the Dock label — for unbundled binaries the Dock uses
+/// argv[0]'s basename, which comes from the Cargo `[[bin]]` name.
+#[cfg(target_os = "macos")]
+fn apply_app_name_override() {
+    let Ok(name) = std::env::var("TEAM9_APP_NAME") else { return };
+    if name.is_empty() {
+        return;
+    }
+    let Ok(c_name) = std::ffi::CString::new(name) else { return };
+    unsafe {
+        let process_info: *mut AnyObject = msg_send![class!(NSProcessInfo), processInfo];
+        if process_info.is_null() {
+            return;
+        }
+        let ns_name: *mut AnyObject =
+            msg_send![class!(NSString), stringWithUTF8String: c_name.as_ptr()];
+        if ns_name.is_null() {
+            return;
+        }
+        let _: () = msg_send![process_info, setProcessName: ns_name];
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn apply_app_name_override() {}
 use serde::Serialize;
-use tauri::{Emitter, State};
-use tauri_plugin_autostart::MacosLauncher;
+use tauri::{Emitter, Manager, State};
+use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 
@@ -225,6 +253,8 @@ fn desktop_align_traffic_lights(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    apply_app_name_override();
+
     let mut updater_plugin = tauri_plugin_updater::Builder::new();
     if let Some(target) = configured_updater_target() {
         updater_plugin = updater_plugin.target(target);

@@ -229,7 +229,21 @@ AHAND_HUB_WEBHOOK_TIMEOUT_MS=5000
 }
 ```
 
-**Signature headers:** `X-AHand-Signature: sha256=<hex(HMAC-SHA256(secret, rawBody))>`, `X-AHand-Event-Id`, `X-AHand-Timestamp`. The gateway rejects signatures older than 5 minutes to defeat replay.
+**Signature headers:** `X-AHand-Signature: sha256=<hex(HMAC-SHA256(secret, signingInput))>`, `X-AHand-Event-Id`, `X-AHand-Timestamp`.
+
+**Signing input (Stripe-style):**
+
+```
+signingInput = f"{timestamp_seconds}.{raw_body}"
+```
+
+The `timestamp_seconds` is the Unix-epoch seconds string sent in `X-AHand-Timestamp`, and `raw_body` is the unparsed request body bytes. Signing the timestamp alongside the body defeats a class of replay attacks where an attacker substitutes a fresh `X-AHand-Timestamp` header on an otherwise-valid old payload to push it through the 5-minute freshness window. This matches the Stripe and GitHub webhook signing conventions.
+
+The gateway:
+
+1. Rejects signatures whose timestamp differs from server time by more than 5 minutes (replay-window guard).
+2. Recomputes `HMAC-SHA256(secret, f"{timestamp}.{rawBody}")` and constant-time-compares against the header value.
+3. Rejects signatures whose hex decode fails or whose length disagrees before invoking `timingSafeEqual`.
 
 **Delivery guarantee:** at-least-once. Failures go into a local queue (`webhook_deliveries(eventId, payload, attempts, nextRetryAt, lastError)`) retried by a background worker; exhausted retries fall back to `audit_fallback.jsonl`.
 
