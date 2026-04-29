@@ -13,10 +13,12 @@ End users sitting in the team9 Tauri client should be able to:
 
 1. **See, at a glance, whether their local ahand device can do browser automation** — with per-component granularity (Node.js, Playwright CLI, a system browser).
 2. **One-click install** the browser runtime dependencies on demand.
-3. **One-toggle enable/disable** whether the agent is allowed to use the browser tool (without uninstalling anything).
+3. **One-toggle enable/disable** whether the agent is allowed to use the browser (without uninstalling anything).
 4. **Get actionable self-help when something goes wrong** — per-step error diagnostics with concrete remediation instructions.
 
-The ahand daemon already implements all the heavy lifting (`crates/ahandd/src/browser_setup/` has `inspect_all`, `run_all`, `run_step`). The Tauri desktop app already ships a `BrowserConfigTab` with a disabled "Coming Soon" install button. The gap this spec fills is wiring these together, adding progress-streaming, and making the capability live in the UI.
+Alongside the install-UI work, this spec also **transitions browser automation from an LLM-tool model to a SKILL model** — a scope expansion adopted during spec review after discovering upstream `@playwright/cli` ships its own SKILL markdown folder. See §10 (New) and §11 (New) below.
+
+The ahand daemon already implements all the heavy lifting (`crates/ahandd/src/browser_setup/` has `inspect_all`, `run_all`, `run_step`). The Tauri desktop app already ships a `BrowserConfigTab` with a disabled "Coming Soon" install button. The gap this spec fills is wiring these together, adding progress-streaming, migrating browser automation to a SKILL, and making the capability live in the UI.
 
 ---
 
@@ -25,8 +27,11 @@ The ahand daemon already implements all the heavy lifting (`crates/ahandd/src/br
 - **Cross-device visibility.** "See my Mac's install state from my iPhone" is out of scope. The tab is a local desktop operation panel.
 - **Playwright uninstall.** Enabling/disabling is a config flag (~bytes). Actually removing the 50-MB `@playwright/cli` npm install is not offered. Users who need this can run `npm uninstall -g --prefix ~/.ahand/node @playwright/cli` manually.
 - **Changing the install mechanism itself.** The `ahandd::browser_setup` module is treated as a black-box dependency (small API additions only — see §4.1). We do not redesign how Playwright gets installed.
-- **Changes to** `team9-agent-pi` **or the team9 server/gateway.** This feature is entirely team9-client + aHand. The caps/browser-tool pipeline downstream is already live.
+- **Changes to the team9 server/gateway (`apps/server`).** DTO + webhook + DB column treat `capabilities` as an opaque `string[]`. No enum validation, no migration script — the rename of `"browser"` → `"browser-playwright-cli"` is absorbed in `team9-agent-pi`'s `deriveCaps` via a backwards-compat alias.
 - **Windows / Linux parity work.** `browser_setup` already handles these; we do not add platform-specific install logic. UI strings may need polish, but not in this spec.
+- **Removal of `/api/control/browser`.** The hub endpoint that was supposed to proxy browser commands directly is kept (with a deprecated-but-retained comment) — we may revive it for a future non-playwright-cli backend. See §11.3.
+- **Generalized tool→skill migration framework.** We use the existing `SourceCodeFolderProvider` directly for this one skill. If more tools need this treatment later, a dedicated RFC can generalize the pattern.
+- **Replacing the `"exec" → "shell"` legacy cap rename.** That rename exists for historical reasons (`exec` is Unix-y; `shell` reads better in the host layer). We leave it alone and only work on the `browser*` side.
 
 ---
 
@@ -73,16 +78,26 @@ The ahand daemon already implements all the heavy lifting (`crates/ahandd/src/br
 - **Single source of truth for install state:** `ahandd::browser_setup` (library). Tauri backend is a pass-through — no duplicated install logic, no forked state.
 - **Single source of truth for `browser_enabled`:** `~/.ahand/config.toml`. Tauri reads it via `ahandd::config::Config`; ahandd (re-)reads it at spawn time.
 - **Progress is unidirectional:** ahandd callback → Tauri `Channel<BrowserProgressEvent>` → renderer subscriber. Renderer never polls.
-- **"Agent-visible" is computed locally in Tauri**, not fetched from the team9 gateway. It equals `browser_enabled` (from config) **AND** daemon status is `Online` at query time. (Whether the most recent Hello carried `"browser"` is implied by these two conditions because `ahandd::spawn` freezes `browser_enabled` at spawn time, and `reload()` respawns on every enabled-toggle.)
+- **"Agent-visible" is computed locally in Tauri**, not fetched from the team9 gateway. It equals `browser_enabled` (from config) **AND** daemon status is `Online` at query time. (Whether the most recent Hello carried `"browser-playwright-cli"` is implied by these two conditions because `ahandd::spawn` freezes `browser_enabled` at spawn time, and `reload()` respawns on every enabled-toggle.)
+
+### Tool-model vs skill-model (new as of 2026-04-29)
+
+PR #97 (team9-agent-pi) originally shipped a dedicated `browser` LLM tool that went through its own `AhandBackend.browser()` → `CloudClient.browser()` → `/api/control/browser` → ahandd IPC `BrowserRequest/Response` pipeline. That architecture is **replaced** with a SKILL model:
+
+- ahandd's device-side capability string becomes `"browser-playwright-cli"` (was `"browser"`) — tying the capability to the concrete implementation.
+- The `browser` LLM tool is **removed** from `HostComponent`. Agents drive browsers by calling `playwright-cli` as a **regular shell command** through the existing `run_command` tool.
+- A new `packages/agent-components/skills/browser-playwright-cli/` SKILL folder (adapted from upstream [microsoft/playwright-cli `skills/playwright-cli/`](https://github.com/microsoft/playwright-cli/tree/main/skills/playwright-cli)) documents the CLI for the LLM. It is registered with the session's skill provider **only when** at least one backend reports `browser-playwright-cli`.
+- `/api/control/browser`, `AhandBackend.browser()`, `CloudClient.browser()`, and the proto `BrowserRequest/Response` messages are **deliberately retained** with a `// DEPRECATED — kept for future non-playwright-cli backends` comment. No new callers. See §11.3.
 
 ### Cross-repo ownership
 
-| Repo    | What changes                                                     | PR branch (suggested)             |
-| ------- | ---------------------------------------------------------------- | --------------------------------- |
-| `aHand` | `ahandd` library: progress-callback API + config mutation helper | `feat/browser-setup-progress-api` |
-| `team9` | Tauri client: commands, runtime reload, UI                       | `feat/browser-runtime-install-ui` |
+| Repo             | What changes                                                                                                                                                                                        | PR branch (suggested)             |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `aHand`          | `ahandd`: progress-callback API, config helper; cap string rename to `"browser-playwright-cli"`; deprecated-comment on `/api/control/browser` handlers.                                             | `feat/browser-setup-progress-api` |
+| `team9-agent-pi` | Rename `HostCapability`; delete `browser` LLM tool; delete `AhandBackend.browser()`; add compatibility alias in `deriveCaps`; add `browser-playwright-cli` SKILL folder + conditional registration. | `feat/browser-skill-migration`    |
+| `team9`          | Tauri client: commands, runtime reload, UI. Bumps `ahandd` and `team9-agent-pi` deps.                                                                                                               | `feat/browser-runtime-install-ui` |
 
-The team9 PR bumps `ahandd` git `rev` to pick up the aHand PR. Strict ordering (aHand merges first). See §9 for the full sequence.
+Strict ordering: aHand PR first → team9-agent-pi PR second (bumps `ahandd.rev`) → team9 PR last (bumps both `ahandd.rev` and `@team9claw/*` version). See §9 for the full sequence.
 
 ---
 
@@ -442,6 +457,44 @@ Atomic write is important because the Tauri backend may be competing with a daem
 
 **Estimated size:** ~180-240 LoC incl. tests (smaller than original spec estimate because we're extending existing types rather than introducing a parallel enum).
 
+### 4.8 Capability rename `"browser"` → `"browser-playwright-cli"`
+
+Same aHand PR. Two string locations flip, and one endpoint gets a deprecation banner:
+
+| File                                         | Line (current `dev`)                           | Change                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/ahandd/src/ahand_client.rs`          | `:772`                                         | `capabilities.push("browser".to_string());` → `capabilities.push("browser-playwright-cli".to_string());`                                                                                                                                                                                                |
+| `crates/ahandd/src/ahand_client.rs`          | `:1097`                                        | Tool name `tool: "browser".to_string()` inside `BrowserRequest` construction stays as `"browser"` — this is the internal proto-level tool-routing string used by the deprecated `/api/control/browser` path, not the capability advertised to the hub. Leave untouched. Add a code comment noting this. |
+| `crates/ahand-hub/src/browser_service.rs`    | `:146`                                         | `c == "browser"` → `c == "browser-playwright-cli"` (keeps the deprecated endpoint's ownership check correct if it ever gets called again).                                                                                                                                                              |
+| `crates/ahand-hub/src/http/browser.rs`       | module header                                  | Prepend the deprecation banner comment (see below).                                                                                                                                                                                                                                                     |
+| `crates/ahand-hub/src/http/control_plane.rs` | around the `POST /api/control/browser` handler | Prepend the deprecation banner comment.                                                                                                                                                                                                                                                                 |
+
+**Deprecation banner** (drop-in for both hub handler files):
+
+```rust
+//! DEPRECATED (temporarily retained).
+//!
+//! This endpoint was designed to let the hub proxy browser-automation
+//! requests to a device's ahandd directly, over a dedicated control-plane
+//! path. As of 2026-04-29, the team9 platform switched to a simpler model:
+//! agents drive browsers by calling `playwright-cli` via the standard
+//! `run_command` shell tool, guided by an injected SKILL.md (see the
+//! `browser-playwright-cli` skill folder in team9-agent-pi). The
+//! `browser-playwright-cli` device capability (reported by ahandd when
+//! `[browser].enabled = true`) signals that the device has playwright-cli
+//! installed; agents should interpret that as "you can shell out to
+//! playwright-cli", not as "you should call /api/control/browser".
+//!
+//! This endpoint is kept only to unblock a future, non-playwright-cli
+//! browser backend (e.g. native WebView / chromedp) that may benefit from
+//! a direct control-plane path. Do NOT add new callers here without
+//! revisiting that decision.
+```
+
+**Existing integration tests for `/api/control/browser` stay as-is** — they validate that the endpoint still works if revived. Update any `capabilities: vec!["browser".into()]` test fixtures to `"browser-playwright-cli"` so the new ownership check in `browser_service.rs` still passes.
+
+No DB migration needed — hub-side `devices.capabilities` is a Postgres `TEXT[]` column with no enum check constraint.
+
 ---
 
 ## 5 · team9 Tauri backend changes
@@ -529,8 +582,12 @@ pub struct BrowserStatus {
     pub steps: Vec<BrowserStepStatus>,
     /// Is `[browser].enabled` currently true in config.toml?
     pub enabled: bool,
-    /// Is the agent currently able to use the browser tool?
-    /// Equals: `enabled` AND daemon status is `Online`.
+    /// Is the agent currently able to drive the browser (via the
+    /// `browser-playwright-cli` skill + `run_command`)?
+    /// Equals: `enabled` AND daemon status is `Online`. The skill
+    /// will only be registered with the agent session when the
+    /// device reports `browser-playwright-cli`, which ahandd does
+    /// iff `[browser].enabled = true`.
     pub agent_visible: bool,
     /// Timestamp of this snapshot (ISO 8601).
     pub queried_at: String,
@@ -1270,58 +1327,333 @@ All three run in their respective repos' existing CI — no new workflow files n
 6. All unit tests from §8.1.
 7. Merge to `dev`; note merge SHA.
 
-**Phase B — team9 PR bumps `rev` + implements UI** (branch `feat/browser-runtime-install-ui`):
+**Phase B — team9-agent-pi PR** (branch `feat/browser-skill-migration`):
+
+1. Bump `packages/claw-hive/package.json` → `@ahandai/sdk` minor if needed. Bump internal `ahandd`-related Rust not applicable (agent-pi is TS-only).
+2. `HostCapability` rename + `deriveCaps` backwards-compat alias (§10.1, §10.2).
+3. Delete `browser` LLM tool + `AhandBackend.browser()` + `CloudClient.browser()` (§10.3, §10.4, §10.5). All their tests go with them.
+4. Add `packages/agent-components/skills/browser-playwright-cli/` SKILL folder (§11).
+5. Conditional skill registration in `HostComponent` (§10.6).
+6. Delete `docs/skills/browser.md` (§10.7).
+7. `pnpm build && pnpm test && pnpm typecheck` pass.
+8. Merge to `dev`; note merge SHA + any `@team9claw/*` version bumps.
+
+**Phase C — team9 PR bumps both deps + implements UI** (branch `feat/browser-runtime-install-ui`):
 
 1. Bump `apps/client/src-tauri/Cargo.toml` `ahandd = { git = ..., rev = "<PHASE_A_SHA>" }`.
-2. Implement `browser_runtime.rs` (3 commands + log-file writer + error-classification passthrough).
-3. Add `AhandRuntime::reload()` with rollback (§5.2).
-4. Register commands in `src-tauri/src/lib.rs`.
-5. New `install_log.rs` module.
-6. Renderer: `useBrowserRuntime` hook + `BrowserConfigTab.tsx` rewrite.
-7. i18n keys added (zh-CN + en-US).
-8. Tests from §8.2 + §8.3.
-9. Merge to `dev`.
+2. Bump `apps/client/package.json` (or monorepo workspace pin) → `@team9claw/*` versions from Phase B.
+3. Implement `browser_runtime.rs` (3 commands + log-file writer + error-classification passthrough).
+4. Add `AhandRuntime::reload()` with rollback (§5.2).
+5. Register commands in `src-tauri/src/lib.rs`.
+6. New `install_log.rs` module.
+7. Renderer: `useBrowserRuntime` hook + `BrowserConfigTab.tsx` rewrite.
+8. i18n keys added (zh-CN + en-US).
+9. Tests from §8.2 + §8.3.
+10. Merge to `dev`.
 
-**Phase C — Manual E2E** (from §8.4). Run on Tauri dev build once both PRs merge.
+**Phase D — Manual E2E** (from §8.4). Run on a fresh Tauri dev build once all three PRs merge.
 
 ### 9.2 Parallel development option
 
-Technically possible — team9 can use a `path = "../../aHand/crates/ahandd"` override locally during development, then switch to `rev = "..."` once the aHand PR merges. I recommend **not doing this** because:
+Technically possible — Phase B can work locally against a WIP aHand branch via `path = "../../aHand/crates/ahandd"` overrides; Phase C can work against Phase B via workspace links. I recommend **not doing this** because:
 
-- §4 is small (~250-350 LoC); review likely one day.
-- Parallel-dev risks rework if aHand reviewer requests API changes.
+- Each phase is small (~200-400 LoC); each review likely <1 day.
+- Parallel-dev risks rework if a reviewer requests upstream API changes.
 - The serial path has clean fallback points.
 
 ### 9.3 Rollback
 
-Either PR can be reverted independently:
+Each PR can be reverted independently, but Phase C has soft dependencies on Phase B (the "delete browser LLM tool" + SKILL registration changes):
 
-- aHand PR revert → team9 rolls back its `rev` one commit. Install UI stays disabled until a new aHand version surfaces.
-- team9 PR revert → UI reverts to "Coming Soon"; ahandd library additions remain inert (nobody calls the new APIs).
-
-Caveat: if aHand gets subsequent commits after the browser-setup PR, reverting cleanly becomes harder. This is standard git hygiene — team9 should follow up quickly after the aHand PR merges.
+- aHand PR revert → Phase B/C roll back their `ahandd.rev` and/or `@team9claw/*` versions one step.
+- team9-agent-pi PR revert (Phase B) → re-introduces the old `browser` LLM tool and `AhandBackend.browser()`; `"browser"` caps re-start routing through the old path. Phase C's install UI keeps working (it never called `/api/control/browser` anyway).
+- team9 PR revert (Phase C) → UI reverts to "Coming Soon"; ahandd library + SKILL remain in place but dormant.
 
 ### 9.4 Deploy impact
 
-| Service                                 | Changes                                                                      | Redeploy needed?             |
-| --------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------- |
-| `team9-agent-pi` (claw-hive)            | None                                                                         | No                           |
-| team9 gateway / im-worker / task-worker | None                                                                         | No                           |
-| aHand hub                               | None (protocol unchanged, webhook payload unchanged, browser tool unchanged) | No                           |
-| team9 Tauri desktop app                 | All UI + backend changes                                                     | **Yes — new .dmg release**   |
-| ahandd daemon (embedded in Tauri)       | API additions                                                                | Yes (bundled into Tauri app) |
+| Service                                 | Changes                                                                                            | Redeploy needed?             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `team9-agent-pi` (claw-hive)            | Skill folder + browser-tool removal + cap-string rename                                            | **Yes — new worker release** |
+| team9 gateway / im-worker / task-worker | None (they consume team9-agent-pi transitively; only im-worker needs to be redeployed — see below) | im-worker: Yes; others: No   |
+| aHand hub                               | Cap-string ownership check + deprecated-banner comments; `/api/control/browser` wire-compat intact | Yes (to pick up cap rename)  |
+| team9 Tauri desktop app                 | All UI + backend changes; bumped `ahandd.rev` and `@team9claw/*`                                   | **Yes — new .dmg release**   |
+| ahandd daemon (embedded in Tauri)       | API additions + `capabilities.push("browser-playwright-cli")` rename                               | Yes (bundled into Tauri app) |
 
-Only the team9 Tauri app needs re-packaging + release. No server-side rollout.
+**im-worker redeploy reason:** the deleted `browser` LLM tool + the new SKILL registration code live in `@team9claw/agent-components` / `@team9claw/claw-hive`, which `im-worker` bundles. No DB migration required.
+
+**Hub redeploy reason:** `browser_service.rs`'s ownership-check constant changes from `"browser"` to `"browser-playwright-cli"`. If we deploy the hub BEFORE ahandd starts reporting the new string, the `/api/control/browser` endpoint will 400 `CapabilityMissing` for any straggling caller (there should be none, since team9-agent-pi's deletion happens first). Deploy order: team9-agent-pi workers → hub → Tauri .dmg (ahandd-embedded) → users upgrade.
 
 ---
 
-## 10 · Open questions
+## 10 · team9-agent-pi changes (tool→SKILL migration)
+
+This is a **new, separate PR** in the `team9-agent-pi` repo — sequenced between the aHand PR and the team9 Tauri PR.
+
+### 10.1 `HostCapability` type rename
+
+Current (`packages/types/src/host.ts`):
+
+```ts
+export type HostCapability = "shell" | "browser";
+```
+
+Replace with:
+
+```ts
+/**
+ * Capability a host backend can advertise. Names bind to concrete
+ * implementations so a device (or other backend) signals not just
+ * "I can do browser stuff" but specifically *which* browser stack
+ * is available. When we add a new stack (e.g. native WebView) we
+ * extend this union, not reuse `"browser"`.
+ */
+export type HostCapability = "shell" | "browser-playwright-cli";
+```
+
+### 10.2 `deriveCaps` — backwards-compat alias
+
+Current (`packages/claw-hive/src/components/ahand/integration.ts:139-152`):
+
+```ts
+export function deriveCaps(
+  deviceCaps: readonly string[] | undefined,
+): HostCapability[] {
+  if (!deviceCaps) return [];
+  const out: HostCapability[] = [];
+  if (deviceCaps.includes("exec")) out.push("shell");
+  if (deviceCaps.includes("browser")) out.push("browser");
+  return out;
+}
+```
+
+Replace with:
+
+```ts
+/**
+ * Map ahandd's device-reported capability strings ("exec",
+ * "browser-playwright-cli", ...) to HostComponent's HostCapability
+ * vocabulary.
+ *
+ * Known mappings:
+ * - "exec"                     → "shell"                   (historical rename)
+ * - "browser-playwright-cli"   → "browser-playwright-cli"  (pass-through)
+ * - "browser"                  → "browser-playwright-cli"  (legacy alias,
+ *   for ahandd installs that predate 2026-04-29's rename; safe to remove
+ *   once all production devices have reconnected on the new version)
+ *
+ * Unknown strings are silently dropped, so adding a new ahandd capability
+ * (e.g. "browser-webview", "files") does not require a worker update.
+ */
+export function deriveCaps(
+  deviceCaps: readonly string[] | undefined,
+): HostCapability[] {
+  if (!deviceCaps) return [];
+  const out: HostCapability[] = [];
+  if (deviceCaps.includes("exec")) out.push("shell");
+  if (
+    deviceCaps.includes("browser-playwright-cli") ||
+    deviceCaps.includes("browser") // legacy alias
+  ) {
+    out.push("browser-playwright-cli");
+  }
+  return out;
+}
+```
+
+### 10.3 Remove the `browser` LLM tool
+
+Delete from `packages/agent-components/src/components/host/host-component.ts`:
+
+- The `BROWSER_TOOL_DESCRIPTION` constant (~60-line string near line 74).
+- The `browserTool()` factory.
+- The `if (this.hasAnyBackendWithCap("browser")) tools.push(browserTool())` branch in `getTools()` (~line 230).
+- The internal `browser` dispatch method and its helpers, including `translateBrowserResult` and any `sessionIdForBrowser` / `stickyBackendForBrowser` logic added by PR #97.
+- All imports and types that become dead after the above (e.g. `BrowserBackendResult` usage).
+
+Keep:
+
+- `hasAnyBackendWithCap()` itself (still useful for `run_command` + future caps).
+- The `HostBackend.capabilities` property (still read by `deriveCaps`/skill registration).
+
+### 10.4 Remove `AhandBackend.browser()`
+
+Delete the `browser()` method from `packages/claw-hive/src/components/ahand/integration.ts` (added by PR #97, ~line 243). Delete its test cases. The surrounding `AhandBackend` class remains otherwise unchanged.
+
+### 10.5 Remove `CloudClient.browser()`
+
+Delete the `browser()` method from `aHand/packages/sdk/src/cloud-client.ts`. This lives in the aHand repo's SDK package but is tied to the capability rename, so it belongs in the aHand PR section 4.8 rather than here. Cross-referenced here for visibility. The method's contract was used only by the deleted `AhandBackend.browser()` — no other call site exists.
+
+### 10.6 Register the `browser-playwright-cli` SKILL conditionally
+
+Add a new module `packages/agent-components/src/components/host/browser-skill-registration.ts`:
+
+```ts
+import {
+  packageSkillDir,
+  registerSourceCodeSkills,
+  SkillTier,
+} from "../skill/index.js";
+
+export function registerBrowserPlaywrightCliSkill(skillTier: SkillTier): void {
+  const dir = packageSkillDir(import.meta.url, "browser-playwright-cli");
+  registerSourceCodeSkills(skillTier, dir, {
+    // Both the main SKILL.md and the per-topic references live in the
+    // same folder; SourceCodeFolderProvider handles the `references/`
+    // subdir via its default recursion rules.
+  });
+}
+```
+
+Wire this into `HostComponent.onBeforePrompt` (or equivalent lifecycle hook — the exact one depends on where per-round cap checks already live; see existing `hasAnyBackendWithCap` call sites). Invoke registration **idempotently** — the provider can be added / removed across turns as caps change:
+
+```ts
+// inside HostComponent, per-turn:
+if (this.hasAnyBackendWithCap("browser-playwright-cli")) {
+  if (!this.hasBrowserSkillRegistered) {
+    registerBrowserPlaywrightCliSkill(this.skillTier);
+    this.hasBrowserSkillRegistered = true;
+  }
+} else if (this.hasBrowserSkillRegistered) {
+  // Optional: deregister when last capable backend goes away. If
+  // SourceCodeFolderProvider doesn't support removal, leaving it
+  // registered is harmless (skill search still returns it, but `run_command`
+  // will fail fast when the device is unreachable / cap-less). Decide
+  // during implementation.
+  this.hasBrowserSkillRegistered = false;
+}
+```
+
+`SkillTier` / `skillTier` come from the existing `createSkillComponent` infrastructure — confirm the exact symbol name during implementation by reading `packages/agent-components/src/components/skill/index.ts`.
+
+### 10.7 Delete the orphaned `docs/skills/browser.md`
+
+PR #97 left a `docs/skills/browser.md` markdown at the repo root. It describes the old LLM-tool vocabulary and will mislead readers in the new architecture. Delete it in this PR.
+
+### 10.8 PR change summary
+
+| File                                                                                | Change                                                          |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `packages/types/src/host.ts`                                                        | `HostCapability` union string rename.                           |
+| `packages/claw-hive/src/components/ahand/integration.ts`                            | `deriveCaps` alias; delete `AhandBackend.browser()` + tests.    |
+| `packages/claw-hive/src/components/ahand/integration.test.ts`                       | Update fixtures; delete browser-tool assertions.                |
+| `packages/agent-components/src/components/host/host-component.ts`                   | Delete `BROWSER_TOOL_DESCRIPTION` + `browserTool` + dispatcher. |
+| `packages/agent-components/src/components/host/host-component.test.ts`              | Delete browser-tool assertions.                                 |
+| `packages/agent-components/src/components/host/browser-skill-registration.ts` (new) | Conditional `SourceCodeFolderProvider` hookup.                  |
+| `packages/agent-components/skills/browser-playwright-cli/` (new folder)             | Full SKILL content — see §11.                                   |
+| `packages/claw-hive/src/components/ahand/gateway-client.ts`                         | Comment rewrite: "browser-playwright-cli" replaces "browser".   |
+| `docs/skills/browser.md`                                                            | Delete.                                                         |
+
+**Estimated size:** ~300 LoC deletion + ~80 LoC addition + the bundled SKILL markdown folder (~34 KB as-is from upstream).
+
+---
+
+## 11 · SKILL content: `browser-playwright-cli`
+
+### 11.1 Provenance
+
+Upstream: [microsoft/playwright-cli `skills/playwright-cli/`](https://github.com/microsoft/playwright-cli/tree/main/skills/playwright-cli). License: MIT. Folder layout (verified 2026-04-29):
+
+```
+skills/playwright-cli/
+├── SKILL.md              ~10.8 KB (quickstart + command index)
+└── references/
+    ├── element-attributes.md     ~0.7 KB
+    ├── playwright-tests.md       ~1.6 KB
+    ├── request-mocking.md        ~2.2 KB
+    ├── running-code.md           ~5.6 KB
+    ├── session-management.md     ~5.7 KB
+    ├── storage-state.md          ~5.2 KB
+    ├── test-generation.md        ~4.6 KB
+    ├── tracing.md                ~3.4 KB
+    └── video-recording.md        ~5.4 KB
+```
+
+### 11.2 Adaptation
+
+Copy the whole folder into `packages/agent-components/skills/browser-playwright-cli/`. Preserve upstream content (MIT requires attribution preservation — include a `LICENSE-UPSTREAM.md` alongside `SKILL.md` with the original copyright header).
+
+Then edit `SKILL.md` frontmatter and preamble:
+
+1. **Frontmatter rename** (top of `SKILL.md`):
+
+   ```yaml
+   ---
+   name: browser-playwright-cli
+   description: Automate browser interactions by shelling out to `playwright-cli` on the user's ahand device. Only usable when the device reports the `browser-playwright-cli` capability.
+   ---
+   ```
+
+   Drop the `allowed-tools:` line from upstream — that's a Claude Code construct; our agent routes through `run_command`, not through Claude Code's `Bash` tool.
+
+2. **Insert a team9-specific preamble** as the first H2 under the `# Browser Automation with playwright-cli` heading, before upstream's existing "Quick start" section:
+
+   ```markdown
+   ## How to invoke `playwright-cli` on a team9 agent session
+
+   You drive `playwright-cli` by calling the `run_command` shell tool on
+   any backend whose `capabilities` list contains `"browser-playwright-cli"`.
+   Check the `<host-context>` / `<ahand-context>` blocks to confirm — if
+   no backend has that cap, this skill is not applicable.
+
+   The `playwright-cli` binary is on the device's `PATH` (installed by
+   ahandd at `~/.ahand/node/bin/playwright-cli`). Invoke it as:
+
+       run_command({ command: "playwright-cli <args>" })
+
+   **State persistence:** page state, cookies, and element refs (e.g. `e2`
+   from a prior `snapshot`) persist across `run_command` calls on the same
+   backend within the same agent session, as long as you don't explicitly
+   call `playwright-cli close`. If you switch backends, state does not
+   carry over.
+
+   **Picking a backend:** if multiple backends report
+   `browser-playwright-cli`, pass the explicit `backend` parameter to
+   `run_command` to pin the call to one device. Omit it to reuse the
+   last-used backend (same "sticky backend" behavior documented for
+   `run_command`).
+
+   **Output conventions:** `playwright-cli snapshot` and `playwright-cli
+   eval` write their results to stdout; `run_command` surfaces stdout to
+   you. Screenshots and other binary outputs are written to a file whose
+   path is printed on stdout.
+
+   Everything below is upstream reference material. Skim the Quick start,
+   then pull individual reference files (`references/<topic>.md`) on
+   demand when you need specialized commands.
+   ```
+
+3. **Leave the rest of `SKILL.md`** (quickstart, command tables, etc.) and all 9 `references/*.md` files **verbatim** from upstream. No team9-specific edits inside references — they're generic `playwright-cli` docs that happen to work fine when invoked via `run_command`.
+
+4. **Add `LICENSE-UPSTREAM.md`** in the same folder with:
+
+   ```
+   The content of SKILL.md (below the team9 preamble) and all files in
+   references/ are adapted from microsoft/playwright-cli:
+     https://github.com/microsoft/playwright-cli/tree/main/skills/playwright-cli
+   Upstream license: MIT (see
+     https://github.com/microsoft/playwright-cli/blob/main/LICENSE).
+   Original copyright © Microsoft Corporation.
+   ```
+
+### 11.3 Why keep `/api/control/browser` instead of deleting it
+
+Rationale for the deprecation-but-retain stance (recap of §4.8):
+
+- The endpoint isn't itself broken; it's just orphaned under the skill model.
+- A future non-playwright-cli backend (e.g. a native Tauri WebView driver, or Playwright MCP) **may** benefit from a dedicated control-plane path if its protocol is too rich for `run_command` (persistent state, streaming introspection). Rebuilding the route/auth/ownership-check plumbing later is strictly worse than adding a comment now.
+- We already verified during spec review (§13 item 9) that the incremental maintenance cost of one deprecated route is lower than the rebuild cost.
+
+If in 6 months no new backend has materialized and the endpoint still has no callers, a follow-up PR can delete it.
+
+---
+
+## 12 · Open questions
 
 None at spec time — all major decisions were made during brainstorming (see meta-section below). Minor implementation choices (exact timeout values, popover styling specifics, log rotation frequency beyond "7 days") will be resolved during implementation planning.
 
 ---
 
-## 11 · Meta — decisions made during brainstorming
+## 13 · Meta — decisions made during brainstorming
 
 Captured here for future readers who want to know why the spec looks like this:
 
@@ -1331,5 +1663,13 @@ Captured here for future readers who want to know why the spec looks like this:
 4. **Status data source (§5.3.1):** Entirely local ahandd + in-memory daemon status. Rationale: single source of truth; no network dependency for a local operation.
 5. **Failure self-help scope (§6.4, §7.2):** Per-step, with copy-command and external-link primitives. Rationale: user should never need to Google the error message.
 6. **Enable/disable vs uninstall (§5.3.3):** Enable/disable supported; uninstall deliberately not supported. Rationale: YAGNI — playwright-cli is small, leaving it installed is cheap; a simple toggle covers 95% of use cases.
+
+**Added 2026-04-29 during plan writing (spec revision — see §10–§11):**
+
+7. **Browser-as-SKILL, not as LLM-tool:** remove the dedicated `browser` tool; agents drive Playwright via `run_command + playwright-cli` guided by a SKILL folder. Rationale: upstream `@playwright/cli` already ships SKILL markdown designed exactly for coding agents; the tool-based path was also more token-expensive (big tool schema loaded every turn); and decoupling capability-string from tool-kind makes future non-playwright backends trivial.
+8. **Capability string rename `"browser"` → `"browser-playwright-cli"`:** ties the capability name to the concrete implementation, leaving namespace for `"browser-webview"` / `"browser-chromedp"` etc. later. Rationale: a single `"browser"` name would force every future backend to share one skill/doc/command set; namespacing is cheap.
+9. **Retain `/api/control/browser` + deprecation banner:** not deleted. Rationale: future non-playwright-cli backends may want direct hub-routed control-plane calls (Playwright MCP-style), and rebuilding that plumbing later is worse than leaving it in place with clear "do not add new callers" comments.
+10. **Backwards-compat in `deriveCaps`:** accept both `"browser"` (legacy) and `"browser-playwright-cli"`, map both to the same `HostCapability::"browser-playwright-cli"`. Rationale: avoids a DB migration; old ahandd installs keep working during rollout; the alias can be removed when everyone's reporting the new string.
+11. **SKILL registration gated by presence of the cap:** `SourceCodeFolderProvider` is registered with the skill tier **only** when at least one backend reports `browser-playwright-cli`. Rationale: don't pollute skill search results for agents that can't actually act on the skill.
 
 ---
