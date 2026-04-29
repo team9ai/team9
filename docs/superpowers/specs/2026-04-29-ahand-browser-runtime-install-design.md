@@ -88,52 +88,73 @@ The team9 PR bumps `ahandd` git `rev` to pick up the aHand PR. Strict ordering (
 
 ## 4 · aHand (ahandd) library changes
 
-### 4.1 `browser_setup` progress callback
+### 4.1 `browser_setup` progress callback — extend, don't replace
 
 **Current signatures** (`crates/ahandd/src/browser_setup/mod.rs`):
 
 ```rust
-pub async fn run_all(force: bool) -> anyhow::Result<Vec<StepReport>>;
-pub async fn run_step(name: &str, force: bool) -> anyhow::Result<StepReport>;
+pub async fn run_all(
+    force: bool,
+    progress: impl Fn(ProgressEvent) + Send + Sync + 'static,
+) -> Result<Vec<CheckReport>>;
+
+pub async fn run_step(
+    name: &str,
+    force: bool,
+    progress: impl Fn(ProgressEvent) + Send + Sync + 'static,
+) -> Result<CheckReport>;
+
 pub async fn inspect_all() -> Vec<CheckReport>;
 pub async fn inspect(name: &str) -> Option<CheckReport>;
 ```
 
-The mutating APIs (`run_all` / `run_step`) return only the final `Vec<StepReport>`. Child-process stdout/stderr is collected but not emitted incrementally — the Tauri layer has no way to render "Node.js downloading… 42 MB / 100 MB".
+The callback already exists, but today's `ProgressEvent` is _phase-granular_ — it emits `Starting`/`Downloading`/`Extracting`/`Installing`/`Verifying`/`Done` with a human-readable `message` field. That's enough for a high-level status bar but **not** enough for the log-drawer requirement (§6.3: "verbatim stdout/stderr as lines arrive").
 
-**New signatures** (additive; old call sites keep working by passing `None::<fn(_)>`):
+**Current `ProgressEvent` shape** (`crates/ahandd/src/browser_setup/types.rs`):
 
 ```rust
-#[derive(Debug, Clone)]
-pub enum BrowserSetupProgress {
-    /// A step is about to run.
-    StepStarted { name: String, label: String },
-    /// A log line emitted during the step.
-    StepLog { name: String, line: String, stream: LogStream },
-    /// A step finished (success or failure).
-    StepFinished {
-        name: String,
-        status: StepStatus,
-        error: Option<StepError>,
-        duration_ms: u64,
-    },
-    /// Final summary after all steps.
-    AllFinished { overall: StepStatus, total_duration_ms: u64 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum LogStream { Stdout, Stderr, Info }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum StepStatus { Ok, Skipped, Failed, NotRun }
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct StepError {
-    pub code: ErrorCode,
+#[derive(Debug, Clone, Serialize)]
+pub struct ProgressEvent {
+    pub step: &'static str,              // "node" / "playwright"
+    pub phase: Phase,                    // Starting / Downloading / ...
     pub message: String,
+    pub percent: Option<u8>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Phase {
+    Starting,
+    Downloading,
+    Extracting,
+    Installing,
+    Verifying,
+    Done,
+}
+```
+
+**Change: add a `Log` phase that carries line-granular child-process output, plus an `ErrorCode` sibling type for structured failures.** No new top-level enum; keep the `ProgressEvent` shape.
+
+**New types** (append to `crates/ahandd/src/browser_setup/types.rs`):
+
+```rust
+/// Which stream a log line originated from, for lines emitted with
+/// `Phase::Log`. `Info` is synthesized by Rust code; `Stdout`/`Stderr`
+/// are forwarded verbatim from child processes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LogStream {
+    Stdout,
+    Stderr,
+    Info,
+}
+
+/// Machine-readable classification of an install step failure. Lives on
+/// `CheckStatus::Failed` (new variant, §4.3) and on the terminal
+/// `ProgressEvent` for a failing step. The UI uses `code` to pick a
+/// targeted help popover.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     PermissionDenied,
     Network,
@@ -142,23 +163,61 @@ pub enum ErrorCode {
     VersionMismatch,
     Unknown,
 }
-
-pub async fn run_all<F>(force: bool, on_progress: Option<F>) -> anyhow::Result<Vec<StepReport>>
-where
-    F: Fn(BrowserSetupProgress) + Send + Sync + 'static;
-
-pub async fn run_step<F>(name: &str, force: bool, on_progress: Option<F>) -> anyhow::Result<StepReport>
-where
-    F: Fn(BrowserSetupProgress) + Send + Sync + 'static;
 ```
 
-`inspect_all` / `inspect` remain unchanged.
+**Extend `Phase`** (modify the existing enum in the same file) — add one variant:
+
+```rust
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Phase {
+    Starting,
+    Downloading,
+    Extracting,
+    Installing,
+    Verifying,
+    Done,
+    /// A raw log line from the running step. Look at `ProgressEvent.stream`
+    /// to disambiguate stdout / stderr / synthesized info messages.
+    /// `message` carries the line content; `percent` is always `None`.
+    Log,
+}
+```
+
+**Extend `ProgressEvent`** (same file) — add an optional `stream` field:
+
+```rust
+#[derive(Debug, Clone, Serialize)]
+pub struct ProgressEvent {
+    pub step: &'static str,
+    pub phase: Phase,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percent: Option<u8>,
+    /// Set when `phase == Log`, absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<LogStream>,
+}
+```
+
+**Signatures stay the same.** Only the payload gets richer. `run_all` / `run_step` already take the callback; we're just feeding them new `Phase::Log` events alongside the existing phase events.
+
+**Invariant for callers:** `phase == Log` ⇒ `stream` is `Some(_)` and `message` is a single line (no trailing newline). For all other phases, `stream` is `None` and `message` is a human summary.
+
+`inspect_all` / `inspect` remain unchanged (pure read, no progress).
 
 ### 4.2 Streaming child-process output
 
-`crates/ahandd/src/browser_setup/playwright.rs` and (if it exists) `node.rs` currently use `Command::output().await` to collect stdout/stderr after the child exits. Replace with piped I/O:
+`crates/ahandd/src/browser_setup/playwright.rs` (and `node.rs`) currently use `Command::output().await` to collect stdout/stderr after the child exits. Replace with piped I/O that forwards each line as a `ProgressEvent { phase: Phase::Log, stream: Some(...) }`:
 
 ```rust
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
+use std::process::Stdio;
+use std::sync::Arc;
+
+let cb: Arc<dyn Fn(ProgressEvent) + Send + Sync> = Arc::new(progress);
+
 let mut child = Command::new("npm")
     .args(&["install", "-g", "--prefix", &prefix, &format!("@playwright/cli@{PLAYWRIGHT_CLI_VERSION}")])
     .stdout(Stdio::piped())
@@ -169,26 +228,30 @@ let stdout = child.stdout.take().unwrap();
 let stderr = child.stderr.take().unwrap();
 
 // Two tokio tasks forwarding lines to the callback.
-let cb_stdout = callback.clone();
+let cb_stdout = cb.clone();
 let stdout_forwarder = tokio::spawn(async move {
     let mut lines = BufReader::new(stdout).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-        cb_stdout(BrowserSetupProgress::StepLog {
-            name: "playwright".into(),
-            line,
-            stream: LogStream::Stdout,
+        cb_stdout(ProgressEvent {
+            step: "playwright",
+            phase: Phase::Log,
+            message: line,
+            percent: None,
+            stream: Some(LogStream::Stdout),
         });
     }
 });
 
-let cb_stderr = callback.clone();
+let cb_stderr = cb.clone();
 let stderr_forwarder = tokio::spawn(async move {
     let mut lines = BufReader::new(stderr).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-        cb_stderr(BrowserSetupProgress::StepLog {
-            name: "playwright".into(),
-            line,
-            stream: LogStream::Stderr,
+        cb_stderr(ProgressEvent {
+            step: "playwright",
+            phase: Phase::Log,
+            message: line,
+            percent: None,
+            stream: Some(LogStream::Stderr),
         });
     }
 });
@@ -198,24 +261,127 @@ stdout_forwarder.await.ok();
 stderr_forwarder.await.ok();
 ```
 
-Rust-side status messages (e.g. `"Installing playwright-cli"`, `"playwright-cli {ver} already installed"`) are emitted as `BrowserSetupProgress::StepLog { stream: LogStream::Info }`.
+Rust-side status messages (e.g. `"Installing playwright-cli"`, `"playwright-cli {ver} already installed"`) continue to be emitted through the **existing** `Phase::Installing` / `Phase::Done` events (that's what they're for — high-level status). Raw per-line logs always use `Phase::Log` with a `stream`.
+
+**Ownership note:** the callback is wrapped in `Arc<dyn Fn>` (not cloned directly) because `impl Fn` is `?Sized` and the two forwarder tasks each need a persistent reference. Any existing `impl Fn(ProgressEvent) + Send + Sync + 'static` caller (e.g. `ahandctl`) is compatible — we just wrap internally.
 
 ### 4.3 Error classification
 
-When a step fails, its `StepReport::error` (and the corresponding `StepFinished` event) carries a `StepError` with a machine-readable `ErrorCode`. The classification lives in `browser_setup`:
+Today, `playwright::ensure` and `node::ensure` return `Result<CheckReport>` — on failure they bubble up `anyhow::Error` via `bail!` (see `playwright.rs` lines ~135, 146, 157, 171 for the bail sites). The Tauri layer gets a string and would need to grep it. Fix this by adding a `Failed` variant to `CheckStatus` and classifying before the `bail!` disappears into prose.
+
+**Extend `CheckStatus`** (`crates/ahandd/src/browser_setup/types.rs`):
 
 ```rust
-fn classify(err_str: &str) -> ErrorCode {
-    if err_str.contains("Permission denied") { return ErrorCode::PermissionDenied; }
-    if err_str.contains("Network error") || err_str.contains("ECONNRESET") { return ErrorCode::Network; }
-    if err_str.contains("no system browser") { return ErrorCode::NoSystemBrowser; }
-    if err_str.contains("npm not found") { return ErrorCode::NodeMissing; }
-    if err_str.contains("version") && err_str.contains("mismatch") { return ErrorCode::VersionMismatch; }
-    ErrorCode::Unknown
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CheckStatus {
+    Ok { version: String, path: PathBuf, source: CheckSource },
+    Missing,
+    Outdated { current: String, required: String, path: PathBuf },
+    NoneDetected { tried: Vec<String> },
+    /// An install step ran and failed. Only produced by the mutating
+    /// (`run_all` / `run_step`) paths; `inspect_*` never returns this.
+    Failed {
+        code: ErrorCode,
+        /// Full `anyhow::Error` stringification — for the log drawer.
+        message: String,
+    },
 }
 ```
 
-The patterns are already present in `playwright.rs`/`mod.rs` error strings (see existing code around lines 100, 136, 147, 158, 172). This function centralizes them so Tauri doesn't have to pattern-match on English prose.
+**Add a classifier** at the top of `crates/ahandd/src/browser_setup/mod.rs`:
+
+```rust
+/// Classify an `anyhow::Error` produced by an install step into a
+/// machine-readable `ErrorCode`. The patterns match the `bail!` call
+/// sites in `playwright.rs` / `node.rs` and the `no system browser`
+/// message from `inspect_browser`.
+pub fn classify_error(err: &anyhow::Error) -> ErrorCode {
+    let s = format!("{err:#}"); // chain-format includes causes
+    if s.contains("Permission denied") || s.contains("EACCES") {
+        ErrorCode::PermissionDenied
+    } else if s.contains("Network error")
+        || s.contains("ECONNRESET")
+        || s.contains("ETIMEDOUT")
+        || s.contains("getaddrinfo")
+    {
+        ErrorCode::Network
+    } else if s.contains("no system browser") {
+        ErrorCode::NoSystemBrowser
+    } else if s.contains("npm not found") || s.contains("Node") && s.contains("not installed") {
+        ErrorCode::NodeMissing
+    } else if s.contains("version") && (s.contains("mismatch") || s.contains("required")) {
+        ErrorCode::VersionMismatch
+    } else {
+        ErrorCode::Unknown
+    }
+}
+```
+
+**Wire it into `run_all` / `run_step`** — the existing flow is:
+
+```rust
+// today — error bubbles up, no structured failure is reported:
+let node_report = node::ensure(force, progress_ref).await?;
+```
+
+Replace with the catch-and-classify pattern:
+
+```rust
+// new — on failure, build a Failed CheckReport, emit a terminal
+// ProgressEvent with the classification, and halt.
+let node_report = match node::ensure(force, progress_ref).await {
+    Ok(r) => r,
+    Err(e) => {
+        let code = classify_error(&e);
+        let message = format!("{e:#}");
+        progress_ref(ProgressEvent {
+            step: "node",
+            phase: Phase::Done,
+            message: message.clone(),
+            percent: None,
+            stream: None,
+        });
+        let failed = CheckReport {
+            name: "node",
+            label: "Node.js",
+            status: CheckStatus::Failed { code, message: message.clone() },
+            fix_hint: Some(FixHint::RunStep {
+                command: "ahandd browser-init --step node".into(),
+            }),
+        };
+        // Preserve the old `Result<...>` return shape so ahandctl CLI
+        // continues to print the error — but attach the classified
+        // report on the anyhow error chain via a typed extension.
+        return Err(e.context(FailedStepReport(failed)));
+    }
+};
+```
+
+Where `FailedStepReport` is a tiny newtype wrapper:
+
+```rust
+/// Attached to `anyhow::Error` via `.context()` so callers (notably
+/// Tauri's `browser_runtime`) can downcast and get the classified
+/// `CheckReport` without re-parsing the error string.
+pub struct FailedStepReport(pub CheckReport);
+
+impl std::fmt::Display for FailedStepReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "step `{}` failed", self.0.name)
+    }
+}
+
+impl std::fmt::Debug for FailedStepReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FailedStepReport({})", self.0.name)
+    }
+}
+```
+
+**Why this shape:** keeping `run_all` / `run_step` returning `Result<...>` preserves the CLI behavior exactly (ahandctl prints the error chain). The typed context lets the Tauri layer do `err.chain().find_map(|e| e.downcast_ref::<FailedStepReport>())` and get the classified `CheckReport` for UI rendering, without grepping error strings.
+
+`inspect_browser` (lines 89-113 of `mod.rs`) does NOT need a `Failed` variant — it uses `CheckStatus::NoneDetected` and the existing `FixHint::ManualCommand`. That UI path is already good.
 
 ### 4.4 Config mutation helper
 
@@ -255,22 +421,26 @@ Atomic write is important because the Tauri backend may be competing with a daem
 
 ### 4.6 Backwards compatibility
 
-- Existing `ahandctl browser-init` CLI call site updates to pass either `None::<fn(_)>` (simplest) or an optional stdout-pretty-printing callback (nicer UX for terminal users but optional).
-- All existing unit tests continue to pass unchanged (with `None` callback).
-- The new enums (`LogStream`, `StepStatus`, `ErrorCode`, `BrowserSetupProgress`, `StepError`) are `pub` additions with no removals. No SemVer break for any external caller.
+- `run_all` / `run_step` signatures are **unchanged**. The existing `ahandctl browser-init` call site keeps working without modification — it already passes a callback.
+- `ProgressEvent` gains two optional fields (`stream`, via the existing `percent` slot pattern). Existing callers that don't inspect `stream` keep working; callers that match on `phase` need one extra arm for the new `Phase::Log` variant if they want per-line logs (CLI can choose to print them or ignore them).
+- `CheckStatus` gains a `Failed` variant. Callers that exhaustively match need one new arm. The CLI already prints errors via the returned `anyhow::Error`, so no `CheckStatus::Failed` handling is strictly required there.
+- `classify_error` and `FailedStepReport` are pure additions (`pub`). No removals.
+- All existing unit tests continue to pass; the serde assertions in `types.rs` need two new tests asserting the `Log`-phase + `Failed`-status shapes (§7.1).
 
 ### 4.7 PR change summary
 
-| File                                                      | Change                                                                       |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `crates/ahandd/src/browser_setup/mod.rs`                  | Add enums; extend `run_all` / `run_step` signatures; wire callbacks through. |
-| `crates/ahandd/src/browser_setup/playwright.rs`           | Piped I/O for `npm install`.                                                 |
-| `crates/ahandd/src/browser_setup/node.rs` (if exists)     | Piped I/O for Node installer.                                                |
-| `crates/ahandd/src/config.rs`                             | Add `Config::set_browser_enabled` with atomic write.                         |
-| `crates/ahandctl/src/main.rs`                             | Pass `None::<fn(_)>` (or a stdout-pretty callback).                          |
-| `crates/ahandd/src/browser_setup/tests.rs` (and per-file) | New unit tests (see §7.1).                                                   |
+| File                                                | Change                                                                                                                                                     |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/ahandd/src/browser_setup/types.rs`          | Add `LogStream` / `ErrorCode` enums; add `Phase::Log`; add `stream: Option<LogStream>` to `ProgressEvent`; add `CheckStatus::Failed { code, message }`.    |
+| `crates/ahandd/src/browser_setup/mod.rs`            | Add `classify_error()`; add `FailedStepReport` newtype; wrap `node::ensure` / `playwright::ensure` calls in `run_all` / `run_step` with classify-on-error. |
+| `crates/ahandd/src/browser_setup/playwright.rs`     | Piped I/O for `npm install` — emit `Phase::Log` events with `LogStream::Stdout`/`Stderr` per line.                                                         |
+| `crates/ahandd/src/browser_setup/node.rs`           | Piped I/O for Node installer — same `Phase::Log` forwarding.                                                                                               |
+| `crates/ahandd/src/browser_setup/browser_detect.rs` | No changes (inspect_browser already returns `NoneDetected` with `FixHint`).                                                                                |
+| `crates/ahandd/src/config.rs`                       | Add `Config::set_browser_enabled(path, enabled)` with atomic write via `config.toml.tmp` + rename.                                                         |
+| `crates/ahandctl/src/main.rs`                       | No required change; optionally pretty-print `Phase::Log` lines in the callback.                                                                            |
+| Test files in `browser_setup/`                      | New unit tests: `classify_error` for each `ErrorCode` variant; `Phase::Log` serde; atomic config write.                                                    |
 
-**Estimated size:** ~250-350 LoC incl. tests.
+**Estimated size:** ~180-240 LoC incl. tests (smaller than original spec estimate because we're extending existing types rather than introducing a parallel enum).
 
 ---
 
@@ -435,13 +605,25 @@ pub async fn browser_install(
 Implementation:
 
 1. Acquire lock (fast-fail if held).
-2. Wrap `on_progress.send(...)` in an `Arc<dyn Fn(BrowserSetupProgress) + Send + Sync>` — convert each `ahandd::browser_setup::BrowserSetupProgress` into the Tauri `BrowserProgressEvent` shape before sending.
-3. Open a tee log writer at `~/.ahand/logs/browser-setup-{YYYYMMDD-HHMMSS}.log` — every `StepLog` event appends here as well (see §6.5).
-4. `let reports = ahandd::browser_setup::run_all(force, Some(callback)).await?;`
-5. If `reports` → overall `Ok`:
+2. Wrap `on_progress.send(...)` in an `Arc<dyn Fn(ahandd::browser_setup::ProgressEvent) + Send + Sync>`. The adapter converts each ahandd `ProgressEvent` into exactly one Tauri `BrowserProgressEvent`:
+
+   | ahandd `ProgressEvent`                                             | Tauri `BrowserProgressEvent`                                                       |
+   | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+   | `phase: Starting`                                                  | `StepStarted { name, label_key }` (first time per step)                            |
+   | `phase: Downloading / Extracting / Installing / Verifying`         | `StepLog { name, line: message, stream: Info }` (progress messages)                |
+   | `phase: Log, stream: Some(s)`                                      | `StepLog { name, line: message, stream: s }` (raw child output)                    |
+   | `phase: Done`                                                      | `StepFinished { name, status: Ok, error: None, duration_ms }`                      |
+   | (classify_error + FailedStepReport downcast on `Err` from run_all) | `StepFinished { name, status: Failed, error: Some({code, message}), duration_ms }` |
+   | (synthesized by adapter after run_all returns)                     | `AllFinished { overall, total_duration_ms }`                                       |
+
+   Per-step duration is tracked by the adapter (`Instant::now()` at `Starting`, delta at `Done`/`Err`).
+
+3. Open a tee log writer at `~/.ahand/logs/browser-setup-{YYYYMMDD-HHMMSS}.log` — every converted `StepLog` event appends here as well (see §6.5).
+4. `let result = ahandd::browser_setup::run_all(force, callback).await;` — no `Some(_)` wrapping; the callback type is the existing `impl Fn(ProgressEvent) + Send + Sync + 'static`.
+5. If `result` is `Ok(reports)` and no report has `CheckStatus::Failed { .. }`:
    - `Config::load(&path) → set_browser_enabled(path, true) → save` (combined inside `set_browser_enabled`).
    - `rt.reload(|ev| on_progress.send(ev.into()).ok())` — forwards reload events to the same channel.
-6. If overall is `Failed` or `Skipped` with failures: do NOT touch config, do NOT reload. The current `browser_status()` is returned as-is.
+6. If `result` is `Err(e)`: downcast the chain for `FailedStepReport(report)` (§4.3). Emit `StepFinished { status: Failed, error: Some({ code, message }) }` where `code` comes from the report's `CheckStatus::Failed.code` (or `classify_error(&e)` as a fallback if no `FailedStepReport` was attached). Emit `AllFinished { overall: Failed }`. Do NOT touch config, do NOT reload.
 7. Re-compute `browser_status()` and return it.
 
 If step 5 hits `ReloadError`: the function returns `Err(error_message)` (i.e. the command itself fails), but the channel has already received structured `ReloadFailed { kind }` — the renderer has enough info to render without consulting the `Err`.
@@ -1080,11 +1262,11 @@ All three run in their respective repos' existing CI — no new workflow files n
 
 **Phase A — aHand PR first** (branch `feat/browser-setup-progress-api`):
 
-1. Add enums (`BrowserSetupProgress`, `StepStatus`, `LogStream`, `ErrorCode`, `StepError`) in `browser_setup/mod.rs`.
-2. Extend `run_all` / `run_step` signatures; wire callback.
-3. Piped I/O in `playwright.rs` / `node.rs`.
-4. `Config::set_browser_enabled` with atomic write.
-5. `ahandctl` call-site update (`None::<fn(_)>` or pretty-printer).
+1. Extend `types.rs`: add `LogStream`, `ErrorCode`; add `Phase::Log`; add `stream` to `ProgressEvent`; add `CheckStatus::Failed { code, message }`.
+2. Add `classify_error()` + `FailedStepReport` newtype in `browser_setup/mod.rs`; wrap `ensure()` calls in `run_all` / `run_step` to produce structured failures.
+3. Piped I/O in `playwright.rs` / `node.rs` — emit `Phase::Log` events line-by-line.
+4. `Config::set_browser_enabled` with atomic write (config.toml.tmp + rename).
+5. `ahandctl` call-site: no signature change required; optionally pretty-print `Phase::Log` lines.
 6. All unit tests from §8.1.
 7. Merge to `dev`; note merge SHA.
 
