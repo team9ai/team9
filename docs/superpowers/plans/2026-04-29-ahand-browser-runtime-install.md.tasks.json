@@ -1,51 +1,73 @@
 {
   "planPath": "docs/superpowers/plans/2026-04-29-ahand-browser-runtime-install.md",
   "specPath": "docs/superpowers/specs/2026-04-29-ahand-browser-runtime-install-design.md",
-  "lastUpdated": "2026-04-29T00:00:00Z",
+  "lastUpdated": "2026-04-30T00:00:00Z",
+  "resumeContext": {
+    "phaseA": {
+      "status": "merged",
+      "pr": "team9ai/aHand#32",
+      "mergeCommit": "5972ef2da404a28031e1604f3b817a4db0187c08",
+      "notes": "Merged 2026-04-30 via squash. CI green. Worktree at aHand/.worktrees/browser-setup-progress-api is retained but branch was deleted remotely + rebased commits no longer on local tracking branch."
+    },
+    "phaseB": {
+      "status": "in-progress",
+      "worktree": "/Users/winrey/Projects/weightwave/team9-agent-pi/.worktrees/browser-skill-migration",
+      "branch": "feat/browser-skill-migration",
+      "baseSha": "919181c4f2e5df8d097de3d63920efeac88b218b",
+      "notes": "Worktree + pnpm install already done. No Phase-B task work started yet; resume by dispatching Task 8's implementer. team9-agent-pi's ahandd-SDK-side CloudClient.browser() removal is noted in Task 9 Step 6 Option A — we chose @deprecated JSDoc in the aHand repo (NOT delete); it's a follow-up commit to Phase A, not a Phase-B dependency."
+    },
+    "phaseC": {
+      "status": "pending",
+      "notes": "After Phase B merges, bump team9 Tauri's ahandd.rev to 5972ef2 (or whatever Phase-B merge SHA if SDK deprecation is bundled there), and @team9claw/* pins to Phase-B published versions. Task 13 Step 1 has the exact Cargo.toml line to update."
+    },
+    "e2e": {
+      "status": "pending"
+    }
+  },
   "tasks": [
     {
       "id": 1,
       "subject": "Task 1: aHand — extend browser_setup/types.rs with LogStream, ErrorCode, Phase::Log, CheckStatus::Failed",
-      "status": "pending",
+      "status": "completed",
       "description": "**Repo:** aHand. **Goal:** Add new type surface (LogStream, ErrorCode, Phase::Log, ProgressEvent.stream, CheckStatus::Failed) with round-trip serde tests. Type-only change.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/types.rs\n\n**Verify:** `cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::types && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/types.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::types && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"LogStream + ErrorCode enums with snake_case serde\",\"Phase::Log variant added\",\"ProgressEvent.stream: Option<LogStream> with skip_serializing_if\",\"CheckStatus::Failed { code, message } variant added\",\"existing serde tests unchanged\",\"new serde tests cover all new surface\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: aHand — classify_error + FailedStepReport newtype; wrap ensure() calls",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Repo:** aHand. **Goal:** Add centralized error classifier + FailedStepReport wrapper so install failures surface structured info through anyhow::Error chain. Wrap run_all/run_step's ensure() calls with catch-and-classify.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/mod.rs\n\n**Verify:** `cargo test -p ahandd browser_setup && cargo clippy`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/mod.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"classify_error returns right ErrorCode per pattern (EACCES/network/etc)\",\"FailedStepReport newtype with Display+Debug+Error impls\",\"run_all/run_step wrap ensure() failures into FailedStepReport via context\",\"terminal Phase::Done ProgressEvent emitted on failure before Err return\",\"halt-on-failure: later steps not run after a step fails\",\"classify_error walks cause chain via {:#} formatter\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: aHand — playwright.rs piped npm install I/O with Phase::Log streaming",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Repo:** aHand. **Goal:** Replace Command::output() with piped spawn + per-line forwarding to ProgressEvent Phase::Log.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/playwright.rs\n\n**Verify:** `cargo test -p ahandd browser_setup::playwright`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/playwright.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::playwright && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"stdout lines forwarded as ProgressEvent Phase::Log, stream=Stdout\",\"stderr lines forwarded as Phase::Log, stream=Stderr\",\"existing Phase::Installing / Phase::Done events intact\",\"non-zero exit bails with preserved prose (classify_error patterns still match)\",\"no lines dropped on short-circuit (readers awaited)\",\"tests with fake-npm script exercise both happy + fail paths\",\"tempfile dev-dep added if missing\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: aHand — node.rs piped I/O for subprocess installers",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 3],
       "description": "**Repo:** aHand. **Goal:** Apply piped-I/O treatment to any subprocess calls in node.rs; keep pure-Rust stages on existing Phase::Downloading/Extracting events.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/node.rs\n- Optionally create: aHand/crates/ahandd/src/browser_setup/child_progress.rs (factor shared helper)\n\n**Verify:** `cargo test -p ahandd browser_setup::node`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/node.rs\",\"aHand/crates/ahandd/src/browser_setup/child_progress.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::node && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"any subprocess call emits Phase::Log per line\",\"non-subprocess stages keep Phase::Downloading with percent\",\"failures bail with same prose\",\"subprocess tests added\",\"helper factored if shared\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: aHand — Config::set_browser_enabled with atomic tmpfile+rename write",
-      "status": "pending",
+      "status": "completed",
       "description": "**Repo:** aHand. **Goal:** Add set_browser_enabled(path, enabled) helper with atomic write preserving sibling fields.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/config.rs\n\n**Verify:** `cargo test -p ahandd config::tests::set_browser_enabled`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/config.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd config && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"set_browser_enabled returns previous bool value\",\"default BrowserConfig inserted when section absent\",\"sibling BrowserConfig fields preserved (binary_path, timeouts, allowed_domains)\",\"other top-level sections preserved\",\"atomic write: tmpfile + fsync + rename; no .tmp leak on success\",\"no-op write still produces valid file\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: aHand — cap rename 'browser' → 'browser-playwright-cli' + /api/control/browser deprecation banners",
-      "status": "pending",
+      "status": "completed",
       "description": "**Repo:** aHand. **Goal:** Flip the device-reported capability string everywhere; annotate /api/control/browser handlers with deprecation banners; update ownership check on hub side.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/ahand_client.rs (cap push + internal tool-routing comment)\n- Modify: aHand: crates/ahand-hub/src/browser_service.rs\n- Modify: aHand: crates/ahand-hub/src/http/browser.rs (banner)\n- Modify: aHand: crates/ahand-hub/src/http/control_plane.rs (banner)\n- Modify: aHand: crates/ahand-hub/tests/browser_api.rs (fixtures)\n\n**Verify:** `cargo test -p ahandd && cargo test -p ahand-hub`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/ahand_client.rs\",\"aHand/crates/ahand-hub/src/browser_service.rs\",\"aHand/crates/ahand-hub/src/http/browser.rs\",\"aHand/crates/ahand-hub/src/http/control_plane.rs\",\"aHand/crates/ahand-hub/tests/browser_api.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd && cargo test -p ahand-hub && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"ahandd Hello reports browser-playwright-cli (not browser) when enabled=true\",\"hub browser_service::execute ownership check matches new cap name\",\"tool: 'browser' proto field unchanged with explanatory comment\",\"module-header deprecation banner on http/browser.rs\",\"same banner on http/control_plane.rs around the handler\",\"integration test fixtures updated to browser-playwright-cli\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: aHand — PR push + CI + merge; record merge SHA for downstream",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2, 3, 4, 5, 6],
       "description": "**Repo:** aHand. **Goal:** Ship Phase A as a PR to aHand/dev. Squash merge for clean history. Record merge SHA.\n\n**Verify:** `gh pr view <NUM> --repo team9ai/aHand --json state,mergeCommit`\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"/opt/homebrew/bin/gh pr view <NUM> --repo team9ai/aHand --json state,mergeCommit\",\"acceptanceCriteria\":[\"branch pushed with all 6 commits\",\"PR opened against team9ai/aHand dev\",\"CI green (handle outbox_persistence::lock_takeover_via_kick pre-existing flake per 2026-04-28 precedent)\",\"merged to dev (squash)\",\"merge SHA captured for Phase B+C consumption\",\"remote + local branches cleaned up\"]}\n```"
     },
