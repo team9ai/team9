@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
   injectWorkspacePackages: true
 
+overrides:
+  eventsource-parser: 3.0.6
+
 patchedDependencies:
   eventsource-parser@3.0.6:
     hash: b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979

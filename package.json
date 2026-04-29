@@ -67,6 +67,9 @@
       "@nestjs/core",
       "@sentry/cli"
     ],
+    "overrides": {
+      "eventsource-parser": "3.0.6"
+    },
     "patchedDependencies": {
       "eventsource-parser@3.0.6": "patches/eventsource-parser@3.0.6.patch"
     }
