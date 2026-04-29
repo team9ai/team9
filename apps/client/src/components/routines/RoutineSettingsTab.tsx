@@ -15,7 +15,7 @@ import { routinesApi } from "@/services/api/routines";
 import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { RoutineTriggersTab } from "./RoutineTriggersTab";
-import { RoutineDocumentTab } from "./RoutineDocumentTab";
+import { RoutineSkillFolderTab } from "./RoutineSkillFolderTab";
 import type { RoutineDetail } from "@/types/routine";
 
 interface RoutineSettingsTabProps {
@@ -116,8 +116,8 @@ export function RoutineSettingsTab({
 
       <Separator />
 
-      {/* Document */}
-      <RoutineDocumentTab routine={routine} />
+      {/* Skill folder */}
+      <RoutineSkillFolderTab routine={routine} />
 
       {/* Delete */}
       {canDelete && (
