@@ -112,6 +112,8 @@
   "dashboardDeepResearchPlaceholder": "Describe the topic you want to research…",
   "dashboardDeepResearchCreateFailed": "Failed to create deep research task",
   "dashboardActionGenerateImage": "Generate image",
+  "dashboardActionVideoGeneration": "Video Generation",
+  "dashboardVideoGenerationTemplate": "Please generate a short video:\n- Scene: [describe the visuals, subjects, actions, camera]\n- Style: [realistic / cartoon / cinematic / leave blank to let the model decide]\n- Duration: 5 seconds\n- Aspect: 16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "Press Enter to send. Use Shift+Enter for a new line.",
   "dashboardWarmupNotice": "Your OpenClaw is warming up. It should be ready in about 2 minutes. Once it is ready, send a prompt below to start chatting with {{name}}.",
