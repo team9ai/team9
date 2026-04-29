@@ -135,7 +135,10 @@ export function astToPlaintext(input: unknown): string {
 function walk(node: AstBaseNode, out: string[], depth: number): void {
   if (depth > MAX_AST_DEPTH) return;
   const type = node.type;
-  if (type === 'text') {
+  // Lexical's `code-highlight` (CodeHighlightNode) and `tab` (TabNode) are
+  // TextNode subclasses with a `text` field and no children. Treat them
+  // like plain text so code blocks and tabs survive plaintext extraction.
+  if (type === 'text' || type === 'code-highlight' || type === 'tab') {
     const t = (node as AstTextNode).text;
     if (typeof t === 'string') out.push(t);
     return;
