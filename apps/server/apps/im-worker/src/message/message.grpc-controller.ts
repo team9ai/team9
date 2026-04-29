@@ -4,12 +4,14 @@ import { status } from '@grpc/grpc-js';
 import { MessageService } from './message.service.js';
 import type { CreateMessageDto } from '@team9/shared';
 
-// Proto message types (matching proto definition with snake_case)
+// Proto message types (matching proto definition with snake_case).
+// Exactly one of file_key / file_url is set; see proto for details.
 interface GrpcAttachment {
   file_key: string;
   file_name: string;
   file_size: string; // int64 comes as string
   mime_type: string;
+  file_url?: string;
 }
 
 interface CreateMessageRequest {
@@ -120,7 +122,10 @@ export class MessageGrpcController {
         type: request.type as 'text' | 'file' | 'image' | 'long_text',
         workspaceId: request.workspace_id,
         attachments: request.attachments?.map((att) => ({
-          fileKey: att.file_key,
+          // proto3 always sends a string here; an empty value signals an
+          // external pass-through (file_url carries the URL instead).
+          fileKey: att.file_key || undefined,
+          fileUrl: att.file_url || undefined,
           fileName: att.file_name,
           fileSize: parseInt(att.file_size, 10),
           mimeType: att.mime_type,

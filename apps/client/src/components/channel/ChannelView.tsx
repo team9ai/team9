@@ -77,7 +77,13 @@ function ChannelFilesList({
   }, [messages]);
 
   const handleDownload = useCallback(
-    async (fileKey: string, fileName: string) => {
+    async (fileKey: string | null, fileUrl: string, fileName: string) => {
+      // External pass-through attachments have no presign-able key — open
+      // the stable URL directly.
+      if (fileKey === null) {
+        window.open(fileUrl, "_blank");
+        return;
+      }
       try {
         const { url } = await fileApi.getDownloadUrl(fileKey);
         const a = document.createElement("a");
@@ -86,8 +92,8 @@ function ChannelFilesList({
         a.target = "_blank";
         a.click();
       } catch {
-        // Fallback: open the file URL directly
-        window.open(fileKey, "_blank");
+        // Fallback: open the public fileUrl directly
+        window.open(fileUrl, "_blank");
       }
     },
     [],
@@ -144,7 +150,9 @@ function ChannelFilesList({
                 </p>
               </div>
               <button
-                onClick={() => handleDownload(att.fileKey, att.fileName)}
+                onClick={() =>
+                  handleDownload(att.fileKey, att.fileUrl, att.fileName)
+                }
                 className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                 title="Download"
               >

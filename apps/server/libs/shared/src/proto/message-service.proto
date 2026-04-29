@@ -12,12 +12,21 @@ service MessageService {
   rpc Health (HealthRequest) returns (HealthResponse);
 }
 
-// Attachment data for file/image messages
+// Attachment data for file/image messages.
+//
+// Exactly one of file_key / file_url must be set:
+//  - file_key: client uploaded to team9's own S3; im-worker derives the
+//    durable fileUrl from S3_PUBLIC_URL + file_key.
+//  - file_url: bytes already live at a stable third-party URL (e.g. a
+//    capability-hub-mirrored video); team9 stores the URL as-is and never
+//    re-uploads. Caller is responsible for the URL's durability and
+//    public reachability.
 message Attachment {
   string file_key = 1;
   string file_name = 2;
   int64 file_size = 3;
   string mime_type = 4;
+  optional string file_url = 5;
 }
 
 // Request to create a new message

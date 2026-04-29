@@ -1,0 +1,1 @@
+ALTER TABLE "im_message_attachments" ALTER COLUMN "file_key" DROP NOT NULL;

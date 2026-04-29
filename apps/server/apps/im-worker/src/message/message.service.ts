@@ -487,17 +487,28 @@ export class MessageService {
           metadata: dto.metadata,
         });
 
-        // Insert attachments if provided
+        // Insert attachments if provided.
+        //
+        // Two paths per attachment:
+        //  - Owned: client uploaded to team9 S3 and provided fileKey; we
+        //    derive the durable fileUrl from S3_PUBLIC_URL + fileKey.
+        //  - External pass-through: client provided fileUrl directly (e.g.
+        //    capability-hub-mirrored content); store the URL as-is and
+        //    leave fileKey null since the bytes are not in team9 S3.
         if (dto.attachments?.length) {
-          const attachmentValues = dto.attachments.map((att) => ({
-            id: uuidv7(),
-            messageId: msgId,
-            fileKey: att.fileKey,
-            fileName: att.fileName,
-            fileUrl: `${env.S3_PUBLIC_URL}/${att.fileKey}`,
-            mimeType: att.mimeType,
-            fileSize: att.fileSize,
-          }));
+          const attachmentValues = dto.attachments.map((att) => {
+            const fileUrl =
+              att.fileUrl ?? `${env.S3_PUBLIC_URL}/${att.fileKey}`;
+            return {
+              id: uuidv7(),
+              messageId: msgId,
+              fileKey: att.fileKey ?? null,
+              fileName: att.fileName,
+              fileUrl,
+              mimeType: att.mimeType,
+              fileSize: att.fileSize,
+            };
+          });
           await tx.insert(schema.messageAttachments).values(attachmentValues);
         }
 

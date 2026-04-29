@@ -151,7 +151,10 @@ export interface ChannelMember {
 export interface MessageAttachment {
   id: string;
   messageId: string;
-  fileKey: string;
+  // null for external pass-through attachments — bytes live at a stable
+  // third-party URL (fileUrl) and were never uploaded to team9 S3, so there
+  // is no presign-able key. Renderers must use fileUrl directly in that case.
+  fileKey: string | null;
   fileName: string;
   fileUrl: string;
   fileSize: number;

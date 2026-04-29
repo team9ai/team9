@@ -19,10 +19,13 @@ import { VideoAttachment } from "./VideoAttachment";
 // browser HTTP cache instead of re-fetching on every virtualized row mount.
 const DOWNLOAD_URL_STALE_TIME = 7 * 60 * 60 * 1000;
 
-function useFileDownloadUrl(fileKey: string) {
+function useFileDownloadUrl(fileKey: string | null) {
   return useQuery({
+    // External pass-through attachments (fileKey === null) have no key to
+    // presign — disable the query and let callers fall back to fileUrl.
+    enabled: fileKey !== null,
     queryKey: ["file-download-url", fileKey],
-    queryFn: () => fileApi.getDownloadUrl(fileKey),
+    queryFn: () => fileApi.getDownloadUrl(fileKey as string),
     staleTime: DOWNLOAD_URL_STALE_TIME,
     gcTime: DOWNLOAD_URL_STALE_TIME,
   });
@@ -94,7 +97,9 @@ function ImageAttachment({
   const { data, isLoading, error, refetch } = useFileDownloadUrl(
     attachment.fileKey,
   );
-  const imageUrl = data?.url ?? null;
+  // External attachments resolve via fileUrl directly (no presign needed).
+  const imageUrl =
+    attachment.fileKey === null ? attachment.fileUrl : (data?.url ?? null);
   const box = getImageBox(attachment);
 
   if (isLoading && !imageUrl) {
@@ -178,6 +183,12 @@ function FileAttachment({
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
+      // External attachments are already at a stable URL — open it directly
+      // instead of round-tripping through the presign endpoint.
+      if (attachment.fileKey === null) {
+        window.open(attachment.fileUrl, "_blank");
+        return;
+      }
       const result = await fileApi.getDownloadUrl(attachment.fileKey);
       // Open in new tab or trigger download
       window.open(result.url, "_blank");

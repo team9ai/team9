@@ -17,7 +17,10 @@ export const messageAttachments = pgTable(
       .references(() => messages.id, { onDelete: 'cascade' })
       .notNull(),
     fileName: varchar('file_name', { length: 500 }).notNull(),
-    fileKey: varchar('file_key', { length: 500 }).notNull(),
+    // fileKey is null for external pass-through attachments where bytes
+    // already live at a stable third-party URL (fileUrl) and were never
+    // uploaded into team9's own S3.
+    fileKey: varchar('file_key', { length: 500 }),
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(),
     mimeType: varchar('mime_type', { length: 255 }).notNull(),

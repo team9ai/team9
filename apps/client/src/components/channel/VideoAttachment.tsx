@@ -8,10 +8,14 @@ import type { MessageAttachment } from "@/types/im";
 // reuse cached presigned URLs instead of re-fetching on every virtualised mount.
 const DOWNLOAD_URL_STALE_TIME = 7 * 60 * 60 * 1000;
 
-function useFileDownloadUrl(fileKey: string) {
+function useFileDownloadUrl(fileKey: string | null) {
   return useQuery({
+    // External pass-through attachments (fileKey === null) live at a stable
+    // third-party URL and don't need a presigned download — gate the query
+    // off so we don't fire it.
+    enabled: fileKey !== null,
     queryKey: ["file-download-url", fileKey],
-    queryFn: () => fileApi.getDownloadUrl(fileKey),
+    queryFn: () => fileApi.getDownloadUrl(fileKey as string),
     staleTime: DOWNLOAD_URL_STALE_TIME,
     gcTime: DOWNLOAD_URL_STALE_TIME,
   });
@@ -25,7 +29,9 @@ export function VideoAttachment({
   className?: string;
 }) {
   const { data, isLoading } = useFileDownloadUrl(attachment.fileKey);
-  const url = data?.url ?? null;
+  // External attachments resolve via fileUrl directly (no presign).
+  const url =
+    attachment.fileKey === null ? attachment.fileUrl : (data?.url ?? null);
   const aspect =
     attachment.width && attachment.height
       ? `${attachment.width} / ${attachment.height}`
