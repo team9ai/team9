@@ -17,6 +17,8 @@ export interface StreamingMessage {
   startedAt: number;
   /** Ordered thinking/text parts as they arrive within this response */
   parts: StreamingPart[];
+  /** Optional agent-event metadata from streaming_start */
+  metadata?: Record<string, unknown>;
 }
 
 export interface StreamingPart {
@@ -39,6 +41,7 @@ interface StreamingState {
     senderId: string;
     parentId?: string;
     startedAt: number;
+    metadata?: Record<string, unknown>;
   }) => void;
 
   /** Set the current accumulated text content for a stream */

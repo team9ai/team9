@@ -54,6 +54,24 @@ describe('normalizeToolEventMetadata', () => {
     });
   });
 
+  it('preserves timeout status while marking the result unsuccessful', () => {
+    const result = normalizeToolEventMetadata(
+      {
+        agentEventType: 'tool_result',
+        status: 'timeout',
+        toolCallId: 'tc-timeout',
+      },
+      'tool timed out',
+    );
+
+    expect(result).toMatchObject({
+      status: 'timeout',
+      success: false,
+      toolCallId: 'tc-timeout',
+      errorMessage: 'tool timed out',
+    });
+  });
+
   it('unwraps text blocks before inferring legacy failure payloads', () => {
     const result = normalizeToolEventMetadata(
       {

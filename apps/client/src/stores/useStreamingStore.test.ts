@@ -39,6 +39,27 @@ describe("useStreamingStore", () => {
     ]);
   });
 
+  it("preserves metadata from streaming_start", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      metadata: {
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-1",
+      },
+    });
+
+    const stream = useStreamingStore.getState().streams.get("stream-1");
+    expect(stream?.metadata).toEqual({
+      agentEventType: "tool_call",
+      status: "running",
+      toolCallId: "tc-1",
+    });
+  });
+
   it("updates the active part instead of creating duplicates for same-phase deltas", () => {
     useStreamingStore.getState().startStream({
       streamId: "stream-1",

@@ -275,13 +275,15 @@ export class StreamingController {
     const channel = await this.channelsService.findById(channelId);
     const workspaceId = channel?.tenantId ?? undefined;
 
-    // Build message metadata with thinking content if provided
-    const baseMetadata: Record<string, unknown> = {};
+    // Preserve stream-start metadata and add final thinking content if provided.
+    const baseMetadata: Record<string, unknown> = {
+      ...(session.metadata ?? {}),
+    };
     if (dto.thinking) {
       baseMetadata.thinking = dto.thinking;
     }
     const metadata = normalizeToolEventMetadata(
-      Object.keys(baseMetadata).length > 0 ? baseMetadata : session.metadata,
+      Object.keys(baseMetadata).length > 0 ? baseMetadata : undefined,
       dto.content,
     );
 

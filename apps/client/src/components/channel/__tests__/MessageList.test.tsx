@@ -19,6 +19,22 @@ import type { Message, AgentEventMetadata, MessageType } from "@/types/im";
 // Mocks — collaborators we don't care about
 // ---------------------------------------------------------------------------
 
+const mockChannelStreams = vi.hoisted(() => ({
+  current: [] as Array<{
+    streamId: string;
+    channelId: string;
+    senderId: string;
+    parentId?: string;
+    content: string;
+    thinking: string;
+    isThinking: boolean;
+    isStreaming: boolean;
+    startedAt: number;
+    parts: unknown[];
+    metadata?: Record<string, unknown>;
+  }>,
+}));
+
 // Minimal `t()` stand-in: returns the key by default, but expands the
 // tracking keys that MessageList's round-fold tests rely on (RoundCollapseSummary)
 // so the accessible name remains human-readable. This keeps the mock narrow
@@ -130,9 +146,9 @@ vi.mock("@/hooks/useChannelScrollState", () => {
   };
 });
 
-// Streaming store — no streaming messages for these tests
+// Streaming store — controllable active streams for streaming render tests
 vi.mock("@/stores/useStreamingStore", () => ({
-  useStreamingStore: () => [],
+  useStreamingStore: () => mockChannelStreams.current,
 }));
 
 // Agent-event helpers: the real `getAgentMeta` pulls from message.metadata,
@@ -323,6 +339,7 @@ function renderList(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockChannelStreams.current = [];
 });
 
 describe("MessageList — round auto-fold", () => {
@@ -670,6 +687,37 @@ describe("MessageList — round auto-fold", () => {
       expect(blocks[0].getAttribute("data-result-content")).toBe("");
       expect(blocks[0].getAttribute("data-result-message-id")).toBe("");
       expect(screen.queryByTestId("message-item")).not.toBeInTheDocument();
+    });
+
+    it("renders an active streaming tool_call as a ToolCallBlock", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "RunScript",
+            toolArgsText: '{"cmd":"pnpm',
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      const blocks = screen.getAllByTestId("tool-call-block");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].getAttribute("data-tool-call-id")).toBe("tc-stream");
+      expect(blocks[0].getAttribute("data-tool-name")).toBe("RunScript");
+      expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
     });
   });
 

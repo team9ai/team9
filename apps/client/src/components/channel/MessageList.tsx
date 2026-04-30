@@ -20,6 +20,7 @@ import {
   pairToolEvents,
   sortByEffectiveTime,
 } from "@/lib/agent-events";
+import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
@@ -432,6 +433,20 @@ export function MessageList({
   const itemContent = useCallback(
     (index: number, item: ChannelListItem) => {
       if (item.type === "stream") {
+        const streamMeta = item.stream.metadata
+          ? getAgentEventMetadata(item.stream.metadata, {
+              agentEventType: "writing",
+              status: "running",
+            })
+          : undefined;
+        if (streamMeta?.agentEventType === "tool_call") {
+          return (
+            <div className="py-2">
+              <ToolCallBlock callMetadata={streamMeta} resultContent="" />
+            </div>
+          );
+        }
+
         // While streaming, lift thinking out of the bot bubble into a
         // tracking row that looks identical to the persisted "Thought
         // for Xs" row the user will see after the round finishes. The
@@ -704,14 +719,14 @@ export function MessageList({
     ],
   );
 
-  if (isLoading && messages.length === 0) {
+  if (isLoading && listData.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-muted-foreground">Loading messages...</p>
       </div>
     );
   }
-  if (messages.length === 0) {
+  if (listData.length === 0) {
     return (
       <EmptyMessageState
         channelId={channelId}

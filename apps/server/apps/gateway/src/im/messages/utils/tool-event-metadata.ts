@@ -76,10 +76,12 @@ export function normalizeToolEventMetadata(
         : getExplicitFailureMessage(content);
   const success =
     metadata.success === false || failedStatus || failureMessage ? false : true;
+  const status =
+    success || failedStatus ? (metadata.status ?? 'completed') : 'failed';
 
   return {
     ...metadata,
-    status: success ? (metadata.status ?? 'completed') : 'failed',
+    status,
     success,
     completedAt:
       typeof metadata.completedAt === 'string'

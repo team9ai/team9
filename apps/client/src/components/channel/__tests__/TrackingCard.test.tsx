@@ -343,6 +343,41 @@ describe("TrackingCard", () => {
     );
   });
 
+  it("pairs newest-first persisted tool_result + tool_call messages", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [
+        {
+          id: "b",
+          content: '{"ok": true}',
+          metadata: resultMeta("tc-1"),
+          createdAt: "2026-03-27T12:00:01Z",
+        },
+        {
+          id: "a",
+          content: "",
+          metadata: callMeta("tc-1"),
+          createdAt: "2026-03-27T12:00:00Z",
+        },
+      ],
+      totalMessageCount: 2,
+      isLoading: false,
+      activeStream: null,
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callMetadata: expect.objectContaining({ toolCallId: "tc-1" }),
+        resultMetadata: expect.objectContaining({ toolCallId: "tc-1" }),
+        resultContent: '{"ok": true}',
+      }),
+    );
+  });
+
   it("keeps unrelated events as TrackingEventItems and still merges the paired tool call", () => {
     mockUseTrackingChannel.mockReturnValue({
       isActivated: true,

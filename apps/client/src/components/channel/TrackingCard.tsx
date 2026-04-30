@@ -19,6 +19,7 @@ export interface TrackingDisplayItem {
   content: string;
   metadata: AgentEventMetadata;
   isStreaming: boolean;
+  createdAt?: string;
 }
 
 export type TrackingRenderItem =
@@ -72,6 +73,29 @@ function formatElapsed(startTime: string | number): string {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
+function getTrackingItemTimeMs(item: TrackingDisplayItem): number {
+  if (item.metadata.startedAt) {
+    const startedAt = new Date(item.metadata.startedAt).getTime();
+    if (!Number.isNaN(startedAt)) return startedAt;
+  }
+
+  if (item.createdAt) {
+    const createdAt = new Date(item.createdAt).getTime();
+    if (!Number.isNaN(createdAt)) return createdAt;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function sortTrackingDisplayItems(
+  items: TrackingDisplayItem[],
+): TrackingDisplayItem[] {
+  return items
+    .map((item, index) => ({ item, index, time: getTrackingItemTimeMs(item) }))
+    .sort((a, b) => a.time - b.time || a.index - b.index)
+    .map(({ item }) => item);
+}
+
 export function TrackingCard({ message }: TrackingCardProps) {
   const { t } = useTranslation("channel");
   const metadata = (message.metadata ?? {}) as Record<string, unknown>;
@@ -117,6 +141,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
       status: "completed",
     }),
     isStreaming: false,
+    createdAt: msg.createdAt,
   }));
 
   if (activeStream) {
@@ -134,7 +159,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
   // Merge consecutive tool_call + tool_result pairs into a single ToolCallBlock
   // render item (matching MessageList behaviour). Then only show the latest 3
   // render items — a merged toolCall counts as 1 slot rather than 2.
-  const renderItems = buildRenderItems(displayItems);
+  const renderItems = buildRenderItems(sortTrackingDisplayItems(displayItems));
   const visibleRenderItems = renderItems.slice(-3);
 
   return (
