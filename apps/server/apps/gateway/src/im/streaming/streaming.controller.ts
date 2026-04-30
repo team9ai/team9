@@ -22,6 +22,7 @@ import {
   MessagesService,
   type MessageResponse,
 } from '../messages/messages.service.js';
+import { normalizeToolEventMetadata } from '../messages/utils/tool-event-metadata.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
@@ -275,10 +276,14 @@ export class StreamingController {
     const workspaceId = channel?.tenantId ?? undefined;
 
     // Build message metadata with thinking content if provided
-    const metadata: Record<string, unknown> = {};
+    const baseMetadata: Record<string, unknown> = {};
     if (dto.thinking) {
-      metadata.thinking = dto.thinking;
+      baseMetadata.thinking = dto.thinking;
     }
+    const metadata = normalizeToolEventMetadata(
+      Object.keys(baseMetadata).length > 0 ? baseMetadata : session.metadata,
+      dto.content,
+    );
 
     const result = await this.imWorkerGrpcClientService.createMessage({
       clientMsgId: uuidv7(),
@@ -288,7 +293,7 @@ export class StreamingController {
       parentId: session.parentId,
       type: 'text',
       workspaceId,
-      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      metadata,
     });
 
     // Fetch the persisted message with sender/attachment details.

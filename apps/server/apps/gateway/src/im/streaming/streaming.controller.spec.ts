@@ -550,6 +550,39 @@ describe('StreamingController', () => {
       );
     });
 
+    it('normalizes session tool_result metadata when finalizing a stream', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_result',
+              status: 'completed',
+              toolCallId: 'tc-stream',
+            },
+          }),
+        ),
+      );
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
+
+      await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: '{"success":false,"error":"denied"}',
+      });
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            agentEventType: 'tool_result',
+            status: 'failed',
+            toolCallId: 'tc-stream',
+            success: false,
+            errorMessage: 'denied',
+          }),
+        }),
+      );
+    });
+
     it('rejects non-bot users with ForbiddenException', async () => {
       botService.isBot.mockResolvedValue(false);
 

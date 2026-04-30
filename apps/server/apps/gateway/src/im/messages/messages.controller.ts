@@ -41,6 +41,7 @@ import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { normalizeAst, astToPlaintext } from './utils/ast.js';
+import { normalizeToolEventMetadata } from './utils/tool-event-metadata.js';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
 import { AiAutoFillService } from '../properties/ai-auto-fill.service.js';
 import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
@@ -145,9 +146,10 @@ export class MessagesController {
     // Merge top-level clientContext into metadata.clientContext — Stream E
     // client sends it at the top level per the Tauri/Web contract; im-worker's
     // AhandBlueprintExtender reads messages.metadata.clientContext.
-    const metadata = dto.clientContext
+    const rawMetadata = dto.clientContext
       ? { ...(dto.metadata ?? {}), clientContext: dto.clientContext }
       : dto.metadata;
+    const metadata = normalizeToolEventMetadata(rawMetadata, normalizedContent);
 
     // Create message via gRPC
     const result = await this.imWorkerGrpcClientService.createMessage({
