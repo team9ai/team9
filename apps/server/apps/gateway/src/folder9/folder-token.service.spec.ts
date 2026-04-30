@@ -13,10 +13,26 @@ const schemaModule = {
     id: 'routines.id',
     tenantId: 'routines.tenant_id',
     folderId: 'routines.folder_id',
+    botId: 'routines.bot_id',
   },
   bots: {
+    id: 'bots.id',
     userId: 'bots.user_id',
+    managedMeta: 'bots.managed_meta',
     isActive: 'bots.is_active',
+  },
+  workspaceFolderMounts: {
+    workspaceId: 'wfm.workspace_id',
+    scope: 'wfm.scope',
+    scopeId: 'wfm.scope_id',
+    mountKey: 'wfm.mount_key',
+    folderType: 'wfm.folder_type',
+    folder9FolderId: 'wfm.folder9_folder_id',
+  },
+  channelMembers: {
+    id: 'cm.id',
+    channelId: 'cm.channel_id',
+    userId: 'cm.user_id',
   },
 };
 
@@ -75,19 +91,27 @@ function mockDb() {
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
+const BOT_ID = 'bot-1';
 const BOT_USER_ID = 'bot-user-1';
+const AGENT_ID = 'agent-1';
 const TENANT_ID = 'tenant-1';
 const ROUTINE_ID = 'routine-1';
 const FOLDER_ID = 'folder-1';
+const USER_ID = 'user-1';
+const CHANNEL_ID = 'channel-dm-1';
+// Canonical sessionIds matching `parseSessionShape` layout —
+// `team9/{tenantId}/{agentId}/{scope}/{scopeId}`.
+const DM_SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`;
+const ROUTINE_SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/routine/${ROUTINE_ID}`;
 
 const makeDto = (
   overrides: Partial<FolderTokenRequestDto> = {},
 ): FolderTokenRequestDto =>
   ({
     sessionId: 'session-1',
-    agentId: 'agent-1',
+    agentId: AGENT_ID,
     routineId: ROUTINE_ID,
-    userId: 'user-1',
+    userId: USER_ID,
     logicalKey: 'routine.document',
     workspaceId: TENANT_ID,
     folderId: FOLDER_ID,
@@ -142,9 +166,60 @@ describe('FolderTokenService', () => {
     );
   }
 
-  /** Queue a bot row (or null) to be returned by the bot lookup. */
-  function queueBot(row: { userId: string } | null) {
-    db.__state.selectResults.push(row ? [row] : []);
+  /**
+   * Queue a bot row (or null) to be returned by the bot lookup.
+   * Defaults fill in the `(id, userId, managedMeta)` shape that the
+   * service actually selects.
+   */
+  function queueBot(
+    row: {
+      id?: string;
+      userId?: string;
+      managedMeta?: Record<string, unknown> | null;
+    } | null,
+  ) {
+    db.__state.selectResults.push(
+      row
+        ? [
+            {
+              id: row.id ?? BOT_ID,
+              userId: row.userId ?? BOT_USER_ID,
+              managedMeta:
+                row.managedMeta === undefined
+                  ? { agentId: AGENT_ID }
+                  : row.managedMeta,
+            },
+          ]
+        : [],
+    );
+  }
+
+  /**
+   * Queue a `workspace_folder_mounts` row (or null) for the next mount
+   * lookup.
+   */
+  function queueMount(row: { scopeId: string; folderType?: string } | null) {
+    db.__state.selectResults.push(
+      row
+        ? [{ scopeId: row.scopeId, folderType: row.folderType ?? 'light' }]
+        : [],
+    );
+  }
+
+  /**
+   * Queue the channel-members membership probe — non-empty means
+   * member, empty means not-a-member.
+   */
+  function queueChannelMember(present: boolean) {
+    db.__state.selectResults.push(present ? [{ id: 'cm-1' }] : []);
+  }
+
+  /**
+   * Queue a routine row keyed by `(id, botId)` (or null for "not
+   * found / not owned by bot").
+   */
+  function queueRoutineForBot(row: { id: string } | null) {
+    db.__state.selectResults.push(row ? [{ id: row.id }] : []);
   }
 
   // ── routine.document — happy paths ────────────────────────────────────────
@@ -377,7 +452,7 @@ describe('FolderTokenService', () => {
       expect(folder9Client.createToken).not.toHaveBeenCalled();
     });
 
-    it('rejects admin permission on stub scopes too (e.g. session.tmp)', async () => {
+    it('rejects admin permission on non-document scopes too (e.g. session.tmp)', async () => {
       const dto = makeDto({ logicalKey: 'session.tmp', permission: 'admin' });
       await expect(
         service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -414,65 +489,322 @@ describe('FolderTokenService', () => {
     });
   });
 
-  // ── Stub authz scopes ─────────────────────────────────────────────────────
+  // ── Real authz: agent.{tmp,home} ──────────────────────────────────────────
 
-  describe('stub authz — session/agent/user/routine.{tmp,home}', () => {
-    const STUB_KEYS = [
-      'session.tmp',
-      'session.home',
-      'agent.tmp',
-      'agent.home',
-      'user.tmp',
-      'user.home',
-      'routine.tmp',
-      'routine.home',
-    ] as const;
+  describe('agent.{tmp,home} authz', () => {
+    for (const mountKey of ['tmp', 'home'] as const) {
+      const logicalKey = `agent.${mountKey}` as const;
 
-    for (const key of STUB_KEYS) {
-      it(`accepts ${key} on tenant match and mints a read token`, async () => {
-        queueBot({ userId: BOT_USER_ID });
+      it(`200: ${logicalKey} mints a token when mount row matches bot's managed agent`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: AGENT_ID });
 
-        const dto = makeDto({ logicalKey: key, permission: 'read' });
+        const dto = makeDto({ logicalKey, permission: 'read' });
         const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
 
         expect(result.token).toBe('opaque-token');
         expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
         const mintArg = folder9Client.createToken.mock.calls[0][0];
+        expect(mintArg.name).toBe(`${logicalKey}-${AGENT_ID}`);
         expect(mintArg.permission).toBe('read');
-        // Stub branch never queries routines.
-        // (The select call is for the bot lookup only.)
-        expect(db.select).toHaveBeenCalledTimes(1);
+      });
+
+      it(`403: ${logicalKey} rejects when no workspace_folder_mounts row matches`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount(null);
+
+        const dto = makeDto({ logicalKey });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when mount row's scopeId belongs to a different agent`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: 'other-agent' });
+
+        const dto = makeDto({ logicalKey });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when bot has no managedMeta.agentId`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: null });
+        queueMount({ scopeId: AGENT_ID });
+
+        const dto = makeDto({ logicalKey });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
       });
     }
+  });
 
-    it('accepts write permission on a stub scope (no propose/write filter outside routine.document)', async () => {
-      queueBot({ userId: BOT_USER_ID });
-      const dto = makeDto({ logicalKey: 'session.tmp', permission: 'write' });
-      await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
-      expect(folder9Client.createToken).toHaveBeenCalled();
-    });
+  // ── Real authz: session.{tmp,home} ────────────────────────────────────────
 
-    it('accepts propose permission on a stub scope and uses the 1h TTL', async () => {
-      queueBot({ userId: BOT_USER_ID });
-      const dto = makeDto({ logicalKey: 'agent.home', permission: 'propose' });
+  describe('session.{tmp,home} authz', () => {
+    for (const mountKey of ['tmp', 'home'] as const) {
+      const logicalKey = `session.${mountKey}` as const;
+
+      it(`200: ${logicalKey} mints a token when sessionId parses + mount row matches`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: DM_SESSION_ID });
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          permission: 'read',
+        });
+        const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
+
+        expect(result.token).toBe('opaque-token');
+        const mintArg = folder9Client.createToken.mock.calls[0][0];
+        expect(mintArg.name).toBe(`${logicalKey}-${DM_SESSION_ID}`);
+      });
+
+      it(`403: ${logicalKey} rejects when no workspace_folder_mounts row matches`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount(null);
+
+        const dto = makeDto({ logicalKey, sessionId: DM_SESSION_ID });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when sessionId is unparseable`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: 'whatever' });
+
+        const dto = makeDto({ logicalKey, sessionId: 'garbage-session-id' });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when parsed sessionId.agentId differs from bot's managed agent`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: 'wrong-agent' } });
+        queueMount({ scopeId: DM_SESSION_ID });
+
+        const dto = makeDto({ logicalKey, sessionId: DM_SESSION_ID });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when mount row's scopeId differs from req.sessionId`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: 'team9/tenant-1/agent-1/dm/other-channel' });
+
+        const dto = makeDto({ logicalKey, sessionId: DM_SESSION_ID });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+    }
+  });
+
+  // ── Real authz: user.{tmp,home} ───────────────────────────────────────────
+
+  describe('user.{tmp,home} authz', () => {
+    for (const mountKey of ['tmp', 'home'] as const) {
+      const logicalKey = `user.${mountKey}` as const;
+
+      it(`200: ${logicalKey} mints a token for a DM session where userId is a channel member`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: USER_ID });
+        queueChannelMember(true);
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          userId: USER_ID,
+          permission: 'read',
+        });
+        const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
+
+        expect(result.token).toBe('opaque-token');
+        const mintArg = folder9Client.createToken.mock.calls[0][0];
+        expect(mintArg.name).toBe(`${logicalKey}-${USER_ID}`);
+      });
+
+      it(`403: ${logicalKey} rejects when no workspace_folder_mounts row matches`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount(null);
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          userId: USER_ID,
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when sessionId is not a DM (e.g. routine)`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: USER_ID });
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: ROUTINE_SESSION_ID,
+          userId: USER_ID,
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when userId is undefined`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: USER_ID });
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          userId: undefined,
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when userId is not a member of the DM channel`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: USER_ID });
+        queueChannelMember(false);
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          userId: USER_ID,
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when mount row's scopeId differs from userId`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: 'other-user' });
+        queueChannelMember(true);
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          userId: USER_ID,
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+    }
+  });
+
+  // ── TTL on real authz path (1h propose) ───────────────────────────────────
+
+  describe('TTL on real authz path', () => {
+    it('uses 1h propose TTL on agent.home with permission=propose', async () => {
+      queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+      queueMount({ scopeId: AGENT_ID });
       const before = Date.now();
+
+      const dto = makeDto({
+        logicalKey: 'agent.home',
+        permission: 'propose',
+      });
       await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
 
       const mintArg = folder9Client.createToken.mock.calls[0][0];
       const expiresAtMs = Date.parse(mintArg.expires_at as string);
       expect(expiresAtMs).toBeGreaterThanOrEqual(before + 60 * 60_000 - 5_000);
+      expect(expiresAtMs).toBeLessThanOrEqual(Date.now() + 60 * 60_000 + 5_000);
     });
+  });
 
-    it('uses sessionId as scopeId when routineId is absent on stub scopes', async () => {
-      queueBot({ userId: BOT_USER_ID });
-      const dto = makeDto({
-        logicalKey: 'session.tmp',
-        routineId: undefined,
+  // ── Real authz: routine.{tmp,home} ────────────────────────────────────────
+
+  describe('routine.{tmp,home} authz', () => {
+    for (const mountKey of ['tmp', 'home'] as const) {
+      const logicalKey = `routine.${mountKey}` as const;
+
+      it(`200: ${logicalKey} mints a token when routine is owned by bot + mount row matches`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: ROUTINE_ID });
+        queueRoutineForBot({ id: ROUTINE_ID });
+
+        const dto = makeDto({
+          logicalKey,
+          routineId: ROUTINE_ID,
+          permission: 'read',
+        });
+        const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
+
+        expect(result.token).toBe('opaque-token');
+        const mintArg = folder9Client.createToken.mock.calls[0][0];
+        expect(mintArg.name).toBe(`${logicalKey}-${ROUTINE_ID}`);
       });
-      await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
-      const mintArg = folder9Client.createToken.mock.calls[0][0];
-      expect(mintArg.name).toBe(`session.tmp-${dto.sessionId}`);
-    });
+
+      it(`403: ${logicalKey} rejects when no workspace_folder_mounts row matches`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount(null);
+
+        const dto = makeDto({ logicalKey, routineId: ROUTINE_ID });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when routineId is undefined`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: ROUTINE_ID });
+
+        const dto = makeDto({ logicalKey, routineId: undefined });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when routine is not owned by caller bot`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: ROUTINE_ID });
+        queueRoutineForBot(null);
+
+        const dto = makeDto({ logicalKey, routineId: ROUTINE_ID });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects when mount row's scopeId differs from routineId`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: 'other-routine' });
+        queueRoutineForBot({ id: ROUTINE_ID });
+
+        const dto = makeDto({ logicalKey, routineId: ROUTINE_ID });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+    }
   });
 
   // ── folder9 mint failures ────────────────────────────────────────────────
