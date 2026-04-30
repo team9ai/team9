@@ -22,7 +22,7 @@ const translationMap: Record<
   dashboardPromptHint: "Press Enter to send. Use Shift+Enter for a new line.",
   dashboardActionDeepResearch: "Deep research",
   dashboardDeepResearchTemplate: "Please run a deep research task...",
-  dashboardActionVideoGeneration: "Video Generation",
+  dashboardActionVideoGeneration: "Create video",
   dashboardVideoGenerationTemplate: "Please generate a short video...",
   dashboardActionGenerateImage: "Generate image",
   dashboardPlan: "Free plan",
@@ -183,10 +183,9 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
-    // Deep research and Video generation chips inject prompt templates that
-    // route through the normal topic-session pipeline — no special endpoints.
-    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
-    expect(screen.getByText(/video generation/i)).toBeInTheDocument();
+    // Video generation chip injects a prompt template that routes through the
+    // normal topic-session pipeline — no special endpoints.
+    expect(screen.getByText(/create video/i)).toBeInTheDocument();
     expect(screen.getByText("Starter")).toBeInTheDocument();
     expect(screen.getByText("5,875")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
@@ -223,18 +222,6 @@ describe("HomeMainContent", () => {
         params: { channelId: "topic-ch-new" },
       });
     });
-  });
-
-  it("injects the deep-research template into the composer when the chip is clicked", () => {
-    renderWithProviders(<HomeMainContent />);
-
-    const chip = screen.getByRole("button", { name: /deep research/i });
-    fireEvent.click(chip);
-
-    const textarea = screen.getByPlaceholderText(
-      /message dashboard/i,
-    ) as HTMLTextAreaElement;
-    expect(textarea.value).toContain("Please run a deep research task");
   });
 
   it("shows a static model label for base-model agents that cannot switch", () => {

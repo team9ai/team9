@@ -111,7 +111,7 @@
   "dashboardActionDeepResearch": "深度研究",
   "dashboardDeepResearchTemplate": "请帮我做一份深度研究，并把报告作为可下载文件交付：\n- 主题：[在此填写要研究的主题]\n- 范围：[时间区间 / 地区 / 公司 / 行业 等]\n- 输出：附带引用的 markdown 报告，作为附件",
   "dashboardActionGenerateImage": "生成图片",
-  "dashboardActionVideoGeneration": "视频生成",
+  "dashboardActionVideoGeneration": "创建视频",
   "dashboardVideoGenerationTemplate": "请帮我生成一段视频：\n- 场景：[在此描述画面、人物、动作、镜头]\n- 风格：[写实 / 卡通 / 电影感 / 留空让模型决定]\n- 时长：5 秒\n- 比例：16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "按 Enter 发送，Shift+Enter 换行。",

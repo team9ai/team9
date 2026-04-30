@@ -61,12 +61,6 @@ const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
   className: string;
 }> = [
   {
-    key: "dashboardActionDeepResearch",
-    templateKey: "dashboardDeepResearchTemplate",
-    icon: Search,
-    className: "",
-  },
-  {
     key: "dashboardActionVideoGeneration",
     templateKey: "dashboardVideoGenerationTemplate",
     icon: Video,

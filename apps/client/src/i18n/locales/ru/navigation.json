@@ -110,7 +110,7 @@
   "dashboardPromptPlaceholder": "Сообщение дашборду...",
   "dashboardActionDeepResearch": "Глубокое исследование",
   "dashboardActionGenerateImage": "Сгенерировать изображение",
-  "dashboardActionVideoGeneration": "Генерация видео",
+  "dashboardActionVideoGeneration": "Создать видео",
   "dashboardVideoGenerationTemplate": "Please generate a short video:\n- Scene: [describe the visuals, subjects, actions, camera]\n- Style: [realistic / cartoon / cinematic / leave blank to let the model decide]\n- Duration: 5 seconds\n- Aspect: 16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "Нажмите Enter для отправки. Используйте Shift+Enter для новой строки.",

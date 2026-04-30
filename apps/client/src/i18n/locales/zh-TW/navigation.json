@@ -110,7 +110,7 @@
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "深度研究",
   "dashboardActionGenerateImage": "產生圖片",
-  "dashboardActionVideoGeneration": "影片生成",
+  "dashboardActionVideoGeneration": "建立影片",
   "dashboardVideoGenerationTemplate": "請幫我生成一段影片：\n- 場景：[在此描述畫面、人物、動作、鏡頭]\n- 風格：[寫實 / 卡通 / 電影感 / 留空讓模型決定]\n- 時長：5 秒\n- 比例：16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "按 Enter 傳送，Shift+Enter 換行。",
