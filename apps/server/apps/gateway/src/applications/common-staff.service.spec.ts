@@ -436,6 +436,15 @@ describe('CommonStaffService', () => {
             'team9-staff-profile': {},
             'team9-staff-bootstrap': {},
             'team9-staff-soul': {},
+            // Virtual workspace stack — folder9.workspaceId pinned to the
+            // tenantId, just-bash with no-network policy, layout component
+            // mounts bundled team9 skills. No folder9Psk shipped:
+            // workspace mounts use externally-managed tokens.
+            folder9: expect.objectContaining({
+              workspaceId: TENANT_ID,
+            }),
+            'just-bash': { network: 'none' },
+            'just-bash-team9-workspace': { mountTeam9Skills: true },
           }),
         }),
       );
@@ -451,6 +460,20 @@ describe('CommonStaffService', () => {
       >;
       const configs = call['componentConfigs'] as Record<string, unknown>;
       expect(configs).not.toHaveProperty('common-staff-agent');
+    });
+
+    it('does not ship folder9Psk in folder9 config (workspace uses externally-managed tokens)', async () => {
+      const dto = makeCreateDto();
+      await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      const call = clawHiveService.registerAgent.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      const configs = call['componentConfigs'] as Record<string, unknown>;
+      const folder9Config = configs['folder9'] as Record<string, unknown>;
+      expect(folder9Config).toBeDefined();
+      expect(folder9Config).not.toHaveProperty('folder9Psk');
     });
 
     it('creates DM channel only for the mentor (not all workspace members)', async () => {
