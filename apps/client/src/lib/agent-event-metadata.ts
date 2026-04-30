@@ -89,7 +89,31 @@ export function getAgentEventMetadata(
       ? { toolCallId: value.toolCallId }
       : {}),
     ...(isRecord(value.toolArgs) ? { toolArgs: value.toolArgs } : {}),
+    ...(typeof value.toolArgsText === "string"
+      ? { toolArgsText: value.toolArgsText }
+      : {}),
+    ...(value.toolPhase === "args_streaming" || value.toolPhase === "executing"
+      ? { toolPhase: value.toolPhase }
+      : {}),
     ...(typeof value.success === "boolean" ? { success: value.success } : {}),
+    ...(typeof value.errorCode === "string"
+      ? { errorCode: value.errorCode }
+      : {}),
+    ...(typeof value.errorMessage === "string"
+      ? { errorMessage: value.errorMessage }
+      : {}),
+    ...(typeof value.resultTruncated === "boolean"
+      ? { resultTruncated: value.resultTruncated }
+      : {}),
+    ...(typeof value.fullContentMessageId === "string"
+      ? { fullContentMessageId: value.fullContentMessageId }
+      : {}),
+    ...(typeof value.completedAt === "string"
+      ? { completedAt: value.completedAt }
+      : {}),
+    ...(typeof value.updatedAt === "string"
+      ? { updatedAt: value.updatedAt }
+      : {}),
     ...(typeof value.surfaceId === "string"
       ? { surfaceId: value.surfaceId }
       : {}),

@@ -43,7 +43,15 @@ export interface AgentEventMetadata {
   toolName?: string;
   toolCallId?: string;
   toolArgs?: Record<string, unknown>;
+  toolArgsText?: string;
+  toolPhase?: "args_streaming" | "executing";
   success?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  resultTruncated?: boolean;
+  fullContentMessageId?: string;
+  completedAt?: string;
+  updatedAt?: string;
   surfaceId?: string;
   payload?: unknown[];
   surfaceMetadata?: Record<string, unknown>;
