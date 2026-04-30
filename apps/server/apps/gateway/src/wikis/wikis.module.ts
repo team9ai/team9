@@ -40,6 +40,10 @@ import { Folder9WebhookController } from './folder9-webhook.controller.js';
   ],
   controllers: [WikisController, Folder9WebhookController],
   providers: [WikisService, Folder9ClientService],
-  exports: [WikisService],
+  // `Folder9ClientService` is exported so the routines feature
+  // (`provisionFolder9SkillFolder`, `ensureRoutineFolder`) can reuse the
+  // same HTTP client without re-wiring its env reads. It has no DI deps
+  // beyond reading process.env, so a single shared singleton is sufficient.
+  exports: [WikisService, Folder9ClientService],
 })
 export class WikisModule {}

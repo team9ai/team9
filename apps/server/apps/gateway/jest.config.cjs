@@ -2,7 +2,13 @@
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
-  testMatch: ['<rootDir>/src/**/*.spec.ts'],
+  testMatch: [
+    '<rootDir>/src/**/*.spec.ts',
+    // Layer 1 routine-folder migration script tests live under <rootDir>/scripts/.
+    // The script itself ships outside the gateway runtime bundle (it's a
+    // one-off CLI), but its unit tests run alongside the rest of the suite.
+    '<rootDir>/scripts/**/*.spec.ts',
+  ],
   transform: {
     '^.+\\.(t|j)s$': [
       'ts-jest',

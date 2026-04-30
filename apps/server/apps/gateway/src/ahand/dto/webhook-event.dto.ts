@@ -1,4 +1,7 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsISO8601,
   IsNotEmpty,
@@ -10,6 +13,7 @@ import {
   MaxLength,
   Min,
   Validate,
+  ValidateNested,
   ValidationArguments,
   ValidatorConstraint,
   type ValidatorConstraintInterface,
@@ -29,6 +33,15 @@ export class WebhookEventDataDto {
   @IsOptional()
   @IsString()
   nickname?: string;
+
+  // ahand's self-declared capabilities. Hub emits this on device.online and
+  // device.registered (when known at registration time). Optional for
+  // forward-compat: old hub deployments do not include it.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(32) // sanity bound — guards against pathological payloads
+  capabilities?: string[];
 
   // Additional per-eventType fields are allowed.
   [key: string]: unknown;
@@ -103,6 +116,8 @@ export class WebhookEventDto {
   externalUserId?: string;
 
   @IsObject()
+  @ValidateNested()
+  @Type(() => WebhookEventDataDto)
   @Validate(HeartbeatDataRequiredConstraint)
   data!: WebhookEventDataDto;
 }

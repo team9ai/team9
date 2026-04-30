@@ -83,6 +83,12 @@ describe('Folder9ClientService', () => {
             owner_id: 'ws-1',
             workspace_id: 'ws-1',
             approval_mode: 'auto',
+            metadata: {
+              type: 'team9-wiki',
+              wiki_id: 'wiki-1',
+              wiki_slug: 'dev',
+              workspace_id: 'ws-1',
+            },
             created_at: '2026-04-13T00:00:00Z',
             updated_at: '2026-04-13T00:00:00Z',
           },
@@ -97,9 +103,21 @@ describe('Folder9ClientService', () => {
         owner_type: 'workspace',
         owner_id: 'ws-1',
         approval_mode: 'auto',
+        metadata: {
+          type: 'team9-wiki',
+          wiki_id: 'wiki-1',
+          wiki_slug: 'dev',
+          workspace_id: 'ws-1',
+        },
       });
 
       expect(result.id).toBe('f-1');
+      expect(result.metadata).toEqual({
+        type: 'team9-wiki',
+        wiki_id: 'wiki-1',
+        wiki_slug: 'dev',
+        workspace_id: 'ws-1',
+      });
       expect(result.workspace_id).toBe('ws-1');
       expect(fetchFn).toHaveBeenCalledTimes(1);
       const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
@@ -117,6 +135,12 @@ describe('Folder9ClientService', () => {
         owner_type: 'workspace',
         owner_id: 'ws-1',
         approval_mode: 'auto',
+        metadata: {
+          type: 'team9-wiki',
+          wiki_id: 'wiki-1',
+          wiki_slug: 'dev',
+          workspace_id: 'ws-1',
+        },
       });
     });
 
@@ -164,8 +188,13 @@ describe('Folder9ClientService', () => {
       globalThis.fetch = fetchFn;
 
       const result = await service.updateFolder('ws-1', 'f-1', {
-        name: 'renamed',
         approval_mode: 'review',
+        metadata: {
+          type: 'team9-wiki',
+          wiki_id: 'wiki-1',
+          wiki_slug: 'renamed',
+          workspace_id: 'ws-1',
+        },
       });
 
       expect(result.name).toBe('renamed');
@@ -173,8 +202,13 @@ describe('Folder9ClientService', () => {
       expect(url).toBe('http://folder9.test/api/workspaces/ws-1/folders/f-1');
       expect(init.method).toBe('PATCH');
       expect(JSON.parse(init.body as string)).toEqual({
-        name: 'renamed',
         approval_mode: 'review',
+        metadata: {
+          type: 'team9-wiki',
+          wiki_id: 'wiki-1',
+          wiki_slug: 'renamed',
+          workspace_id: 'ws-1',
+        },
       });
     });
   });
@@ -191,6 +225,41 @@ describe('Folder9ClientService', () => {
       const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
       expect(url).toBe('http://folder9.test/api/workspaces/ws-1/folders/f-1');
       expect(init.method).toBe('DELETE');
+    });
+  });
+
+  describe('listFolders', () => {
+    it('GETs /api/workspaces/{wsId}/folders with Authorization: Bearer <psk>', async () => {
+      const fetchFn = jest.fn<typeof fetch>().mockResolvedValue(
+        jsonResponse([
+          { id: 'f-1', name: 'routine-aaaa-bbbb', workspace_id: 'ws-1' },
+          { id: 'f-2', name: 'wiki-cccc-dddd', workspace_id: 'ws-1' },
+        ]),
+      );
+      globalThis.fetch = fetchFn;
+
+      const result = await service.listFolders('ws-1');
+
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('f-1');
+      const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('http://folder9.test/api/workspaces/ws-1/folders');
+      expect(init.method).toBe('GET');
+      expect(init.body).toBeUndefined();
+      expect((init.headers as Record<string, string>)[AUTH_HEADER]).toBe(
+        'Bearer psk-test',
+      );
+    });
+
+    it('returns an empty array when the workspace has no folders', async () => {
+      const fetchFn = jest
+        .fn<typeof fetch>()
+        .mockResolvedValue(jsonResponse([]));
+      globalThis.fetch = fetchFn;
+
+      const result = await service.listFolders('ws-empty');
+
+      expect(result).toEqual([]);
     });
   });
 

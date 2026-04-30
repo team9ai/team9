@@ -54,7 +54,11 @@ describe('RoutineBotController', () => {
   });
 
   it('delegates createRoutine with dto, bot user, and tenant', async () => {
-    const dto = { title: 'New Routine', documentContent: 'Do the thing' };
+    // documentContent was dropped from CreateRoutineDto in A.1 and the
+    // service-side permissive bridges were removed in A.4. The DTO no
+    // longer carries a documentContent field — the controller spec
+    // asserts the new shape (title-only) is forwarded through.
+    const dto = { title: 'New Routine' };
 
     await expect(
       controller.create(dto as never, 'bot-user-1', 'tenant-1'),

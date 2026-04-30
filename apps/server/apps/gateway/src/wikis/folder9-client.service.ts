@@ -11,6 +11,7 @@ import {
   Folder9CreateTokenResponse,
   Folder9DiffEntry,
   Folder9Folder,
+  Folder9LogEntry,
   Folder9NetworkError,
   Folder9Proposal,
   Folder9ProposalWithDiff,
@@ -249,6 +250,22 @@ export class Folder9ClientService {
     );
   }
 
+  /**
+   * GET /api/workspaces/{wsId}/folders
+   *
+   * Lists all folders in a workspace. Used by the orphan-folder GC script
+   * (A.10) to enumerate `routine-*` folders for cross-checking against
+   * `routines.folder_id`. PSK-protected like the rest of the folder
+   * management endpoints.
+   */
+  listFolders(wsId: string): Promise<Folder9Folder[]> {
+    return this.request<Folder9Folder[]>(
+      'GET',
+      `/api/workspaces/${wsId}/folders`,
+      'psk',
+    );
+  }
+
   /** PATCH /api/workspaces/{wsId}/folders/{folderId} */
   updateFolder(
     wsId: string,
@@ -359,6 +376,35 @@ export class Folder9ClientService {
       `/api/workspaces/${wsId}/folders/${folderId}/raw?${qs.toString()}`,
       { token },
       timeoutMs,
+    );
+  }
+
+  /**
+   * GET /api/workspaces/{wsId}/folders/{folderId}/log
+   *
+   * Returns commit history (most recent first). folder9 only supports this
+   * for managed folders — light folders 400 here, surfaced as
+   * {@link Folder9ApiError}. Confirmed by reading
+   * folder9/internal/api/handlers_files.go (`Log` handler) and
+   * folder9/internal/gitops/log.go (`LogEntry` struct).
+   *
+   * Defaults: `ref = "main"`, `limit = 50` (folder9 server-side default).
+   */
+  log(
+    wsId: string,
+    folderId: string,
+    token: string,
+    opts: { ref?: string; path?: string; limit?: number } = {},
+  ): Promise<Folder9LogEntry[]> {
+    const qs = new URLSearchParams();
+    if (opts.ref) qs.set('ref', opts.ref);
+    if (opts.path) qs.set('path', opts.path);
+    if (opts.limit !== undefined) qs.set('limit', String(opts.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<Folder9LogEntry[]>(
+      'GET',
+      `/api/workspaces/${wsId}/folders/${folderId}/log${suffix}`,
+      { token },
     );
   }
 

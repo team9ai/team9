@@ -102,12 +102,16 @@
     }
   },
   "browser": {
-    "runtimeTitle": "浏览器控制运行时",
+    "runtimeTitle": "浏览器控制运行时 (Playwright CLI)",
     "runtimeDescription": "Agent 用它真实地操作网页——点击、输入、读取页面内容。底层基于 Playwright。",
     "runtimeSubtitle": "Agent 打开和控制网页需要装它",
     "statusNotInstalled": "未安装",
     "statusInstalled": "已安装",
+    "installing": "安装中…",
+    "reloading": "应用中…",
+    "installFailed": "安装失败",
     "install": "安装",
+    "retry": "重试",
     "binaryTitle": "Agent 使用的浏览器",
     "binaryDescription": "选 Agent 默认要打开的浏览器。内置版最稳——和你日常用的浏览器完全隔离。",
     "recommended": "推荐",
@@ -118,6 +122,57 @@
       "chrome": "Google Chrome",
       "edge": "Microsoft Edge",
       "firefox": "Firefox"
+    },
+    "steps": {
+      "node": "Node.js",
+      "playwright": "Playwright CLI",
+      "browser": "系统浏览器",
+      "unknown": "未知步骤"
+    },
+    "stepStatus": {
+      "ok": "已安装",
+      "skipped": "已跳过",
+      "failed": "失败",
+      "notRun": "未运行"
+    },
+    "agentVisibility": {
+      "toggleLabel": "Agent 可以使用",
+      "tooltip": "关闭后 Agent 不会把 browser skill 列入可用技能。已装好的 Playwright 保留。",
+      "disabledHint": "先完成安装再开启",
+      "outOfSync": "守护进程尚未应用此设置",
+      "outOfSyncTooltip": "尝试关闭后再开启，或重启应用"
+    },
+    "reloadStatus": {
+      "shutdownTimeout": "守护进程关闭超时（5s）；重启可能未完全生效",
+      "spawnFailedRolledBack": "新守护进程启动失败；已回滚到旧配置",
+      "spawnFailedNoRollback": "守护进程启动失败且回滚也失败；当前离线，请重启应用"
+    },
+    "logDrawer": {
+      "expand": "查看日志 ({{count}} 行)",
+      "collapse": "收起日志"
+    },
+    "help": {
+      "aria": "查看错误说明",
+      "permission_denied": "安装需要权限。在终端运行下方命令然后重试。",
+      "network": "网络不通。检查连接；公司网可能需要配置代理。",
+      "no_system_browser": "未检测到 Chrome / Edge。请先下载安装一个。",
+      "node_missing": "Node.js 未安装。先完成 Node.js 步骤再装 Playwright。",
+      "version_mismatch": "版本不匹配。点 “强制重试” 按钮重新强制安装。",
+      "unknown": "未分类错误。查看日志获取详情。",
+      "copyCommand": "复制命令",
+      "copied": "已复制",
+      "networkHint": "可在终端检查 npm 代理设置：npm config get proxy",
+      "downloadChrome": "下载 Chrome",
+      "nodeMissingHint": "重试时点 “强制重试”，会从 Node.js 步骤重新安装。",
+      "retryWithForce": "强制重试",
+      "viewLogs": "查看日志",
+      "clipboardUnavailable": "剪贴板不可用，请手动复制"
+    },
+    "errors": {
+      "operationInProgress": "已有一项浏览器操作在运行，请稍候。",
+      "browserNotInstalled": "请先完成浏览器组件安装，再启用 Agent 可用。",
+      "runtimeNotStarted": "ahand 运行时未启动，请稍后再试。",
+      "unavailableInWeb": "此功能仅在桌面应用中可用。"
     }
   },
   "overview": {

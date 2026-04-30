@@ -14,10 +14,13 @@ edition = "2021"
 name = "team9_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Capitalized binary name controls the macOS dock label in `tauri dev` (unbundled binary).
-# Production builds use `productName` from tauri.conf.json for the .app bundle name.
+# Binary name controls the macOS Dock label in `tauri dev` (unbundled binary, basename of argv[0]).
+# Cargo bin names cannot contain spaces, so we use a hyphen here; the Tauri runtime additionally
+# calls NSProcessInfo.setProcessName to give the menu-bar app name a friendlier "Team9 Local".
+# Bundled builds (`tauri build`) ignore this — they use `productName` from tauri.conf.json
+# for the .app bundle and its inner executable.
 [[bin]]
-name = "Team9"
+name = "Team9-Local"
 path = "src/main.rs"
 
 [build-dependencies]
@@ -42,10 +45,12 @@ anyhow = "1"
 base64 = "0.22"
 sha2 = "0.10"
 hex = "0.4"
+thiserror = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
-# ahand library embedding — pinned to aHand dev HEAD with WS Ping/Pong
-# zombie-detect fix.
-ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "6dac9028ff1f5e1096bbd55911bf7eb96b8e643f" }
+# ahand library embedding — pinned to aHand dev HEAD with duplicate
+# embedded-daemon session guard.
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "5972ef2da404a28031e1604f3b817a4db0187c08" }
 
 [dev-dependencies]
 tempfile = "3"

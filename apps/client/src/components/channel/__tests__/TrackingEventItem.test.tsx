@@ -122,7 +122,7 @@ describe("TrackingEventItem", () => {
       { type: "tool_call", label: "Tool call completed" },
       { type: "tool_result", label: "Result" },
       { type: "agent_start", label: "Started" },
-      { type: "agent_end", label: "Completed" },
+      { type: "agent_end", label: "Stopped" },
       { type: "error", label: "Error" },
     ];
 

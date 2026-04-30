@@ -16,6 +16,16 @@ import type {
 } from "@/types/wiki";
 
 /**
+ * Folder-API factory matching the generic `Folder9FolderApi` shape — the
+ * shared editor shell (Phase C.2) consumes this instead of
+ * `wikisApi.{getTree, getPage, commit}` directly. The dedicated methods on
+ * `wikisApi` stay for callers that need wiki-specific extras (e.g.
+ * `getPage` returns the rich `PageDto` with frontmatter + lastCommit,
+ * which the shell never reads).
+ */
+export { wikiFolderApi } from "./folder9-folder";
+
+/**
  * Creation payload — mirrors gateway `CreateWikiDto`. `slug` and `icon` are
  * optional; `approvalMode`, `humanPermission`, and `agentPermission` default
  * server-side to `auto`, `write`, and `read` respectively.

@@ -48,10 +48,17 @@ export class OpenclawStrategy implements ExecutionStrategy {
   async execute(context: ExecutionContext): Promise<void> {
     this.logger.log(`Starting OpenClaw agent for routine ${context.routineId}`);
 
-    const message = context.documentContent?.trim() || context.title?.trim();
+    // After the A.1–A.7 routine→folder9 migration, routine instructions
+    // live in SKILL.md inside a folder9 managed folder, not in a Document
+    // row. The OpenClaw protocol predates this migration and still expects
+    // a single `message` string in the execute body — its agent runtime
+    // does not know how to read folder9. Until OpenClaw is migrated to
+    // consume folderId + folder9Token (or sunset entirely), the title is
+    // the only message we can supply.
+    const message = context.title?.trim();
     if (!message) {
       throw new Error(
-        `Routine ${context.routineId} has no document content or title — cannot execute without instructions`,
+        `Routine ${context.routineId} has no title — cannot execute without instructions`,
       );
     }
 

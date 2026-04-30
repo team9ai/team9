@@ -86,6 +86,29 @@ describe('RoutinesController', () => {
       startCreationSession: jest
         .fn<any>()
         .mockResolvedValue({ creationChannelId: '', creationSessionId: '' }),
+      getRoutineFolderTree: jest
+        .fn<any>()
+        .mockResolvedValue([
+          { name: 'SKILL.md', path: 'SKILL.md', type: 'file', size: 100 },
+        ]),
+      getRoutineFolderBlob: jest.fn<any>().mockResolvedValue({
+        path: 'SKILL.md',
+        size: 5,
+        content: 'hello',
+        encoding: 'text',
+      }),
+      commitRoutineFolder: jest
+        .fn<any>()
+        .mockResolvedValue({ commit: 'abc123', branch: 'main' }),
+      getRoutineFolderHistory: jest.fn<any>().mockResolvedValue([
+        {
+          SHA: 'abc',
+          Message: 'init',
+          AuthorName: 'a',
+          AuthorEmail: 'a@b',
+          Time: '2026-01-01T00:00:00Z',
+        },
+      ]),
     };
 
     routineTriggersService = {
@@ -484,6 +507,144 @@ describe('RoutinesController', () => {
         creationChannelId: 'channel-1',
         creationSessionId: `team9/tenant-1/source-agent-id/dm/channel-1`,
       });
+    });
+  });
+
+  describe('folder proxy', () => {
+    it('forwards getFolderTree call with parsed query options', async () => {
+      const result = await controller.getFolderTree(
+        routineId,
+        userId,
+        tenantId,
+        'docs',
+        'true',
+      );
+
+      expect(routinesService.getRoutineFolderTree).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        { path: 'docs', recursive: true },
+      );
+      expect(result).toEqual([
+        { name: 'SKILL.md', path: 'SKILL.md', type: 'file', size: 100 },
+      ]);
+    });
+
+    it('treats missing recursive query as false and undefined path', async () => {
+      await controller.getFolderTree(routineId, userId, tenantId);
+
+      expect(routinesService.getRoutineFolderTree).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        { path: undefined, recursive: false },
+      );
+    });
+
+    it('does not flag recursive=anything-other-than-"true" as recursive', async () => {
+      await controller.getFolderTree(routineId, userId, tenantId, '/', 'yes');
+
+      expect(routinesService.getRoutineFolderTree).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        { path: '/', recursive: false },
+      );
+    });
+
+    it('forwards getFolderBlob call with required path param', async () => {
+      const result = await controller.getFolderBlob(
+        routineId,
+        userId,
+        tenantId,
+        'SKILL.md',
+      );
+
+      expect(routinesService.getRoutineFolderBlob).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        'SKILL.md',
+      );
+      expect(result).toEqual({
+        path: 'SKILL.md',
+        size: 5,
+        content: 'hello',
+        encoding: 'text',
+      });
+    });
+
+    it('forwards commitFolder dto verbatim', async () => {
+      const dto = {
+        message: 'edit',
+        files: [
+          { path: 'SKILL.md', content: 'new', action: 'update' as const },
+        ],
+      } as any;
+
+      const result = await controller.commitFolder(
+        routineId,
+        userId,
+        tenantId,
+        dto,
+      );
+
+      expect(routinesService.commitRoutineFolder).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        dto,
+      );
+      expect(result).toEqual({ commit: 'abc123', branch: 'main' });
+    });
+
+    it('forwards getFolderHistory with parsed limit/path/ref', async () => {
+      const result = await controller.getFolderHistory(
+        routineId,
+        userId,
+        tenantId,
+        'SKILL.md',
+        '25',
+        'main',
+      );
+
+      expect(routinesService.getRoutineFolderHistory).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        { path: 'SKILL.md', limit: 25, ref: 'main' },
+      );
+      expect(result).toHaveLength(1);
+    });
+
+    it('drops non-numeric limit values', async () => {
+      await controller.getFolderHistory(
+        routineId,
+        userId,
+        tenantId,
+        undefined,
+        'abc',
+        undefined,
+      );
+
+      expect(routinesService.getRoutineFolderHistory).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        { path: undefined, limit: undefined, ref: undefined },
+      );
+    });
+
+    it('omits limit entirely when not provided', async () => {
+      await controller.getFolderHistory(routineId, userId, tenantId);
+
+      expect(routinesService.getRoutineFolderHistory).toHaveBeenCalledWith(
+        routineId,
+        userId,
+        tenantId,
+        { path: undefined, limit: undefined, ref: undefined },
+      );
     });
   });
 });

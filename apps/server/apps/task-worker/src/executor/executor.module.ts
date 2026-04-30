@@ -5,9 +5,10 @@ import { ExecutorService } from './executor.service.js';
 import { OpenclawStrategy } from './strategies/openclaw.strategy.js';
 import { HiveStrategy } from './strategies/hive.strategy.js';
 import { TaskCastModule } from '../taskcast/taskcast.module.js';
+import { Folder9Module } from '../folder9/folder9.module.js';
 
 @Module({
-  imports: [DatabaseModule, TaskCastModule, ClawHiveModule],
+  imports: [DatabaseModule, TaskCastModule, ClawHiveModule, Folder9Module],
   providers: [ExecutorService, OpenclawStrategy, HiveStrategy],
   exports: [ExecutorService],
 })

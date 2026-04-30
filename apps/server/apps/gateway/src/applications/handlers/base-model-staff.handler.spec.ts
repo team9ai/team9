@@ -191,6 +191,30 @@ describe('BaseModelStaffHandler', () => {
       );
     });
 
+    it('passes virtual workspace componentConfigs (folder9 + just-bash + workspace layout) for every base-model agent', async () => {
+      await handler.onInstall(makeContext());
+
+      const call = clawHiveService.registerAgents.mock.calls[0][0] as {
+        agents: Array<{ componentConfigs: Record<string, unknown> }>;
+      };
+      expect(call.agents).toHaveLength(BASE_MODEL_PRESETS.length);
+      for (const agent of call.agents) {
+        const configs = agent.componentConfigs;
+        // folder9: workspaceId pinned to tenantId, no PSK shipped (workspace
+        // mounts use externally-managed tokens issued lazily by Team9Component).
+        expect(configs).toHaveProperty('folder9');
+        const folder9Config = configs['folder9'] as Record<string, unknown>;
+        expect(folder9Config.workspaceId).toBe(TENANT_ID);
+        expect(folder9Config).not.toHaveProperty('folder9Psk');
+        expect(configs).toEqual(
+          expect.objectContaining({
+            'just-bash': { network: 'none' },
+            'just-bash-team9-workspace': { mountTeam9Skills: true },
+          }),
+        );
+      }
+    });
+
     it('creates DM channels for workspace members for each bot', async () => {
       const memberIds = ['member-a', 'member-b'];
       db.where.mockResolvedValueOnce(memberIds.map((userId) => ({ userId })));

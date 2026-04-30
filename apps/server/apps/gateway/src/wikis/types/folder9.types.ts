@@ -19,6 +19,8 @@ export type Folder9ProposalStatus =
   | 'rejected'
   | 'merged';
 
+export type Folder9Metadata = Record<string, unknown>;
+
 /** Response shape for folder CRUD endpoints. */
 export interface Folder9Folder {
   id: string;
@@ -28,6 +30,7 @@ export interface Folder9Folder {
   owner_id: string;
   workspace_id: string;
   approval_mode: Folder9ApprovalMode;
+  metadata?: Folder9Metadata;
   created_at: string;
   updated_at: string;
 }
@@ -39,12 +42,14 @@ export interface Folder9CreateFolderInput {
   owner_type: Folder9OwnerType;
   owner_id: string;
   approval_mode?: Folder9ApprovalMode;
+  metadata?: Folder9Metadata;
 }
 
 /** Patch body for PATCH /api/workspaces/{wsId}/folders/{folderId}. */
 export interface Folder9UpdateFolderInput {
   name?: string;
   approval_mode?: Folder9ApprovalMode;
+  metadata?: Folder9Metadata;
 }
 
 /** One entry in the response of GET .../tree. */
@@ -94,6 +99,23 @@ export interface Folder9CommitResponse {
   commit: string;
   branch: string;
   proposal_id?: string;
+}
+
+/**
+ * One entry in the response of GET .../log.
+ *
+ * folder9 marshals these as `gitops.LogEntry` (no JSON tags, so Go's
+ * default `encoding/json` rule emits exported field names verbatim —
+ * PascalCase). Confirmed by reading folder9/internal/gitops/log.go.
+ *
+ * `Time` is RFC3339 (commit author timestamp).
+ */
+export interface Folder9LogEntry {
+  SHA: string;
+  Message: string;
+  AuthorName: string;
+  AuthorEmail: string;
+  Time: string;
 }
 
 /** Diff entry for one file between two refs. */

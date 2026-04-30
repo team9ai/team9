@@ -43,6 +43,7 @@ import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
 import { PushModule } from './push/push.module.js';
 import { WikisModule } from './wikis/wikis.module.js';
+import { Folder9Module } from './folder9/folder9.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
@@ -91,6 +92,7 @@ import { AhandModule } from './ahand/ahand.module.js';
     SkillsModule,
     PushModule,
     WikisModule,
+    Folder9Module,
     AhandModule,
   ],
   controllers: [AppController, HealthController],

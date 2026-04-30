@@ -49,4 +49,6 @@ export class InternalDeviceDto {
   isOnline!: boolean | null;
   lastSeenAt!: string | null;
   createdAt!: string;
+
+  capabilities!: string[];
 }

@@ -155,10 +155,10 @@ const REACHABLE = (await pgReachable()) && (await redisReachable());
 
 // ---------------------------------------------------------------------------
 // im_ahand_devices DDL — kept in lockstep with
-// apps/server/libs/database/migrations/0051_ahand_devices.sql. We inline
-// rather than execute the migration file because applying the full migration
-// chain pulls in dozens of unrelated tables and slows the suite past the
-// 60s budget.
+// apps/server/libs/database/migrations/0051_ahand_devices.sql and
+// 0053_shallow_shiva.sql (capabilities column). We inline rather than execute
+// the migration file because applying the full migration chain pulls in dozens
+// of unrelated tables and slows the suite past the 60s budget.
 // ---------------------------------------------------------------------------
 const AHAND_DEVICES_DDL = `
   CREATE TABLE IF NOT EXISTS "im_ahand_devices" (
@@ -170,6 +170,7 @@ const AHAND_DEVICES_DDL = `
     "nickname" text NOT NULL,
     "platform" text NOT NULL,
     "hostname" text,
+    "capabilities" text[] DEFAULT '{}'::text[] NOT NULL,
     "status" text DEFAULT 'active' NOT NULL,
     "last_seen_at" timestamp,
     "created_at" timestamp DEFAULT now() NOT NULL,

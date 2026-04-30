@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Check, Chrome, Globe, Package, Puzzle } from "lucide-react";
+import { Check, Chrome, Globe, Puzzle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,65 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-export function BrowserConfigTab() {
-  const { t } = useTranslation("ahand");
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        {t("devicesTabs.browserDescription")}
-      </p>
-      <RuntimeCard />
-      <BrowserBinaryCard />
-    </div>
-  );
-}
-
-function RuntimeCard() {
-  const { t } = useTranslation("ahand");
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <CardTitle className="text-base">
-            {t("browser.runtimeTitle")}
-          </CardTitle>
-          <Badge
-            variant="outline"
-            size="sm"
-            className="h-5 shrink-0 rounded-md border-border/60 bg-background/80 px-1.5 text-[10px] font-medium text-muted-foreground"
-          >
-            {t("comingSoon")}
-          </Badge>
-        </div>
-        <CardDescription>{t("browser.runtimeDescription")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-3">
-          <Package className="h-5 w-5 text-muted-foreground shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">Playwright</p>
-            <p className="text-xs text-muted-foreground">
-              {t("browser.runtimeSubtitle")}
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            size="sm"
-            className="h-5 shrink-0 rounded-md border-muted bg-background/80 px-1.5 text-[10px] font-medium text-muted-foreground"
-          >
-            {t("browser.statusNotInstalled")}
-          </Badge>
-          <Button variant="outline" size="sm" disabled>
-            {t("browser.install")}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 type BrowserOption = {
   key: "bundled" | "chrome" | "edge" | "firefox";
@@ -84,7 +24,7 @@ const BROWSERS: BrowserOption[] = [
   { key: "firefox", icon: Globe, detected: false },
 ];
 
-function BrowserBinaryCard() {
+export function BrowserBinaryCard() {
   const { t } = useTranslation("ahand");
   const selected: BrowserOption["key"] = "bundled";
 

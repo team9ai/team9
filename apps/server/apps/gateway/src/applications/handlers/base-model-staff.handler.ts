@@ -122,6 +122,16 @@ export class BaseModelStaffHandler implements ApplicationHandler {
               team9AuthToken: accessToken,
               botUserId: bot.userId,
             },
+            // Virtual workspace stack (folder9 + just-bash + workspace
+            // layout). folder9Psk is intentionally omitted — workspace
+            // mounts use externally-managed tokens issued lazily by
+            // Team9Component's Team9FolderTokenApi.
+            folder9: {
+              folder9Url: process.env.FOLDER9_API_URL,
+              workspaceId: tenantId,
+            },
+            'just-bash': { network: 'none' },
+            'just-bash-team9-workspace': { mountTeam9Skills: true },
           },
         })),
         atomic: true,

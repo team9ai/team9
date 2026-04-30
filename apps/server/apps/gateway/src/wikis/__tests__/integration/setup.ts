@@ -95,8 +95,8 @@ export function makeChainMock(): ChainMock {
   for (const m of methods) {
     chain[m] = jest.fn().mockReturnValue(chain);
   }
-  chain.limit.mockResolvedValue([]);
-  chain.returning.mockResolvedValue([]);
-  chain.orderBy.mockResolvedValue([]);
+  chain.limit.mockResolvedValue([] as never);
+  chain.returning.mockResolvedValue([] as never);
+  chain.orderBy.mockResolvedValue([] as never);
   return chain as ChainMock;
 }

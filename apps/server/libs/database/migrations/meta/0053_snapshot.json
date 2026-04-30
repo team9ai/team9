@@ -1,5 +1,5 @@
 {
-  "id": "329d9035-2d6f-45b9-b383-42df9dc8e08a",
+  "id": "85d56542-f18c-4938-8f8c-e403548ffa86",
   "prevId": "027667fd-e4b3-4af9-9ec0-2cdc9611a1d4",
   "version": "7",
   "dialect": "postgresql",
@@ -448,6 +448,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "capabilities": {
+          "name": "capabilities",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
         },
         "status": {
           "name": "status",
@@ -2770,7 +2777,7 @@
           "name": "file_key",
           "type": "varchar(500)",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "file_url": {
           "name": "file_url",

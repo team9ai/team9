@@ -77,6 +77,27 @@ const mockTaskCastClient = {
   createTask: jest.fn<any>().mockResolvedValue('tc-task-id'),
 };
 
+// ── Folder9 mock ───────────────────────────────────────────────────────
+
+const mockFolder9Client = {
+  createFolder: jest.fn<any>(),
+  createToken: jest.fn<any>(),
+  commit: jest.fn<any>(),
+};
+
+// ── ensureRoutineFolder mock ──────────────────────────────────────────
+//
+// triggerExecution calls `ensureRoutineFolder(routineId, deps)` to
+// guarantee a non-null folderId before constructing the agent context.
+// Default mock returns a row with folderId pre-populated (fast path);
+// individual tests override behaviour as needed.
+
+const mockEnsureRoutineFolder = jest.fn<any>();
+
+jest.unstable_mockModule('../folder9/ensure-routine-folder.js', () => ({
+  ensureRoutineFolder: mockEnsureRoutineFolder,
+}));
+
 // ── UUID mock ──────────────────────────────────────────────────────────
 
 let uuidCounter = 0;
@@ -121,8 +142,31 @@ describe('ExecutorService', () => {
     resetDb();
     mockTaskCastClient.createTask.mockResolvedValue('tc-task-id');
 
+    // Default folder9 + ensure mocks: fast-path provisioning so the
+    // executor's happy-path tests proceed without further setup.
+    mockFolder9Client.createFolder.mockReset();
+    mockFolder9Client.createToken
+      .mockReset()
+      .mockResolvedValue({ token: 'mock-folder9-read-token' });
+    mockFolder9Client.commit.mockReset();
+    mockEnsureRoutineFolder
+      .mockReset()
+      .mockImplementation((routineId: string) =>
+        Promise.resolve({
+          id: routineId,
+          folderId: 'folder-001',
+          tenantId: 'tenant-001',
+          title: 'My Test Task',
+          description: null,
+        }),
+      );
+
     ({ ExecutorService } = await import('./executor.service.js'));
-    service = new ExecutorService(mockDb, mockTaskCastClient);
+    service = new ExecutorService(
+      mockDb,
+      mockTaskCastClient,
+      mockFolder9Client,
+    );
 
     mockStrategy = {
       execute: jest.fn<any>().mockResolvedValue(undefined),
@@ -312,12 +356,9 @@ describe('ExecutorService', () => {
     );
   });
 
-  it('should persist trigger metadata and override document version when provided', async () => {
-    returningResultQueue = [[{ ...sampleTask, documentId: 'doc-001' }]];
-    selectResultQueue = [
-      [{ content: 'Document body', versionId: 'doc-version-001' }],
-      [sampleBot],
-    ];
+  it('should persist trigger metadata and pass folderId/folder9Token in ExecutionContext', async () => {
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
     await service.triggerExecution('task-001', {
@@ -338,11 +379,116 @@ describe('ExecutorService', () => {
       sourceExecutionId: 'exec-source-001',
       documentVersionId: 'override-version-001',
     });
+    // ExecutionContext now carries folderId + folder9Token (post A.7
+    // migration) instead of documentContent. ensureRoutineFolder is
+    // mocked to return folderId 'folder-001'; the read-token mint
+    // returns 'mock-folder9-read-token'.
     expect(mockStrategy.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        documentContent: 'Document body',
+        folderId: 'folder-001',
+        folder9Token: 'mock-folder9-read-token',
       }),
     );
+    // documentContent is gone — make sure no stale field leaks through.
+    const callArg = (mockStrategy.execute as jest.Mock).mock.calls[0][0];
+    expect((callArg as any).documentContent).toBeUndefined();
+  });
+
+  // ── ensureRoutineFolder: lazy provision triggered ─────────────────
+
+  it('lazily provisions the folder when ensureRoutineFolder reports a fresh folderId', async () => {
+    // Simulate ensureRoutineFolder hitting the slow path: returns a row
+    // whose folderId came from a fresh provision call inside the helper.
+    mockEnsureRoutineFolder.mockResolvedValueOnce({
+      id: 'task-001',
+      folderId: 'newly-provisioned-folder-id',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      description: null,
+    });
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001');
+
+    expect(mockEnsureRoutineFolder).toHaveBeenCalledWith(
+      'task-001',
+      expect.objectContaining({
+        db: mockDb,
+        provisionDeps: expect.objectContaining({
+          folder9Client: mockFolder9Client,
+          workspaceId: 'tenant-001',
+        }),
+      }),
+    );
+    expect(mockStrategy.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'newly-provisioned-folder-id' }),
+    );
+  });
+
+  // ── ensureRoutineFolder: provision failure marks routine as failed ─
+
+  it('marks the routine as failed when ensureRoutineFolder throws', async () => {
+    mockEnsureRoutineFolder.mockRejectedValueOnce(
+      new Error('folder9 unavailable'),
+    );
+    returningResultQueue = [[sampleTask]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001');
+
+    // Strategy MUST not be called when folder provisioning fails.
+    expect(mockStrategy.execute).not.toHaveBeenCalled();
+    // Routine flips to 'failed' so it isn't stuck in_progress forever.
+    const failedSet = updateSets.find((s) => s.status === 'failed');
+    expect(failedSet).toBeDefined();
+  });
+
+  // ── folder9 token mint failure marks routine as failed ────────────
+
+  it('marks the routine as failed when folder9 read-token mint throws', async () => {
+    mockFolder9Client.createToken.mockRejectedValueOnce(
+      new Error('folder9 token mint 503'),
+    );
+    returningResultQueue = [[sampleTask]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001');
+
+    expect(mockStrategy.execute).not.toHaveBeenCalled();
+    const failedSet = updateSets.find((s) => s.status === 'failed');
+    expect(failedSet).toBeDefined();
+  });
+
+  // ── folder9 read-token TTL ────────────────────────────────────────
+
+  it('mints the read token with a ~6h TTL', async () => {
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    const before = Date.now();
+    await service.triggerExecution('task-001');
+    const after = Date.now();
+
+    expect(mockFolder9Client.createToken).toHaveBeenCalledTimes(1);
+    const tokenReq = (mockFolder9Client.createToken as jest.Mock).mock
+      .calls[0][0] as {
+      folder_id: string;
+      permission: string;
+      created_by: string;
+      expires_at: string;
+    };
+    expect(tokenReq).toMatchObject({
+      folder_id: 'folder-001',
+      permission: 'read',
+      created_by: 'routine:task-001',
+    });
+    const expiresAt = new Date(tokenReq.expires_at).getTime();
+    const sixHoursMs = 6 * 60 * 60 * 1000;
+    expect(expiresAt).toBeGreaterThanOrEqual(before + sixHoursMs);
+    expect(expiresAt).toBeLessThanOrEqual(after + sixHoursMs + 1000);
   });
 
   // ── stopExecution: hive strategy routing ─────────────────────────

@@ -163,6 +163,67 @@ describe('astToPlaintext', () => {
     expect(astToPlaintext(ast)).toBe('<script>alert(1)</script>');
   });
 
+  it('extracts text from Lexical code blocks (code-highlight leaves)', () => {
+    // Lexical wraps code blocks as `code` elements whose children are
+    // `code-highlight` nodes (TextNode subclasses) — they carry `text` but
+    // have no `children`. Without explicit handling the whole block is
+    // invisible to astToPlaintext, producing an empty `content` that
+    // downstream gRPC validation (im-worker) rejects with INVALID_ARGUMENT
+    // → HTTP 500. See: Lexical CodeHighlightNode / code-highlight plugin.
+    const ast = {
+      root: {
+        type: 'root',
+        children: [
+          {
+            type: 'code',
+            language: 'javascript',
+            children: [
+              {
+                type: 'code-highlight',
+                text: 'const ',
+                highlightType: 'keyword',
+              },
+              {
+                type: 'code-highlight',
+                text: 'x',
+              },
+              { type: 'linebreak' },
+              {
+                type: 'code-highlight',
+                text: '  return x;',
+              },
+            ],
+          },
+        ],
+      },
+    };
+    // `code` is a block-level type so the whole block is followed by a
+    // trailing newline, which `trim()` strips. Inside the block, text flows
+    // line-by-line with the explicit linebreak preserved.
+    expect(astToPlaintext(ast)).toBe('const x\n  return x;');
+  });
+
+  it('extracts text from Lexical tab nodes (TextNode subclass without children)', () => {
+    // `tab` is another TextNode subclass (TabNode) with a `text` field and
+    // no children. Same failure mode as code-highlight if not handled.
+    const ast = {
+      root: {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            children: [
+              { type: 'text', text: 'before' },
+              { type: 'tab', text: '\t' },
+              { type: 'text', text: 'after' },
+            ],
+          },
+        ],
+      },
+    };
+    expect(astToPlaintext(ast)).toBe('before\tafter');
+  });
+
   it('stops recursing at MAX_AST_DEPTH without crashing', () => {
     // Build a pathologically deep tree that would blow a naive recursive walk.
     // Even though normalizeAst would reject this at ingress, astToPlaintext

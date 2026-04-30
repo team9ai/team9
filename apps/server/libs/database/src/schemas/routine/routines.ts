@@ -77,7 +77,23 @@ export const routines = pgTable(
 
     version: integer('version').default(1).notNull(),
 
+    /**
+     * @deprecated migrated to folder9; do not read or write — drop in
+     * follow-up PR. Phase A.1 of the routine→folder9-skill migration
+     * replaces the linked Document with a folder9 managed skill folder
+     * (see `folderId` below).
+     */
     documentId: uuid('document_id').references(() => documents.id),
+
+    /**
+     * Forward link to the routine's folder9 managed skill folder.
+     * Nullable: starts null inside the creation transaction (filled by the
+     * post-INSERT UPDATE) and remains null on legacy rows until Layer 1
+     * batch migrates them or Layer 2 lazy-provisions via
+     * `ensureRoutineFolder`. Application code MUST treat the runtime
+     * invariant (non-null after `provisionFolder9SkillFolder`) as authoritative.
+     */
+    folderId: uuid('folder_id'),
 
     // Forward reference — FK to routine__executions added via relations
     currentExecutionId: uuid('current_execution_id'),

@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
   injectWorkspacePackages: true
 
+overrides:
+  eventsource-parser: 3.0.6
+
 patchedDependencies:
   eventsource-parser@3.0.6:
     hash: b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979
@@ -338,6 +341,9 @@ importers:
       "@vitest/coverage-v8":
         specifier: ^4.0.18
         version: 4.0.18(vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.3)(jiti@2.6.1)(jsdom@29.0.1(@noble/hashes@1.8.0))(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.3))
+      cross-env:
+        specifier: ^10.1.0
+        version: 10.1.0
       eslint:
         specifier: ^9.18.0
         version: 9.39.2(jiti@2.6.1)
@@ -2901,6 +2907,12 @@ packages:
     peerDependencies:
       emoji-mart: ^5.2
       react: ^16.8 || ^17 || ^18
+
+  "@epic-web/invariant@1.0.0":
+    resolution:
+      {
+        integrity: sha512-lrTPqgvfFQtR/eY/qkIzp98OGdNJu0m5ji3q/nJI8v3SXkRKEnWiOxMmbvcSoAIzv/cGiuvRy57k4suKQSAdwA==,
+      }
 
   "@esbuild-kit/core-utils@3.3.2":
     resolution:
@@ -10477,6 +10489,14 @@ packages:
         integrity: sha512-fkdfq+b+AHI4cKdhZlppHveI/mgz2qpiYxcm+t5E5TsxX7QrLS1VE0+7GENEk9z0EeGPcpSciGv6ez24duWhwQ==,
       }
     engines: { node: ">=18.x" }
+
+  cross-env@10.1.0:
+    resolution:
+      {
+        integrity: sha512-GsYosgnACZTADcmEyJctkJIoqAhHjttw7RsFrVoJNXbsWWqaq6Ym+7kZjq6mS45O0jij6vtiReppKQEtqWy6Dw==,
+      }
+    engines: { node: ">=20" }
+    hasBin: true
 
   cross-env@7.0.3:
     resolution:
@@ -19152,6 +19172,8 @@ snapshots:
       emoji-mart: 5.6.0
       react: 19.2.3
 
+  "@epic-web/invariant@1.0.0": {}
+
   "@esbuild-kit/core-utils@3.3.2":
     dependencies:
       esbuild: 0.18.20
@@ -24396,6 +24418,11 @@ snapshots:
     dependencies:
       "@types/luxon": 3.7.1
       luxon: 3.7.2
+
+  cross-env@10.1.0:
+    dependencies:
+      "@epic-web/invariant": 1.0.0
+      cross-spawn: 7.0.6
 
   cross-env@7.0.3:
     dependencies:

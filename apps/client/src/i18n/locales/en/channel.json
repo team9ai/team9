@@ -169,7 +169,7 @@
       "toolCall": "Calling",
       "toolResult": "Result",
       "agentStart": "Started",
-      "agentEnd": "Completed",
+      "agentEnd": "Stopped",
       "error": "Error",
       "turn": "Turn",
       "choices": "Choices",

@@ -298,6 +298,36 @@ describe('ClawHiveService', () => {
       expect(result).toEqual({ sessionId: 'new-session-id' });
     });
 
+    it('forwards componentConfigs in the request body', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 's1' }));
+
+      const componentConfigs = {
+        'just-bash-team9-workspace': {
+          folderMap: {
+            'routine.document': {
+              workspaceId: 'tenant-1',
+              folderId: 'folder-abc',
+              folderType: 'managed',
+              token: 'tok-xyz',
+              permission: 'write',
+              readOnly: false,
+            },
+          },
+          mountTeam9Skills: true,
+        },
+      };
+
+      await service.createSession(
+        'agent-1',
+        { userId: 'u1', componentConfigs },
+        'tenant-1',
+      );
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+      expect(body.componentConfigs).toEqual(componentConfigs);
+    });
+
     it('throws on non-ok response', async () => {
       mockFetch.mockResolvedValueOnce(textResponse('Agent not found', 404));
 

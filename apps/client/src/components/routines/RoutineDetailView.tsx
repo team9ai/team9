@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { STATUS_COLORS } from "@/lib/routine-status";
 import { routinesApi } from "@/services/api/routines";
 import { RoutineTriggersTab } from "./RoutineTriggersTab";
-import { RoutineDocumentTab } from "./RoutineDocumentTab";
+import { RoutineSkillFolderTab } from "./RoutineSkillFolderTab";
 import { RoutineOverviewTab } from "./tabs/RoutineOverviewTab";
 import { RoutineRunsTab } from "./tabs/RoutineRunsTab";
 import type { RoutineDetail, RoutineStatus } from "@/types/routine";
@@ -143,7 +143,7 @@ export function RoutineDetailView({
         <TabsContent value="documents" className="flex-1 min-h-0 mt-0">
           <ScrollArea className="h-full">
             <div className="p-4">
-              <RoutineDocumentTab routine={routine} />
+              <RoutineSkillFolderTab routine={routine} />
             </div>
           </ScrollArea>
         </TabsContent>

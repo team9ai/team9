@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -6,6 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   and,
@@ -32,6 +34,7 @@ import { parseFrontmatter } from './utils/frontmatter.js';
 import { validateWikiPath } from './utils/path-validation.js';
 import {
   Folder9ApiError,
+  type Folder9Metadata,
   Folder9Permission,
   type Folder9DiffEntry,
   type Folder9Proposal,
@@ -125,6 +128,42 @@ function deriveSlug(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 100);
   return slug || 'wiki';
+}
+
+/**
+ * Pull a short human-readable message from a folder9 error payload. folder9
+ * typically returns `{ message }` or `{ error }`; if neither exists we fall
+ * back to the caller-provided sentence so HTTP 4xx responses stay useful.
+ */
+function folder9ErrorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object') {
+    if ('message' in body) {
+      const msg = (body as { message?: unknown }).message;
+      if (typeof msg === 'string' && msg.trim().length > 0) return msg;
+    }
+    if ('error' in body) {
+      const err = (body as { error?: unknown }).error;
+      if (typeof err === 'string' && err.trim().length > 0) return err;
+    }
+  }
+  return fallback;
+}
+
+function folder9WikiName(wikiId: string): string {
+  return `team9-wiki-${wikiId}`;
+}
+
+function team9WikiMetadata(
+  workspaceId: string,
+  wikiId: string,
+  slug: string,
+): Folder9Metadata {
+  return {
+    type: 'team9-wiki',
+    wiki_id: wikiId,
+    wiki_slug: slug,
+    workspace_id: workspaceId,
+  };
 }
 
 /**
@@ -311,19 +350,39 @@ export class WikisService {
     const approvalMode = dto.approvalMode ?? 'auto';
     const humanPermission = dto.humanPermission ?? 'write';
     const agentPermission = dto.agentPermission ?? 'read';
+    const wikiId = uuidv7();
 
-    const folder = await this.folder9.createFolder(workspaceId, {
-      name: dto.name,
-      type: 'managed',
-      owner_type: 'workspace',
-      owner_id: workspaceId,
-      approval_mode: approvalMode,
-    });
+    let folder;
+    try {
+      folder = await this.folder9.createFolder(workspaceId, {
+        name: folder9WikiName(wikiId),
+        type: 'managed',
+        owner_type: 'workspace',
+        owner_id: workspaceId,
+        approval_mode: approvalMode,
+        metadata: team9WikiMetadata(workspaceId, wikiId, slug),
+      });
+    } catch (err) {
+      if (err instanceof Folder9ApiError) {
+        const message = folder9ErrorMessage(
+          err.body,
+          `folder9 rejected wiki creation for slug '${slug}'`,
+        );
+        if (err.status === 400) {
+          throw new BadRequestException(message);
+        }
+        if (err.status === 409) {
+          throw new ConflictException(message);
+        }
+      }
+      throw err;
+    }
 
     try {
       const inserted = await this.db
         .insert(schema.workspaceWikis)
         .values({
+          id: wikiId,
           workspaceId,
           folder9FolderId: folder.id,
           name: dto.name,
@@ -364,10 +423,11 @@ export class WikisService {
   /**
    * Update a Wiki's mutable settings. Requires `write` permission.
    *
-   * Mirrors `name` and `approvalMode` changes to folder9 (so the underlying
-   * folder display name and review mode stay in sync). Permission changes are
-   * stored locally only — folder9 has no concept of human/agent permission
-   * tiers and we don't want to trip the API for no reason.
+   * Mirrors `approvalMode` and slug metadata changes to folder9. The folder9
+   * folder name is an internal stable identifier (`team9-wiki-{wikiId}`), so
+   * Team9 display-name changes stay local. Permission changes are stored
+   * locally only — folder9 has no concept of human/agent permission tiers and
+   * we don't want to trip the API for no reason.
    *
    * Slug uniqueness is re-checked when the slug actually changes.
    */
@@ -421,11 +481,18 @@ export class WikisService {
       throw new NotFoundException(`Wiki ${wikiId} not found`);
     }
 
-    if (dto.name !== undefined || dto.approvalMode !== undefined) {
+    const slugChanged = dto.slug !== undefined && dto.slug !== wiki.slug;
+    if (dto.approvalMode !== undefined || slugChanged) {
       const folderPatch: Folder9UpdateFolderInput = {};
-      if (dto.name !== undefined) folderPatch.name = dto.name;
       if (dto.approvalMode !== undefined)
         folderPatch.approval_mode = dto.approvalMode;
+      if (slugChanged) {
+        folderPatch.metadata = team9WikiMetadata(
+          workspaceId,
+          wikiId,
+          dto.slug!,
+        );
+      }
       try {
         await this.folder9.updateFolder(
           workspaceId,
