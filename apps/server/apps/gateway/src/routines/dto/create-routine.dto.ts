@@ -71,10 +71,6 @@ export class CreateRoutineDto {
   @IsOptional()
   scheduleConfig?: ScheduleConfigDto;
 
-  @IsString()
-  @IsOptional()
-  documentContent?: string;
-
   @ValidateNested({ each: true })
   @Type(() => CreateTriggerDto)
   @IsOptional()

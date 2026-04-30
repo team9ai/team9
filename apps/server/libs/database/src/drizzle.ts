@@ -13,6 +13,7 @@ export {
   desc,
   asc,
   isNull,
+  isNotNull,
   inArray,
   notInArray,
   aliasedTable,

@@ -525,19 +525,10 @@ export class RoutineBotService {
       );
     }
 
-    // Handle documentContent
-    if (dto.documentContent !== undefined) {
-      if (!routine.documentId) {
-        throw new BadRequestException(
-          'Cannot update document content: routine has no linked document.',
-        );
-      }
-      await this.documentsService.update(
-        routine.documentId,
-        { content: dto.documentContent },
-        { type: 'user', id: routine.creatorId },
-      );
-    }
+    // documentContent was dropped from UpdateRoutineDto in Phase A.1 and
+    // the bot-side bridge was removed in A.4. Bots that previously wrote
+    // routine body via PATCH must now go through the folder9 proxy
+    // endpoints (A.6) which target the SKILL.md backing the routine.
 
     // Handle triggers — wholesale replace
     if (dto.triggers !== undefined) {

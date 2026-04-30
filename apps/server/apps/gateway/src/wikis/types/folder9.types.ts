@@ -101,6 +101,23 @@ export interface Folder9CommitResponse {
   proposal_id?: string;
 }
 
+/**
+ * One entry in the response of GET .../log.
+ *
+ * folder9 marshals these as `gitops.LogEntry` (no JSON tags, so Go's
+ * default `encoding/json` rule emits exported field names verbatim —
+ * PascalCase). Confirmed by reading folder9/internal/gitops/log.go.
+ *
+ * `Time` is RFC3339 (commit author timestamp).
+ */
+export interface Folder9LogEntry {
+  SHA: string;
+  Message: string;
+  AuthorName: string;
+  AuthorEmail: string;
+  Time: string;
+}
+
 /** Diff entry for one file between two refs. */
 export interface Folder9DiffEntry {
   Path: string;

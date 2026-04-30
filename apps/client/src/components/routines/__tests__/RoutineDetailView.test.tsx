@@ -27,8 +27,8 @@ vi.mock("../RoutineTriggersTab", () => ({
   ),
 }));
 
-vi.mock("../RoutineDocumentTab", () => ({
-  RoutineDocumentTab: ({ routine }: { routine: { id: string } }) => (
+vi.mock("../RoutineSkillFolderTab", () => ({
+  RoutineSkillFolderTab: ({ routine }: { routine: { id: string } }) => (
     <div data-testid="documents-tab" data-routine-id={routine.id} />
   ),
 }));
@@ -233,6 +233,7 @@ const baseRoutine: RoutineDetail = {
   nextRunAt: null,
   version: 1,
   documentId: null,
+  folderId: "f1",
   currentExecutionId: null,
   tokenUsage: 0,
   creationChannelId: null,

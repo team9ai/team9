@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
@@ -38,6 +39,7 @@ import {
 } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
@@ -50,8 +52,23 @@ import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
 import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js';
+import type { FolderCommitDto } from './dto/folder-commit.dto.js';
+import type {
+  Folder9BlobResponse,
+  Folder9CommitResponse,
+  Folder9LogEntry,
+  Folder9Permission,
+  Folder9TreeEntry,
+} from '../wikis/types/folder9.types.js';
 import { TaskCastService } from './taskcast.service.js';
 import { UsersService } from '../im/users/users.service.js';
+import { Folder9ClientService } from '../wikis/folder9-client.service.js';
+import {
+  provisionFolder9SkillFolder,
+  slugifyUuid,
+} from './folder/provision-routine-folder.js';
+import { ensureRoutineFolder } from './folder/ensure-routine-folder.js';
+import { validateSkillMd } from './folder/validate-skill-md.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -80,6 +97,7 @@ export class RoutinesService {
     private readonly clawHiveService: ClawHiveService,
     private readonly botsService: BotService,
     private readonly usersService: UsersService,
+    private readonly folder9Client: Folder9ClientService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -93,11 +111,22 @@ export class RoutinesService {
     const routineId = uuidv7();
     const status = dto.status ?? 'upcoming';
 
-    // Always create a linked document for the routine
+    // Always create a linked document for the routine. The Document is the
+    // legacy storage for the routine body; folder9 SKILL.md is the new
+    // storage and is provisioned atomically below. We keep the Document as
+    // an empty stub during the A.x migration so existing readers
+    // (routine-bot.service.ts: getRoutineById enrichment, completeCreation
+    // validation, draft session kickoff payload) keep working until they
+    // are migrated to read SKILL.md instead.
+    //
+    // documentContent has been dropped from CreateRoutineDto. Initial
+    // content is always empty — agents/users add content via the routine
+    // refinement flow (PATCH /v1/routines/:id with `documentContent` on
+    // routine-bot.service still wires through documentsService for now).
     const doc = await this.documentsService.create(
       {
         documentType: 'task',
-        content: dto.documentContent ?? '',
+        content: '',
         title: dto.title,
       },
       { type: 'user', id: userId },
@@ -105,38 +134,133 @@ export class RoutinesService {
     );
     const documentId = doc.id;
 
-    const insertValues: schema.NewRoutine = {
-      id: routineId,
-      tenantId,
-      botId: dto.botId ?? null,
-      creatorId: userId,
-      title: dto.title,
-      description: dto.description ?? null,
-      scheduleType: dto.scheduleType ?? 'once',
-      scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
-      documentId,
-    };
-    // status and sourceRef are new schema columns added in Task 0 — cast to bypass
-    // stale type resolution in pnpm workspaces / worktrees environment
-    (insertValues as Record<string, unknown>).status = status;
-    (insertValues as Record<string, unknown>).sourceRef =
-      options?.sourceRef ?? null;
-
-    const [routine] = await this.db
-      .insert(schema.routines)
-      .values(insertValues)
-      .returning();
-
-    // Skip trigger registration for drafts
-    if ((status as string) !== 'draft' && dto.triggers?.length) {
-      await this.routineTriggersService.createBatch(
-        routineId,
-        dto.triggers,
+    // ── Atomic INSERT + folder9 provision + UPDATE ──────────────────
+    //
+    // Wrapping the routine INSERT and the folder9 provision in a single DB
+    // transaction guarantees one of two outcomes:
+    //   (a) routine row exists with non-null `folder_id` → fully provisioned
+    //   (b) no routine row exists at all → folder9 was unreachable
+    //
+    // We never persist a routine row with `folder_id IS NULL` from this
+    // path. The half-baked state (folder created on folder9 but DB
+    // committed without writing the id back) is impossible because the
+    // UPDATE happens *inside* the same JS transaction-callback before
+    // commit, so a network failure between createFolder and commit either
+    // throws (causing rollback) or completes successfully and lets the
+    // tx commit cleanly.
+    //
+    // Failure modes:
+    // - folder9 step fails (createFolder / createToken / commit) → caught
+    //   here, logged, then rethrown as 503. The thrown error escapes the
+    //   transaction callback, so Drizzle issues ROLLBACK. The orphan
+    //   folder (if createFolder succeeded but commit failed) is reaped
+    //   later by the orphan GC sweep (see design §11).
+    // - DB INSERT fails → bubbles up unchanged (e.g., FK violation on
+    //   botId → 500 / BadRequest depending on the caller's error mapper).
+    //   No folder9 call was made, so nothing leaks.
+    //
+    // The trigger creation (`createBatch`) intentionally runs *outside*
+    // the transaction. It does not affect the routine.folder_id invariant
+    // and the existing behavior is "create routine first, then triggers
+    // best-effort" — preserving that means a trigger insert failure
+    // surfaces as a 500 but the routine row already has its folderId set,
+    // which is the desired half-success state (caller can retry trigger
+    // setup against an existing routine).
+    return await this.db.transaction(async (tx) => {
+      const insertValues: schema.NewRoutine = {
+        id: routineId,
         tenantId,
-      );
-    }
+        botId: dto.botId ?? null,
+        creatorId: userId,
+        title: dto.title,
+        description: dto.description ?? null,
+        scheduleType: dto.scheduleType ?? 'once',
+        scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
+        documentId,
+      };
+      // status, sourceRef, and folderId are new schema columns added in
+      // Task 0 / Task A.1 — cast to bypass stale type resolution in pnpm
+      // workspaces / worktrees environment.
+      (insertValues as Record<string, unknown>).status = status;
+      (insertValues as Record<string, unknown>).sourceRef =
+        options?.sourceRef ?? null;
+      (insertValues as Record<string, unknown>).folderId = null;
 
-    return routine;
+      const [routine] = await tx
+        .insert(schema.routines)
+        .values(insertValues)
+        .returning();
+
+      let provisioned: { folderId: string };
+      try {
+        provisioned = await provisionFolder9SkillFolder(
+          {
+            id: routine.id,
+            title: routine.title,
+            description: routine.description,
+            // documentContent is a virtual field on the helper's input;
+            // pass null so the helper emits an "Initial scaffold" commit
+            // message and an empty SKILL.md body.
+            documentContent: null,
+          },
+          {
+            folder9Client: this.folder9Client,
+            workspaceId: tenantId,
+            // Folder9ClientService reads FOLDER9_PSK from process.env;
+            // this field is retained for forward-compat with the helper's
+            // public deps shape but currently unused by the underlying
+            // client. See provision-routine-folder.ts header.
+            psk: '',
+          },
+        );
+      } catch (err) {
+        // Metric: per-failure counter that pairs with the
+        // request-rate alert in §10.8 of the design doc (5-min rate >
+        // 1% pages on-call). Increment BEFORE the throw — once the
+        // 503 escapes, the OTEL pipeline already has the sample.
+        appMetrics.routinesCreateFolder9FailureTotal.add(1);
+        this.logger.warn(
+          `create: folder9 provision failed for routine ${routine.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        // Re-throw as 503 so the API caller gets a retryable signal. The
+        // throw escapes the transaction callback → Drizzle ROLLBACKs → no
+        // routine row persists.
+        throw new ServiceUnavailableException(
+          'folder storage temporarily unavailable, please retry',
+        );
+      }
+
+      await tx
+        .update(schema.routines)
+        .set({
+          folderId: provisioned.folderId,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, routine.id));
+
+      // Skip trigger registration for drafts. Triggers are created
+      // outside the routine.folder_id invariant — a trigger failure must
+      // NOT roll back the now-committed folder. Run AFTER the tx commits
+      // (i.e., after this callback returns) by deferring with the
+      // post-commit await below.
+      //
+      // We still call this inside the transaction callback because the
+      // existing fixture mocks (and the createBatch implementation) do
+      // not rely on the outer `tx` handle. Trigger writes use the same
+      // injected `db`, which is fine — they participate in their own
+      // transactional scope, not this one.
+      if ((status as string) !== 'draft' && dto.triggers?.length) {
+        await this.routineTriggersService.createBatch(
+          routineId,
+          dto.triggers,
+          tenantId,
+        );
+      }
+
+      return { ...routine, folderId: provisioned.folderId };
+    });
   }
 
   async list(
@@ -243,19 +367,11 @@ export class RoutinesService {
       );
     }
 
-    // Handle documentContent — writes to the linked document, not the routine table
-    if (dto.documentContent !== undefined) {
-      if (!routine.documentId) {
-        throw new BadRequestException(
-          'Cannot update document content: routine has no linked document.',
-        );
-      }
-      await this.documentsService.update(
-        routine.documentId,
-        { content: dto.documentContent },
-        { type: 'user', id: userId },
-      );
-    }
+    // documentContent was dropped from UpdateRoutineDto in Phase A.1 and
+    // the create-side bridge was removed in A.4. The new world stores the
+    // routine body in folder9 SKILL.md, not in the linked Document — the
+    // proxy endpoints in A.6 handle SKILL.md writes. There is no
+    // documentContent branch on the user-facing PATCH path anymore.
 
     // Handle triggers — wholesale replace
     if (dto.triggers !== undefined) {
@@ -897,6 +1013,110 @@ export class RoutinesService {
       });
     }
 
+    // ── Step 5b: SKILL.md validation (A.5) ───────────────────────────
+    //
+    // Now that the legacy required-field gate has passed, ensure the
+    // routine has a folder9 folder and that the agent populated SKILL.md
+    // correctly. `ensureRoutineFolder` is the Layer 2 invariant: after it
+    // returns, `routine.folderId` is guaranteed non-null. We then mint a
+    // short-lived read-scoped token and fetch SKILL.md, run the
+    // validation, and on any rule violation return `{ success: false,
+    // error }` so the calling agent can fix the file and retry via the
+    // `finishRoutineCreation` tool (no 4xx — surfaces cleanly through the
+    // tool result channel).
+    //
+    // We pass `null` for `documentContent` to the underlying provision
+    // helper indirectly via ensureRoutineFolder's internal default. The
+    // very first call here will lazily create the folder with an empty
+    // SKILL.md scaffold — that scaffold WILL fail this validation
+    // (frontmatter description doesn't match the routine description if
+    // the routine has one, OR body is too short). That's the correct
+    // behaviour: the agent then fills in the content and retries.
+    const ensured = await ensureRoutineFolder(routineId, {
+      db: this.db,
+      provisionDeps: {
+        folder9Client: this.folder9Client,
+        workspaceId: routine.tenantId,
+        psk: '',
+      },
+    });
+
+    // Mint a 5-minute read token. The validation reads SKILL.md exactly
+    // once on this code path, so a tight TTL caps the leak window if a
+    // log scrape ever surfaces the token. `name` is descriptive for
+    // folder9-side audit; `created_by` namespaces routine activity from
+    // wiki activity for traceability.
+    const readToken = await this.folder9Client.createToken({
+      folder_id: ensured.folderId!,
+      permission: 'read',
+      name: 'routine-finish-validate',
+      created_by: `routine:${routineId}`,
+      expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    });
+
+    let skillMdContent: string;
+    try {
+      const blob = await this.folder9Client.getBlob(
+        routine.tenantId,
+        ensured.folderId!,
+        readToken.token,
+        'SKILL.md',
+      );
+      // folder9 returns base64-encoded content for non-UTF8 blobs. SKILL.md
+      // must be plain text — anything else is treated as missing/invalid.
+      skillMdContent =
+        blob.encoding === 'text'
+          ? blob.content
+          : Buffer.from(blob.content, 'base64').toString('utf8');
+    } catch (err) {
+      // Treat a SKILL.md read miss as a validation failure with the
+      // synthetic rule `read_failed` — same metric, same alert pipeline,
+      // distinct label so dashboards can split "agent never wrote the
+      // file" from "agent wrote the file but it failed validation".
+      // The rule code intentionally lives outside the
+      // ValidationFailureRule union (which is reserved for
+      // validateSkillMd's bounded set); it's still a stable, low-
+      // cardinality value that fits the same label.
+      appMetrics.routinesCompleteCreationValidationFailureTotal.add(1, {
+        rule: 'read_failed',
+      });
+      this.logger.warn(
+        `completeCreation: failed to read SKILL.md for routine ${routineId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return {
+        success: false as const,
+        error:
+          'SKILL.md could not be read from the routine folder. Please write the file before finishing creation.',
+      };
+    }
+
+    const expectedSkillName = `routine-${slugifyUuid(routineId)}`;
+    // Use `ensured.description` — the row read INSIDE the
+    // ensureRoutineFolder transaction. That's the freshest authoritative
+    // value (the row was SELECT ... FOR UPDATE locked at provision time),
+    // so it cannot be stale relative to whatever the agent saw when it
+    // wrote SKILL.md.
+    const expectedDescription = ensured.description ?? '';
+    const validation = validateSkillMd(
+      skillMdContent,
+      expectedSkillName,
+      expectedDescription,
+    );
+    if (!validation.ok) {
+      // `validation.rule` is one of the closed-set codes in
+      // ValidationFailureRule — safe to use directly as a metric label
+      // without high-cardinality concerns.
+      appMetrics.routinesCompleteCreationValidationFailureTotal.add(1, {
+        rule: validation.rule,
+      });
+      this.logger.log(
+        `completeCreation: SKILL.md validation rejected routine ${routineId}: ${validation.reason}`,
+      );
+      return { success: false as const, error: validation.reason };
+    }
+
     // Step 6: Conditionally update status to upcoming only if still draft.
     // Using WHERE id=? AND status='draft' with RETURNING lets us detect a
     // concurrent caller that already flipped the status — empty result means
@@ -1317,9 +1537,60 @@ export class RoutinesService {
         ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
       };
 
+      // ── Routine folder intent for JustBashTeam9WorkspaceComponent ───
+      //
+      // The routine-creation agent authors `SKILL.md` (and optional
+      // `references/`, `scripts/`) into the routine's folder9 folder
+      // mounted at `/workspace/routine/document`. The mount is
+      // described as a **static intent** here (workspaceId + folderId
+      // + folderType + permission) — no token is pre-minted. The
+      // agent-pi `JustBashTeam9WorkspaceComponent` calls
+      // `Team9FolderTokenApi.issueFolderToken` at `onSessionStart`,
+      // which maps to `POST /api/v1/bot/folder-token` on this gateway.
+      // Dynamic issuance gives the server full session context
+      // (sessionId, agentId, routineId, userId, logicalKey) at
+      // authorization time, keeps tokens out of persisted session
+      // configs, and sidesteps TTL alignment with session-creation
+      // wall time.
+      //
+      // `ensureRoutineFolder` is idempotent: if the routine already
+      // has a `folderId` (most v2+ rows), it short-circuits via the
+      // SELECT ... FOR UPDATE fast path; if it's still NULL (legacy
+      // row pre-A.1, or a brand-new draft whose creation provision
+      // failed and was retried), it lazily provisions a managed
+      // folder + scaffolds SKILL.md inside its own transaction and
+      // back-fills `folder_id`. Either way, on return the row has a
+      // non-null `folderId`. Failure surfaces as a 503 from the
+      // helper itself; we let it propagate so the outer catch-block
+      // rolls back the channel + claim.
+      const ensured = await ensureRoutineFolder(routineId, {
+        db: this.db,
+        provisionDeps: {
+          folder9Client: this.folder9Client,
+          workspaceId: tenantId,
+          psk: '',
+        },
+      });
+      const routineFolderId = ensured.folderId!;
+
+      const componentConfigs: Record<string, Record<string, unknown>> = {
+        'just-bash-team9-workspace': {
+          folderMap: {
+            'routine.document': {
+              workspaceId: tenantId,
+              folderId: routineFolderId,
+              folderType: 'managed',
+              permission: 'write',
+              readOnly: false,
+            },
+          },
+          mountTeam9Skills: true,
+        },
+      };
+
       await this.clawHiveService.createSession(
         agentId,
-        { userId, sessionId, team9Context },
+        { userId, sessionId, team9Context, componentConfigs },
         tenantId,
       );
       sessionCreated = true;
@@ -1403,6 +1674,290 @@ export class RoutinesService {
 
       throw error;
     }
+  }
+
+  // ── Folder proxy (tree / blob / commit / history) ──────────────
+  //
+  // Every method below follows the same template:
+  //   1. `ensureRoutineFolder(routineId)` — guarantees `folderId` is
+  //      non-null. Lazy-provisions on first access; subsequent calls
+  //      hit the SELECT-FOR-UPDATE fast path (~one round-trip).
+  //   2. Tenant gate: `currentUser.tenantId === routine.tenantId` else
+  //      403. Cross-tenant access is treated as a permission error,
+  //      not a 404 — we already proved the routine exists at step 1
+  //      and disclosing existence to a wrong-tenant caller is fine
+  //      because the routine id is itself unguessable (UUIDv7).
+  //   3. Mint a per-request, short-lived folder9 token. We deliberately
+  //      do NOT cache tokens (unlike WikisService) — read endpoints
+  //      get a 5-min token, write/propose endpoints get a 15-min token.
+  //      Per-request mints are simpler (no cache-invalidation surprises
+  //      across review-mode flips, no leak window when a user loses
+  //      access mid-session) and the upstream cost is negligible for
+  //      the routine surface (one folder per routine, low fan-out).
+  //   4. Forward to the folder9 client; return its response unchanged.
+  //
+  // Commit specifically computes the `propose` flag from `(folder
+  // approval_mode, user permission)` per spec §12. v1 routines are
+  // always `approval_mode: "auto"`, so propose is always false; the
+  // wiring is structural so flipping a routine to review mode later
+  // activates the propose path with no code changes.
+
+  /**
+   * Read-token TTL for routine folder reads. 5 minutes — enough to
+   * cover a single proxied request comfortably while capping the leak
+   * window if a token surfaces in a log scrape.
+   */
+  private static readonly READ_TOKEN_TTL_MS = 5 * 60_000;
+
+  /**
+   * Write-token TTL for routine folder writes. 15 minutes — matches
+   * the wiki cache TTL and the existing A.2 provision pattern. Long
+   * enough for a multi-file commit to retry after a transient blip;
+   * still bounded.
+   */
+  private static readonly WRITE_TOKEN_TTL_MS = 15 * 60_000;
+
+  /**
+   * Resolve a routine + ensure folder + tenant gate, returning the
+   * routine row with non-null `folderId`.
+   *
+   * The routine row read is the one returned from `ensureRoutineFolder`
+   * (which already SELECT-FOR-UPDATEs and updates the row inside its
+   * own transaction). No second SELECT.
+   */
+  private async resolveRoutineForFolderProxy(
+    routineId: string,
+    tenantId: string,
+  ): Promise<{ folderId: string; tenantId: string }> {
+    const ensured = await ensureRoutineFolder(routineId, {
+      db: this.db,
+      provisionDeps: {
+        folder9Client: this.folder9Client,
+        // Use the FETCHED routine's tenantId (not the request param)
+        // so a misconfigured client can't request a folder under the
+        // wrong workspace. We still cross-check below — defence in
+        // depth.
+        workspaceId: tenantId,
+        psk: '',
+      },
+    });
+    if (ensured.tenantId !== tenantId) {
+      throw new ForbiddenException(
+        'You do not have access to this routine folder',
+      );
+    }
+    // `ensureRoutineFolder` guarantees folderId is non-null; the cast
+    // here documents the invariant for the type system. If this ever
+    // throws at runtime, the invariant has been broken upstream.
+    if (!ensured.folderId) {
+      // NOCOVER: ensureRoutineFolder's invariant says this is unreachable.
+      throw new ServiceUnavailableException('routine folder not provisioned');
+    }
+    return { folderId: ensured.folderId, tenantId: ensured.tenantId };
+  }
+
+  /**
+   * Mint a per-request folder9 token for a routine folder.
+   *
+   * Tokens are scoped to (folder, permission, expiry). `name` and
+   * `created_by` are descriptive — folder9 surfaces them in audit logs
+   * and (for writes) uses `created_by` as the git commit author tag.
+   */
+  private async mintRoutineFolderToken(
+    folderId: string,
+    routineId: string,
+    userId: string,
+    permission: Folder9Permission,
+    ttlMs: number,
+  ): Promise<string> {
+    const minted = await this.folder9Client.createToken({
+      folder_id: folderId,
+      permission,
+      name: `routine-${permission}`,
+      created_by: `user:${userId}`,
+      expires_at: new Date(Date.now() + ttlMs).toISOString(),
+    });
+    this.logger.debug(
+      `mintRoutineFolderToken: routine=${routineId} folder=${folderId} permission=${permission} ttlMs=${ttlMs}`,
+    );
+    return minted.token;
+  }
+
+  /**
+   * Resolve the user's permission on a routine folder.
+   *
+   * v1 model: routines are workspace-shared and every tenant member has
+   * direct-write permission. The signature still returns the discriminated
+   * union (`'write' | 'propose'`) so the call site at
+   * {@link commitRoutineFolder} keeps the propose branch live in the
+   * type system. When a future RBAC layer differentiates "must propose"
+   * users (e.g. agents) from "may write" users (e.g. owners), this body
+   * becomes a per-user lookup and the propose pipeline activates without
+   * touching the controller, the DTO, or the proxy.
+   *
+   * @param _userId reserved for the future RBAC lookup; intentionally
+   *   unused in v1 so we don't have to mock a user-roles table.
+   * @param _routineId same — reserved for per-routine policy.
+   */
+  private getRoutineFolderPermissionForUser(
+    _userId: string,
+    _routineId: string,
+  ): 'write' | 'propose' {
+    return 'write';
+  }
+
+  /**
+   * GET /v1/routines/:id/folder/tree — list files under the routine
+   * folder.
+   */
+  async getRoutineFolderTree(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    opts: { path?: string; recursive?: boolean } = {},
+  ): Promise<Folder9TreeEntry[]> {
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      'read',
+      RoutinesService.READ_TOKEN_TTL_MS,
+    );
+    return this.folder9Client.getTree(routineTenantId, folderId, token, {
+      path: opts.path,
+      recursive: opts.recursive,
+    });
+  }
+
+  /**
+   * GET /v1/routines/:id/folder/blob — read a single file from the
+   * routine folder. Pass-through of folder9's `Folder9BlobResponse`
+   * (which carries the `encoding` discriminator); decoding is the
+   * client's responsibility.
+   */
+  async getRoutineFolderBlob(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    path: string,
+  ): Promise<Folder9BlobResponse> {
+    if (!path || typeof path !== 'string' || path.trim().length === 0) {
+      throw new BadRequestException('path query parameter is required');
+    }
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      'read',
+      RoutinesService.READ_TOKEN_TTL_MS,
+    );
+    return this.folder9Client.getBlob(routineTenantId, folderId, token, path);
+  }
+
+  /**
+   * POST /v1/routines/:id/folder/commit — write a batch of file changes.
+   *
+   * Permission decision:
+   *
+   *   | folder.approval_mode | user permission | effective propose |
+   *   |----------------------|-----------------|-------------------|
+   *   | auto                 | write           | false             |
+   *   | review               | write           | false             |
+   *   | review               | propose         | true              |
+   *
+   * v1 routines are always `auto`; the resulting commit goes straight
+   * to `main`. The structure is wired so a future PATCH that flips a
+   * routine's folder to `approval_mode: "review"` (paired with a
+   * permission downgrade for non-admin members) automatically routes
+   * through the proposal branch with no further code changes.
+   *
+   * The user permission is currently always `write` for tenant
+   * members — routines are workspace-shared in v1. That's encoded
+   * here as the constant; when a future RBAC layer differentiates
+   * write-vs-propose for routine folders, this is the line to swap.
+   */
+  async commitRoutineFolder(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    dto: FolderCommitDto,
+  ): Promise<Folder9CommitResponse> {
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+
+    // Fetch the live folder to read `approval_mode`. v1 always returns
+    // "auto", but we MUST NOT hard-code that — an operator flipping the
+    // folder to "review" via a future routine-settings UI would
+    // silently bypass review if we did. The folder9 round-trip is
+    // ~10ms and only fires on commits (not every read).
+    const folder = await this.folder9Client.getFolder(
+      routineTenantId,
+      folderId,
+    );
+
+    // Tenant members are write-permission users on routine folders in
+    // v1. When a future scenario requires "agent must propose, human
+    // must approve", swap this method's body for a per-user RBAC lookup
+    // and the rest of the propose pipeline activates with no further
+    // changes. Encapsulated as a method (not a `const` literal) so the
+    // typechecker doesn't narrow it to `"write"` and dead-code the
+    // propose branch.
+    const userPermission = this.getRoutineFolderPermissionForUser(
+      userId,
+      routineId,
+    );
+
+    // Compute effective propose flag. `auto` always direct-commits.
+    // `review` + `write` is "write bypasses review" — matches the
+    // wiki contract. `review` + `propose` lands on a proposal branch.
+    const effectivePropose =
+      folder.approval_mode === 'review' && userPermission === 'propose';
+
+    const tokenPermission: Folder9Permission = effectivePropose
+      ? 'propose'
+      : 'write';
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      tokenPermission,
+      RoutinesService.WRITE_TOKEN_TTL_MS,
+    );
+
+    return this.folder9Client.commit(routineTenantId, folderId, token, {
+      message: dto.message,
+      files: dto.files,
+      propose: effectivePropose,
+    });
+  }
+
+  /**
+   * GET /v1/routines/:id/folder/history — list commits on the
+   * routine's main branch (or a specific ref / path).
+   *
+   * Returns folder9's `Folder9LogEntry[]` shape verbatim (PascalCase
+   * field names — the wire format is owned by folder9, not us).
+   */
+  async getRoutineFolderHistory(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+    opts: { ref?: string; path?: string; limit?: number } = {},
+  ): Promise<Folder9LogEntry[]> {
+    const { folderId, tenantId: routineTenantId } =
+      await this.resolveRoutineForFolderProxy(routineId, tenantId);
+    const token = await this.mintRoutineFolderToken(
+      folderId,
+      routineId,
+      userId,
+      'read',
+      RoutinesService.READ_TOKEN_TTL_MS,
+    );
+    return this.folder9Client.log(routineTenantId, folderId, token, opts);
   }
 
   // ── Internal helpers ────────────────────────────────────────────

@@ -33,6 +33,7 @@ import {
   RestartRoutineDto,
   CompleteCreationDto,
   CreateWithCreationTaskDto,
+  FolderCommitDto,
 } from './dto/index.js';
 
 @Controller({
@@ -276,6 +277,84 @@ export class RoutinesController {
     @CurrentTenantId() tenantId: string,
   ) {
     return this.routineTriggersService.delete(triggerId, tenantId);
+  }
+
+  // ── Folder proxy (tree / blob / commit / history) ──────────────
+  //
+  // Thin proxy onto the routine's folder9 folder. Each endpoint
+  // delegates to RoutinesService, which:
+  //   1. Calls `ensureRoutineFolder` (lazy-provision invariant —
+  //      after it returns, `routine.folderId` is non-null).
+  //   2. Verifies the caller's tenant matches the routine's tenant
+  //      (cross-tenant => 403).
+  //   3. Mints a short-lived per-request folder9 token (read-scoped
+  //      for read endpoints, write/propose-scoped for commit).
+  //   4. Forwards to Folder9ClientService and returns the response
+  //      verbatim (no shape translation — clients consume folder9's
+  //      native wire format, matching the wiki proxy pattern).
+  //
+  // The browser never holds a folder9 token; this gateway is the
+  // sole token holder. The `currentUser.tenantId === routine.tenantId`
+  // check is the entire authorization model — routines are
+  // workspace-shared so every tenant member can read AND write the
+  // routine folder. Creator-only writes are explicitly out of scope
+  // for v1 (per design §10.2).
+
+  @Get(':id/folder/tree')
+  async getFolderTree(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Query('path') path?: string,
+    @Query('recursive') recursive?: string,
+  ) {
+    return this.routinesService.getRoutineFolderTree(id, userId, tenantId, {
+      path,
+      recursive: recursive === 'true',
+    });
+  }
+
+  @Get(':id/folder/blob')
+  async getFolderBlob(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Query('path') path: string,
+  ) {
+    return this.routinesService.getRoutineFolderBlob(
+      id,
+      userId,
+      tenantId,
+      path,
+    );
+  }
+
+  @Post(':id/folder/commit')
+  async commitFolder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: FolderCommitDto,
+  ) {
+    return this.routinesService.commitRoutineFolder(id, userId, tenantId, dto);
+  }
+
+  @Get(':id/folder/history')
+  async getFolderHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Query('path') path?: string,
+    @Query('limit') limit?: string,
+    @Query('ref') ref?: string,
+  ) {
+    const parsedLimit =
+      limit !== undefined && /^\d+$/.test(limit) ? Number(limit) : undefined;
+    return this.routinesService.getRoutineFolderHistory(id, userId, tenantId, {
+      path,
+      limit: parsedLimit,
+      ref,
+    });
   }
 
   // ── Retry ──────────────────────────────────────────────────────
