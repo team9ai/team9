@@ -1,6 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { upsertChannelMessageInCache } from "./message-query-cache";
+import {
+  upsertChannelMessageInCache,
+  upsertIncomingMessageInData,
+} from "./message-query-cache";
 import type { Message, PaginatedMessagesResponse } from "@/types/im";
 
 function makeMessage(id: string): Message {
@@ -64,5 +67,95 @@ describe("upsertChannelMessageInCache", () => {
       "msg-2",
       "msg-existing",
     ]);
+  });
+});
+
+describe("upsertIncomingMessageInData", () => {
+  it("replaces an existing message with the incoming payload", () => {
+    const existing = makeMessage("msg-1");
+    const incoming = {
+      ...makeMessage("msg-1"),
+      metadata: {
+        agentEventType: "tool_result",
+        status: "completed",
+        toolCallId: "call-1",
+      },
+    };
+
+    const result = upsertIncomingMessageInData(
+      {
+        pages: [
+          {
+            messages: [existing],
+            hasOlder: false,
+            hasNewer: false,
+          },
+        ],
+        pageParams: [undefined],
+      },
+      incoming,
+    );
+
+    const messages = (result.pages[0] as PaginatedMessagesResponse).messages;
+    expect(messages[0]).toMatchObject({
+      id: "msg-1",
+      metadata: {
+        agentEventType: "tool_result",
+        status: "completed",
+        toolCallId: "call-1",
+      },
+    });
+  });
+
+  it("replaces a matching optimistic temp message in place", () => {
+    const temp = { ...makeMessage("temp-1"), sendStatus: "sending" as const };
+    const incoming = makeMessage("msg-1");
+
+    const result = upsertIncomingMessageInData(
+      {
+        pages: [
+          {
+            messages: [temp],
+            hasOlder: false,
+            hasNewer: false,
+          },
+        ],
+        pageParams: [undefined],
+      },
+      incoming,
+      "temp-1",
+    );
+
+    const messages = (result.pages[0] as PaginatedMessagesResponse).messages;
+    expect(messages.map((message) => message.id)).toEqual(["msg-1"]);
+    expect(messages[0]?.sendStatus).toBeUndefined();
+  });
+
+  it("removes a matching temp duplicate when the server message already exists", () => {
+    const temp = makeMessage("temp-1");
+    const staleServer = makeMessage("msg-1");
+    const incoming = {
+      ...makeMessage("msg-1"),
+      content: "updated server payload",
+    };
+
+    const result = upsertIncomingMessageInData(
+      {
+        pages: [
+          {
+            messages: [temp, staleServer],
+            hasOlder: false,
+            hasNewer: false,
+          },
+        ],
+        pageParams: [undefined],
+      },
+      incoming,
+      "temp-1",
+    );
+
+    const messages = (result.pages[0] as PaginatedMessagesResponse).messages;
+    expect(messages.map((message) => message.id)).toEqual(["msg-1"]);
+    expect(messages[0]?.content).toBe("updated server payload");
   });
 });

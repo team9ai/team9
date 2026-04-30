@@ -816,6 +816,91 @@ describe("Folder9FolderEditor — image upload integration", () => {
     alertSpy.mockRestore();
   });
 
+  // I4 regression — concurrent uploads must serialize on the body ref
+  // so neither image's markdown is clobbered. Before the fix, both
+  // uploads read `latestBodyRef.current` then wrote back, so the
+  // second one's setBody erased the first's append.
+  it("I4 — two concurrent paste-uploads both end up in the final body", async () => {
+    // Two upload calls resolve at controllable timings so we can
+    // interleave their completions deterministically. We capture the
+    // setDraft calls (the only observable side-effect of body
+    // mutation, given DocumentEditor is mocked away from us) and
+    // assert that the FINAL setDraft body contains BOTH markdown
+    // strings.
+    let resolveA: (path: string) => void = () => {};
+    let resolveB: (path: string) => void = () => {};
+    const promiseA = new Promise<string>((r) => {
+      resolveA = r;
+    });
+    const promiseB = new Promise<string>((r) => {
+      resolveB = r;
+    });
+    let call = 0;
+    const uploader = {
+      upload: vi.fn().mockImplementation(() => {
+        call += 1;
+        return call === 1 ? promiseA : promiseB;
+      }),
+    };
+
+    const setDraftSpy = vi.fn();
+    draftHook.state = makeDraftState({ setDraft: setDraftSpy });
+
+    const Wrapper = makeWrapper();
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ initialPath: "SKILL.md", imageUpload: uploader })}
+        />
+      </Wrapper>,
+    );
+
+    const dropZone = await screen.findByTestId(
+      "folder9-folder-editor-drop-zone",
+    );
+
+    // Fire two paste events in rapid succession; neither has resolved
+    // its upload promise yet.
+    const fileA = new File(["A"], "imgA.png", { type: "image/png" });
+    const fileB = new File(["B"], "imgB.png", { type: "image/png" });
+
+    await act(async () => {
+      fireEvent.paste(dropZone, {
+        clipboardData: {
+          items: [{ kind: "file", type: "image/png", getAsFile: () => fileA }],
+        },
+      });
+      fireEvent.paste(dropZone, {
+        clipboardData: {
+          items: [{ kind: "file", type: "image/png", getAsFile: () => fileB }],
+        },
+      });
+    });
+
+    // Resolve both upload promises near-simultaneously. The order
+    // doesn't matter — the fix must keep BOTH markdown strings in the
+    // body regardless.
+    await act(async () => {
+      resolveA("attachments/A.png");
+      resolveB("attachments/B.png");
+      // Flush microtasks
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The final draft body must contain BOTH image markdowns. Before
+    // I4 fix, only one would survive (whichever ran second clobbered
+    // the other).
+    await waitFor(() => {
+      expect(setDraftSpy).toHaveBeenCalled();
+    });
+    const lastDraft =
+      setDraftSpy.mock.calls[setDraftSpy.mock.calls.length - 1]?.[0];
+    expect(lastDraft).toBeDefined();
+    expect(lastDraft.body).toContain("imgA.png");
+    expect(lastDraft.body).toContain("imgB.png");
+  });
+
   it("does not register paste/drop hooks when no uploader is provided", async () => {
     const Wrapper = makeWrapper();
     render(

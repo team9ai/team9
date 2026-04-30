@@ -367,7 +367,9 @@ export interface SyncMessageItem {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
+  contentAst?: Record<string, unknown> | null;
   type: string;
+  metadata?: Record<string, unknown> | null;
   seqId: string;
   isPinned: boolean;
   isEdited: boolean;

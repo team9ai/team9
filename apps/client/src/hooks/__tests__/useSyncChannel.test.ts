@@ -61,6 +61,24 @@ describe("syncItemToMessage", () => {
     expect(msg.sender?.username).toBe("alice");
     expect(msg.sender?.displayName).toBe("Alice");
   });
+
+  it("preserves agent event metadata for synced messages", () => {
+    const item = makeSyncItem({
+      metadata: {
+        agentEventType: "tool_result",
+        status: "completed",
+        toolCallId: "call-1",
+      },
+    });
+
+    const msg = syncItemToMessage(item);
+
+    expect(msg.metadata).toEqual({
+      agentEventType: "tool_result",
+      status: "completed",
+      toolCallId: "call-1",
+    });
+  });
 });
 
 describe("mergeSyncedMessages", () => {

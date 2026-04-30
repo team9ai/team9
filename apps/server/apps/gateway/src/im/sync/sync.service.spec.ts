@@ -410,6 +410,48 @@ describe('SyncService', () => {
     );
   });
 
+  it('preserves metadata and contentAst in incremental sync results', async () => {
+    const metadata = {
+      agentEventType: 'tool_result',
+      status: 'completed',
+      toolCallId: 'call-1',
+    };
+    const contentAst = { root: { children: [] } };
+
+    db.state.selectPlans.push(
+      {
+        terminal: 'limit',
+        result: [{ lastSyncSeqId: 5n }],
+      },
+      {
+        terminal: 'limit',
+        result: [
+          makeMessageRow({
+            id: 'message-1',
+            senderId: 'sender-1',
+            seqId: 6n,
+            metadata,
+            contentAst,
+          }),
+        ],
+      },
+      {
+        terminal: 'where',
+        result: [makeSenderRow({ id: 'sender-1' })],
+      },
+    );
+    redis.client.hget.mockResolvedValueOnce(null);
+    redis.redisService.get.mockResolvedValueOnce('10');
+
+    const result = await service.syncChannel('user-1', 'channel-1', 50);
+
+    expect(result.messages[0]).toMatchObject({
+      id: 'message-1',
+      metadata,
+      contentAst,
+    });
+  });
+
   it('persists sync position updates to Redis and the database', async () => {
     await service.updateSyncPosition('user-9', 'channel-9', 99n);
 

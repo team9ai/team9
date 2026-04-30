@@ -578,15 +578,16 @@ describe('RoutinesService — TaskCast integration', () => {
         creatorId: 'user-1',
         title: 'New task',
         documentId: 'doc-new',
-        // folderId starts NULL — the atomic flow back-fills it via the
-        // post-INSERT UPDATE inside the same transaction.
+        // folderId starts NULL — the create flow back-fills it via the
+        // post-INSERT UPDATE (run after the folder9 provision call,
+        // outside any DB transaction — see C2 refactor).
         folderId: null,
       };
 
       documentsService.create.mockResolvedValueOnce({ id: 'doc-new' } as any);
       db.returning.mockResolvedValueOnce([createdTask] as any);
 
-      // The atomic flow returns the inserted row spread with the
+      // The flow returns the inserted row spread with the
       // newly-provisioned folderId. Default folder9 mock returns
       // `{id: 'folder-new'}` — so the resolved object equals the row
       // with folderId overridden.
@@ -674,12 +675,17 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
     });
 
-    // ── A.4: atomic create + folder9 provision flow ────────────────────
+    // ── A.4 + C2: create + folder9 provision flow ───────────────────────
     //
-    // The new create() wraps INSERT + provision + UPDATE in a single DB
-    // transaction. Each test below pins a specific outcome of that flow.
+    // create() now runs INSERT + provision + UPDATE folderId as three
+    // separate DB operations (NOT in a single transaction). Folder9's
+    // long HTTP I/O happens OUTSIDE any tx, so we don't pin a PG
+    // connection across folder9 latency. On failure AFTER the INSERT,
+    // the row is best-effort DELETEd so the caller doesn't observe a
+    // half-baked routine; if DELETE itself fails, lazy-provision in
+    // ensureRoutineFolder will heal the row on next access.
 
-    describe('atomic flow (A.4)', () => {
+    describe('create + folder9 flow (A.4 / C2)', () => {
       it('happy path: provisions folder9, persists folderId, returns routine with non-null folderId', async () => {
         const createdTask = {
           id: 'task-atomic-happy',
@@ -718,20 +724,20 @@ describe('RoutinesService — TaskCast integration', () => {
         expect(folder9Client.commit).toHaveBeenCalledTimes(1);
 
         // The returned row carries the new folderId — proves we splatted it
-        // in after the post-INSERT UPDATE inside the transaction.
+        // in after the post-INSERT UPDATE.
         expect(result).toMatchObject({
           id: 'task-atomic-happy',
           folderId: 'folder-atomic-happy',
         });
 
-        // The DB transaction wrapper was used.
-        expect(db.transaction).toHaveBeenCalledTimes(1);
+        // C2 contract: NO transaction wrapper around the slow flow.
+        expect(db.transaction).not.toHaveBeenCalled();
         // Both an INSERT and an UPDATE were issued (UPDATE sets folderId).
         expect(db.insert).toHaveBeenCalled();
         expect(db.update).toHaveBeenCalled();
       });
 
-      it('folder9 createFolder fails: throws 503, no UPDATE, no committed row leak', async () => {
+      it('folder9 createFolder fails: throws 503, no UPDATE, best-effort DELETE of the just-INSERTed row', async () => {
         const draftRow = {
           id: 'task-atomic-fail-create',
           tenantId: 'tenant-1',
@@ -750,7 +756,6 @@ describe('RoutinesService — TaskCast integration', () => {
           new Error('folder9 unreachable'),
         );
 
-        // The transaction-callback throw bubbles up as a 503.
         await expect(
           service.create(
             { title: 'Atomic fail-create', botId: 'bot-1' } as never,
@@ -762,21 +767,16 @@ describe('RoutinesService — TaskCast integration', () => {
         // Token mint and commit must never have been attempted.
         expect(folder9Client.createToken).not.toHaveBeenCalled();
         expect(folder9Client.commit).not.toHaveBeenCalled();
-        // The post-INSERT UPDATE must NOT have been issued — its work
-        // would have been rolled back anyway, but we want to verify the
-        // try/catch correctly fast-fails before the UPDATE step.
+        // The post-INSERT UPDATE for folderId must NOT have been issued.
         expect(db.update).not.toHaveBeenCalled();
+        // C2 contract: best-effort cleanup DELETEs the just-INSERTed row
+        // so the caller doesn't see a half-baked routine.
+        expect(db.delete).toHaveBeenCalled();
 
-        // No-leak verification: with the mocked db, "rows committed" is
-        // approximated by counting rows the service believes it wrote. A
-        // failed transaction means our caller cannot observe the routine
-        // — the function threw before it could return a routine row.
-        // Triggers must also have been skipped (we never reached the
-        // post-INSERT branch).
         expect(routineTriggersService.createBatch).not.toHaveBeenCalled();
       });
 
-      it('folder9 commit fails (orphan-folder window): throws 503, post-INSERT UPDATE skipped', async () => {
+      it('folder9 commit fails (orphan-folder window): throws 503, no folderId UPDATE, DELETEs the inserted row', async () => {
         const draftRow = {
           id: 'task-atomic-fail-commit',
           tenantId: 'tenant-1',
@@ -798,11 +798,10 @@ describe('RoutinesService — TaskCast integration', () => {
           token: 'tok-orphan',
           expires_at: '2099-01-01',
         });
-        // Folder created, token minted, then commit dies — this is the
-        // worst-case path because folder9 has a folder that the routines
-        // table will never reference. Orphan GC handles the cleanup
-        // separately; this test only verifies the local invariant: no
-        // partial routine row reaches the DB.
+        // Folder created, token minted, then commit dies — folder9 has a
+        // folder that the routines table will never reference. Orphan GC
+        // reclaims it; this test verifies the local invariant: caller
+        // sees no half-baked row.
         folder9Client.commit.mockRejectedValueOnce(
           new Error('folder9 commit timeout'),
         );
@@ -818,68 +817,130 @@ describe('RoutinesService — TaskCast integration', () => {
         expect(folder9Client.createFolder).toHaveBeenCalledTimes(1);
         expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
         expect(folder9Client.commit).toHaveBeenCalledTimes(1);
-        // Critical: the UPDATE that writes folderId back must NOT have
-        // been issued. The INSERT happened inside the transaction
-        // callback, but Drizzle's ROLLBACK semantics mean the row is
-        // reverted; the lack of an UPDATE is the local proof that we
-        // did not even try to persist a folderId on a row we know is
-        // about to be rolled back.
+        // The folderId UPDATE must NOT have been issued.
         expect(db.update).not.toHaveBeenCalled();
+        // DELETE issued as best-effort cleanup so the caller doesn't see
+        // the half-baked row.
+        expect(db.delete).toHaveBeenCalled();
         expect(routineTriggersService.createBatch).not.toHaveBeenCalled();
       });
 
-      it('rolls back on folder9 failure: transaction callback throws, no row visible to caller', async () => {
-        // This test pins the ROLLBACK contract by making the DB-mock
-        // transaction wrapper observable: it captures whether the
-        // callback threw, which is how Drizzle decides to ROLLBACK.
+      it('cleanup DELETE failure is non-fatal: still throws 503, log records the failure', async () => {
+        // Pathological case — provision throws, then our best-effort
+        // DELETE also throws. We must still surface 503 to the caller
+        // (the orphan row will be lazy-provisioned on next access).
         const draftRow = {
-          id: 'task-atomic-rollback',
+          id: 'task-atomic-delete-fail',
           tenantId: 'tenant-1',
           creatorId: 'user-1',
-          title: 'Atomic rollback',
+          title: 'Atomic delete-fail',
           description: null,
-          documentId: 'doc-atomic-rollback',
+          documentId: 'doc-atomic-delete-fail',
           folderId: null,
         };
         documentsService.create.mockResolvedValueOnce({
-          id: 'doc-atomic-rollback',
+          id: 'doc-atomic-delete-fail',
         } as any);
         db.returning.mockResolvedValueOnce([draftRow] as any);
-        folder9Client.createFolder.mockRejectedValueOnce(new Error('boom'));
+        folder9Client.createFolder.mockRejectedValueOnce(
+          new Error('folder9 down'),
+        );
+        // Make the cleanup DELETE itself reject. The mock chain's
+        // `where(...)` returns `chain` (a thenable-by-await? no — a
+        // plain object). To force the promise to reject we wire
+        // `db.delete().where(...)` via mock that throws on await — the
+        // simplest way is to override `db.where` to throw once when the
+        // delete sequence picks it up. But since `where` is shared, we
+        // override `db.delete` itself to return an object whose `where`
+        // returns a rejected promise.
+        const rejectingChain = {
+          where: jest.fn<any>(() =>
+            Promise.reject(new Error('cleanup db down')),
+          ),
+        };
+        db.delete.mockReturnValueOnce(rejectingChain as any);
 
-        let callbackThrew = false;
-        db.transaction.mockImplementationOnce(async (cb: any) => {
-          try {
-            return await cb(db);
-          } catch (e) {
-            callbackThrew = true;
-            throw e;
-          }
-        });
+        const loggerErrorSpy = jest.spyOn((service as any).logger, 'error');
 
         await expect(
           service.create(
-            { title: 'Atomic rollback', botId: 'bot-1' } as never,
+            { title: 'Atomic delete-fail', botId: 'bot-1' } as never,
             'user-1',
             'tenant-1',
           ),
         ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
-        // Drizzle issues ROLLBACK iff the callback throws — this is the
-        // exact contract we lean on.
-        expect(callbackThrew).toBe(true);
+        // Both errors logged: the original folder9 failure AND the
+        // best-effort DELETE failure.
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('best-effort cleanup DELETE failed'),
+        );
+        loggerErrorSpy.mockRestore();
       });
 
-      it('exposes a self-counted DB-row leak proof: simulated query against routines table sees zero rows after a failed provision', async () => {
-        // The mocked db is in-memory and stateless, but we can still
-        // simulate "is there a routine row?" by tracking what the
-        // service committed via tx.insert + tx.update vs what it tried
-        // to commit. After a folder9 failure, any caller-visible SELECT
-        // (post-call) must return zero rows. We approximate that by
-        // asserting (a) the function rejected so the caller never got a
-        // row reference, AND (b) no UPDATE that would have given the
-        // INSERT a folderId was issued — combining (a) and (b) means
-        // the route-side observable state is "no routine for this id".
+      it('UPDATE folderId failure after folder9 success: throws 503, DELETEs the inserted row', async () => {
+        // Provision succeeded but the local UPDATE folderId fails. The
+        // folder is real on folder9 (will be GC'd as orphan); we DELETE
+        // the routine row so the caller doesn't see it pointing nowhere.
+        const draftRow = {
+          id: 'task-atomic-update-fail',
+          tenantId: 'tenant-1',
+          creatorId: 'user-1',
+          title: 'Atomic update-fail',
+          description: null,
+          documentId: 'doc-atomic-update-fail',
+          folderId: null,
+        };
+        documentsService.create.mockResolvedValueOnce({
+          id: 'doc-atomic-update-fail',
+        } as any);
+        db.returning.mockResolvedValueOnce([draftRow] as any);
+        folder9Client.createFolder.mockResolvedValueOnce({
+          id: 'folder-orphan',
+          workspace_id: 'tenant-1',
+        });
+        folder9Client.createToken.mockResolvedValueOnce({
+          token: 'tok-update-fail',
+          expires_at: '2099-01-01',
+        });
+        folder9Client.commit.mockResolvedValueOnce({
+          commit_id: 'commit-update-fail',
+        });
+        // Make the UPDATE chain reject when awaited. Override
+        // db.update().set().where() to return a rejecting thenable.
+        const rejectingChain = {
+          set: jest.fn<any>().mockReturnThis(),
+          where: jest.fn<any>(() =>
+            Promise.reject(new Error('UPDATE constraint violation')),
+          ),
+        };
+        // Explicitly set `set` to return the same chain so .where(...)
+        // is reachable.
+        rejectingChain.set.mockReturnValue(rejectingChain);
+        db.update.mockReturnValueOnce(rejectingChain as any);
+
+        await expect(
+          service.create(
+            { title: 'Atomic update-fail', botId: 'bot-1' } as never,
+            'user-1',
+            'tenant-1',
+          ),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+        // Folder9 was reached.
+        expect(folder9Client.createFolder).toHaveBeenCalledTimes(1);
+        expect(folder9Client.commit).toHaveBeenCalledTimes(1);
+        // Best-effort cleanup DELETE happened.
+        expect(db.delete).toHaveBeenCalled();
+      });
+
+      it('exposes a self-counted DB-row leak proof: caller never gets a row reference back after a failed provision', async () => {
+        // After a folder9 failure, the caller cannot observe the routine
+        // because (a) the function rejected, and (b) we issued a
+        // best-effort DELETE for the just-INSERTed row. Combining (a)
+        // and (b) means the post-call observable state is "no routine
+        // for this id" — even though the INSERT happened, the DELETE
+        // erases it.
         const draftRow = {
           id: 'task-atomic-leak-proof',
           tenantId: 'tenant-1',
@@ -903,10 +964,11 @@ describe('RoutinesService — TaskCast integration', () => {
           ),
         ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
-        // Simulate a follow-up SELECT for the same routineId — under
-        // ROLLBACK semantics this returns []. We make the mock return []
-        // to pin the post-rollback expectation explicitly. (The unit-
-        // test mock is stateless; a real DB would do this naturally.)
+        // Best-effort cleanup DELETE issued.
+        expect(db.delete).toHaveBeenCalled();
+
+        // Simulate a follow-up SELECT for the same routineId — after
+        // DELETE this returns [].
         db.limit.mockResolvedValueOnce([] as any);
         const after = await db
           .select()
@@ -2584,10 +2646,18 @@ describe('RoutinesService — TaskCast integration', () => {
         userId: 'user-1',
       } as any);
 
-      // `for('update')` is the SELECT ... FOR UPDATE inside
-      // ensureRoutineFolder. Default to the DRAFT_ROUTINE so the fast
-      // path returns immediately. Individual tests override per-call.
+      // After C2: `ensureRoutineFolder` reads via plain `.limit(1)`
+      // (no row lock). The chain's `.limit` mock is shared with
+      // `getRoutineOrThrow` — tests use `db.limit.mockResolvedValueOnce`
+      // to set the FIRST call (getRoutineOrThrow) and we set a default
+      // here so the SECOND call (ensureRoutineFolder's optimistic read)
+      // also observes the DRAFT_ROUTINE row, which has folderId set so
+      // ensureRoutineFolder takes the fast path.
+      //
+      // Vestigial: `.for('update')` is no longer used; leaving the
+      // default in place doesn't matter (the spy is just never hit).
       db.for.mockResolvedValue([DRAFT_ROUTINE]);
+      db.limit.mockResolvedValue([DRAFT_ROUTINE]);
 
       // Default SKILL.md read returns the valid fixture so happy-path
       // tests don't have to redeclare it. Failure-path tests override.
@@ -2763,22 +2833,27 @@ describe('RoutinesService — TaskCast integration', () => {
       });
     });
 
-    it('throws 400 with validation error when document content is empty', async () => {
+    it('I1 — empty legacy documents-table content NO LONGER fails completeCreation', async () => {
+      // I1 removed the documents-table gate. SKILL.md is now the source
+      // of truth; an empty legacy document does not block status flip
+      // as long as SKILL.md content validates. The default fixture
+      // SKILL.md (VALID_SKILL_MD) already passes validation, so the
+      // routine flips to upcoming successfully.
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
         id: 'doc-1',
         tenantId: 'tenant-1',
         currentVersion: { versionIndex: 1, content: '' },
       } as any);
 
-      await expect(
-        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
-      ).rejects.toMatchObject({
-        response: {
-          message: 'Missing required fields',
-          errors: expect.arrayContaining(['documentContent is required']),
-        },
-      });
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result.status).toBe('upcoming');
     });
 
     it('calls archiveCreationChannel with the correct channel and tenant when creationChannelId is set', async () => {
@@ -2893,66 +2968,55 @@ describe('RoutinesService — TaskCast integration', () => {
       });
     });
 
-    it('treats missing document as empty content (validation error)', async () => {
-      // documentId is set but documentsService.getById throws (doc deleted)
+    it('I1 — missing legacy document NO LONGER fails completeCreation', async () => {
+      // documentId is set but documentsService.getById throws (doc
+      // deleted). After I1 the documents-table content is irrelevant —
+      // only SKILL.md validation matters. SKILL.md still passes so the
+      // status flip succeeds.
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
-      documentsService.getById.mockRejectedValueOnce(
-        new Error('not found') as any,
-      );
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
 
-      await expect(
-        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
-      ).rejects.toMatchObject({
-        response: {
-          message: 'Missing required fields',
-          errors: expect.arrayContaining(['documentContent is required']),
-        },
-      });
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result.status).toBe('upcoming');
     });
 
-    it('returns validation error when routine has no linked document (documentId null)', async () => {
+    it('I1 — null documentId NO LONGER fails completeCreation', async () => {
+      // After I1 the documents-table content is irrelevant. The routine
+      // can finish creation as long as SKILL.md validates — which it
+      // does in the default fixture.
       db.limit.mockResolvedValueOnce([
         { ...DRAFT_ROUTINE, documentId: null },
       ] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
 
-      await expect(
-        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
-      ).rejects.toMatchObject({
-        response: {
-          message: 'Missing required fields',
-          errors: expect.arrayContaining(['documentContent is required']),
-        },
-      });
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+      expect(result.status).toBe('upcoming');
     });
 
-    // ── documentContent shape + tenant-guard tests ────────────────────
+    // ── (post-I1) document-table tenant-guard tests are obsolete ──────
+    //
+    // The legacy documents-table content gate was removed in I1 — only
+    // SKILL.md validation matters now. Tenant-mismatch / "real shape"
+    // tests against the documents service are therefore covered by
+    // SKILL.md tests below; we keep one positive smoke test that pins
+    // "happy SKILL.md flow → upcoming" to make sure the I1 removal
+    // didn't accidentally change that path.
 
-    it('completeCreation: tenant mismatch on document treats content as empty (rejects with documentContent required)', async () => {
-      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
-      documentsService.getById.mockResolvedValueOnce({
-        id: 'doc-1',
-        tenantId: 'other-tenant',
-        currentVersion: { versionIndex: 1, content: 'foo' },
-      } as any);
-
-      await expect(
-        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
-      ).rejects.toMatchObject({
-        response: {
-          message: 'Missing required fields',
-          errors: expect.arrayContaining(['documentContent is required']),
-        },
-      });
-    });
-
-    it('completeCreation: validates documentContent via doc.currentVersion.content (real shape)', async () => {
+    it('I1 — happy SKILL.md flow flips to upcoming regardless of legacy doc content shape', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
-      documentsService.getById.mockResolvedValueOnce({
-        id: 'doc-1',
-        tenantId: 'tenant-1',
-        currentVersion: { versionIndex: 1, content: 'real content' },
-      } as any);
+      // The documents-service mock could return literally anything
+      // here — completeCreation no longer calls it on the new path.
 
       const result = await service.completeCreation(
         'routine-1',
@@ -3222,8 +3286,10 @@ describe('RoutinesService — TaskCast integration', () => {
 
         await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
 
-        // ensureRoutineFolder ran exactly once (SELECT ... FOR UPDATE).
-        expect(db.for).toHaveBeenCalledWith('update');
+        // After C2: ensureRoutineFolder uses plain `.limit(1)` (no row
+        // lock). It still ran (the SKILL.md read+validation requires it),
+        // observable via the createToken call below.
+
         // Read token minted with read scope, short TTL, and routine-scoped
         // creator label.
         expect(folder9Client.createToken).toHaveBeenCalledWith(
@@ -3439,16 +3505,117 @@ describe('RoutinesService — TaskCast integration', () => {
         expect(db.update).not.toHaveBeenCalled();
       });
 
+      // ── C1 regression: null routine description ────────────────────
+      //
+      // Before C1 fix, `expectedDescription = ensured.description ?? ''`
+      // — when the routine has a null description, the expected value
+      // collapsed to `''`, which fails BOTH `description_empty` (must
+      // be non-empty) AND `description_mismatch` (must equal). After
+      // C1 fix, the expected value falls back to the same string the
+      // provisioner seeds: `Generated from routine: <title>`. The agent
+      // can then write SKILL.md frontmatter that matches and finish
+      // creation cleanly.
+      it('C1 — null routine description: completeCreation succeeds when SKILL.md mirrors the provisioner fallback', async () => {
+        const draftWithNullDesc = {
+          ...DRAFT_ROUTINE,
+          description: null,
+          // Provisioner-derived fallback is `Generated from routine - <title>`.
+        };
+        const upcomingFromNullDesc = {
+          ...draftWithNullDesc,
+          status: 'upcoming' as const,
+        };
+        db.limit.mockResolvedValueOnce([draftWithNullDesc] as any);
+        // ensureRoutineFolder optimistic read sees the same row; folder
+        // is already provisioned (fast path).
+        db.limit.mockResolvedValueOnce([draftWithNullDesc] as any);
+
+        // SKILL.md exactly matches what `provisionFolder9SkillFolder`
+        // would have written: description = `Generated from routine - <title>`.
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: 200,
+          content: [
+            '---',
+            'name: routine-routine-1',
+            `description: Generated from routine - ${draftWithNullDesc.title}`,
+            '---',
+            '',
+            'A complete body that easily clears the 20-char threshold.',
+          ].join('\n'),
+          encoding: 'text' as const,
+        } as any);
+
+        db.returning.mockResolvedValueOnce([upcomingFromNullDesc] as any);
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result).toEqual(upcomingFromNullDesc);
+        // Status flip happened — proves SKILL.md validation passed.
+        expect(db.update).toHaveBeenCalled();
+      });
+
+      it('C1 — whitespace-only routine description treated as null (provisioner fallback applies)', async () => {
+        // Mirror the provisioner's behaviour: a whitespace-only
+        // description normalizes to empty, and the fallback fires.
+        const draftWithBlankDesc = {
+          ...DRAFT_ROUTINE,
+          description: '   \n\n ',
+        };
+        const upcoming = {
+          ...draftWithBlankDesc,
+          status: 'upcoming' as const,
+        };
+        db.limit.mockResolvedValueOnce([draftWithBlankDesc] as any);
+        db.limit.mockResolvedValueOnce([draftWithBlankDesc] as any);
+
+        folder9Client.getBlob.mockResolvedValueOnce({
+          path: 'SKILL.md',
+          size: 200,
+          content: [
+            '---',
+            'name: routine-routine-1',
+            `description: Generated from routine - ${draftWithBlankDesc.title}`,
+            '---',
+            '',
+            'A complete body that easily clears the 20-char threshold.',
+          ].join('\n'),
+          encoding: 'text' as const,
+        } as any);
+
+        db.returning.mockResolvedValueOnce([upcoming] as any);
+
+        const result = await service.completeCreation(
+          'routine-1',
+          {},
+          'user-1',
+          'tenant-1',
+        );
+
+        expect(result.status).toBe('upcoming');
+      });
+
       it('lazy-provisions folder9 folder when folderId is null then validates', async () => {
         // routine.folderId is null on the initial fetch (slow path of
-        // ensureRoutineFolder will call provision via the folder9 client).
+        // ensureRoutineFolder will call provision via the folder9
+        // client). After C2, ensureRoutineFolder uses plain `.limit(1)`
+        // for both reads — getRoutineOrThrow + the optimistic read.
         const draftNoFolder = { ...DRAFT_ROUTINE, folderId: null };
+        const ensuredNoFolder = {
+          ...draftNoFolder,
+          folderId: 'folder-fresh',
+        };
+        // First .limit() call: getRoutineOrThrow
         db.limit.mockResolvedValueOnce([draftNoFolder] as any);
-        // ensureRoutineFolder reads via SELECT ... FOR UPDATE; the row
-        // also lacks folderId, so the provision branch fires.
-        db.for.mockResolvedValueOnce([draftNoFolder] as any);
+        // Second .limit() call: ensureRoutineFolder optimistic read
+        db.limit.mockResolvedValueOnce([draftNoFolder] as any);
         // Provision creates folder, mints write token, commits, then
-        // UPDATEs the row. Mock the folder creation chain.
+        // UPDATEs the row via UPDATE-WHERE-NULL with .returning().
         folder9Client.createFolder.mockResolvedValueOnce({
           id: 'folder-fresh',
           workspace_id: 'tenant-1',
@@ -3472,11 +3639,9 @@ describe('RoutinesService — TaskCast integration', () => {
           commit: 'sha-1',
           branch: 'main',
         } as any);
-        documentsService.getById.mockResolvedValueOnce({
-          id: 'doc-1',
-          tenantId: 'tenant-1',
-          currentVersion: { versionIndex: 1, content: 'some content' },
-        } as any);
+        // First .returning() call: ensureRoutineFolder slow-path UPDATE
+        db.returning.mockResolvedValueOnce([ensuredNoFolder] as any);
+        // Second .returning() call: completeCreation status flip
         db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
 
         const result = await service.completeCreation(
@@ -3724,9 +3889,14 @@ describe('RoutinesService — TaskCast integration', () => {
         { id: draftRoutine.id } as any,
       ] as any);
 
-      //   9. ensureRoutineFolder (A.8) SELECT ... FOR UPDATE — returning a
-      //      row with a populated folderId puts it on the fast path.
+      //   9. ensureRoutineFolder (A.8 / C2) — uses optimistic
+      //      `.limit(1)`. Returning a row with a populated folderId
+      //      puts it on the fast path. Vestigial `.for('update')` mock
+      //      kept for any path that still references it (none after C2).
       db.for.mockResolvedValueOnce([
+        { ...draftRoutine, folderId: 'folder-existing' } as any,
+      ] as any);
+      db.limit.mockResolvedValueOnce([
         { ...draftRoutine, folderId: 'folder-existing' } as any,
       ] as any);
     }
@@ -4039,11 +4209,20 @@ describe('RoutinesService — TaskCast integration', () => {
       // Step 6: atomic claim UPDATE returning()
       db.returning.mockResolvedValueOnce(claimResult as any);
 
-      // Step 7 (A.8): ensureRoutineFolder runs SELECT ... FOR UPDATE.
-      // Returning a row with a populated folderId puts it on the fast
-      // path (no provision call, no follow-up UPDATE).
-      if (ensuredFolderRow !== null) {
+      // Step 7 (A.8 / C2): ensureRoutineFolder runs an optimistic
+      // `.limit(1)` (no row lock). Returning a row with a populated
+      // folderId puts it on the fast path (no provision call, no
+      // follow-up UPDATE). Vestigial `.for('update')` mock kept.
+      //
+      // Skip queuing this when the atomic claim is configured to lose
+      // (claimResult = []) — in that branch, startCreationSession
+      // returns early via re-read and never calls ensureRoutineFolder.
+      // Queuing the mock anyway would shift the limit FIFO and feed
+      // the wrong row to the winner re-read.
+      const claimWonRow = claimResult.length > 0;
+      if (ensuredFolderRow !== null && claimWonRow) {
         db.for.mockResolvedValueOnce([ensuredFolderRow] as any);
+        db.limit.mockResolvedValueOnce([ensuredFolderRow] as any);
       }
 
       return routine;
@@ -4168,8 +4347,11 @@ describe('RoutinesService — TaskCast integration', () => {
       // Step 4: atomic claim UPDATE returning 1 row = won
       db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }]);
 
-      // Step 5 (A.8): ensureRoutineFolder fast path
+      // Step 5 (A.8 / C2): ensureRoutineFolder fast path via .limit(1)
       db.for.mockResolvedValueOnce([
+        { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
+      ]);
+      db.limit.mockResolvedValueOnce([
         { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
       ]);
 
@@ -4441,10 +4623,13 @@ describe('RoutinesService — TaskCast integration', () => {
       });
 
       it('lazy-provisions the folder when routine.folderId is NULL and uses the new id', async () => {
-        // Routine row read at step 1 has a NULL folderId. The
-        // ensureRoutineFolder transaction will SELECT-FOR-UPDATE,
-        // see the NULL, call provisionFolder9SkillFolder, persist
-        // the new id, then return the row with the populated id.
+        // Routine row read at step 1 has a NULL folderId. With C2
+        // ensureRoutineFolder uses a plain `.limit(1)` for the
+        // optimistic read; the row's folderId is NULL so the slow
+        // path fires (provision via folder9 + UPDATE-WHERE-NULL via
+        // .returning()). The slow-path UPDATE returns the
+        // freshly-claimed row, then we use its `folderId` for
+        // `routine.document` in the session config.
         const draft = {
           id: ROUTINE_ID,
           tenantId: TENANT_ID,
@@ -4478,6 +4663,10 @@ describe('RoutinesService — TaskCast integration', () => {
         folder9Client.commit.mockResolvedValueOnce({
           commit_id: 'commit-init',
         });
+        // C2: UPDATE-WHERE-NULL claim returns the freshly-claimed row.
+        db.returning.mockResolvedValueOnce([
+          { ...draft, folderId: 'folder-new' },
+        ]);
 
         await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
 
@@ -4714,8 +4903,11 @@ describe('RoutinesService — TaskCast integration', () => {
       db.where.mockResolvedValueOnce(expectedTriggers as any);
       // atomic claim
       db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
-      // ensureRoutineFolder (A.8) fast path
+      // ensureRoutineFolder (A.8 / C2) fast path via .limit(1)
       db.for.mockResolvedValueOnce([
+        { ...DRAFT, folderId: 'folder-existing' } as any,
+      ]);
+      db.limit.mockResolvedValueOnce([
         { ...DRAFT, folderId: 'folder-existing' } as any,
       ]);
 
@@ -4756,8 +4948,11 @@ describe('RoutinesService — TaskCast integration', () => {
       });
       // atomic claim
       db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
-      // ensureRoutineFolder (A.8) fast path
+      // ensureRoutineFolder (A.8 / C2) fast path via .limit(1)
       db.for.mockResolvedValueOnce([
+        { ...DRAFT, folderId: 'folder-existing' } as any,
+      ]);
+      db.limit.mockResolvedValueOnce([
         { ...DRAFT, folderId: 'folder-existing' } as any,
       ]);
 
@@ -4973,8 +5168,12 @@ describe('RoutinesService — TaskCast integration', () => {
     };
 
     beforeEach(() => {
-      // Default: ensureRoutineFolder fast-path (folderId already populated).
+      // Default: ensureRoutineFolder fast-path (folderId already
+      // populated). Both legacy `.for('update')` and new `.limit(1)`
+      // mocks return the same row so any test that overrides one but
+      // not the other still observes a consistent fast path.
       db.for.mockResolvedValue([PROVISIONED_ROUTINE]);
+      db.limit.mockResolvedValue([PROVISIONED_ROUTINE]);
       folder9Client.createToken.mockResolvedValue({
         token: 'tok-folder-proxy',
         expires_at: '2099-01-01T00:00:00Z',
@@ -5020,18 +5219,24 @@ describe('RoutinesService — TaskCast integration', () => {
       });
 
       it('triggers lazy provision when folderId is NULL', async () => {
-        // SELECT ... FOR UPDATE returns row with NULL folderId; transaction
-        // wrapper provisions and returns the row with the new folderId.
+        // C2: ensureRoutineFolder uses `.limit(1)` for the optimistic
+        // read. Returns row with NULL folderId so the slow path
+        // (provision + UPDATE-WHERE-NULL) fires.
         const draftRoutine = {
           ...PROVISIONED_ROUTINE,
           folderId: null as string | null,
         };
         db.for.mockResolvedValueOnce([draftRoutine] as any);
+        db.limit.mockResolvedValueOnce([draftRoutine] as any);
         folder9Client.createFolder.mockResolvedValueOnce({
           id: 'folder-new',
           workspace_id: TENANT_ID,
         });
         folder9Client.commit.mockResolvedValueOnce({ commit_id: 'init' });
+        // The UPDATE-WHERE-NULL claim returns the freshly-claimed row.
+        db.returning.mockResolvedValueOnce([
+          { ...draftRoutine, folderId: 'folder-new' } as any,
+        ]);
         folder9Client.getTree.mockResolvedValueOnce([]);
 
         await service.getRoutineFolderTree(ROUTINE_ID, USER_ID, TENANT_ID);
@@ -5057,6 +5262,7 @@ describe('RoutinesService — TaskCast integration', () => {
 
       it('rejects with 404 when routine does not exist', async () => {
         db.for.mockResolvedValueOnce([] as any);
+        db.limit.mockResolvedValueOnce([] as any);
         await expect(
           service.getRoutineFolderTree(ROUTINE_ID, USER_ID, TENANT_ID),
         ).rejects.toThrow(/not found/);
@@ -5229,7 +5435,10 @@ describe('RoutinesService — TaskCast integration', () => {
           ...PROVISIONED_ROUTINE,
           folderId: null as string | null,
         };
+        // C2: ensureRoutineFolder uses `.limit(1)` for the optimistic
+        // read, then UPDATE-WHERE-NULL with `.returning()` for the claim.
         db.for.mockResolvedValueOnce([draftRoutine] as any);
+        db.limit.mockResolvedValueOnce([draftRoutine] as any);
         folder9Client.createFolder.mockResolvedValueOnce({
           id: 'folder-new',
           workspace_id: TENANT_ID,
@@ -5239,6 +5448,10 @@ describe('RoutinesService — TaskCast integration', () => {
         folder9Client.commit
           .mockResolvedValueOnce({ commit_id: 'init' })
           .mockResolvedValueOnce({ commit_id: 'c-after-provision' });
+        // UPDATE-WHERE-NULL claim returns the freshly-claimed row.
+        db.returning.mockResolvedValueOnce([
+          { ...draftRoutine, folderId: 'folder-new' } as any,
+        ]);
         folder9Client.getFolder.mockResolvedValueOnce({
           id: 'folder-new',
           workspace_id: TENANT_ID,
@@ -5535,10 +5748,13 @@ describe('RoutinesService — completeCreation race guard', () => {
       }),
       log: jest.fn<any>().mockResolvedValue([]),
     };
-    // Default `for` mock returns the draft routine so ensureRoutineFolder
-    // takes the fast path. Tests that need the slow-path (lazy provision)
-    // override per-call.
+    // Default mocks: ensureRoutineFolder takes the fast path. Both
+    // legacy `.for('update')` and new `.limit(1)` return the same row
+    // so tests that override one or the other still observe a
+    // consistent fast path (post-C2 the new code only calls .limit(1),
+    // but we leave .for as a vestige).
     db.for.mockResolvedValue([DRAFT_ROUTINE]);
+    db.limit.mockResolvedValue([DRAFT_ROUTINE]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -5561,7 +5777,12 @@ describe('RoutinesService — completeCreation race guard', () => {
   });
 
   it('race-loss: returns winner state without dispatching autoRunFirst', async () => {
-    // Initial read: sees status='draft'
+    // After C2, completeCreation triggers FOUR `db.limit` calls in
+    // order: (1) getRoutineOrThrow, (2) ensureRoutineFolder optimistic
+    // SELECT, (3) re-fetch via getRoutineOrThrow on race-loss.
+    // (1) sees draft
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+    // (2) ensureRoutineFolder: same row, already has folderId (fast path)
     db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
     // Bot validation
     botsService.getBotById.mockResolvedValueOnce({
@@ -5576,7 +5797,7 @@ describe('RoutinesService — completeCreation race guard', () => {
     } as any);
     // Conditional UPDATE returns empty (lost the race)
     db.returning.mockResolvedValueOnce([] as any);
-    // Re-fetch via getRoutineOrThrow returns the winner's upcoming state
+    // (3) Re-fetch via getRoutineOrThrow returns the winner's upcoming state
     db.limit.mockResolvedValueOnce([
       { ...DRAFT_ROUTINE, status: 'upcoming' },
     ] as any);
@@ -5604,6 +5825,9 @@ describe('RoutinesService — completeCreation race guard', () => {
   });
 
   it('race-loss: archives channel best-effort even when archiveCreationChannel throws', async () => {
+    // Same call ordering as the previous test — one extra .limit for
+    // ensureRoutineFolder's optimistic SELECT after C2.
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
     db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
     botsService.getBotById.mockResolvedValueOnce({
       botId: 'bot-1',
@@ -5645,6 +5869,8 @@ describe('RoutinesService — completeCreation race guard', () => {
   it('winner: still dispatches autoRunFirst when conditional UPDATE returns a row', async () => {
     const UPDATED = { ...DRAFT_ROUTINE, status: 'upcoming' as const };
 
+    // (1) getRoutineOrThrow + (2) ensureRoutineFolder optimistic SELECT
+    db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
     db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
     botsService.getBotById.mockResolvedValueOnce({
       botId: 'bot-1',

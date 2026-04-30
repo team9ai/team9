@@ -244,6 +244,19 @@ describe('FolderMapBuilder', () => {
     expect(provisionFolderForMount).not.toHaveBeenCalled();
   });
 
+  it('throws BadRequestException when agentId does not match sessionId agent segment', async () => {
+    const { builder, provisionFolderForMount } = buildHarness();
+
+    await expect(
+      builder.buildFolderMap({
+        sessionId: DM_SESSION,
+        agentId: 'other-agent',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(provisionFolderForMount).not.toHaveBeenCalled();
+  });
+
   it('throws BadRequestException when sessionId is unparseable', async () => {
     const { builder, provisionFolderForMount } = buildHarness();
 

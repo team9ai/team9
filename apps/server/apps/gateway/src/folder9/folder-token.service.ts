@@ -158,7 +158,20 @@ export class FolderTokenService {
       );
     }
 
-    if (callerTenantId !== undefined && callerTenantId !== req.workspaceId) {
+    // I8: fail-closed cross-tenant gate.
+    //
+    // Previously, an undefined callerTenantId silently bypassed the
+    // workspace-id check. That's the wrong default for an authz layer:
+    // a caller without a known tenant has no claim on any workspace's
+    // resources. Refuse the request loudly with a structured log so
+    // ops can spot misconfigured ingress (e.g. middleware not running).
+    if (callerTenantId === undefined) {
+      this.logger.warn(
+        `folder-token: refusing — tenant context missing on caller (botUserId=${callerBotUserId}, workspaceId=${req.workspaceId}, logicalKey=${req.logicalKey})`,
+      );
+      throw new ForbiddenException('tenant context missing');
+    }
+    if (callerTenantId !== req.workspaceId) {
       throw new ForbiddenException(
         'Caller tenant does not match requested workspaceId',
       );
@@ -171,6 +184,31 @@ export class FolderTokenService {
     const bot = await this.loadActiveBotByUserId(callerBotUserId);
     if (!bot) {
       throw new ForbiddenException('Caller is not a known bot user');
+    }
+
+    // I7: stub authz scopes are read-only.
+    //
+    // session.{tmp,home}, agent.{tmp,home}, user.{tmp,home},
+    // routine.{tmp,home} ride a stub authz path until real RBAC lands
+    // (per design spec). Until then, write/propose access through this
+    // endpoint would silently widen the trust boundary, so we cap the
+    // permitted action at `read`. routine.document keeps its own real
+    // authz (already gated above) and is unaffected.
+    const STUB_AUTHZ_LOGICAL_KEYS = new Set([
+      'session.tmp',
+      'session.home',
+      'agent.tmp',
+      'agent.home',
+      'user.tmp',
+      'user.home',
+      'routine.tmp',
+      'routine.home',
+    ]);
+    if (
+      STUB_AUTHZ_LOGICAL_KEYS.has(req.logicalKey) &&
+      req.permission !== 'read'
+    ) {
+      throw new ForbiddenException('stub authz; only read permitted');
     }
 
     // Resolve the audit `scopeId` and run logical-key-specific authz.
