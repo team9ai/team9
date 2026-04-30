@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@team9/database';
 import { AuthModule } from '../auth/auth.module.js';
 import { WikisModule } from '../wikis/wikis.module.js';
+import { FolderMountResolver } from './folder-mount-resolver.service.js';
 import { FolderTokenController } from './folder-token.controller.js';
 import { FolderTokenService } from './folder-token.service.js';
 
@@ -21,7 +22,7 @@ import { FolderTokenService } from './folder-token.service.js';
 @Module({
   imports: [DatabaseModule, AuthModule, WikisModule],
   controllers: [FolderTokenController],
-  providers: [FolderTokenService],
-  exports: [FolderTokenService],
+  providers: [FolderTokenService, FolderMountResolver],
+  exports: [FolderTokenService, FolderMountResolver],
 })
 export class Folder9Module {}
