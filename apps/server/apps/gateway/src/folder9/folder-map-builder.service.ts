@@ -67,6 +67,11 @@ export class FolderMapBuilder {
       // rejects unparseable ids with the same exception class.
       throw new BadRequestException(`Unparseable sessionId: ${ctx.sessionId}`);
     }
+    if (ctx.agentId !== shape.agentId) {
+      throw new BadRequestException(
+        `agentId "${ctx.agentId}" does not match sessionId agent "${shape.agentId}"`,
+      );
+    }
     if (ctx.routineId !== undefined && shape.kind !== 'routine') {
       // Defensive cross-check: if the caller supplies a routineId, the
       // sessionId must actually be a routine session. Mismatches
