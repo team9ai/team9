@@ -19,8 +19,7 @@ import type { StreamingMessage } from "@/stores/useStreamingStore";
 import wsService from "@/services/websocket";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
-import { StreamingMessageItem } from "./StreamingMessageItem";
-import { StreamingThinkingRow } from "./StreamingThinkingRow";
+import { StreamingMessageParts } from "./StreamingMessageParts";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { ResizeHandle } from "./ResizeHandle";
 import { PropertyPanel } from "./properties/PropertyPanel";
@@ -325,8 +324,7 @@ export function ThreadPanel({
         // on thinking content.
         return (
           <div className="py-0.5">
-            <StreamingThinkingRow stream={item.stream} />
-            <StreamingMessageItem stream={item.stream} members={members} />
+            <StreamingMessageParts stream={item.stream} members={members} />
           </div>
         );
       }

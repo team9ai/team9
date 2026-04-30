@@ -15,6 +15,17 @@ export interface StreamingMessage {
   isStreaming: boolean;
   /** Timestamp when streaming started */
   startedAt: number;
+  /** Ordered thinking/text parts as they arrive within this response */
+  parts: StreamingPart[];
+}
+
+export interface StreamingPart {
+  id: string;
+  type: "thinking" | "content";
+  content: string;
+  startedAt: number;
+  isStreaming: boolean;
+  durationMs?: number;
 }
 
 interface StreamingState {
@@ -50,6 +61,71 @@ interface StreamingState {
 const STREAM_TIMEOUT_MS = 120_000;
 const streamTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
+function closeActiveParts(
+  parts: StreamingPart[],
+  activeType: StreamingPart["type"],
+  now: number,
+): StreamingPart[] {
+  return parts.map((part) => {
+    if (!part.isStreaming || part.type === activeType) return part;
+    return {
+      ...part,
+      isStreaming: false,
+      durationMs: Math.max(0, now - part.startedAt),
+    };
+  });
+}
+
+function aggregateParts(
+  parts: StreamingPart[],
+  type: StreamingPart["type"],
+): string {
+  return parts
+    .filter((part) => part.type === type)
+    .map((part) => part.content)
+    .join("");
+}
+
+function updateStreamingParts(
+  stream: StreamingMessage,
+  type: StreamingPart["type"],
+  incomingContent: string,
+  previousAggregate: string,
+): StreamingPart[] {
+  const now = Date.now();
+  const parts = closeActiveParts(stream.parts, type, now);
+  const lastPart = parts[parts.length - 1];
+  const isAggregateDelta = incomingContent.startsWith(previousAggregate);
+  const nextContent = isAggregateDelta
+    ? incomingContent.slice(previousAggregate.length)
+    : incomingContent;
+
+  if (!nextContent && isAggregateDelta) {
+    return parts;
+  }
+
+  if (lastPart?.type === type) {
+    const updatedPart: StreamingPart = {
+      ...lastPart,
+      content: isAggregateDelta ? lastPart.content + nextContent : nextContent,
+      isStreaming: true,
+      durationMs: undefined,
+    };
+    return [...parts.slice(0, -1), updatedPart];
+  }
+
+  return [
+    ...parts,
+    {
+      id: `${stream.streamId}-${parts.length}`,
+      type,
+      content: nextContent,
+      startedAt: now,
+      isStreaming: true,
+    },
+  ];
+}
+
 export const useStreamingStore = create<StreamingState>((set, get) => ({
   streams: new Map(),
 
@@ -76,6 +152,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
         thinking: "",
         isThinking: false,
         isStreaming: true,
+        parts: [],
       });
       return { streams: newStreams };
     });
@@ -85,11 +162,18 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
+      const parts = updateStreamingParts(
+        stream,
+        "content",
+        content,
+        stream.content,
+      );
       const newStreams = new Map(state.streams);
       newStreams.set(streamId, {
         ...stream,
-        content,
+        content: aggregateParts(parts, "content"),
         isThinking: false,
+        parts,
       });
       return { streams: newStreams };
     });
@@ -99,11 +183,18 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
+      const parts = updateStreamingParts(
+        stream,
+        "thinking",
+        content,
+        stream.thinking,
+      );
       const newStreams = new Map(state.streams);
       newStreams.set(streamId, {
         ...stream,
-        thinking: content,
+        thinking: aggregateParts(parts, "thinking"),
         isThinking: true,
+        parts,
       });
       return { streams: newStreams };
     });

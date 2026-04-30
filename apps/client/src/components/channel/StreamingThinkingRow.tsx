@@ -36,13 +36,23 @@ import type { AgentEventMetadata } from "@/types/im";
  */
 interface StreamingThinkingRowProps {
   stream: StreamingMessage;
+  thinking?: string;
+  startedAt?: number;
+  isLive?: boolean;
+  durationMs?: number;
 }
 
 export const StreamingThinkingRow = memo(function StreamingThinkingRow({
   stream,
+  thinking,
+  startedAt,
+  isLive,
+  durationMs,
 }: StreamingThinkingRowProps) {
-  const hasContent = stream.content.length > 0;
-  const hasThinking = stream.thinking.length > 0;
+  const thinkingContent = thinking ?? stream.thinking;
+  const thinkingStartedAt = startedAt ?? stream.startedAt;
+  const hasContent = isLive === undefined ? stream.content.length > 0 : !isLive;
+  const hasThinking = thinkingContent.length > 0;
 
   // Freeze the elapsed duration at the exact moment reply text first
   // arrives, instead of recomputing `Date.now() - startedAt` on every
@@ -53,7 +63,8 @@ export const StreamingThinkingRow = memo(function StreamingThinkingRow({
   // when the stream ended and the persisted row took over.
   const frozenDurationMsRef = useRef<number | null>(null);
   if (hasContent && frozenDurationMsRef.current === null) {
-    frozenDurationMsRef.current = Math.max(0, Date.now() - stream.startedAt);
+    frozenDurationMsRef.current =
+      durationMs ?? Math.max(0, Date.now() - thinkingStartedAt);
   }
 
   // Once the reply text has started arriving, only keep the row around
@@ -66,7 +77,7 @@ export const StreamingThinkingRow = memo(function StreamingThinkingRow({
     return null;
   }
 
-  const startedAtIso = new Date(stream.startedAt).toISOString();
+  const startedAtIso = new Date(thinkingStartedAt).toISOString();
 
   // Freeze the row into its completed state once the reply text starts
   // streaming — thinking is definitely done by then, so show
@@ -79,14 +90,14 @@ export const StreamingThinkingRow = memo(function StreamingThinkingRow({
     ? {
         agentEventType: "thinking",
         status: "completed",
-        thinking: stream.thinking,
+        thinking: thinkingContent,
         durationMs: frozenDurationMsRef.current ?? 0,
       }
     : {
         agentEventType: "thinking",
         status: "running",
         startedAt: startedAtIso,
-        thinking: stream.thinking,
+        thinking: thinkingContent,
       };
 
   return (
@@ -96,7 +107,7 @@ export const StreamingThinkingRow = memo(function StreamingThinkingRow({
     >
       <TrackingEventItem
         metadata={metadata}
-        content={stream.thinking}
+        content={thinkingContent}
         isStreaming={!hasContent}
       />
     </div>
