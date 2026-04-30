@@ -1,0 +1,145 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-29-ahand-browser-runtime-install.md",
+  "specPath": "docs/superpowers/specs/2026-04-29-ahand-browser-runtime-install-design.md",
+  "lastUpdated": "2026-04-30T00:00:00Z",
+  "resumeContext": {
+    "phaseA": {
+      "status": "merged",
+      "pr": "team9ai/aHand#32",
+      "mergeCommit": "5972ef2da404a28031e1604f3b817a4db0187c08",
+      "notes": "Merged 2026-04-30 via squash. CI green. Worktree at aHand/.worktrees/browser-setup-progress-api is retained but branch was deleted remotely + rebased commits no longer on local tracking branch."
+    },
+    "phaseB": {
+      "status": "in-progress",
+      "worktree": "/Users/winrey/Projects/weightwave/team9-agent-pi/.worktrees/browser-skill-migration",
+      "branch": "feat/browser-skill-migration",
+      "baseSha": "919181c4f2e5df8d097de3d63920efeac88b218b",
+      "notes": "Worktree + pnpm install already done. No Phase-B task work started yet; resume by dispatching Task 8's implementer. team9-agent-pi's ahandd-SDK-side CloudClient.browser() removal is noted in Task 9 Step 6 Option A — we chose @deprecated JSDoc in the aHand repo (NOT delete); it's a follow-up commit to Phase A, not a Phase-B dependency."
+    },
+    "phaseC": {
+      "status": "pending",
+      "notes": "After Phase B merges, bump team9 Tauri's ahandd.rev to 5972ef2 (or whatever Phase-B merge SHA if SDK deprecation is bundled there), and @team9claw/* pins to Phase-B published versions. Task 13 Step 1 has the exact Cargo.toml line to update."
+    },
+    "e2e": {
+      "status": "pending"
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: aHand — extend browser_setup/types.rs with LogStream, ErrorCode, Phase::Log, CheckStatus::Failed",
+      "status": "completed",
+      "description": "**Repo:** aHand. **Goal:** Add new type surface (LogStream, ErrorCode, Phase::Log, ProgressEvent.stream, CheckStatus::Failed) with round-trip serde tests. Type-only change.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/types.rs\n\n**Verify:** `cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::types && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/types.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::types && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"LogStream + ErrorCode enums with snake_case serde\",\"Phase::Log variant added\",\"ProgressEvent.stream: Option<LogStream> with skip_serializing_if\",\"CheckStatus::Failed { code, message } variant added\",\"existing serde tests unchanged\",\"new serde tests cover all new surface\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: aHand — classify_error + FailedStepReport newtype; wrap ensure() calls",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Repo:** aHand. **Goal:** Add centralized error classifier + FailedStepReport wrapper so install failures surface structured info through anyhow::Error chain. Wrap run_all/run_step's ensure() calls with catch-and-classify.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/mod.rs\n\n**Verify:** `cargo test -p ahandd browser_setup && cargo clippy`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/mod.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"classify_error returns right ErrorCode per pattern (EACCES/network/etc)\",\"FailedStepReport newtype with Display+Debug+Error impls\",\"run_all/run_step wrap ensure() failures into FailedStepReport via context\",\"terminal Phase::Done ProgressEvent emitted on failure before Err return\",\"halt-on-failure: later steps not run after a step fails\",\"classify_error walks cause chain via {:#} formatter\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: aHand — playwright.rs piped npm install I/O with Phase::Log streaming",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Repo:** aHand. **Goal:** Replace Command::output() with piped spawn + per-line forwarding to ProgressEvent Phase::Log.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/playwright.rs\n\n**Verify:** `cargo test -p ahandd browser_setup::playwright`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/playwright.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::playwright && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"stdout lines forwarded as ProgressEvent Phase::Log, stream=Stdout\",\"stderr lines forwarded as Phase::Log, stream=Stderr\",\"existing Phase::Installing / Phase::Done events intact\",\"non-zero exit bails with preserved prose (classify_error patterns still match)\",\"no lines dropped on short-circuit (readers awaited)\",\"tests with fake-npm script exercise both happy + fail paths\",\"tempfile dev-dep added if missing\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: aHand — node.rs piped I/O for subprocess installers",
+      "status": "completed",
+      "blockedBy": [1, 3],
+      "description": "**Repo:** aHand. **Goal:** Apply piped-I/O treatment to any subprocess calls in node.rs; keep pure-Rust stages on existing Phase::Downloading/Extracting events.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/browser_setup/node.rs\n- Optionally create: aHand/crates/ahandd/src/browser_setup/child_progress.rs (factor shared helper)\n\n**Verify:** `cargo test -p ahandd browser_setup::node`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/browser_setup/node.rs\",\"aHand/crates/ahandd/src/browser_setup/child_progress.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd browser_setup::node && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"any subprocess call emits Phase::Log per line\",\"non-subprocess stages keep Phase::Downloading with percent\",\"failures bail with same prose\",\"subprocess tests added\",\"helper factored if shared\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: aHand — Config::set_browser_enabled with atomic tmpfile+rename write",
+      "status": "completed",
+      "description": "**Repo:** aHand. **Goal:** Add set_browser_enabled(path, enabled) helper with atomic write preserving sibling fields.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/config.rs\n\n**Verify:** `cargo test -p ahandd config::tests::set_browser_enabled`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/config.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd config && cargo fmt -p ahandd -- --check && cargo clippy -p ahandd --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"set_browser_enabled returns previous bool value\",\"default BrowserConfig inserted when section absent\",\"sibling BrowserConfig fields preserved (binary_path, timeouts, allowed_domains)\",\"other top-level sections preserved\",\"atomic write: tmpfile + fsync + rename; no .tmp leak on success\",\"no-op write still produces valid file\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: aHand — cap rename 'browser' → 'browser-playwright-cli' + /api/control/browser deprecation banners",
+      "status": "completed",
+      "description": "**Repo:** aHand. **Goal:** Flip the device-reported capability string everywhere; annotate /api/control/browser handlers with deprecation banners; update ownership check on hub side.\n\n**Files:**\n- Modify: aHand: crates/ahandd/src/ahand_client.rs (cap push + internal tool-routing comment)\n- Modify: aHand: crates/ahand-hub/src/browser_service.rs\n- Modify: aHand: crates/ahand-hub/src/http/browser.rs (banner)\n- Modify: aHand: crates/ahand-hub/src/http/control_plane.rs (banner)\n- Modify: aHand: crates/ahand-hub/tests/browser_api.rs (fixtures)\n\n**Verify:** `cargo test -p ahandd && cargo test -p ahand-hub`\n\n```json:metadata\n{\"files\":[\"aHand/crates/ahandd/src/ahand_client.rs\",\"aHand/crates/ahand-hub/src/browser_service.rs\",\"aHand/crates/ahand-hub/src/http/browser.rs\",\"aHand/crates/ahand-hub/src/http/control_plane.rs\",\"aHand/crates/ahand-hub/tests/browser_api.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/aHand && cargo test -p ahandd && cargo test -p ahand-hub && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"ahandd Hello reports browser-playwright-cli (not browser) when enabled=true\",\"hub browser_service::execute ownership check matches new cap name\",\"tool: 'browser' proto field unchanged with explanatory comment\",\"module-header deprecation banner on http/browser.rs\",\"same banner on http/control_plane.rs around the handler\",\"integration test fixtures updated to browser-playwright-cli\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: aHand — PR push + CI + merge; record merge SHA for downstream",
+      "status": "completed",
+      "blockedBy": [1, 2, 3, 4, 5, 6],
+      "description": "**Repo:** aHand. **Goal:** Ship Phase A as a PR to aHand/dev. Squash merge for clean history. Record merge SHA.\n\n**Verify:** `gh pr view <NUM> --repo team9ai/aHand --json state,mergeCommit`\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"/opt/homebrew/bin/gh pr view <NUM> --repo team9ai/aHand --json state,mergeCommit\",\"acceptanceCriteria\":[\"branch pushed with all 6 commits\",\"PR opened against team9ai/aHand dev\",\"CI green (handle outbox_persistence::lock_takeover_via_kick pre-existing flake per 2026-04-28 precedent)\",\"merged to dev (squash)\",\"merge SHA captured for Phase B+C consumption\",\"remote + local branches cleaned up\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: team9-agent-pi — HostCapability rename + deriveCaps backwards-compat alias",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Repo:** team9-agent-pi. **Goal:** Rename HostCapability type value and add alias so legacy 'browser' string still maps to browser-playwright-cli. Legacy devices keep working.\n\n**Files:**\n- Modify: packages/types/src/host.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.test.ts\n- Modify: packages/claw-hive/src/components/ahand/gateway-client.ts\n\n**Verify:** `pnpm --filter @team9claw/types typecheck && pnpm --filter @team9claw/claw-hive typecheck && pnpm --filter @team9claw/claw-hive test -- deriveCaps`\n\n```json:metadata\n{\"files\":[\"packages/types/src/host.ts\",\"packages/claw-hive/src/components/ahand/integration.ts\",\"packages/claw-hive/src/components/ahand/integration.test.ts\",\"packages/claw-hive/src/components/ahand/gateway-client.ts\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && source /opt/homebrew/opt/nvm/nvm.sh && pnpm --filter @team9claw/types typecheck && pnpm --filter @team9claw/claw-hive typecheck && pnpm --filter @team9claw/claw-hive test -- deriveCaps\",\"acceptanceCriteria\":[\"HostCapability = 'shell' | 'browser-playwright-cli'\",\"deriveCaps maps both 'browser' and 'browser-playwright-cli' to browser-playwright-cli\",\"dedup when both present\",\"existing integration.test.ts updated to new shape\",\"pnpm typecheck + test green for modified packages\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: team9-agent-pi — delete browser LLM tool + AhandBackend.browser() + deprecate SDK CloudClient.browser()",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Repo:** team9-agent-pi (+ aHand SDK). **Goal:** Remove PR #97's LLM-tool pathway entirely. BrowserBackendResult type gone. SDK method @deprecated.\n\n**Files:**\n- Modify: packages/agent-components/src/components/host/host-component.ts\n- Modify: packages/agent-components/src/components/host/host-component.test.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.test.ts\n- Modify: packages/types/src/host.ts (remove BrowserBackendResult)\n- Modify (in aHand repo — pair with Phase A): aHand/packages/sdk/src/cloud-client.ts (@deprecated JSDoc)\n\n**Verify:** `pnpm typecheck && pnpm test`\n\n```json:metadata\n{\"files\":[\"packages/agent-components/src/components/host/host-component.ts\",\"packages/agent-components/src/components/host/host-component.test.ts\",\"packages/claw-hive/src/components/ahand/integration.ts\",\"packages/claw-hive/src/components/ahand/integration.test.ts\",\"packages/types/src/host.ts\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && source /opt/homebrew/opt/nvm/nvm.sh && pnpm typecheck && pnpm test\",\"acceptanceCriteria\":[\"host-component.ts: no BROWSER_TOOL_DESCRIPTION / browserTool / browser branch / dispatcher\",\"BrowserBackendResult type removed — no consumers remain\",\"AhandBackend.browser() method and its tests deleted from integration.ts\",\"run_command tool untouched\",\"aHand SDK: CloudClient.browser() annotated @deprecated with explanation pointing at hub deprecation banner\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: team9-agent-pi — add browser-playwright-cli SKILL folder adapted from microsoft/playwright-cli",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Repo:** team9-agent-pi. **Goal:** Copy upstream playwright-cli SKILL folder, adapt frontmatter + preamble, preserve references verbatim, add MIT attribution.\n\n**Files (created):**\n- packages/agent-components/skills/browser-playwright-cli/SKILL.md\n- packages/agent-components/skills/browser-playwright-cli/LICENSE-UPSTREAM.md\n- packages/agent-components/skills/browser-playwright-cli/references/*.md (9 files)\n\n**Verify:** `ls packages/agent-components/skills/browser-playwright-cli/references/ | wc -l` returns 9\n\n```json:metadata\n{\"files\":[\"packages/agent-components/skills/browser-playwright-cli/SKILL.md\",\"packages/agent-components/skills/browser-playwright-cli/LICENSE-UPSTREAM.md\",\"packages/agent-components/skills/browser-playwright-cli/references/element-attributes.md\",\"packages/agent-components/skills/browser-playwright-cli/references/playwright-tests.md\",\"packages/agent-components/skills/browser-playwright-cli/references/request-mocking.md\",\"packages/agent-components/skills/browser-playwright-cli/references/running-code.md\",\"packages/agent-components/skills/browser-playwright-cli/references/session-management.md\",\"packages/agent-components/skills/browser-playwright-cli/references/storage-state.md\",\"packages/agent-components/skills/browser-playwright-cli/references/test-generation.md\",\"packages/agent-components/skills/browser-playwright-cli/references/tracing.md\",\"packages/agent-components/skills/browser-playwright-cli/references/video-recording.md\",\"packages/agent-components/package.json\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && ls packages/agent-components/skills/browser-playwright-cli/ && ls packages/agent-components/skills/browser-playwright-cli/references/\",\"acceptanceCriteria\":[\"all 9 references/*.md files byte-identical to upstream (sha verify)\",\"SKILL.md frontmatter: name browser-playwright-cli + description, no allowed-tools\",\"team9 preamble inserted as first H2 before upstream content\",\"LICENSE-UPSTREAM.md credits microsoft/playwright-cli MIT\",\"pnpm build includes skills/ in publish (files[] array in package.json)\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: team9-agent-pi — register SKILL conditionally from HostComponent based on backend cap",
+      "status": "pending",
+      "blockedBy": [8, 10],
+      "description": "**Repo:** team9-agent-pi. **Goal:** Call registerSourceCodeSkills in onInitialize + onSessionStart when any backend has browser-playwright-cli cap; skill-tier dependency declared.\n\n**Files:**\n- Modify: packages/agent-components/src/components/host/host-component.ts\n- Modify: packages/agent-components/src/components/host/host-component.test.ts\n\n**Verify:** `pnpm --filter @team9claw/agent-components test -- host-component`\n\n```json:metadata\n{\"files\":[\"packages/agent-components/src/components/host/host-component.ts\",\"packages/agent-components/src/components/host/host-component.test.ts\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && source /opt/homebrew/opt/nvm/nvm.sh && pnpm --filter @team9claw/agent-components typecheck && pnpm --filter @team9claw/agent-components test -- host-component\",\"acceptanceCriteria\":[\"HostComponent.dependencies includes 'skill-tier'\",\"registerSourceCodeSkills called with packageSkillDir(...,'browser-playwright-cli') and id='@team9claw/agent-components/browser-playwright-cli'\",\"gated on hasAnyBackendWithCap('browser-playwright-cli')\",\"idempotent across repeat calls\",\"no-skill-tier-dep case is no-op (no throw)\",\"tests cover all 4 matrix cells\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: team9-agent-pi — delete orphan docs/skills/browser.md + PR assembly",
+      "status": "pending",
+      "blockedBy": [8, 9, 10, 11],
+      "description": "**Repo:** team9-agent-pi. **Goal:** Remove orphan skill markdown, push branch, open PR, merge. Record merge SHA.\n\n**Files:**\n- Delete: docs/skills/browser.md\n\n**Verify:** `gh pr view <NUM> --repo team9ai/agent-pi --json state,mergeCommit`\n\n```json:metadata\n{\"files\":[\"docs/skills/browser.md\"],\"verifyCommand\":\"/opt/homebrew/bin/gh pr view <NUM> --repo team9ai/agent-pi --json state,mergeCommit\",\"acceptanceCriteria\":[\"docs/skills/browser.md deleted\",\"empty docs/skills/ directory removed\",\"pnpm install+typecheck+test+lint+build all green\",\"PR opened against team9ai/agent-pi dev\",\"CI green\",\"merged to dev (merge commit preferred — conceptual commits standalone)\",\"merge SHA captured\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: team9 Tauri — bump ahandd.rev + @team9claw/* deps + AhandRuntime::reload() with rollback",
+      "status": "pending",
+      "blockedBy": [7, 12],
+      "description": "**Repo:** team9. **Goal:** Pick up Phase A + B changes. Add reload() on AhandRuntime with rollback on spawn failure.\n\n**Files:**\n- Modify: apps/client/src-tauri/Cargo.toml\n- Modify: apps/client/src-tauri/src/ahand/runtime.rs\n- Modify: apps/client/package.json (or workspace pins)\n\n**Verify:** `cargo test --manifest-path apps/client/src-tauri/Cargo.toml runtime::tests::reload`\n\n```json:metadata\n{\"files\":[\"apps/client/src-tauri/Cargo.toml\",\"apps/client/src-tauri/src/ahand/runtime.rs\",\"apps/client/package.json\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9 && source /opt/homebrew/opt/nvm/nvm.sh && pnpm install && pnpm --filter @team9/client build && cargo test --manifest-path apps/client/src-tauri/Cargo.toml runtime\",\"acceptanceCriteria\":[\"ahandd.rev bumped to Phase A merge SHA\",\"@team9claw/* pins bumped to Phase B versions\",\"ReloadError enum with 3 variants (ShutdownTimeout / SpawnFailedRolledBack / SpawnFailedNoRollback)\",\"pub async fn reload takes &mut self, loads fresh Config, 5s shutdown timeout, respawn with rollback\",\"primary-spawn failure tries rollback spawn; on rollback success returns SpawnFailedRolledBack\",\"rollback failure returns SpawnFailedNoRollback with both messages\",\"AhandRuntime retains startup_inputs + current_daemon_config\",\"4 reload tests scaffolded (may be #[ignore] if mock infra not ready)\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: team9 Tauri — browser_runtime.rs with 3 commands + progress adapter + log tee",
+      "status": "pending",
+      "blockedBy": [13],
+      "description": "**Repo:** team9. **Goal:** Tauri backend: browser_status, browser_install, browser_set_enabled commands; ProgressEvent → BrowserProgressEvent adapter; 7-day log tee.\n\n**Files:**\n- Create: apps/client/src-tauri/src/ahand/browser_runtime.rs\n- Modify: apps/client/src-tauri/src/ahand/mod.rs\n- Modify: apps/client/src-tauri/src/lib.rs\n\n**Verify:** `cargo test --manifest-path apps/client/src-tauri/Cargo.toml browser_runtime`\n\n```json:metadata\n{\"files\":[\"apps/client/src-tauri/src/ahand/browser_runtime.rs\",\"apps/client/src-tauri/src/ahand/mod.rs\",\"apps/client/src-tauri/src/lib.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9 && cargo test --manifest-path apps/client/src-tauri/Cargo.toml browser_runtime && cargo fmt --manifest-path apps/client/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path apps/client/src-tauri/Cargo.toml --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"browser_status returns overall + per-step + enabled + agent_visible + queried_at\",\"browser_install streams BrowserProgressEvent via Channel; on success flips enabled=true + calls reload\",\"browser_set_enabled guards (can't enable if not installed); fast-fails if install in flight via try_lock\",\"adapter translates ahandd ProgressEvent per spec §5.3 table\",\"log tee to ~/.ahand/logs/browser-setup-{ts}.log with 7-day retention\",\"3 commands registered in tauri::generate_handler!\",\"AhandRuntime state is Arc<Mutex<AhandRuntime>>\",\"adapter unit tests cover StepStarted/StepLog/overall_from_reports/StepError mapping\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 15: team9 Tauri renderer — useBrowserRuntime hook + BrowserConfigTab rewrite (split into 4 files) + i18n",
+      "status": "pending",
+      "blockedBy": [14],
+      "description": "**Repo:** team9. **Goal:** Frontend rewrite. Split existing 159-line flat BrowserConfigTab.tsx into directory with 4 focused components. Add useBrowserRuntime hook with reducer FSM. New i18n keys zh-CN + en-US.\n\n**Files:**\n- Create: apps/client/src/hooks/useBrowserRuntime.ts\n- Create: apps/client/src/components/layout/contents/devices/BrowserConfigTab/{index,RuntimeCard,StepRow,LogDrawer,BrowserBinaryCard}.tsx\n- Delete: apps/client/src/components/layout/contents/devices/BrowserConfigTab.tsx\n- Modify: apps/client/src/i18n/locales/zh-CN/ahand.json\n- Modify: apps/client/src/i18n/locales/en-US/ahand.json\n\n**Verify:** `pnpm --filter @team9/client typecheck && pnpm --filter @team9/client lint`\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useBrowserRuntime.ts\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/index.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/RuntimeCard.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/StepRow.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/LogDrawer.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/BrowserBinaryCard.tsx\",\"apps/client/src/i18n/locales/zh-CN/ahand.json\",\"apps/client/src/i18n/locales/en-US/ahand.json\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9 && source /opt/homebrew/opt/nvm/nvm.sh && pnpm --filter @team9/client typecheck && pnpm --filter @team9/client lint\",\"acceptanceCriteria\":[\"useBrowserRuntime exposes {state, install, setEnabled, refresh}\",\"state is discriminated union loading/idle/installing/reloading/error\",\"Channel-based event streaming from backend wired correctly\",\"RuntimeCard shows overall badge + install/retry button + agent-visible toggle + step rows + LogDrawer\",\"StepRow shows status icon + label + badge + help popover (only when failed)\",\"Help popover content keyed on errorCode\",\"LogDrawer auto-scrolls, collapsible, stream-colored\",\"all strings i18n'd; zh-CN + en-US parity\",\"Coming-Soon badge removed\",\"BrowserBinaryCard moved verbatim\"]}\n```"
+    },
+    {
+      "id": 16,
+      "subject": "Task 16: team9 Tauri — PR push + CI + merge (Phase C)",
+      "status": "pending",
+      "blockedBy": [13, 14, 15],
+      "description": "**Repo:** team9. **Goal:** Ship the Tauri install-UI PR. Merge commit. Record merge SHA.\n\n**Verify:** `gh pr view <NUM> --repo team9ai/team9 --json state,mergeCommit`\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"/opt/homebrew/bin/gh pr view <NUM> --repo team9ai/team9 --json state,mergeCommit\",\"acceptanceCriteria\":[\"branch pushed with all commits from tasks 13-15\",\"PR opened against team9ai/team9 dev\",\"CI green (Railway previews, CI Test lint/typecheck/test)\",\"merged (merge commit)\",\"merge SHA captured for release tracking\"]}\n```"
+    },
+    {
+      "id": 17,
+      "subject": "Task 17: Manual E2E smoke — install UI → cap propagation → agent uses SKILL via run_command",
+      "status": "pending",
+      "blockedBy": [16],
+      "description": "**Scope:** cross-repo manual verification after all 3 PRs merge and dev redeploys. No file changes.\n\n**Verify:** manual checklist — each acceptance criterion becomes a check-off.\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"\",\"acceptanceCriteria\":[\"fresh env: click Install → 3 steps green → log drawer live → agent-visible auto-flips on\",\"hub admin endpoint reports capabilities includes browser-playwright-cli\",\"agent prompt '帮我截图 google.com' → SKILL search → run_command playwright-cli screenshot → path returned\",\"toggle off → agent search stops surfacing the SKILL\",\"induced network failure → network help popover\",\"induced missing Chrome → system-browser help + download link\",\"induced chmod 444 config.toml → error toast + log path\",\"double-click install → 2nd operation_in_progress error\",\"sign off on team9 PR with E2E-passed note + 3 merge SHAs\"]}\n```"
+    }
+  ]
+}
