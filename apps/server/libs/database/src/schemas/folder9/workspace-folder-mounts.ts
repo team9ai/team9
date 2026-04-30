@@ -27,7 +27,7 @@ export const workspaceFolderMounts = pgTable(
     /** 'session' | 'agent' | 'routine' | 'user' */
     scope: varchar('scope', { length: 32 }).notNull(),
     /** sessionId / botId / routineId / userId */
-    scopeId: varchar('scope_id', { length: 128 }).notNull(),
+    scopeId: varchar('scope_id', { length: 256 }).notNull(),
     /** 'tmp' | 'home' | 'document' (room for future) */
     mountKey: varchar('mount_key', { length: 32 }).notNull(),
     /** 'light' | 'managed' — denormalized so subsequent operations don't
