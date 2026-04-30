@@ -25,8 +25,6 @@ interface RoutineRow {
 /**
  * Build a thenable Drizzle-style query chain. Every chain method returns
  * the same object; awaiting the chain resolves the supplied resolver.
- *
- * Mirrors the chain mock used in `bot-staff-profile.service.spec.ts`.
  */
 function createQuery(resolve: () => unknown) {
   const query: Record<string, MockFn> & {
@@ -38,7 +36,6 @@ function createQuery(resolve: () => unknown) {
     from: jest.fn<any>(),
     where: jest.fn<any>(),
     set: jest.fn<any>(),
-    for: jest.fn<any>(),
     limit: jest.fn<any>(),
     returning: jest.fn<any>(),
     then(onfulfilled, onrejected) {
@@ -46,81 +43,80 @@ function createQuery(resolve: () => unknown) {
     },
   };
 
-  for (const key of [
-    'from',
-    'where',
-    'set',
-    'for',
-    'limit',
-    'returning',
-  ] as const) {
+  for (const key of ['from', 'where', 'set', 'limit', 'returning'] as const) {
     query[key].mockReturnValue(query as never);
   }
 
   return query;
 }
 
+/**
+ * State for the mock DB. After C2, ensureRoutineFolder no longer uses
+ * `db.transaction` or `.for('update')` — it just runs an optimistic
+ * SELECT, the slow folder9 provision, then an UPDATE-WHERE-NULL whose
+ * `returning()` decides race winner vs loser.
+ *
+ * We model both:
+ * - `selectResults`: FIFO queue of rows for each `db.select()` call
+ *   (used for the initial fetch + the optional race-loss re-read).
+ * - `updateReturningResults`: FIFO queue of rows for `update().returning()`.
+ *   Empty array `[]` simulates "another caller raced and won" (0 rows
+ *   matched the `folder_id IS NULL` predicate). One-element array
+ *   `[winnerRow]` simulates a successful claim.
+ */
 interface DbState {
-  /** Sequence of rows the next select should return (FIFO). */
   selectResults: (RoutineRow | undefined)[][];
+  updateReturningResults: RoutineRow[][];
 }
 
-/**
- * Mock db.transaction()/select()/update() that:
- * - serializes transaction callbacks (later transactions await earlier ones,
- *   matching SELECT FOR UPDATE row-lock semantics on a single key)
- * - reuses the same chain mock for select/update
- * - records a copy of the queries so tests can assert on call shape
- */
 function mockDb() {
-  const state: DbState = { selectResults: [] };
+  const state: DbState = {
+    selectResults: [],
+    updateReturningResults: [],
+  };
 
   const queries = {
     select: [] as ReturnType<typeof createQuery>[],
     update: [] as ReturnType<typeof createQuery>[],
   };
 
-  const baseTx = {
-    select: jest.fn<any>(() => {
-      const q = createQuery(() =>
-        state.selectResults.length > 0 ? state.selectResults.shift() : [],
-      );
-      queries.select.push(q);
-      return q as never;
-    }),
-    update: jest.fn<any>(() => {
-      const q = createQuery(() => undefined);
-      queries.update.push(q);
-      return q as never;
-    }),
-  };
+  const select = jest.fn<any>(() => {
+    const q = createQuery(() =>
+      state.selectResults.length > 0 ? state.selectResults.shift() : [],
+    );
+    queries.select.push(q);
+    return q as never;
+  });
 
-  // Serializes overlapping transaction callbacks. The second caller waits
-  // until the first finishes — matches the SELECT FOR UPDATE invariant
-  // on a single routine row.
-  let prev: Promise<unknown> = Promise.resolve();
-  const transaction = jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
-    const release = prev;
-    let resolveSelf!: () => void;
-    prev = new Promise<void>((r) => {
-      resolveSelf = r;
-    });
-    await release;
-    try {
-      return await cb(baseTx);
-    } finally {
-      resolveSelf();
-    }
+  const update = jest.fn<any>(() => {
+    // The chain `set().where().returning()` is the terminal awaited call.
+    // Resolve the chain itself to the FIFO `updateReturningResults` head;
+    // when the implementation does NOT call `.returning()` at all (legacy
+    // pattern, shouldn't happen post-C2), we still resolve to whatever
+    // the head says so the test stays observable.
+    const head =
+      state.updateReturningResults.length > 0
+        ? state.updateReturningResults.shift()!
+        : [];
+    const q = createQuery(() => head);
+    queries.update.push(q);
+    return q as never;
   });
 
   return {
     __state: state,
     __queries: queries,
-    transaction,
-    // Tests don't call `db.select`/`db.update` directly — the transaction
-    // callback gets `baseTx` — but include them for shape compatibility.
-    select: baseTx.select,
-    update: baseTx.update,
+    select,
+    update,
+    // A vestigial transaction stub — the new code path never invokes it,
+    // but leaving it here means any accidental regression that
+    // re-introduces tx wrapping fails loudly in tests rather than
+    // silently passing.
+    transaction: jest.fn<any>(async () => {
+      throw new Error(
+        'ensureRoutineFolder must not open a DB transaction (C2 regression)',
+      );
+    }),
   };
 }
 
@@ -179,10 +175,11 @@ describe('ensureRoutineFolder', () => {
       expect(result).toBe(row);
       expect(provision).not.toHaveBeenCalled();
       expect(db.__queries.update).toHaveLength(0);
-      expect(db.transaction).toHaveBeenCalledTimes(1);
+      // No transaction is opened on any path — the mock throws if it is.
+      expect(db.transaction).not.toHaveBeenCalled();
     });
 
-    it('locks the row with .for("update") inside the transaction', async () => {
+    it('uses optimistic SELECT (no .for("update"), no transaction)', async () => {
       db.__state.selectResults.push([makeRow({ folderId: 'folder-1' })]);
       const provision = jest.fn<any>();
 
@@ -193,14 +190,19 @@ describe('ensureRoutineFolder', () => {
       });
 
       expect(db.__queries.select).toHaveLength(1);
-      expect(db.__queries.select[0].for).toHaveBeenCalledWith('update');
+      // The new shape uses .limit(1) instead of .for('update').
+      expect(db.__queries.select[0].limit).toHaveBeenCalledWith(1);
+      expect(db.transaction).not.toHaveBeenCalled();
     });
   });
 
   describe('slow path', () => {
-    it('provisions, persists folder_id, and returns the merged row', async () => {
+    it('provisions, persists folder_id via UPDATE-WHERE-NULL, and returns the merged row', async () => {
       const row = makeRow({ folderId: null });
       db.__state.selectResults.push([row]);
+      // UPDATE-WHERE-NULL succeeds — RETURNING yields the freshly-claimed row.
+      const claimed = { ...row, folderId: 'folder-new-1' };
+      db.__state.updateReturningResults.push([claimed]);
       const provision = jest
         .fn<any>()
         .mockResolvedValue({ folderId: 'folder-new-1' });
@@ -221,23 +223,20 @@ describe('ensureRoutineFolder', () => {
         provisionDeps,
       );
       expect(db.__queries.update).toHaveLength(1);
-      // Returned row carries the freshly-provisioned folderId
       expect(result.folderId).toBe('folder-new-1');
-      // Other fields preserved
       expect(result.id).toBe(ROUTINE_ID);
       expect(result.title).toBe('Daily Standup');
     });
 
     it('passes id/title/description to provisionFn with documentContent=null', async () => {
-      // The routines table no longer carries documentContent (deprecated in
-      // A.1). ensureRoutineFolder MUST pass `documentContent: null` so the
-      // provisioner falls back to the initial-scaffold commit message and
-      // an empty SKILL.md body.
       const row = makeRow({
         folderId: null,
         description: 'Custom desc',
       });
       db.__state.selectResults.push([row]);
+      db.__state.updateReturningResults.push([
+        { ...row, folderId: 'folder-new-2' },
+      ]);
       const provision = jest
         .fn<any>()
         .mockResolvedValue({ folderId: 'folder-new-2' });
@@ -260,6 +259,9 @@ describe('ensureRoutineFolder', () => {
     it('passes a null description through to provisionFn unchanged', async () => {
       const row = makeRow({ folderId: null, description: null });
       db.__state.selectResults.push([row]);
+      db.__state.updateReturningResults.push([
+        { ...row, folderId: 'folder-new-3' },
+      ]);
       const provision = jest
         .fn<any>()
         .mockResolvedValue({ folderId: 'folder-new-3' });
@@ -271,6 +273,28 @@ describe('ensureRoutineFolder', () => {
       });
 
       expect(provision.mock.calls[0][0].description).toBeNull();
+    });
+
+    it('does not open a DB transaction for the slow path', async () => {
+      // C2 regression guard — folder9 HTTP I/O must NOT happen inside
+      // a tx, otherwise a PG connection gets pinned for the worst-case
+      // ~75s folder9 latency.
+      const row = makeRow({ folderId: null });
+      db.__state.selectResults.push([row]);
+      db.__state.updateReturningResults.push([
+        { ...row, folderId: 'folder-new' },
+      ]);
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-new' });
+
+      await ensureRoutineFolder(ROUTINE_ID, {
+        db: db as unknown as EnsureRoutineFolderDeps['db'],
+        provisionDeps,
+        provision,
+      });
+
+      expect(db.transaction).not.toHaveBeenCalled();
     });
   });
 
@@ -320,10 +344,10 @@ describe('ensureRoutineFolder', () => {
       ).rejects.toThrow(ServiceUnavailableException);
 
       expect(provision).toHaveBeenCalledTimes(1);
-      // No UPDATE issued — the failure is raised before persistence so the
-      // transaction rolls back and folder_id stays NULL.
+      // No UPDATE issued — the failure is raised before persistence so
+      // folder_id stays NULL (the row in the real DB is untouched).
       expect(db.__queries.update).toHaveLength(0);
-      // Row in storage (mocked) stays untouched
+      // Row object in our mock storage stays untouched too.
       expect(row.folderId).toBeNull();
     });
 
@@ -341,9 +365,6 @@ describe('ensureRoutineFolder', () => {
     });
 
     it('handles non-Error throwables from provision (still 503; logs the stringified value)', async () => {
-      // Defensive: provision could in theory throw a non-Error value.
-      // The catch branch must still produce a 503 and not crash the
-      // logger format string.
       db.__state.selectResults.push([makeRow({ folderId: null })]);
       const provision = jest.fn<any>().mockRejectedValue('plain-string-error');
 
@@ -357,8 +378,6 @@ describe('ensureRoutineFolder', () => {
     });
 
     it('preserves NotFoundException without converting it to 503', async () => {
-      // Verifies the catch is scoped to the provision call only — the
-      // upstream "row not found" 404 must NOT be rewritten to 503.
       db.__state.selectResults.push([undefined]);
       const provision = jest.fn<any>();
 
@@ -374,10 +393,11 @@ describe('ensureRoutineFolder', () => {
 
   describe('default provision binding', () => {
     it('falls back to the real provisionFolder9SkillFolder when deps.provision is omitted', async () => {
-      // We can't easily exercise the real provisioner here without a folder9
-      // client, so instead assert the contract: when `provision` is not
-      // supplied the function still runs (fast path: folder already set),
-      // proving the optional `provision` field has a sensible default.
+      // We can't easily exercise the real provisioner here without a
+      // folder9 client, so instead assert the contract: when `provision`
+      // is not supplied the function still runs (fast path: folder
+      // already set), proving the optional `provision` field has a
+      // sensible default.
       const row = makeRow({ folderId: 'folder-prov-default' });
       db.__state.selectResults.push([row]);
 
@@ -390,63 +410,105 @@ describe('ensureRoutineFolder', () => {
     });
   });
 
-  describe('serialization under concurrency', () => {
-    it('FOR UPDATE serializes two concurrent first-access calls — provision runs once, second observes folder_id', async () => {
-      const row = makeRow({ folderId: null });
-
-      // Both calls find the row. After the first transaction populates
-      // folder_id (via UPDATE), subsequent SELECTs should see it set.
-      // We simulate this by mutating `row.folderId` inside the provision spy
-      // (which is what the real UPDATE inside the transaction would
-      // effectively do for any subsequent reader) — but since each select
-      // gets its own copy via `selectResults`, we instead push two distinct
-      // results: the second SELECT result reflects the post-update state.
-      let provisionCalls = 0;
-      const provision = jest.fn<any>(async () => {
-        provisionCalls += 1;
-        // Mutate the shared row so any later reader sees the populated id.
-        // Mock-side simulation of the post-UPDATE state; the real DB does
-        // this via the row lock + UPDATE inside the same transaction.
-        row.folderId = 'folder-concurrent-1';
-        return { folderId: 'folder-concurrent-1' };
-      });
-
-      // Both transactions read the same row reference — when the second
-      // transaction picks up its result (after the first releases the
-      // lock), the shared row already carries folderId.
-      db.__state.selectResults.push([row]);
-      db.__state.selectResults.push([row]);
-
-      const [r1, r2] = await Promise.all([
-        ensureRoutineFolder(ROUTINE_ID, {
-          db: db as unknown as EnsureRoutineFolderDeps['db'],
-          provisionDeps,
-          provision,
-        }),
-        ensureRoutineFolder(ROUTINE_ID, {
-          db: db as unknown as EnsureRoutineFolderDeps['db'],
-          provisionDeps,
-          provision,
-        }),
+  describe('race resolution under concurrency (C2)', () => {
+    it('UPDATE-WHERE-NULL race-loss: returns the winner row, abandons our provisioned folder', async () => {
+      // Two callers race on the same routine. Caller B's provision
+      // completes after caller A's UPDATE has already claimed the
+      // folder_id slot. Caller B's UPDATE returns 0 rows (the
+      // `folder_id IS NULL` predicate no longer matches), so it
+      // re-reads and observes A's folderId — abandoning B's freshly-
+      // provisioned folder (orphan, GC'd later).
+      const initialRow = makeRow({ folderId: null });
+      // Step 1: SELECT sees folder_id = null
+      db.__state.selectResults.push([initialRow]);
+      // Step 3: UPDATE returns [] (race-loss — A already claimed the slot)
+      db.__state.updateReturningResults.push([]);
+      // Step 3b: re-read SELECT sees A's published folderId
+      db.__state.selectResults.push([
+        { ...initialRow, folderId: 'folder-winner-A' },
       ]);
 
-      expect(provisionCalls).toBe(1);
-      expect(r1.folderId).toBe('folder-concurrent-1');
-      expect(r2.folderId).toBe('folder-concurrent-1');
-      // Exactly one UPDATE — only the slow path persists; the second call
-      // takes the fast path.
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-loser-B' });
+
+      const result = await ensureRoutineFolder(ROUTINE_ID, {
+        db: db as unknown as EnsureRoutineFolderDeps['db'],
+        provisionDeps,
+        provision,
+      });
+
+      // We followed through with our provision call.
+      expect(provision).toHaveBeenCalledTimes(1);
+      // We attempted the UPDATE.
       expect(db.__queries.update).toHaveLength(1);
-      expect(db.transaction).toHaveBeenCalledTimes(2);
+      // We re-read after the race-loss.
+      expect(db.__queries.select).toHaveLength(2);
+      // We returned the WINNER's folderId, not our own.
+      expect(result.folderId).toBe('folder-winner-A');
+    });
+
+    it('UPDATE-WHERE-NULL race-loss + winner row vanishes: throws 503', async () => {
+      // Pathological case — UPDATE returns 0 rows AND the re-read finds
+      // no row (or a row with folderId still null). Treat as 503 so the
+      // caller retries cleanly.
+      const initialRow = makeRow({ folderId: null });
+      db.__state.selectResults.push([initialRow]);
+      db.__state.updateReturningResults.push([]);
+      // Re-read: no row at all (extremely rare)
+      db.__state.selectResults.push([undefined]);
+
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-loser' });
+
+      await expect(
+        ensureRoutineFolder(ROUTINE_ID, {
+          db: db as unknown as EnsureRoutineFolderDeps['db'],
+          provisionDeps,
+          provision,
+        }),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('UPDATE-WHERE-NULL claim-success: returns the row from RETURNING, no re-read', async () => {
+      // The common slow-path case — no concurrent caller, our UPDATE
+      // claims the slot, RETURNING gives us the freshly-updated row,
+      // and we don't need to re-read.
+      const initialRow = makeRow({ folderId: null });
+      db.__state.selectResults.push([initialRow]);
+      db.__state.updateReturningResults.push([
+        { ...initialRow, folderId: 'folder-claimed' },
+      ]);
+
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-claimed' });
+
+      const result = await ensureRoutineFolder(ROUTINE_ID, {
+        db: db as unknown as EnsureRoutineFolderDeps['db'],
+        provisionDeps,
+        provision,
+      });
+
+      expect(result.folderId).toBe('folder-claimed');
+      // Only the initial SELECT happened — no race-loss re-read.
+      expect(db.__queries.select).toHaveLength(1);
     });
 
     it('two SEQUENTIAL calls — second hits fast path after first persists folder_id', async () => {
+      // First call: slow path
       const row = makeRow({ folderId: null });
-      const provision = jest.fn<any>(async () => {
-        row.folderId = 'folder-seq-1';
-        return { folderId: 'folder-seq-1' };
-      });
       db.__state.selectResults.push([row]);
-      db.__state.selectResults.push([row]);
+      db.__state.updateReturningResults.push([
+        { ...row, folderId: 'folder-seq-1' },
+      ]);
+      // Second call: fast path (DB now has the populated row)
+      db.__state.selectResults.push([{ ...row, folderId: 'folder-seq-1' }]);
+
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-seq-1' });
 
       const r1 = await ensureRoutineFolder(ROUTINE_ID, {
         db: db as unknown as EnsureRoutineFolderDeps['db'],
@@ -466,12 +528,6 @@ describe('ensureRoutineFolder', () => {
   });
 
   // ── A.11 — lazy-provision metrics ─────────────────────────────────
-  //
-  // ensureRoutineFolder emits two metrics on the slow path:
-  //   - counter `routines_lazy_provision_total{result="ok|fail"}`
-  //   - histogram `routines_lazy_provision_duration_ms`
-  // Fast path emits neither — the counter measures slow-path frequency
-  // and the histogram would flatten if we logged sub-ms fast samples.
   describe('lazy provision metrics', () => {
     let counterAdd: ReturnType<typeof jest.fn>;
     let histogramRecord: ReturnType<typeof jest.fn>;
@@ -488,7 +544,11 @@ describe('ensureRoutineFolder', () => {
     });
 
     it('slow-path success: increments counter with result=ok and records duration', async () => {
-      db.__state.selectResults.push([makeRow({ folderId: null })]);
+      const row = makeRow({ folderId: null });
+      db.__state.selectResults.push([row]);
+      db.__state.updateReturningResults.push([
+        { ...row, folderId: 'folder-metric-ok' },
+      ]);
       const provision = jest
         .fn<any>()
         .mockResolvedValue({ folderId: 'folder-metric-ok' });
@@ -502,8 +562,6 @@ describe('ensureRoutineFolder', () => {
       expect(counterAdd).toHaveBeenCalledTimes(1);
       expect(counterAdd).toHaveBeenCalledWith(1, { result: 'ok' });
       expect(histogramRecord).toHaveBeenCalledTimes(1);
-      // Sample is a small non-negative number (mocked clock not used —
-      // assert it's a finite number ≥ 0 to avoid timing flakes).
       const [sample] = histogramRecord.mock.calls[0];
       expect(typeof sample).toBe('number');
       expect(sample).toBeGreaterThanOrEqual(0);
@@ -523,8 +581,6 @@ describe('ensureRoutineFolder', () => {
 
       expect(counterAdd).toHaveBeenCalledTimes(1);
       expect(counterAdd).toHaveBeenCalledWith(1, { result: 'fail' });
-      // Histogram fires on both success and failure — we want to see
-      // fail-mode tail latency on the dashboard.
       expect(histogramRecord).toHaveBeenCalledTimes(1);
     });
 
@@ -542,8 +598,6 @@ describe('ensureRoutineFolder', () => {
     });
 
     it('NotFound (routine missing) emits NEITHER metric', async () => {
-      // 404 is a caller mistake (or a cleanup race), not a Layer 2
-      // signal. The slow-path code never runs, so neither metric fires.
       db.__state.selectResults.push([undefined]);
 
       await expect(
@@ -556,6 +610,26 @@ describe('ensureRoutineFolder', () => {
 
       expect(counterAdd).not.toHaveBeenCalled();
       expect(histogramRecord).not.toHaveBeenCalled();
+    });
+
+    it('race-loss: counter increments with result=ok (race-loss is still a successful outcome)', async () => {
+      const row = makeRow({ folderId: null });
+      db.__state.selectResults.push([row]);
+      db.__state.updateReturningResults.push([]);
+      db.__state.selectResults.push([{ ...row, folderId: 'folder-winner' }]);
+
+      const provision = jest
+        .fn<any>()
+        .mockResolvedValue({ folderId: 'folder-loser' });
+
+      await ensureRoutineFolder(ROUTINE_ID, {
+        db: db as unknown as EnsureRoutineFolderDeps['db'],
+        provisionDeps,
+        provision,
+      });
+
+      expect(counterAdd).toHaveBeenCalledTimes(1);
+      expect(counterAdd).toHaveBeenCalledWith(1, { result: 'ok' });
     });
   });
 });

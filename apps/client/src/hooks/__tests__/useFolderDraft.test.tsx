@@ -200,7 +200,12 @@ describe("useFolderDraft", () => {
     expect(localStorage.getItem(key)).toBeNull();
   });
 
-  it("treats lastCommitTime=null as epoch 0 (any draft wins, stale-alert raised)", () => {
+  it("I5 — lastCommitTime=null loads any extant draft but SUPPRESSES the stale-alert", () => {
+    // Without a commit anchor, stale-alert reconciliation is
+    // impossible. Surfacing the alert anyway (the pre-I5 behaviour)
+    // fired on every fresh page load and trained users to ignore it.
+    // After I5, the hook still loads the draft (so the user doesn't
+    // lose work) but never raises the alert.
     const key = buildFolderDraftKey(DRAFT_KEY, "index.md");
     const draft = { body: "d", frontmatter: {}, savedAt: 100 };
     localStorage.setItem(key, JSON.stringify(draft));
@@ -214,7 +219,20 @@ describe("useFolderDraft", () => {
     );
 
     expect(result.current.draft).toEqual(draft);
-    expect(result.current.hasStaleAlert).toBe(true);
+    expect(result.current.hasStaleAlert).toBe(false);
+  });
+
+  it("I5 — lastCommitTime=null with no extant draft: idle state, no alert", () => {
+    const { result } = renderHook(() =>
+      useFolderDraft(DRAFT_KEY, "index.md", {
+        body: "",
+        frontmatter: {},
+        lastCommitTime: null,
+      }),
+    );
+
+    expect(result.current.draft).toBeNull();
+    expect(result.current.hasStaleAlert).toBe(false);
   });
 
   it("ignores corrupted JSON in storage", () => {

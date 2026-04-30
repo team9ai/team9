@@ -122,7 +122,11 @@ describe('provisionFolder9SkillFolder', () => {
       expect(bodyStart).toBeGreaterThan(frontmatterEnd);
     });
 
-    it('falls back to "Generated from routine: <title>" when description is null', async () => {
+    it('falls back to "Generated from routine - <title>" when description is null', async () => {
+      // C1: fallback uses a dash separator (no `: `) so it parses
+      // cleanly as an unquoted YAML scalar — a colon-followed-by-space
+      // would trigger "Nested mappings are not allowed in compact
+      // mappings" in the validator.
       await provisionFolder9SkillFolder(
         { ...baseRoutine, description: null },
         deps,
@@ -130,11 +134,11 @@ describe('provisionFolder9SkillFolder', () => {
       const skillMd = folder9Client.commit.mock.calls[0][3].files[0]
         .content as string;
       expect(skillMd).toContain(
-        'description: Generated from routine: Daily Standup',
+        'description: Generated from routine - Daily Standup',
       );
     });
 
-    it('falls back to "Generated from routine: <title>" when description is empty/whitespace-only', async () => {
+    it('falls back to "Generated from routine - <title>" when description is empty/whitespace-only', async () => {
       await provisionFolder9SkillFolder(
         { ...baseRoutine, description: '   ' },
         deps,
@@ -142,7 +146,7 @@ describe('provisionFolder9SkillFolder', () => {
       const skillMd = folder9Client.commit.mock.calls[0][3].files[0]
         .content as string;
       expect(skillMd).toContain(
-        'description: Generated from routine: Daily Standup',
+        'description: Generated from routine - Daily Standup',
       );
     });
 
@@ -195,10 +199,19 @@ describe('provisionFolder9SkillFolder', () => {
       );
       const skillMd = folder9Client.commit.mock.calls[0][3].files[0]
         .content as string;
-      // Title flows into the description via fallback; the same newline-strip
-      // and trim rules apply so frontmatter stays single-line.
+      // Title flows into the description via fallback; the same
+      // newline-strip and trim rules apply so frontmatter stays
+      // single-line. Note the title still contains a colon (`: `) so
+      // the rendered description has one too — this is a known sharp
+      // edge: a title with `: ` makes the auto-generated SKILL.md
+      // unparseable. The fallback's own `:` separator was changed to
+      // `-` to avoid this problem (see C1), but we can't sanitize
+      // user-provided title strings without changing the agent
+      // contract. validateSkillMd will still reject such files; the
+      // user has to either set a description manually or rename the
+      // routine.
       expect(skillMd).toMatch(
-        /description: Generated from routine: Routine: weekly report — v2\n/,
+        /description: Generated from routine - Routine: weekly report — v2\n/,
       );
     });
   });
