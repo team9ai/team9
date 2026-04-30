@@ -332,9 +332,15 @@ describe('Routine Creation Flow — integration', () => {
     // returning 1-row array means we won the race
     db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
-    // A.8: ensureRoutineFolder fast path — SELECT ... FOR UPDATE returns
-    // a row with a populated folderId so no provision is invoked.
+    // A.8 / C2: ensureRoutineFolder fast path — uses optimistic
+    // `.limit(1)` (no row lock). Returns a row with a populated
+    // folderId so no provision is invoked. Vestigial `.for('update')`
+    // mock kept for any code path that still references it (none in
+    // current code).
     db.for.mockResolvedValueOnce([
+      { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
+    ]);
+    db.limit.mockResolvedValueOnce([
       { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
     ]);
 
@@ -480,10 +486,12 @@ describe('Routine Creation Flow — integration', () => {
       },
     } as any);
 
-    // Mock: SELECT ... FOR UPDATE inside ensureRoutineFolder — fast path
-    // returns the same row so `folderId` is already populated and no
-    // provision call is made.
+    // C2: ensureRoutineFolder optimistic SELECT — fast path returns a
+    // row with populated folderId so no provision call is made.
+    // Vestigial `.for('update')` left in case any test path still
+    // reaches the legacy mock.
     db.for.mockResolvedValueOnce([COMPLETED_DRAFT] as any);
+    db.limit.mockResolvedValueOnce([COMPLETED_DRAFT] as any);
 
     // Mock: db.update().set().where().returning() → upcoming routine
     db.returning.mockResolvedValueOnce([UPCOMING_ROUTINE] as any);
@@ -561,8 +569,11 @@ describe('Routine Creation Flow — integration', () => {
     // Atomic claim UPDATE returning 1 row = won the race
     db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }] as any);
 
-    // A.8: ensureRoutineFolder fast path
+    // A.8 / C2: ensureRoutineFolder fast path (optimistic .limit(1))
     db.for.mockResolvedValueOnce([
+      { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
+    ]);
+    db.limit.mockResolvedValueOnce([
       { id: ROUTINE_ID, folderId: 'folder-existing' } as any,
     ]);
 

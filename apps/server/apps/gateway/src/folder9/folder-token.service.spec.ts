@@ -427,7 +427,80 @@ describe('FolderTokenService', () => {
       expect(db.select).not.toHaveBeenCalled();
     });
 
-    it('does not gate when caller tenant is undefined (community/edge call)', async () => {
+    it('I8 — fails closed (403) when caller tenant is undefined', async () => {
+      // After I8, missing tenant context is no longer a fail-soft
+      // bypass. Any caller without a tenant must be rejected with a
+      // structured log. Bot/routine fixtures are intentionally not
+      // queued — the request must bail out before any DB lookup.
+      await expect(
+        service.issueToken(makeDto(), BOT_USER_ID, undefined),
+      ).rejects.toThrow(ForbiddenException);
+      // The reason string is part of the public 403 contract — clients
+      // distinguish "tenant missing" from "tenant mismatch" by message.
+      await expect(
+        service.issueToken(makeDto(), BOT_USER_ID, undefined),
+      ).rejects.toThrow(/tenant context missing/);
+      // Bail before any DB lookup.
+      expect(db.select).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── I7: stub-authz scopes are read-only ────────────────────────────────
+  //
+  // session.{tmp,home}, agent.{tmp,home}, user.{tmp,home},
+  // routine.{tmp,home} ride a stub authz path until real RBAC lands.
+  // Until then, write/propose tokens through this endpoint would
+  // silently widen the trust boundary, so the v1 endpoint caps the
+  // permitted action at `read`. routine.document keeps its own real
+  // authz and is unaffected.
+  describe('I7 — stub-authz scopes are read-only', () => {
+    const STUB_KEYS = [
+      'session.tmp',
+      'session.home',
+      'agent.tmp',
+      'agent.home',
+      'user.tmp',
+      'user.home',
+      'routine.tmp',
+      'routine.home',
+    ] as const;
+
+    for (const logicalKey of STUB_KEYS) {
+      it(`403: ${logicalKey} rejects permission=write before any token mint`, async () => {
+        // The I7 gate runs after the bot identity lookup but before
+        // any logical-key authz (mount row check, ownership, etc).
+        // Each `await ... rejects` consumes one full call, so we
+        // queue a bot row per call here (two assertions = two calls).
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        const dto = makeDto({
+          logicalKey,
+          permission: 'write',
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(ForbiddenException);
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(/stub authz; only read permitted/);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
+      it(`403: ${logicalKey} rejects permission=propose`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        const dto = makeDto({
+          logicalKey,
+          permission: 'propose',
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(/stub authz; only read permitted/);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+    }
+
+    it('routine.document is NOT a stub-authz scope: write is still allowed', async () => {
+      // I7 must not regress routine.document, which has real authz.
       queueBot({ userId: BOT_USER_ID });
       queueRoutine({
         id: ROUTINE_ID,
@@ -435,9 +508,12 @@ describe('FolderTokenService', () => {
         folderId: FOLDER_ID,
       });
 
-      await expect(
-        service.issueToken(makeDto(), BOT_USER_ID, undefined),
-      ).resolves.toBeDefined();
+      const dto = makeDto({
+        logicalKey: 'routine.document',
+        permission: 'write',
+      });
+      const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
+      expect(result.token).toBe('opaque-token');
     });
   });
 
@@ -478,9 +554,12 @@ describe('FolderTokenService', () => {
     it('rejects when caller bot is not active or not found', async () => {
       queueBot(null);
 
+      // Use `permission: 'read'` so the request bypasses the I7
+      // stub-authz read-only gate and actually exercises the bot
+      // identity lookup (the next gate after the early checks).
       await expect(
         service.issueToken(
-          makeDto({ logicalKey: 'session.tmp' }),
+          makeDto({ logicalKey: 'session.tmp', permission: 'read' }),
           BOT_USER_ID,
           TENANT_ID,
         ),
@@ -513,7 +592,12 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
-        const dto = makeDto({ logicalKey });
+        // Use `permission: 'read'` here so the rejection path runs the
+        // real authz logic (mount row absent → 403). I7 caps stub-authz
+        // scopes at read; with the default 'write' the test would
+        // short-circuit at the I7 gate and never exercise the mount
+        // check we're trying to verify.
+        const dto = makeDto({ logicalKey, permission: 'read' });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -524,7 +608,7 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount({ scopeId: 'other-agent' });
 
-        const dto = makeDto({ logicalKey });
+        const dto = makeDto({ logicalKey, permission: 'read' });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -535,7 +619,7 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: null });
         queueMount({ scopeId: AGENT_ID });
 
-        const dto = makeDto({ logicalKey });
+        const dto = makeDto({ logicalKey, permission: 'read' });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -570,7 +654,12 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
-        const dto = makeDto({ logicalKey, sessionId: DM_SESSION_ID });
+        // permission: 'read' — see the agent.* tests above for rationale.
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -581,7 +670,11 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount({ scopeId: 'whatever' });
 
-        const dto = makeDto({ logicalKey, sessionId: 'garbage-session-id' });
+        const dto = makeDto({
+          logicalKey,
+          sessionId: 'garbage-session-id',
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -592,7 +685,11 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: 'wrong-agent' } });
         queueMount({ scopeId: DM_SESSION_ID });
 
-        const dto = makeDto({ logicalKey, sessionId: DM_SESSION_ID });
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -603,7 +700,11 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount({ scopeId: 'team9/tenant-1/agent-1/dm/other-channel' });
 
-        const dto = makeDto({ logicalKey, sessionId: DM_SESSION_ID });
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -640,10 +741,12 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
+        // permission: 'read' required by I7 — see agent.* tests.
         const dto = makeDto({
           logicalKey,
           sessionId: DM_SESSION_ID,
           userId: USER_ID,
+          permission: 'read',
         });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -659,6 +762,7 @@ describe('FolderTokenService', () => {
           logicalKey,
           sessionId: ROUTINE_SESSION_ID,
           userId: USER_ID,
+          permission: 'read',
         });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -674,6 +778,7 @@ describe('FolderTokenService', () => {
           logicalKey,
           sessionId: DM_SESSION_ID,
           userId: undefined,
+          permission: 'read',
         });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -690,6 +795,7 @@ describe('FolderTokenService', () => {
           logicalKey,
           sessionId: DM_SESSION_ID,
           userId: USER_ID,
+          permission: 'read',
         });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -706,6 +812,7 @@ describe('FolderTokenService', () => {
           logicalKey,
           sessionId: DM_SESSION_ID,
           userId: USER_ID,
+          permission: 'read',
         });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -715,24 +822,32 @@ describe('FolderTokenService', () => {
     }
   });
 
-  // ── TTL on real authz path (1h propose) ───────────────────────────────────
-
+  // ── TTL on real authz path ────────────────────────────────────────────────
+  //
+  // After I7, stub-authz logical keys (agent.*, session.*, user.*,
+  // routine.{tmp,home}) are read-only. Read tokens use a 6h TTL on
+  // those scopes. (The `propose` 1h-TTL path remains exercised
+  // indirectly via routine.document tests above.)
   describe('TTL on real authz path', () => {
-    it('uses 1h propose TTL on agent.home with permission=propose', async () => {
+    it('uses 6h read TTL on agent.home with permission=read', async () => {
       queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
       queueMount({ scopeId: AGENT_ID });
       const before = Date.now();
 
       const dto = makeDto({
         logicalKey: 'agent.home',
-        permission: 'propose',
+        permission: 'read',
       });
       await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
 
       const mintArg = folder9Client.createToken.mock.calls[0][0];
       const expiresAtMs = Date.parse(mintArg.expires_at as string);
-      expect(expiresAtMs).toBeGreaterThanOrEqual(before + 60 * 60_000 - 5_000);
-      expect(expiresAtMs).toBeLessThanOrEqual(Date.now() + 60 * 60_000 + 5_000);
+      expect(expiresAtMs).toBeGreaterThanOrEqual(
+        before + 6 * 60 * 60_000 - 5_000,
+      );
+      expect(expiresAtMs).toBeLessThanOrEqual(
+        Date.now() + 6 * 60 * 60_000 + 5_000,
+      );
     });
   });
 
@@ -763,7 +878,11 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
-        const dto = makeDto({ logicalKey, routineId: ROUTINE_ID });
+        const dto = makeDto({
+          logicalKey,
+          routineId: ROUTINE_ID,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -774,7 +893,11 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount({ scopeId: ROUTINE_ID });
 
-        const dto = makeDto({ logicalKey, routineId: undefined });
+        const dto = makeDto({
+          logicalKey,
+          routineId: undefined,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -786,7 +909,11 @@ describe('FolderTokenService', () => {
         queueMount({ scopeId: ROUTINE_ID });
         queueRoutineForBot(null);
 
-        const dto = makeDto({ logicalKey, routineId: ROUTINE_ID });
+        const dto = makeDto({
+          logicalKey,
+          routineId: ROUTINE_ID,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);
@@ -798,7 +925,11 @@ describe('FolderTokenService', () => {
         queueMount({ scopeId: 'other-routine' });
         queueRoutineForBot({ id: ROUTINE_ID });
 
-        const dto = makeDto({ logicalKey, routineId: ROUTINE_ID });
+        const dto = makeDto({
+          logicalKey,
+          routineId: ROUTINE_ID,
+          permission: 'read',
+        });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
         ).rejects.toThrow(ForbiddenException);

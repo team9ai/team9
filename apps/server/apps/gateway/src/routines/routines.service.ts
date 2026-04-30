@@ -134,133 +134,165 @@ export class RoutinesService {
     );
     const documentId = doc.id;
 
-    // ── Atomic INSERT + folder9 provision + UPDATE ──────────────────
+    // ── INSERT (short tx) → provision (no tx) → UPDATE folderId (short tx) ──
     //
-    // Wrapping the routine INSERT and the folder9 provision in a single DB
-    // transaction guarantees one of two outcomes:
-    //   (a) routine row exists with non-null `folder_id` → fully provisioned
-    //   (b) no routine row exists at all → folder9 was unreachable
+    // Previously this whole flow ran inside a single `db.transaction()`,
+    // pinning a Postgres connection across folder9's 3 sequential HTTP
+    // roundtrips (~75s worst-case timeout). That serialized concurrent
+    // reads on the same routine and starved the pool under folder9
+    // outages. The current shape is:
     //
-    // We never persist a routine row with `folder_id IS NULL` from this
-    // path. The half-baked state (folder created on folder9 but DB
-    // committed without writing the id back) is impossible because the
-    // UPDATE happens *inside* the same JS transaction-callback before
-    // commit, so a network failure between createFolder and commit either
-    // throws (causing rollback) or completes successfully and lets the
-    // tx commit cleanly.
+    //   1. Short tx (or implicit autocommit): INSERT routine row with
+    //      folderId NULL. Commits immediately so the row is visible.
+    //   2. NO TX: provision folder9 (long HTTP I/O).
+    //   3. Short UPDATE: claim folderId. If provision/UPDATE fails AFTER
+    //      the INSERT, the row exists with NULL folderId — `ensureRoutineFolder`
+    //      will lazy-provision on the next access, so the orphan-row
+    //      case heals itself naturally.
     //
-    // Failure modes:
-    // - folder9 step fails (createFolder / createToken / commit) → caught
-    //   here, logged, then rethrown as 503. The thrown error escapes the
-    //   transaction callback, so Drizzle issues ROLLBACK. The orphan
-    //   folder (if createFolder succeeded but commit failed) is reaped
-    //   later by the orphan GC sweep (see design §11).
-    // - DB INSERT fails → bubbles up unchanged (e.g., FK violation on
-    //   botId → 500 / BadRequest depending on the caller's error mapper).
-    //   No folder9 call was made, so nothing leaks.
+    // Caller-facing contract is preserved: folder9 failure ⇒ 503, and
+    // there is no half-baked routine in the caller's view. We achieve
+    // that by best-effort DELETE-ing the just-INSERTed row before
+    // throwing; if the DELETE itself fails we still throw 503 (lazy
+    // provision will heal the row on next access — the routine reappears
+    // for the user with the same id, but that's acceptable: the next
+    // /v1/routines/:id read transparently provisions and returns it).
     //
-    // The trigger creation (`createBatch`) intentionally runs *outside*
-    // the transaction. It does not affect the routine.folder_id invariant
-    // and the existing behavior is "create routine first, then triggers
-    // best-effort" — preserving that means a trigger insert failure
-    // surfaces as a 500 but the routine row already has its folderId set,
-    // which is the desired half-success state (caller can retry trigger
-    // setup against an existing routine).
-    return await this.db.transaction(async (tx) => {
-      const insertValues: schema.NewRoutine = {
-        id: routineId,
-        tenantId,
-        botId: dto.botId ?? null,
-        creatorId: userId,
-        title: dto.title,
-        description: dto.description ?? null,
-        scheduleType: dto.scheduleType ?? 'once',
-        scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
-        documentId,
-      };
-      // status, sourceRef, and folderId are new schema columns added in
-      // Task 0 / Task A.1 — cast to bypass stale type resolution in pnpm
-      // workspaces / worktrees environment.
-      (insertValues as Record<string, unknown>).status = status;
-      (insertValues as Record<string, unknown>).sourceRef =
-        options?.sourceRef ?? null;
-      (insertValues as Record<string, unknown>).folderId = null;
+    // Triggers: drafts skip trigger registration (existing rule). For
+    // non-drafts, trigger creation runs AFTER the row has its folderId
+    // claimed — a trigger failure leaves a fully-provisioned routine
+    // (the caller can retry trigger setup later), matching the legacy
+    // best-effort behaviour.
+    const insertValues: schema.NewRoutine = {
+      id: routineId,
+      tenantId,
+      botId: dto.botId ?? null,
+      creatorId: userId,
+      title: dto.title,
+      description: dto.description ?? null,
+      scheduleType: dto.scheduleType ?? 'once',
+      scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
+      documentId,
+    };
+    // status, sourceRef, and folderId are new schema columns added in
+    // Task 0 / Task A.1 — cast to bypass stale type resolution in pnpm
+    // workspaces / worktrees environment.
+    (insertValues as Record<string, unknown>).status = status;
+    (insertValues as Record<string, unknown>).sourceRef =
+      options?.sourceRef ?? null;
+    (insertValues as Record<string, unknown>).folderId = null;
 
-      const [routine] = await tx
-        .insert(schema.routines)
-        .values(insertValues)
-        .returning();
+    // ── Step 1: INSERT (immediate commit, folderId NULL) ──
+    const [routine] = await this.db
+      .insert(schema.routines)
+      .values(insertValues)
+      .returning();
 
-      let provisioned: { folderId: string };
+    // ── Step 2: provision OUTSIDE any tx ──
+    let provisioned: { folderId: string };
+    try {
+      provisioned = await provisionFolder9SkillFolder(
+        {
+          id: routine.id,
+          title: routine.title,
+          description: routine.description,
+          // documentContent is a virtual field on the helper's input;
+          // pass null so the helper emits an "Initial scaffold" commit
+          // message and an empty SKILL.md body.
+          documentContent: null,
+        },
+        {
+          folder9Client: this.folder9Client,
+          workspaceId: tenantId,
+          // Folder9ClientService reads FOLDER9_PSK from process.env;
+          // this field is retained for forward-compat with the helper's
+          // public deps shape but currently unused by the underlying
+          // client. See provision-routine-folder.ts header.
+          psk: '',
+        },
+      );
+    } catch (err) {
+      // Metric: per-failure counter that pairs with the request-rate
+      // alert in §10.8 of the design doc.
+      appMetrics.routinesCreateFolder9FailureTotal.add(1);
+      this.logger.warn(
+        `create: folder9 provision failed for routine ${routine.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+
+      // Best-effort cleanup: delete the just-INSERTed row so the caller
+      // doesn't see a half-baked routine. If this DELETE itself fails
+      // we still throw 503 — lazy-provision in `ensureRoutineFolder`
+      // will heal the row on next access.
       try {
-        provisioned = await provisionFolder9SkillFolder(
-          {
-            id: routine.id,
-            title: routine.title,
-            description: routine.description,
-            // documentContent is a virtual field on the helper's input;
-            // pass null so the helper emits an "Initial scaffold" commit
-            // message and an empty SKILL.md body.
-            documentContent: null,
-          },
-          {
-            folder9Client: this.folder9Client,
-            workspaceId: tenantId,
-            // Folder9ClientService reads FOLDER9_PSK from process.env;
-            // this field is retained for forward-compat with the helper's
-            // public deps shape but currently unused by the underlying
-            // client. See provision-routine-folder.ts header.
-            psk: '',
-          },
-        );
-      } catch (err) {
-        // Metric: per-failure counter that pairs with the
-        // request-rate alert in §10.8 of the design doc (5-min rate >
-        // 1% pages on-call). Increment BEFORE the throw — once the
-        // 503 escapes, the OTEL pipeline already has the sample.
-        appMetrics.routinesCreateFolder9FailureTotal.add(1);
-        this.logger.warn(
-          `create: folder9 provision failed for routine ${routine.id}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-        // Re-throw as 503 so the API caller gets a retryable signal. The
-        // throw escapes the transaction callback → Drizzle ROLLBACKs → no
-        // routine row persists.
-        throw new ServiceUnavailableException(
-          'folder storage temporarily unavailable, please retry',
+        await this.db
+          .delete(schema.routines)
+          .where(eq(schema.routines.id, routine.id));
+      } catch (delErr) {
+        this.logger.error(
+          `create: best-effort cleanup DELETE failed for routine ${
+            routine.id
+          } after folder9 failure: ${
+            delErr instanceof Error ? delErr.message : String(delErr)
+          }. Lazy provision will heal on next access.`,
         );
       }
 
-      await tx
+      throw new ServiceUnavailableException(
+        'folder storage temporarily unavailable, please retry',
+      );
+    }
+
+    // ── Step 3: short UPDATE to claim folderId ──
+    try {
+      await this.db
         .update(schema.routines)
         .set({
           folderId: provisioned.folderId,
           updatedAt: new Date(),
         } as Record<string, unknown>)
         .where(eq(schema.routines.id, routine.id));
-
-      // Skip trigger registration for drafts. Triggers are created
-      // outside the routine.folder_id invariant — a trigger failure must
-      // NOT roll back the now-committed folder. Run AFTER the tx commits
-      // (i.e., after this callback returns) by deferring with the
-      // post-commit await below.
-      //
-      // We still call this inside the transaction callback because the
-      // existing fixture mocks (and the createBatch implementation) do
-      // not rely on the outer `tx` handle. Trigger writes use the same
-      // injected `db`, which is fine — they participate in their own
-      // transactional scope, not this one.
-      if ((status as string) !== 'draft' && dto.triggers?.length) {
-        await this.routineTriggersService.createBatch(
-          routineId,
-          dto.triggers,
-          tenantId,
+    } catch (updateErr) {
+      // The folderId UPDATE failed AFTER folder9 provisioning succeeded.
+      // The folder is already created on folder9; we just couldn't
+      // record its id locally. Log loudly and rethrow as 503 — the
+      // orphan folder will be reaped by GC, and `ensureRoutineFolder`
+      // will provision a fresh folder on the next access.
+      appMetrics.routinesCreateFolder9FailureTotal.add(1);
+      this.logger.error(
+        `create: UPDATE folderId failed for routine ${routine.id} after folder9 success (folder ${provisioned.folderId} will be GC'd): ${
+          updateErr instanceof Error ? updateErr.message : String(updateErr)
+        }`,
+      );
+      try {
+        await this.db
+          .delete(schema.routines)
+          .where(eq(schema.routines.id, routine.id));
+      } catch (delErr) {
+        this.logger.error(
+          `create: best-effort cleanup DELETE failed for routine ${
+            routine.id
+          } after UPDATE failure: ${
+            delErr instanceof Error ? delErr.message : String(delErr)
+          }`,
         );
       }
+      throw new ServiceUnavailableException(
+        'folder storage temporarily unavailable, please retry',
+      );
+    }
 
-      return { ...routine, folderId: provisioned.folderId };
-    });
+    // ── Triggers: best-effort, post-folder-claim ──
+    if ((status as string) !== 'draft' && dto.triggers?.length) {
+      await this.routineTriggersService.createBatch(
+        routineId,
+        dto.triggers,
+        tenantId,
+      );
+    }
+
+    return { ...routine, folderId: provisioned.folderId };
   }
 
   async list(
@@ -978,33 +1010,14 @@ export class RoutinesService {
       }
     }
 
-    // Check document content — documentContent lives on the linked Document,
-    // not on the routines row.
-    let documentContentEmpty = true;
-    if (routine.documentId) {
-      try {
-        const doc: DocumentResponse = await this.documentsService.getById(
-          routine.documentId,
-        );
-        if (doc.tenantId !== tenantId) {
-          this.logger.warn(
-            `completeCreation: routine ${routineId} document ${routine.documentId} tenant mismatch (got ${doc.tenantId}, expected ${tenantId}); treating content as empty`,
-          );
-          // documentContentEmpty remains true → will push error below
-        } else {
-          const content = doc.currentVersion?.content;
-          if (content && content.trim() !== '') {
-            documentContentEmpty = false;
-          }
-        }
-      } catch {
-        // Doc not found — treat as empty content
-        documentContentEmpty = true;
-      }
-    }
-    if (documentContentEmpty) {
-      errors.push('documentContent is required');
-    }
+    // NOTE: the legacy "documentContent is required" gate was REMOVED
+    // (I1 from code review). With A.4 the routine body of truth lives in
+    // SKILL.md inside the folder9 folder; the legacy `documents` table
+    // is a stub for migration compatibility and no longer carries
+    // authoritative content. The "agent never wrote anything" case is
+    // covered by Step 5b (SKILL.md validation) via the `body_empty` /
+    // `body_too_short` rules, so a separate documents-table gate would
+    // double-fail new-world routines.
 
     if (errors.length > 0) {
       throw new BadRequestException({
@@ -1098,7 +1111,22 @@ export class RoutinesService {
     // value (the row was SELECT ... FOR UPDATE locked at provision time),
     // so it cannot be stale relative to whatever the agent saw when it
     // wrote SKILL.md.
-    const expectedDescription = ensured.description ?? '';
+    //
+    // Fallback policy MUST mirror provisionFolder9SkillFolder's
+    // normalize-then-fallback logic — otherwise a routine with a null
+    // (or whitespace-only) description gets seeded with one string in
+    // SKILL.md, but the validator expects a different one, which
+    // fails BOTH `description_empty` (non-empty required) AND
+    // `description_mismatch` (must equal). The fallback uses a dash
+    // separator (no `: `) because a colon-followed-by-space in an
+    // unquoted YAML scalar parses as a nested mapping and breaks
+    // validation. Keep this string in sync with the fallback in
+    // provision-routine-folder.ts#provisionFolder9SkillFolder.
+    const trimmedDescription = ensured.description?.trim() ?? '';
+    const expectedDescription =
+      trimmedDescription.length > 0
+        ? trimmedDescription
+        : `Generated from routine - ${ensured.title}`;
     const validation = validateSkillMd(
       skillMdContent,
       expectedSkillName,

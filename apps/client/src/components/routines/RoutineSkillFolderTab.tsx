@@ -49,7 +49,8 @@ export interface RoutineSkillFolderTabProps {
  * sets `approvalMode: "review"`.
  */
 export function RoutineSkillFolderTab({ routine }: RoutineSkillFolderTabProps) {
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, isLoading: isCurrentUserLoading } =
+    useCurrentUser();
   const workspaceId = useSelectedWorkspaceId();
 
   // v1 permission: tenant membership ↔ write permission. The current
@@ -59,10 +60,13 @@ export function RoutineSkillFolderTab({ routine }: RoutineSkillFolderTabProps) {
   // enforces this on every routine endpoint. Authenticated user is
   // therefore equivalent to tenant member for this surface.
   //
-  // The server enforces the same rule on every folder endpoint, so
-  // the worst case is a ~ms-window where the user sees write-mode
-  // affordances after losing access — the API call surfaces a 403
-  // and the shell renders a friendly error toast.
+  // I12 — flicker guard: while `useCurrentUser` is still loading
+  // (data: undefined), the old code dropped to read-mode for one
+  // render, mounted the editor, then re-rendered into write-mode once
+  // the user resolved. That's expensive (DocumentEditor's mount path
+  // is non-trivial) AND visibly jittery. Defer mounting the editor
+  // until we've actually resolved the user — see `if
+  // (isCurrentUserLoading)` below.
   const canEdit = !!currentUser;
   const permission: Folder9Permission = canEdit ? "write" : "read";
 
@@ -159,6 +163,23 @@ export function RoutineSkillFolderTab({ routine }: RoutineSkillFolderTabProps) {
         data-testid="routine-skill-folder-empty"
       >
         Skill folder is not yet provisioned.
+      </div>
+    );
+  }
+
+  // I12 — defer the editor mount while currentUser is loading.
+  // Rendering with `canEdit = false` here would briefly mount the
+  // DocumentEditor in read-mode, then re-mount it in write-mode once
+  // the user query resolves. That's flicker-y AND expensive. Render a
+  // lightweight placeholder until we know what permission to mount
+  // with.
+  if (isCurrentUserLoading) {
+    return (
+      <div
+        className="p-4 text-xs text-muted-foreground"
+        data-testid="routine-skill-folder-loading"
+      >
+        Loading…
       </div>
     );
   }

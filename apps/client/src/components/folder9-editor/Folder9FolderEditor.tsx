@@ -372,21 +372,34 @@ export function Folder9FolderEditor({
       try {
         const path = await imageUpload.upload(file, "attachments");
         const markdown = `![${file.name}](${path})`;
-        const current = latestBodyRef.current;
-        const newBody = current
-          ? `${current}\n\n${markdown}\n`
+        if (readOnly) return;
+        // I4 — race-safe append.
+        //
+        // Two concurrent paste-uploads completing near-simultaneously
+        // both used to read `latestBodyRef.current`, append, then write
+        // back. Reading + writing the ref in two non-atomic steps lets
+        // upload B clobber upload A's append. Fix: do BOTH the read
+        // and the write on the ref atomically so each upload sees the
+        // accumulated body. Then mirror the same value to React state
+        // (functional setter avoids the analogous race in
+        // setState-from-stale-closure) and to the draft store. The
+        // ref is the single source of truth for "current accumulated
+        // body" while edits are in flight.
+        const next = latestBodyRef.current
+          ? `${latestBodyRef.current}\n\n${markdown}\n`
           : `${markdown}\n`;
-        handleBodyChange(newBody);
+        latestBodyRef.current = next;
+        setBody(next);
+        setDraft({ body: next, frontmatter: {} });
       } catch (err) {
         notify(
           err instanceof Error ? err.message : t("editor.notifyUploadFailed"),
         );
       }
     },
-    // handleBodyChange's identity intentionally omitted — we read the
-    // latest body via ref so the closure stays stable across renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [imageUpload, t],
+    // setBody/setDraft are stable; readOnly may flip between renders so
+    // include it. handleBodyChange is no longer used here.
+    [imageUpload, readOnly, setDraft, t],
   );
 
   function handlePaste(e: React.ClipboardEvent<HTMLDivElement>) {

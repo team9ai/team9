@@ -22,15 +22,34 @@ export interface FolderDraft {
  * Server snapshot shape `useFolderDraft` expects from its caller. Callers
  * can pass `null` before the server fetch resolves; the hook will no-op
  * (no draft load, no stale-alert) until the snapshot arrives.
+ *
+ * # `lastCommitTime` semantics
+ *
+ * - **ISO8601 string** (e.g. `"2026-04-30T12:34:56Z"`): the timestamp of
+ *   the last commit that authored the server's current copy. The hook
+ *   compares the draft's `savedAt` against this to decide whether to
+ *   raise the stale-alert.
+ *
+ * - **`null`**: the caller has no per-blob commit metadata. The generic
+ *   shell API (folder9-folder.ts) doesn't carry it on `BlobDto`, so
+ *   shells that wrap that API pass `null`.
+ *
+ *   I5: when `lastCommitTime === null`, stale-alert reconciliation is
+ *   IMPOSSIBLE (we have no anchor to compare the draft against), so the
+ *   hook treats this as "load any existing draft, but never raise the
+ *   stale-alert". The previous behaviour (treat null as epoch 0) caused
+ *   any extant draft to alert as "newer than server", which fired
+ *   spuriously on every fresh page load and trained users to ignore
+ *   the alert.
  */
 export interface FolderDraftServerSnapshot {
   body: string;
   frontmatter: Record<string, unknown>;
   /**
    * RFC3339 / ISO8601 timestamp of the last commit that authored the
-   * server's current copy. `null` is treated as epoch 0 (a server-side
-   * "we have no history" sentinel) so any extant draft wins and is
-   * surfaced via the stale-alert.
+   * server's current copy. `null` means "we have no commit metadata to
+   * reconcile against" — see the type-doc above for the suppress-alert
+   * semantics.
    */
   lastCommitTime: string | null;
 }
@@ -126,11 +145,21 @@ export function useFolderDraft(
   // Depend on the *value* we care about (the commit timestamp), not the
   // snapshot object's reference. Callers often pass a fresh literal every
   // render — keying on the reference would cause the effect to fire every
-  // render and re-set state, producing an infinite render loop. We also
-  // need to know whether we've seen *any* snapshot at all, so we coalesce
-  // null / string into a single comparable scalar.
-  const snapshotSignal =
-    serverSnapshot == null ? null : (serverSnapshot.lastCommitTime ?? "");
+  // render and re-set state, producing an infinite render loop.
+  //
+  // I5: distinguish three cases via a tagged scalar:
+  //   - `null`              → caller hasn't supplied a snapshot yet
+  //                          (don't reconcile, don't load drafts)
+  //   - `"NO_RECONCILE"`    → snapshot is present but `lastCommitTime`
+  //                          is null. We CAN load drafts but stale-
+  //                          alert reconciliation is impossible —
+  //                          suppress the alert.
+  //   - any other string    → ISO8601 timestamp; compare with draft.savedAt.
+  const NO_RECONCILE = "NO_RECONCILE" as const;
+  const snapshotSignal: string | typeof NO_RECONCILE | null =
+    serverSnapshot == null
+      ? null
+      : (serverSnapshot.lastCommitTime ?? NO_RECONCILE);
 
   // Load existing draft (if any) and reconcile with the server snapshot
   // whenever the key or the commit signal changes. A fresh server refetch
@@ -148,8 +177,17 @@ export function useFolderDraft(
       setHasStaleAlert(false);
       return;
     }
-    const serverTime =
-      snapshotSignal === "" ? 0 : new Date(snapshotSignal).getTime();
+    if (snapshotSignal === NO_RECONCILE) {
+      // I5: we have a draft but no commit anchor to compare against.
+      // Load the draft (so the user doesn't lose work) but DO NOT
+      // raise the stale-alert — we don't actually know whether the
+      // draft is newer than the server's current copy. Spuriously
+      // firing the alert here trained users to ignore it.
+      setDraftState(existing);
+      setHasStaleAlert(false);
+      return;
+    }
+    const serverTime = new Date(snapshotSignal).getTime();
     if (existing.savedAt > serverTime) {
       setDraftState(existing);
       setHasStaleAlert(true);

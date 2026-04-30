@@ -171,10 +171,20 @@ export async function provisionFolder9SkillFolder(
   // Step 3 — compose SKILL.md and commit it as the seed of the folder.
   // Fallback fires whenever the description is null OR whitespace-only after
   // newlines collapse — both cases produce no useful frontmatter content.
+  //
+  // Fallback policy: use a dash-separated form (no `: `) so the YAML
+  // parser at validation time treats the value as a plain unquoted
+  // scalar. A colon followed by space inside an unquoted scalar
+  // triggers `Nested mappings are not allowed in compact mappings`,
+  // which would fail validateSkillMd before the agent can even read
+  // the file. routines.service.ts#completeCreation uses the same
+  // string when computing `expectedDescription` for the
+  // mismatch-comparison — keep both call sites in sync if you ever
+  // change this format.
   const normalized = normalizeDescription(routine.description ?? '');
   const description = normalized
     ? normalized
-    : normalizeDescription(`Generated from routine: ${routine.title}`);
+    : normalizeDescription(`Generated from routine - ${routine.title}`);
 
   const body = routine.documentContent ?? '';
   const skillMd = composeSkillMd({
