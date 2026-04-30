@@ -68,12 +68,23 @@ describe("buildToolDisplayState", () => {
 
   it("renders a missing result as running", () => {
     const state = buildToolDisplayState({
-      callMetadata: callMeta({ toolArgsText: '{"message":"hel' }),
+      callMetadata: callMeta({
+        toolArgs: undefined,
+        toolArgsText: '{"message":"hel',
+      }),
     });
 
     expect(state.status).toBe("loading");
     expect(state.isRunning).toBe(true);
     expect(state.argsText).toBe('{"message":"hel');
+  });
+
+  it("uses structured args for expanded text when partial args text also exists", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({ toolArgsText: '{"message":"hel' }),
+    });
+
+    expect(state.argsText).toBe(JSON.stringify({ message: "hello" }, null, 2));
   });
 
   it("uses completed result as success when no failure evidence exists", () => {
@@ -86,5 +97,16 @@ describe("buildToolDisplayState", () => {
     expect(state.status).toBe("success");
     expect(state.isSuccess).toBe(true);
     expect(state.indicator).toBe("check");
+  });
+
+  it("keeps explicitly successful results as success when content has an error field", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta(),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: '{"error":"domain field, not failure"}',
+    });
+
+    expect(state.status).toBe("success");
+    expect(state.isSuccess).toBe(true);
   });
 });

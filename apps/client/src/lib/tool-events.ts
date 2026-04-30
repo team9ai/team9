@@ -69,6 +69,15 @@ function detectLegacyFailure(resultText: string): string | undefined {
   return findFailure(parsed);
 }
 
+function canInferLegacyFailure(
+  metadata: AgentEventMetadata | undefined,
+): boolean {
+  return !(
+    metadata?.success === true &&
+    (metadata.status === "completed" || metadata.status === "resolved")
+  );
+}
+
 function formatArgs(toolName: string, metadata: AgentEventMetadata): string {
   if (metadata.toolArgs) return formatParams(toolName, metadata.toolArgs);
   return metadata.toolArgsText ?? "";
@@ -87,9 +96,10 @@ export function buildToolDisplayState({
     resultMetadata?.status === "failed" ||
     resultMetadata?.status === "cancelled" ||
     resultMetadata?.status === "timeout";
-  const legacyFailure = resultText
-    ? detectLegacyFailure(resultText)
-    : undefined;
+  const legacyFailure =
+    resultText && canInferLegacyFailure(resultMetadata)
+      ? detectLegacyFailure(resultText)
+      : undefined;
   const errorMessage =
     resultMetadata?.errorMessage ?? legacyFailure ?? undefined;
 
@@ -109,11 +119,9 @@ export function buildToolDisplayState({
     indicator:
       status === "success" ? "check" : status === "error" ? "cross" : "none",
     argsSummary: formatArgs(toolName, callMetadata),
-    argsText:
-      callMetadata.toolArgsText ??
-      (callMetadata.toolArgs
-        ? JSON.stringify(callMetadata.toolArgs, null, 2)
-        : ""),
+    argsText: callMetadata.toolArgs
+      ? JSON.stringify(callMetadata.toolArgs, null, 2)
+      : (callMetadata.toolArgsText ?? ""),
     resultText,
     ...(errorMessage ? { errorMessage } : {}),
   };
