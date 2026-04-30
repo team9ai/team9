@@ -377,7 +377,7 @@ describe("TrackingCard", () => {
     expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(1);
   });
 
-  it("shows a lone tool_call as TrackingEventItem (no pairing yet) — execution still running", () => {
+  it("renders a lone tool_call as ToolCallBlock (no pairing yet) — execution still running", () => {
     mockUseTrackingChannel.mockReturnValue({
       isActivated: true,
       latestMessages: [
@@ -395,8 +395,56 @@ describe("TrackingCard", () => {
 
     render(<TrackingCard message={makeMessage()} />);
 
-    expect(screen.queryByTestId("tool-call-block")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(1);
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    const toolCallProps = mockToolCallBlock.mock.calls[
+      mockToolCallBlock.mock.calls.length - 1
+    ][0] as { resultMetadata?: unknown };
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callMetadata: expect.objectContaining({
+          toolCallId: "tc-1",
+          toolName: "SearchFiles",
+        }),
+        resultContent: "",
+      }),
+    );
+    expect(toolCallProps.resultMetadata).toBeUndefined();
+  });
+
+  it("renders an active streaming tool_call as ToolCallBlock before a result arrives", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [],
+      totalMessageCount: 0,
+      isLoading: false,
+      activeStream: {
+        streamId: "stream-tool-call",
+        content: "",
+        metadata: callMeta("tc-stream", {
+          status: "running",
+          toolName: "RunScript",
+        }),
+      },
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    const toolCallProps = mockToolCallBlock.mock.calls[
+      mockToolCallBlock.mock.calls.length - 1
+    ][0] as { resultMetadata?: unknown };
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callMetadata: expect.objectContaining({
+          toolCallId: "tc-stream",
+          toolName: "RunScript",
+        }),
+        resultContent: "",
+      }),
+    );
+    expect(toolCallProps.resultMetadata).toBeUndefined();
   });
 
   it("does not merge when the tool_call and tool_result have different toolCallIds", () => {
@@ -423,8 +471,8 @@ describe("TrackingCard", () => {
 
     render(<TrackingCard message={makeMessage()} />);
 
-    expect(screen.queryByTestId("tool-call-block")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(2);
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(1);
   });
 
   it("only shows the latest 3 render items (merged toolCall counts as 1 slot)", () => {

@@ -204,6 +204,15 @@ export function TrackingCard({ message }: TrackingCardProps) {
                   />
                 );
               }
+              if (ri.item.metadata.agentEventType === "tool_call") {
+                return (
+                  <ToolCallBlock
+                    key={ri.item.id}
+                    callMetadata={ri.item.metadata}
+                    resultContent=""
+                  />
+                );
+              }
               return (
                 <TrackingEventItem
                   key={ri.item.id}

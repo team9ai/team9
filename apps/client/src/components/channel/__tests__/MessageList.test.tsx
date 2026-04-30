@@ -165,10 +165,12 @@ vi.mock("../ToolCallBlock", () => ({
     callMetadata,
     resultMetadata,
     resultContent,
+    resultMessage,
   }: {
     callMetadata?: { toolCallId?: string; toolName?: string };
     resultMetadata?: { toolCallId?: string };
     resultContent?: string;
+    resultMessage?: { id?: string };
   }) => (
     <div
       data-testid="tool-call-block"
@@ -176,6 +178,7 @@ vi.mock("../ToolCallBlock", () => ({
       data-tool-name={callMetadata?.toolName ?? ""}
       data-result-tool-call-id={resultMetadata?.toolCallId ?? ""}
       data-result-content={resultContent ?? ""}
+      data-result-message-id={resultMessage?.id ?? ""}
     />
   ),
 }));
@@ -600,6 +603,7 @@ describe("MessageList — round auto-fold", () => {
       expect(block.getAttribute("data-tool-name")).toBe("browser");
       expect(block.getAttribute("data-result-tool-call-id")).toBe("call-1");
       expect(block.getAttribute("data-result-content")).toBe("final result");
+      expect(block.getAttribute("data-result-message-id")).toBe("a3");
 
       // The tool_result message (a3) is NOT rendered independently as a
       // MessageItem — it was consumed by the combined block.
@@ -645,6 +649,27 @@ describe("MessageList — round auto-fold", () => {
       const renderedIds = getRenderedMessageIds();
       expect(renderedIds).not.toContain("a2");
       expect(renderedIds).toContain("u0");
+    });
+
+    it("renders an unpaired running tool_call as a ToolCallBlock", () => {
+      const chrono = [makeToolCall("call-1", "tc-running", "RunScript")];
+      chrono[0].metadata = {
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-running",
+        toolName: "RunScript",
+        toolArgsText: '{"cmd":"pnpm test',
+      };
+
+      renderList(chrono, { channelType: "direct" });
+
+      const blocks = screen.getAllByTestId("tool-call-block");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].getAttribute("data-tool-call-id")).toBe("tc-running");
+      expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
+      expect(blocks[0].getAttribute("data-result-content")).toBe("");
+      expect(blocks[0].getAttribute("data-result-message-id")).toBe("");
+      expect(screen.queryByTestId("message-item")).not.toBeInTheDocument();
     });
   });
 

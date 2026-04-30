@@ -543,10 +543,32 @@ export function MessageList({
                 callMetadata={agentMeta}
                 resultMetadata={nextMeta}
                 resultContent={nextMsg?.content ?? ""}
+                resultMessage={nextMsg}
               />
             </div>
           );
         }
+      }
+
+      if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
+        const prevItem = listDataRef.current[itemIndex - 1];
+        const prevIsAgentEvent =
+          prevItem?.type === "message" && !!getAgentMeta(prevItem.message);
+        const isFirstInGroup = !prevIsAgentEvent;
+
+        return (
+          <div
+            id={`message-${message.id}`}
+            className={cn(
+              "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
+              isFirstInGroup ? "mt-1 pt-1.5" : "",
+              "pb-0.5",
+            )}
+            style={{ paddingLeft: "9px" }}
+          >
+            <ToolCallBlock callMetadata={agentMeta} resultContent="" />
+          </div>
+        );
       }
 
       // Hide tool_result already rendered in the combined block above.
