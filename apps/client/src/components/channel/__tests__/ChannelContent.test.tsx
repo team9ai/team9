@@ -132,26 +132,6 @@ describe("ChannelContent", () => {
     expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
   });
 
-  it("renders unsynced banner when hasMoreUnsynced=true", () => {
-    render(<ChannelContent {...BASE_PROPS} hasMoreUnsynced />);
-
-    expect(
-      screen.getByText(
-        "You have older unread messages. Scroll up to load more.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("does not render unsynced banner by default", () => {
-    render(<ChannelContent {...BASE_PROPS} />);
-
-    expect(
-      screen.queryByText(
-        "You have older unread messages. Scroll up to load more.",
-      ),
-    ).not.toBeInTheDocument();
-  });
-
   it("passes readOnly to MessageList", () => {
     render(<ChannelContent {...BASE_PROPS} readOnly />);
 
@@ -218,11 +198,6 @@ describe("ChannelContent", () => {
     // No MessageInput, no banners
     expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
     expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(
-        "You have older unread messages. Scroll up to load more.",
-      ),
-    ).not.toBeInTheDocument();
   });
 
   it("passes readOnly=false to MessageList by default", () => {
@@ -236,16 +211,6 @@ describe("ChannelContent", () => {
     render(<ChannelContent {...BASE_PROPS} />);
 
     expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
-  });
-
-  it("does not render unsynced banner when hasMoreUnsynced=false", () => {
-    render(<ChannelContent {...BASE_PROPS} hasMoreUnsynced={false} />);
-
-    expect(
-      screen.queryByText(
-        "You have older unread messages. Scroll up to load more.",
-      ),
-    ).not.toBeInTheDocument();
   });
 
   it("does not pass disabled to MessageInput when isSendDisabled is false", () => {

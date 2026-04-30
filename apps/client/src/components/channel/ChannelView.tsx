@@ -227,7 +227,7 @@ export function ChannelView({
   const channel = previewChannel || memberChannel;
 
   // Sync missed messages when opening channel (lazy loading)
-  const { hasMoreUnsynced } = useSyncChannel(channelId);
+  useSyncChannel(channelId);
 
   // Dual-layer thread state
   const primaryThread = useThreadStore((state) => state.primaryThread);
@@ -665,7 +665,6 @@ export function ChannelView({
             thinkingBotIds={thinkingBotIds}
             members={members}
             lastReadMessageId={unreadAnchor}
-            hasMoreUnsynced={hasMoreUnsynced}
             showReadOnlyBar={isPreviewMode || readOnly}
             onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
             isSendDisabled={showOverlay}

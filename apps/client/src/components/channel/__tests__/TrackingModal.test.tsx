@@ -93,7 +93,6 @@ vi.mock("../ChannelContent", () => ({
         data-channel-id={props.channelId}
         data-channel-type={props.channelType}
         data-read-only={props.readOnly ? "true" : "false"}
-        data-has-more-unsynced={props.hasMoreUnsynced ? "true" : "false"}
         data-input-placeholder={props.inputPlaceholder ?? ""}
         data-is-send-disabled={props.isSendDisabled ? "true" : "false"}
         data-has-on-send={props.onSend ? "true" : "false"}
@@ -146,9 +145,7 @@ function setupDefaultMocks() {
     isPending: false,
   });
 
-  mockUseSyncChannel.mockReturnValue({
-    hasMoreUnsynced: false,
-  });
+  mockUseSyncChannel.mockReturnValue({});
 
   mockUseChannelMembers.mockReturnValue({
     data: [],
@@ -450,16 +447,6 @@ describe("TrackingModal", () => {
   it("calls useChannelMembers with undefined when closed", () => {
     render(<TrackingModal {...BASE_PROPS} isOpen={false} />);
     expect(mockUseChannelMembers).toHaveBeenCalledWith(undefined);
-  });
-
-  // ── hasMoreUnsynced ─────────────────────────────────
-
-  it("passes hasMoreUnsynced from useSyncChannel to ChannelContent", () => {
-    mockUseSyncChannel.mockReturnValue({ hasMoreUnsynced: true });
-    render(<TrackingModal {...BASE_PROPS} />);
-
-    const content = screen.getByTestId("channel-content");
-    expect(content).toHaveAttribute("data-has-more-unsynced", "true");
   });
 
   // ── Syncs isActivated prop ──────────────────────────
