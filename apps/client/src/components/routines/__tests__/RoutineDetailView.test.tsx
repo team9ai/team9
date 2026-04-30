@@ -233,6 +233,7 @@ const baseRoutine: RoutineDetail = {
   nextRunAt: null,
   version: 1,
   documentId: null,
+  folderId: "f1",
   currentExecutionId: null,
   tokenUsage: 0,
   creationChannelId: null,
