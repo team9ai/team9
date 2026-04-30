@@ -105,6 +105,8 @@
   "invitations": "Invitations",
   "members": "Members",
   "appearance": "Appearance",
+  "fontSize": "Font size",
+  "fontSizeDialog.previewText": "The quick brown fox jumps over the lazy dog.",
   "version": "Version {{version}}",
   "copyright": "© {{year}} Team9. All rights reserved."
 }

@@ -105,6 +105,8 @@
   "invitations": "Inviti",
   "members": "Membri",
   "appearance": "Aspetto",
+  "fontSize": "Dimensione carattere",
+  "fontSizeDialog.previewText": "La rapida volpe marrone salta sopra il cane pigro.",
   "version": "Versione {{version}}",
   "copyright": "© {{year}} Team9. Tutti i diritti riservati."
 }

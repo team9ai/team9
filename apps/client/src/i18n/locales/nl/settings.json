@@ -105,6 +105,8 @@
   "invitations": "Uitnodigingen",
   "members": "Leden",
   "appearance": "Weergave",
+  "fontSize": "Lettergrootte",
+  "fontSizeDialog.previewText": "De snelle bruine vos springt over de luie hond.",
   "version": "Versie {{version}}",
   "copyright": "© {{year}} Team9. Alle rechten voorbehouden."
 }

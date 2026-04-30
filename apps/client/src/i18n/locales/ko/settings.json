@@ -105,6 +105,8 @@
   "invitations": "초대",
   "members": "멤버",
   "appearance": "외관",
+  "fontSize": "글자 크기",
+  "fontSizeDialog.previewText": "빠른 갈색 여우가 게으른 개를 뛰어넘다.",
   "version": "버전 {{version}}",
   "copyright": "© {{year}} Team9. All rights reserved."
 }

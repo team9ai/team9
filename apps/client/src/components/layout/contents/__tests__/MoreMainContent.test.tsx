@@ -59,6 +59,10 @@ vi.mock("@/components/settings/NotificationPreferencesDialog", () => ({
   NotificationPreferencesDialog: () => null,
 }));
 
+vi.mock("@/components/settings/FontSizeDialog", () => ({
+  FontSizeDialog: () => null,
+}));
+
 import { MoreMainContent } from "../MoreMainContent";
 
 describe("MoreMainContent", () => {

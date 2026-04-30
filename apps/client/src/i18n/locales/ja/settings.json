@@ -105,6 +105,8 @@
   "invitations": "招待",
   "members": "メンバー",
   "appearance": "外観",
+  "fontSize": "フォントサイズ",
+  "fontSizeDialog.previewText": "速い茶色の狐は怠惰な犬を飛び越える。",
   "version": "バージョン {{version}}",
   "copyright": "© {{year}} Team9. All rights reserved."
 }

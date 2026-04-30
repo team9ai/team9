@@ -105,6 +105,8 @@
   "invitations": "Invitaciones",
   "members": "Miembros",
   "appearance": "Apariencia",
+  "fontSize": "Tamaño de fuente",
+  "fontSizeDialog.previewText": "El veloz zorro marrón salta sobre el perro perezoso.",
   "version": "Versión {{version}}",
   "copyright": "© {{year}} Team9. Todos los derechos reservados."
 }

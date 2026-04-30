@@ -105,6 +105,8 @@
   "invitations": "Einladungen",
   "members": "Mitglieder",
   "appearance": "Darstellung",
+  "fontSize": "Schriftgröße",
+  "fontSizeDialog.previewText": "Der schnelle braune Fuchs springt über den faulen Hund.",
   "version": "Version {{version}}",
   "copyright": "© {{year}} Team9. Alle Rechte vorbehalten."
 }

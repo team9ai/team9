@@ -7,7 +7,8 @@ import {
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { SidebarNavRail } from "@/components/layout/SidebarNavRail";
-import { useSidebarCollapsed } from "@/stores";
+import { useFontScales, useSidebarCollapsed } from "@/stores";
+import type { CSSProperties } from "react";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { UpdateDialog } from "@/components/layout/UpdateDialog";
 import { ChannelSettingsMount } from "@/components/channel/ChannelSettingsMount";
@@ -238,6 +239,13 @@ function AuthenticatedLayout() {
   const location = useLocation();
   const isOnboardingRoute = location.pathname === ONBOARDING_ROUTE;
   const sidebarCollapsed = useSidebarCollapsed();
+  const fontScales = useFontScales();
+  const sidebarFontStyle = {
+    "--font-scale": fontScales.sidebar,
+  } as CSSProperties;
+  const mainFontStyle = {
+    "--font-scale": fontScales.main,
+  } as CSSProperties;
 
   // Resume aHand daemon connection if previously enabled
   useAhandBootstrap();
@@ -299,8 +307,13 @@ function AuthenticatedLayout() {
       <UpdateDialog />
       <ChannelSettingsMount />
 
-      {/* Main content area with sidebars */}
-      <div className="flex flex-1 overflow-hidden bg-nav-bg">
+      {/* Main content area with sidebars.
+          Outer wrapper sets the sidebar font scope; <main> then re-applies
+          font-scope with its own scale, overriding for the main region. */}
+      <div
+        className="font-scope flex flex-1 overflow-hidden bg-nav-bg"
+        style={sidebarFontStyle}
+      >
         <MainSidebar />
 
         {/* Content card — single source of truth for the rounded top-left.
@@ -309,7 +322,10 @@ function AuthenticatedLayout() {
         <div className="flex flex-1 overflow-hidden rounded-tl-lg">
           {!sidebarCollapsed && <SidebarNavRail />}
           <DynamicSubSidebar />
-          <main className="flex-1 overflow-hidden bg-background">
+          <main
+            className="font-scope flex-1 overflow-hidden bg-background"
+            style={mainFontStyle}
+          >
             <Outlet />
           </main>
         </div>

@@ -105,6 +105,8 @@
   "invitations": "邀请",
   "members": "成员",
   "appearance": "外观",
+  "fontSize": "字号",
+  "fontSizeDialog.previewText": "敏捷的棕色狐狸跳过懒狗。",
   "version": "版本 {{version}}",
   "copyright": "© {{year}} Team9. 保留所有权利。"
 }

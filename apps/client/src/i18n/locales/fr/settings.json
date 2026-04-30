@@ -105,6 +105,8 @@
   "invitations": "Invitations",
   "members": "Membres",
   "appearance": "Apparence",
+  "fontSize": "Taille du texte",
+  "fontSizeDialog.previewText": "Le vif renard brun saute par-dessus le chien paresseux.",
   "version": "Version {{version}}",
   "copyright": "© {{year}} Team9. Tous droits réservés."
 }

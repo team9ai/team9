@@ -9,6 +9,7 @@ import {
   Moon,
   Check,
   Building2,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
 import { NotificationPreferencesDialog } from "@/components/settings/NotificationPreferencesDialog";
+import { FontSizeDialog } from "@/components/settings/FontSizeDialog";
 import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
@@ -44,6 +46,7 @@ const settingsGroups = [
     titleKey: "preferences",
     items: [
       { id: "appearance", labelKey: "appearance", icon: Palette },
+      { id: "fontSize", labelKey: "fontSize", icon: Type },
       { id: "language", labelKey: "language", icon: Globe },
     ],
   },
@@ -58,6 +61,7 @@ export function MoreMainContent() {
   const [isNotificationDialogOpen, setIsNotificationDialogOpen] =
     useState(false);
   const [isLanguageDialogOpen, setIsLanguageDialogOpen] = useState(false);
+  const [isFontSizeDialogOpen, setIsFontSizeDialogOpen] = useState(false);
   const { isLoading: isLanguageLoading } = useLanguageLoading();
   const { theme, setTheme } = useThemeToggle();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
@@ -96,6 +100,8 @@ export function MoreMainContent() {
       setIsNotificationDialogOpen(true);
     } else if (id === "language") {
       setIsLanguageDialogOpen(true);
+    } else if (id === "fontSize") {
+      setIsFontSizeDialogOpen(true);
     }
   };
   return (
@@ -250,6 +256,12 @@ export function MoreMainContent() {
       <NotificationPreferencesDialog
         open={isNotificationDialogOpen}
         onOpenChange={setIsNotificationDialogOpen}
+      />
+
+      {/* Font Size Dialog */}
+      <FontSizeDialog
+        open={isFontSizeDialogOpen}
+        onOpenChange={setIsFontSizeDialogOpen}
       />
 
       {/* Language Dialog */}

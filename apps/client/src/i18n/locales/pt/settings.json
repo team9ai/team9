@@ -105,6 +105,8 @@
   "invitations": "Convites",
   "members": "Membros",
   "appearance": "Aparência",
+  "fontSize": "Tamanho da fonte",
+  "fontSizeDialog.previewText": "A raposa marrom rápida salta sobre o cachorro preguiçoso.",
   "version": "Versão {{version}}",
   "copyright": "© {{year}} Team9. Todos os direitos reservados."
 }

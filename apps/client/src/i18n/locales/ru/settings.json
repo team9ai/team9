@@ -105,6 +105,8 @@
   "invitations": "Приглашения",
   "members": "Участники",
   "appearance": "Внешний вид",
+  "fontSize": "Размер шрифта",
+  "fontSizeDialog.previewText": "Быстрая коричневая лиса прыгает через ленивую собаку.",
   "version": "Версия {{version}}",
   "copyright": "© {{year}} Team9. Все права защищены."
 }

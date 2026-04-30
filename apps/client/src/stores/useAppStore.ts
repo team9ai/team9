@@ -105,6 +105,43 @@ export function getSectionFromPath(pathname: string): SidebarSection {
   return "home";
 }
 
+export type FontScaleRegion = "sidebar" | "main";
+
+export interface FontScales {
+  sidebar: number;
+  main: number;
+}
+
+export const FONT_SCALE_MIN = 0.85;
+export const FONT_SCALE_MAX = 1.4;
+export const FONT_SCALE_STEP = 0.05;
+export const FONT_SCALE_DEFAULT = 1;
+
+const DEFAULT_FONT_SCALES: FontScales = {
+  sidebar: FONT_SCALE_DEFAULT,
+  main: FONT_SCALE_DEFAULT,
+};
+
+function clampFontScale(value: number): number {
+  if (!Number.isFinite(value)) return FONT_SCALE_DEFAULT;
+  return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, value));
+}
+
+function sanitizeFontScales(input: unknown): FontScales {
+  if (!input || typeof input !== "object") return { ...DEFAULT_FONT_SCALES };
+  const obj = input as Partial<Record<FontScaleRegion, unknown>>;
+  return {
+    sidebar:
+      typeof obj.sidebar === "number"
+        ? clampFontScale(obj.sidebar)
+        : FONT_SCALE_DEFAULT,
+    main:
+      typeof obj.main === "number"
+        ? clampFontScale(obj.main)
+        : FONT_SCALE_DEFAULT,
+  };
+}
+
 interface AppState {
   // State
   user: User | null;
@@ -113,6 +150,7 @@ interface AppState {
   lastVisitedPaths: SectionPaths;
   activeSidebar: SidebarSection;
   sidebarCollapsed: boolean;
+  fontScales: FontScales;
 
   // Actions
   setUser: (user: User | null) => void;
@@ -123,6 +161,8 @@ interface AppState {
   setActiveSidebar: (sidebar: SidebarSection) => void;
   resetNavigationForWorkspaceEntry: () => void;
   toggleSidebarCollapsed: () => void;
+  setFontScale: (region: FontScaleRegion, value: number) => void;
+  resetFontScales: () => void;
   reset: () => void;
 }
 
@@ -134,6 +174,7 @@ const initialState = {
   lastVisitedPaths: createEmptySectionPaths(),
   activeSidebar: "home" as SidebarSection,
   sidebarCollapsed: false,
+  fontScales: { ...DEFAULT_FONT_SCALES },
 };
 
 // Store
@@ -188,6 +229,25 @@ export const useAppStore = create<AppState>()(
             "toggleSidebarCollapsed",
           ),
 
+        setFontScale: (region, value) =>
+          set(
+            (state) => ({
+              fontScales: {
+                ...state.fontScales,
+                [region]: clampFontScale(value),
+              },
+            }),
+            false,
+            "setFontScale",
+          ),
+
+        resetFontScales: () =>
+          set(
+            { fontScales: { ...DEFAULT_FONT_SCALES } },
+            false,
+            "resetFontScales",
+          ),
+
         reset: () => set(initialState, false, "reset"),
       }),
       {
@@ -197,7 +257,16 @@ export const useAppStore = create<AppState>()(
           lastVisitedPaths: state.lastVisitedPaths,
           activeSidebar: state.activeSidebar,
           sidebarCollapsed: state.sidebarCollapsed,
+          fontScales: state.fontScales,
         }),
+        merge: (persisted, current) => {
+          const persistedState = (persisted ?? {}) as Partial<AppState>;
+          return {
+            ...current,
+            ...persistedState,
+            fontScales: sanitizeFontScales(persistedState.fontScales),
+          };
+        },
       },
     ),
     { name: "AppStore" },
@@ -214,6 +283,9 @@ export const useActiveSidebar = () =>
   useAppStore((state) => state.activeSidebar);
 export const useSidebarCollapsed = () =>
   useAppStore((state) => state.sidebarCollapsed);
+export const useFontScales = () => useAppStore((state) => state.fontScales);
+export const useFontScale = (region: FontScaleRegion) =>
+  useAppStore((state) => state.fontScales[region]);
 
 // Get last visited path for a specific section
 export const getLastVisitedPath = (section: SidebarSection): string => {
@@ -234,5 +306,8 @@ export const appActions = {
   resetNavigationForWorkspaceEntry: () =>
     useAppStore.getState().resetNavigationForWorkspaceEntry(),
   toggleSidebarCollapsed: () => useAppStore.getState().toggleSidebarCollapsed(),
+  setFontScale: (region: FontScaleRegion, value: number) =>
+    useAppStore.getState().setFontScale(region, value),
+  resetFontScales: () => useAppStore.getState().resetFontScales(),
   reset: () => useAppStore.getState().reset(),
 };
