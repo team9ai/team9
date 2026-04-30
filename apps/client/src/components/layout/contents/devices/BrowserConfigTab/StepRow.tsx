@@ -9,6 +9,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,6 +118,12 @@ function HelpPopover({
 
   const onCopy = () => {
     const cmd = "sudo chown -R $(whoami) ~/.ahand";
+    // Older platforms / non-secure-context webviews lack `navigator.clipboard`
+    // entirely. Guard so the click doesn't throw a ReferenceError.
+    if (!navigator.clipboard) {
+      toast.error(t("browser.help.clipboardUnavailable"));
+      return;
+    }
     void navigator.clipboard.writeText(cmd).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);

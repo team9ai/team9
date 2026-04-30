@@ -126,7 +126,8 @@
     "steps": {
       "node": "Node.js",
       "playwright": "Playwright CLI",
-      "browser": "系统浏览器"
+      "browser": "系统浏览器",
+      "unknown": "未知步骤"
     },
     "stepStatus": {
       "ok": "已安装",
@@ -137,7 +138,14 @@
     "agentVisibility": {
       "toggleLabel": "Agent 可以使用",
       "tooltip": "关闭后 Agent 不会把 browser skill 列入可用技能。已装好的 Playwright 保留。",
-      "disabledHint": "先完成安装再开启"
+      "disabledHint": "先完成安装再开启",
+      "outOfSync": "守护进程尚未应用此设置",
+      "outOfSyncTooltip": "尝试关闭后再开启，或重启应用"
+    },
+    "reloadStatus": {
+      "shutdownTimeout": "守护进程关闭超时（5s）；重启可能未完全生效",
+      "spawnFailedRolledBack": "新守护进程启动失败；已回滚到旧配置",
+      "spawnFailedNoRollback": "守护进程启动失败且回滚也失败；当前离线，请重启应用"
     },
     "logDrawer": {
       "expand": "查看日志 ({{count}} 行)",
@@ -157,7 +165,8 @@
       "downloadChrome": "下载 Chrome",
       "nodeMissingHint": "重试时点 “强制重试”，会从 Node.js 步骤重新安装。",
       "retryWithForce": "强制重试",
-      "viewLogs": "查看日志"
+      "viewLogs": "查看日志",
+      "clipboardUnavailable": "剪贴板不可用，请手动复制"
     },
     "errors": {
       "operationInProgress": "已有一项浏览器操作在运行，请稍候。",

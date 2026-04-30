@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Package } from "lucide-react";
+import { AlertTriangle, Package } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   type BrowserStepStatus,
+  type ReloadFailureKind,
   type RuntimeUiState,
   type StepError,
   type TauriLogStream,
@@ -39,17 +46,41 @@ interface DerivedStep {
 // Static lookup. Avoid templated `t()` calls — the i18next typed `t` overload
 // resolution combined with a template literal key has triggered a tsc 5.8
 // internal compiler crash in this repo ("Debug Failure. No error for last
-// overload signature").
-function fallbackStepLabel(name: string): string {
+// overload signature"). The literal-union return type below is required
+// for the typed `t()` overload to resolve.
+function fallbackStepLabelKey(
+  name: string,
+):
+  | "browser.steps.node"
+  | "browser.steps.playwright"
+  | "browser.steps.browser"
+  | "browser.steps.unknown" {
   switch (name) {
     case "node":
-      return "Node.js";
+      return "browser.steps.node";
     case "playwright":
-      return "Playwright CLI";
+      return "browser.steps.playwright";
     case "browser":
-      return "System browser";
+      return "browser.steps.browser";
     default:
-      return name;
+      return "browser.steps.unknown";
+  }
+}
+
+function reloadStatusKey(
+  kind: ReloadFailureKind,
+):
+  | "browser.reloadStatus.shutdownTimeout"
+  | "browser.reloadStatus.spawnFailedRolledBack"
+  | "browser.reloadStatus.spawnFailedNoRollback" {
+  switch (kind) {
+    case "shutdownTimeout":
+      return "browser.reloadStatus.shutdownTimeout";
+    case "spawnFailedRolledBack":
+      return "browser.reloadStatus.spawnFailedRolledBack";
+    case "spawnFailedNoRollback":
+    default:
+      return "browser.reloadStatus.spawnFailedNoRollback";
   }
 }
 
@@ -94,7 +125,9 @@ function deriveSteps(state: RuntimeUiState): DerivedStep[] {
   return ordered.map((name) => {
     const snapshot = fromStatus[name];
     const live = feed[name];
-    const label = snapshot?.label ?? live?.label ?? fallbackStepLabel(name);
+    // Leave label as the wire `name` if there's no live/snapshot label;
+    // the consumer (RuntimeCard) will localize via `fallbackStepLabelKey`.
+    const label = snapshot?.label ?? live?.label ?? "";
     const status: TauriStepStatus =
       live?.status && live.status !== "notRun"
         ? live.status
@@ -143,6 +176,25 @@ export function RuntimeCard() {
     }
   }, [state, t]);
 
+  // Surface daemon reload failures the moment they're observed. The Tauri
+  // commands `browser_install` / `browser_set_enabled` resolve `Ok(status)`
+  // even when the daemon reload errored, so without this the user would
+  // see green "Installed" while the daemon is actually offline / stale.
+  // Keyed by the monotonic `seq` so re-renders don't refire and a fresh
+  // failure (same kind/message but new event) still toasts.
+  const reloadFailure =
+    state.kind !== "loading" ? state.reloadFailure : undefined;
+  const lastReloadFailureSeq = useRef<number | null>(null);
+  useEffect(() => {
+    if (!reloadFailure) {
+      lastReloadFailureSeq.current = null;
+      return;
+    }
+    if (lastReloadFailureSeq.current === reloadFailure.seq) return;
+    lastReloadFailureSeq.current = reloadFailure.seq;
+    toast.error(t(reloadStatusKey(reloadFailure.kind)));
+  }, [reloadFailure, t]);
+
   const overall = overallFor(state);
   const isBusy = state.kind === "installing" || state.kind === "reloading";
 
@@ -170,8 +222,17 @@ export function RuntimeCard() {
   // the daemon advertises the capability (depends on enabled + daemon
   // online). For the toggle source-of-truth we use `enabled`.
   const enabled = state.kind === "idle" ? state.status.enabled : false;
+  const agentVisible =
+    state.kind === "idle" ? state.status.agentVisible : false;
   const agentVisibleDisabled =
     state.kind !== "idle" || state.status.overall !== "ok";
+  // Mismatch: user wants it on, daemon hasn't picked it up yet (e.g. reload
+  // failed). Surfaces an inline warning next to the Switch.
+  const agentVisibleOutOfSync =
+    state.kind === "idle" &&
+    state.status.overall === "ok" &&
+    enabled &&
+    !agentVisible;
 
   const drawerSteps: LogDrawerStep[] = steps
     .filter((s) => s.logs.length > 0)
@@ -245,7 +306,7 @@ export function RuntimeCard() {
             <StepRow
               key={s.name}
               name={s.name}
-              label={s.label}
+              label={s.label || t(fallbackStepLabelKey(s.name))}
               status={s.status}
               detail={s.detail}
               error={s.error}
@@ -268,6 +329,30 @@ export function RuntimeCard() {
                 : t("browser.agentVisibility.tooltip")}
             </p>
           </div>
+          {agentVisibleOutOfSync && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    aria-label={t("browser.agentVisibility.outOfSync")}
+                    className="inline-flex items-center justify-center text-amber-600"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <div className="text-xs">
+                    <div className="font-medium">
+                      {t("browser.agentVisibility.outOfSync")}
+                    </div>
+                    <div className="opacity-80 mt-0.5">
+                      {t("browser.agentVisibility.outOfSyncTooltip")}
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <Switch
             checked={enabled}
             disabled={agentVisibleDisabled}

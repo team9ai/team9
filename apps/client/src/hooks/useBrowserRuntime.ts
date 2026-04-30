@@ -61,6 +61,13 @@ export interface BrowserStatus {
   queriedAt: string;
 }
 
+export interface ReloadFailure {
+  kind: ReloadFailureKind;
+  message: string;
+  /** Monotonic counter so consumers can de-dupe via React effect deps. */
+  seq: number;
+}
+
 // ---------------------------------------------------------------------------
 // In-flight per-step accumulator. Lives only while the install/reload runs.
 // ---------------------------------------------------------------------------
@@ -80,16 +87,21 @@ export interface StepFeed {
 // UI state machine
 // ---------------------------------------------------------------------------
 
+// `reloadFailure` is carried on every variant so the UI toast effect can fire
+// the moment the daemon reports a reload error — independent of when the
+// awaited Tauri command finally resolves. A monotonic `seq` lets consumers
+// de-dupe via effect deps without comparing kind/message strings.
 export type RuntimeUiState =
-  | { kind: "loading" }
-  | { kind: "idle"; status: BrowserStatus }
-  | { kind: "installing"; steps: StepFeed }
-  | { kind: "reloading"; steps: StepFeed }
+  | { kind: "loading"; reloadFailure?: ReloadFailure }
+  | { kind: "idle"; status: BrowserStatus; reloadFailure?: ReloadFailure }
+  | { kind: "installing"; steps: StepFeed; reloadFailure?: ReloadFailure }
+  | { kind: "reloading"; steps: StepFeed; reloadFailure?: ReloadFailure }
   | {
       kind: "error";
       status: BrowserStatus | null;
       message: string;
       steps: StepFeed;
+      reloadFailure?: ReloadFailure;
     };
 
 type Action =
@@ -176,10 +188,21 @@ export function applyProgress(
   }
 }
 
+// Monotonic sequence for reloadFailure events. Module-level so each event
+// gets a globally-unique number without threading state through the reducer.
+let reloadFailureSeq = 0;
+
 function reducer(state: RuntimeUiState, action: Action): RuntimeUiState {
   switch (action.type) {
     case "loaded":
-      return { kind: "idle", status: action.status };
+      // Preserve any pending reloadFailure (e.g. background daemon-reload
+      // error) so the toast effect still fires. Cleared on the next user
+      // action (install / setEnabled).
+      return {
+        kind: "idle",
+        status: action.status,
+        reloadFailure: state.reloadFailure,
+      };
 
     case "loadFailed":
       return {
@@ -187,9 +210,12 @@ function reducer(state: RuntimeUiState, action: Action): RuntimeUiState {
         status: null,
         message: action.message,
         steps: emptyFeed(),
+        reloadFailure: state.reloadFailure,
       };
 
     case "installStarted":
+      // Clear any prior reloadFailure when starting a new install — the user
+      // is acting, prior toasts should not re-fire.
       return { kind: "installing", steps: emptyFeed() };
 
     case "progress": {
@@ -205,10 +231,18 @@ function reducer(state: RuntimeUiState, action: Action): RuntimeUiState {
         return state;
       }
       if (action.event.type === "reloadFailed") {
-        // Surface as an error toast; reducer keeps current steps so the user
-        // can still inspect logs. installDone/setEnabledDone never arrives in
-        // this path — the awaited promise still resolves with a final status.
-        return state;
+        // Capture the failure so the UI can toast immediately. The awaited
+        // Tauri command still resolves with a status, which will land as
+        // installDone/setEnabledDone shortly after — we preserve this field
+        // through that transition so the effect runs even if the success
+        // dispatch arrives in the same render batch.
+        reloadFailureSeq += 1;
+        const reloadFailure: ReloadFailure = {
+          kind: action.event.kind,
+          message: action.event.message,
+          seq: reloadFailureSeq,
+        };
+        return { ...state, reloadFailure };
       }
       if (action.event.type === "allFinished") {
         return state;
@@ -221,7 +255,11 @@ function reducer(state: RuntimeUiState, action: Action): RuntimeUiState {
     }
 
     case "installDone":
-      return { kind: "idle", status: action.status };
+      return {
+        kind: "idle",
+        status: action.status,
+        reloadFailure: state.reloadFailure,
+      };
 
     case "installFailed":
       return {
@@ -229,13 +267,18 @@ function reducer(state: RuntimeUiState, action: Action): RuntimeUiState {
         status: action.status,
         message: action.message,
         steps: action.steps,
+        reloadFailure: state.reloadFailure,
       };
 
     case "setEnabledStarted":
       return { kind: "reloading", steps: currentSteps(state) };
 
     case "setEnabledDone":
-      return { kind: "idle", status: action.status };
+      return {
+        kind: "idle",
+        status: action.status,
+        reloadFailure: state.reloadFailure,
+      };
 
     case "setEnabledFailed":
       return {
@@ -243,6 +286,7 @@ function reducer(state: RuntimeUiState, action: Action): RuntimeUiState {
         status: action.status,
         message: action.message,
         steps: action.steps,
+        reloadFailure: state.reloadFailure,
       };
   }
 }
@@ -273,6 +317,13 @@ export function useBrowserRuntime(): UseBrowserRuntimeResult {
     stepsRef.current = state.steps;
   }
 
+  // Mirror the latest state in a ref so the install/setEnabled callbacks can
+  // re-entry guard against rapid double-clicks (e.g. a stale "Retry with
+  // --force" popover click during a fresh install) without recreating
+  // themselves on every reducer update.
+  const stateRef = useRef<RuntimeUiState>(state);
+  stateRef.current = state;
+
   const refresh = useCallback(async () => {
     if (!isTauriApp()) {
       // Web shell — no Tauri commands available. Surface as an idle state
@@ -300,6 +351,13 @@ export function useBrowserRuntime(): UseBrowserRuntimeResult {
 
   const install = useCallback(async (force: boolean) => {
     if (!isTauriApp()) return;
+    // Re-entry guard — drop overlapping requests while one is in flight.
+    if (
+      stateRef.current.kind === "installing" ||
+      stateRef.current.kind === "reloading"
+    ) {
+      return;
+    }
     dispatch({ type: "installStarted" });
     stepsRef.current = emptyFeed();
 
@@ -333,6 +391,13 @@ export function useBrowserRuntime(): UseBrowserRuntimeResult {
 
   const setEnabled = useCallback(async (enabled: boolean) => {
     if (!isTauriApp()) return;
+    // Re-entry guard — drop overlapping requests while one is in flight.
+    if (
+      stateRef.current.kind === "installing" ||
+      stateRef.current.kind === "reloading"
+    ) {
+      return;
+    }
     dispatch({ type: "setEnabledStarted" });
 
     const channel = new Channel<BrowserProgressEvent>();

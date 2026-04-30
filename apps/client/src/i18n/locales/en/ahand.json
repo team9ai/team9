@@ -129,7 +129,8 @@
     "steps": {
       "node": "Node.js",
       "playwright": "Playwright CLI",
-      "browser": "System browser"
+      "browser": "System browser",
+      "unknown": "Unknown step"
     },
     "stepStatus": {
       "ok": "Installed",
@@ -140,7 +141,14 @@
     "agentVisibility": {
       "toggleLabel": "Available to agents",
       "tooltip": "When off, agents won't see the browser skill. The installed Playwright runtime is preserved.",
-      "disabledHint": "Finish installing before enabling"
+      "disabledHint": "Finish installing before enabling",
+      "outOfSync": "Daemon hasn't picked up this setting yet",
+      "outOfSyncTooltip": "Try toggling off and on, or restart the app"
+    },
+    "reloadStatus": {
+      "shutdownTimeout": "Daemon shutdown timed out (5s); reload may have left things in a bad state",
+      "spawnFailedRolledBack": "New daemon failed to start; rolled back to previous config",
+      "spawnFailedNoRollback": "Daemon respawn failed and rollback also failed; daemon is offline. Restart app."
     },
     "logDrawer": {
       "expand": "View logs ({{count}} lines)",
@@ -160,7 +168,8 @@
       "downloadChrome": "Download Chrome",
       "nodeMissingHint": "Use \"Retry with --force\" to reinstall starting from the Node.js step.",
       "retryWithForce": "Retry with --force",
-      "viewLogs": "View logs"
+      "viewLogs": "View logs",
+      "clipboardUnavailable": "Clipboard unavailable; please copy manually"
     },
     "errors": {
       "operationInProgress": "Another browser operation is running. Please wait for it to finish.",
