@@ -121,7 +121,7 @@ describe("loadLanguage", () => {
   it("should cache loaded language (second call skips)", async () => {
     const { loadLanguage } = await importModule();
     await loadLanguage("zh-CN");
-    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(15);
+    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(14);
 
     // Now mark as already loaded
     (i18n.hasResourceBundle as Mock).mockReturnValue(true);
