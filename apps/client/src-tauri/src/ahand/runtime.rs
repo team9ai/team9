@@ -292,6 +292,17 @@ impl AhandRuntime {
         guard.as_ref().map(|s| s.hub_device_id.clone())
     }
 
+    /// Resolve the on-disk `config.toml` path captured at `start()` time.
+    /// Returns `None` when no session is active or when the renderer started
+    /// the daemon without supplying a `config_path` (e.g. tests). Callers
+    /// (specifically the `browser_runtime` Tauri commands in Task 14) treat
+    /// `None` as "ahand runtime not started" and surface an error to the UI
+    /// rather than fabricating a path.
+    pub async fn config_path(&self) -> Option<PathBuf> {
+        let guard = self.inner.lock().await;
+        guard.as_ref().and_then(|s| s.config_path.clone())
+    }
+
     /// Hot-reload the embedded daemon. Reads the on-disk config fresh
     /// (when `StartConfig::config_path` was supplied), shuts the running
     /// daemon down with a 5-second timeout, and spawns a new instance
@@ -621,6 +632,12 @@ mod tests {
         let rt = AhandRuntime::new();
         assert!(rt.stop(None).await.is_ok());
         assert!(rt.stop(None).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn config_path_is_none_when_no_session() {
+        let rt = AhandRuntime::new();
+        assert!(rt.config_path().await.is_none());
     }
 
     #[test]
