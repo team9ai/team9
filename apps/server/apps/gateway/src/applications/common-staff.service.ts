@@ -152,6 +152,18 @@ export class CommonStaffService {
         // ahand-integration component in the blueprint resolves
         // callingUserId from ctx.userId and gateway/hub URLs from
         // process.env at session start — no per-agent config needed.
+        //
+        // Virtual workspace stack (folder9 + just-bash + workspace
+        // layout). folder9Psk is intentionally omitted — workspace
+        // mounts use externally-managed tokens issued lazily by
+        // Team9Component's Team9FolderTokenApi. Only the URL +
+        // workspaceId are needed at config time.
+        folder9: {
+          folder9Url: process.env.FOLDER9_API_URL,
+          workspaceId: tenantId,
+        },
+        'just-bash': { network: 'none' },
+        'just-bash-team9-workspace': { mountTeam9Skills: true },
       },
     });
 
