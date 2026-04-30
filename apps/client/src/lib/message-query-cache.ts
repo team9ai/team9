@@ -55,6 +55,72 @@ function upsertMessage(
   };
 }
 
+export function upsertIncomingMessageInData(
+  old: MessagesQueryData | undefined,
+  message: Message,
+  matchedTempId?: string,
+): MessagesQueryData {
+  const normalizedMessage = normalizeMessage(message);
+  const persistedMessage: Message = {
+    ...normalizedMessage,
+    sendStatus: undefined,
+    _retryData: undefined,
+  };
+
+  if (!old || old.pages.length === 0) {
+    return {
+      pages: [
+        {
+          messages: [persistedMessage],
+          hasOlder: false,
+          hasNewer: false,
+        },
+      ],
+      pageParams: [undefined],
+    };
+  }
+
+  const serverExists = old.pages.some((page) =>
+    getMessages(page).some((current) => current.id === persistedMessage.id),
+  );
+  const tempExists = matchedTempId
+    ? old.pages.some((page) =>
+        getMessages(page).some((current) => current.id === matchedTempId),
+      )
+    : false;
+
+  const pages = old.pages.map((page) => {
+    const nextMessages: Message[] = [];
+
+    for (const current of getMessages(page)) {
+      if (matchedTempId && current.id === matchedTempId) {
+        if (!serverExists) {
+          nextMessages.push(persistedMessage);
+        }
+        continue;
+      }
+
+      if (current.id === persistedMessage.id) {
+        nextMessages.push(persistedMessage);
+        continue;
+      }
+
+      nextMessages.push(current);
+    }
+
+    return setMessages(page, nextMessages);
+  });
+
+  if (!serverExists && !tempExists) {
+    pages[0] = setMessages(old.pages[0], [
+      persistedMessage,
+      ...getMessages(pages[0]),
+    ]);
+  }
+
+  return { ...old, pages };
+}
+
 export function upsertChannelMessageInCache(
   queryClient: QueryClient,
   channelId: string,

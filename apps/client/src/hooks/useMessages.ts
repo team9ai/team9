@@ -35,6 +35,7 @@ import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
 import { useChannelScrollStore } from "./useChannelScrollState";
+import { upsertIncomingMessageInData } from "@/lib/message-query-cache";
 
 // --- Temp message coordination ---
 // Coordinates between HTTP onSuccess and WebSocket handleNewMessage
@@ -282,67 +283,16 @@ export function useMessages(channelId: string | undefined) {
         return;
       }
 
+      const matchedTempId = findPendingTempId(message.clientMsgId);
+      if (matchedTempId) {
+        resolvedServerIds.add(message.id);
+        pendingByClientMsgId.delete(message.clientMsgId!);
+        setTimeout(() => resolvedServerIds.delete(message.id), 30000);
+      }
+
       queryClient.setQueryData<MessagesQueryData>(
         ["messages", channelId],
-        (old) => {
-          if (!old) return { pages: [[message]], pageParams: [undefined] };
-
-          // Check if message already exists (might have been added via onSuccess)
-          const exists = old.pages.some((page) =>
-            getMessages(page).some((msg) => msg.id === message.id),
-          );
-
-          // Use clientMsgId for precise tempId lookup
-          const matchedTempId = findPendingTempId(message.clientMsgId);
-
-          if (exists) {
-            // Server message exists - clean up any lingering temp duplicate
-            if (!matchedTempId) return old;
-            pendingByClientMsgId.delete(message.clientMsgId!);
-            return {
-              ...old,
-              pages: old.pages.map((page) =>
-                setMessages(
-                  page,
-                  getMessages(page).filter((msg) => msg.id !== matchedTempId),
-                ),
-              ),
-            };
-          }
-
-          // Replace matching temp message in-place (smooth transition, no flicker)
-          if (matchedTempId) {
-            // Record that WS handled this server message so onSuccess can skip
-            resolvedServerIds.add(message.id);
-            pendingByClientMsgId.delete(message.clientMsgId!);
-            setTimeout(() => resolvedServerIds.delete(message.id), 30000);
-            return {
-              ...old,
-              pages: old.pages.map((page) =>
-                setMessages(
-                  page,
-                  getMessages(page).map((msg) =>
-                    msg.id === matchedTempId ? message : msg,
-                  ),
-                ),
-              ),
-            };
-          }
-
-          // No matching temp found - new message from someone else, prepend
-          return {
-            ...old,
-            pages: old.pages[0]
-              ? [
-                  setMessages(old.pages[0], [
-                    message,
-                    ...getMessages(old.pages[0]),
-                  ]),
-                  ...old.pages.slice(1),
-                ]
-              : [[message]],
-          };
-        },
+        (old) => upsertIncomingMessageInData(old, message, matchedTempId),
       );
 
       // Notify channel scroll state machine about the new message
@@ -525,21 +475,7 @@ export function useMessages(channelId: string | undefined) {
           queryClient.setQueryData<MessagesQueryData>(
             ["messages", channelId],
             (old) => {
-              if (!old) return { pages: [[msg]], pageParams: [undefined] };
-              const exists = old.pages.some((page) =>
-                getMessages(page).some((message) => message.id === msg.id),
-              );
-              if (exists) return old;
-              return {
-                ...old,
-                pages: [
-                  setMessages(old.pages[0], [
-                    msg,
-                    ...getMessages(old.pages[0]),
-                  ]),
-                  ...old.pages.slice(1),
-                ],
-              };
+              return upsertIncomingMessageInData(old, msg);
             },
           );
         } else {
@@ -862,60 +798,16 @@ export function useChannelMessages(
         return;
       }
 
-      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
-        if (!old)
-          return {
-            pages: [{ messages: [message], hasOlder: false, hasNewer: false }],
-            pageParams: [undefined],
-          };
+      const matchedTempId = findPendingTempId(message.clientMsgId);
+      if (matchedTempId) {
+        resolvedServerIds.add(message.id);
+        pendingByClientMsgId.delete(message.clientMsgId!);
+        setTimeout(() => resolvedServerIds.delete(message.id), 30000);
+      }
 
-        // Check if message already exists
-        const exists = old.pages.some((page) =>
-          getMessages(page).some((msg) => msg.id === message.id),
-        );
-
-        const matchedTempId = findPendingTempId(message.clientMsgId);
-
-        if (exists) {
-          if (!matchedTempId) return old;
-          pendingByClientMsgId.delete(message.clientMsgId!);
-          return {
-            ...old,
-            pages: old.pages.map((page) =>
-              setMessages(
-                page,
-                getMessages(page).filter((msg) => msg.id !== matchedTempId),
-              ),
-            ),
-          };
-        }
-
-        if (matchedTempId) {
-          resolvedServerIds.add(message.id);
-          pendingByClientMsgId.delete(message.clientMsgId!);
-          setTimeout(() => resolvedServerIds.delete(message.id), 30000);
-          return {
-            ...old,
-            pages: old.pages.map((page) =>
-              setMessages(
-                page,
-                getMessages(page).map((msg) =>
-                  msg.id === matchedTempId ? message : msg,
-                ),
-              ),
-            ),
-          };
-        }
-
-        // New message from someone else - prepend to first page
-        return {
-          ...old,
-          pages: [
-            setMessages(old.pages[0], [message, ...getMessages(old.pages[0])]),
-            ...old.pages.slice(1),
-          ],
-        };
-      });
+      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) =>
+        upsertIncomingMessageInData(old, message, matchedTempId),
+      );
 
       // Notify scroll state machine
       useChannelScrollStore.getState().send(channelId, { type: "NEW_MESSAGE" });
@@ -1024,24 +916,9 @@ export function useChannelMessages(
       if (event.message) {
         const msg = event.message;
         if (!msg.parentId) {
-          queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
-            if (!old)
-              return {
-                pages: [{ messages: [msg], hasOlder: false, hasNewer: false }],
-                pageParams: [undefined],
-              };
-            const exists = old.pages.some((page) =>
-              getMessages(page).some((message) => message.id === msg.id),
-            );
-            if (exists) return old;
-            return {
-              ...old,
-              pages: [
-                setMessages(old.pages[0], [msg, ...getMessages(old.pages[0])]),
-                ...old.pages.slice(1),
-              ],
-            };
-          });
+          queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) =>
+            upsertIncomingMessageInData(old, msg),
+          );
         } else {
           const rootId = msg.rootId || msg.parentId;
           queryClient.invalidateQueries({
