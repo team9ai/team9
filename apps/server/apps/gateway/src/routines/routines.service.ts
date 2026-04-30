@@ -1537,16 +1537,21 @@ export class RoutinesService {
         ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
       };
 
-      // ── Routine folder + write-scoped token (A.8) ───────────────
+      // ── Routine folder intent for JustBashTeam9WorkspaceComponent ───
       //
       // The routine-creation agent authors `SKILL.md` (and optional
       // `references/`, `scripts/`) into the routine's folder9 folder
-      // mounted at `/workspace/routine/document`. The mount needs a
-      // write-scoped token, which we mint here and ship in the
-      // session's componentConfigs so the agent-pi
-      // `JustBashTeam9WorkspaceComponent` can stand up the mount on
-      // session start. A.8 only owns the server side — the agent-pi
-      // mount runtime is built in Phase B.
+      // mounted at `/workspace/routine/document`. The mount is
+      // described as a **static intent** here (workspaceId + folderId
+      // + folderType + permission) — no token is pre-minted. The
+      // agent-pi `JustBashTeam9WorkspaceComponent` calls
+      // `Team9FolderTokenApi.issueFolderToken` at `onSessionStart`,
+      // which maps to `POST /api/v1/bot/folder-token` on this gateway.
+      // Dynamic issuance gives the server full session context
+      // (sessionId, agentId, routineId, userId, logicalKey) at
+      // authorization time, keeps tokens out of persisted session
+      // configs, and sidesteps TTL alignment with session-creation
+      // wall time.
       //
       // `ensureRoutineFolder` is idempotent: if the routine already
       // has a `folderId` (most v2+ rows), it short-circuits via the
@@ -1568,28 +1573,6 @@ export class RoutinesService {
       });
       const routineFolderId = ensured.folderId!;
 
-      // 24h TTL is calibrated to the creation channel lifetime: the
-      // creation channel is a one-shot DM that the user typically
-      // closes within minutes. 24h gives plenty of slack for "I'll
-      // come back to it tomorrow" workflows without a token-refresh
-      // dance, while staying inside the bounded leak window the spec
-      // asks for. KNOWN LIMITATION: the idempotent fast-path above
-      // (when the routine already has a routine-session channel)
-      // returns the existing channel ids without re-minting; if the
-      // user revisits >24h after the original mint, the agent's
-      // mount will see a stale token. v2 may add a re-mint endpoint
-      // wired to channel re-open. Acceptable for v1 because creation
-      // sessions almost always complete within minutes.
-      const writeToken = await this.folder9Client.createToken({
-        folder_id: routineFolderId,
-        permission: 'write',
-        name: `routine-creation-${slugifyUuid(routineId)}`,
-        created_by: `user:${userId}`,
-        expires_at: new Date(
-          Date.now() + RoutinesService.CREATION_WRITE_TOKEN_TTL_MS,
-        ).toISOString(),
-      });
-
       const componentConfigs: Record<string, Record<string, unknown>> = {
         'just-bash-team9-workspace': {
           folderMap: {
@@ -1597,7 +1580,6 @@ export class RoutinesService {
               workspaceId: tenantId,
               folderId: routineFolderId,
               folderType: 'managed',
-              token: writeToken.token,
               permission: 'write',
               readOnly: false,
             },
@@ -1734,16 +1716,6 @@ export class RoutinesService {
    * still bounded.
    */
   private static readonly WRITE_TOKEN_TTL_MS = 15 * 60_000;
-
-  /**
-   * Write-token TTL for the routine-creation session's mounted folder
-   * (Task A.8). 24h is calibrated to the creation channel lifetime:
-   * channels are one-shot and usually closed within minutes, but we
-   * tolerate "I'll come back to it tomorrow" workflows without a
-   * token-refresh dance. The token is scoped to a single folder under
-   * `permission: 'write'`, so the leak surface is bounded.
-   */
-  private static readonly CREATION_WRITE_TOKEN_TTL_MS = 24 * 60 * 60_000;
 
   /**
    * Resolve a routine + ensure folder + tenant gate, returning the

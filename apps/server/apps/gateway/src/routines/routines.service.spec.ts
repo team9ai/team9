@@ -4388,42 +4388,29 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(createSessionOrder).toBeLessThan(sendInputOrder);
     });
 
-    // ── A.8: routine.document folderMap injection ─────────────────────
+    // ── A.8: routine.document folderMap injection (static intent) ─────
     //
-    // The routine-creation channel session must carry a write-scoped
-    // folder9 token in `componentConfigs["just-bash-team9-workspace"]`
-    // so the agent can author SKILL.md to /workspace/routine/document.
-    // The token TTL is calibrated to the creation channel lifetime
-    // (~24h). A.8 owns only the server-side wiring; the agent-pi side
-    // mounts the folder in Phase B.
+    // The routine-creation channel session carries a STATIC INTENT for
+    // the routine.document mount — workspaceId/folderId/folderType/
+    // permission/readOnly only, NO token. The agent-pi
+    // JustBashTeam9WorkspaceComponent issues the folder9 token
+    // dynamically at onSessionStart via POST /api/v1/bot/folder-token
+    // (served by FolderTokenController in this gateway). That move
+    // lets the server see full session context at authorization time
+    // and keeps folder9 tokens out of persisted componentConfigs.
     describe('A.8: just-bash-team9-workspace folderMap injection', () => {
-      it('mints a write-scoped 24h token and injects it into componentConfigs', async () => {
+      it('injects folderMap intent (no pre-minted token) into componentConfigs', async () => {
         mockGetRoutine({ folderId: 'folder-existing' });
-        const FAKE_TOKEN = 'tok-write-creation';
-        folder9Client.createToken.mockResolvedValueOnce({
-          token: FAKE_TOKEN,
-          expires_at: '2099-01-01',
-        });
 
-        const before = Date.now();
         await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
-        const after = Date.now();
 
-        // 1. Token mint args — write permission, expires_at ~24h ahead.
-        expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
-        const tokenArgs = folder9Client.createToken.mock.calls[0][0];
-        expect(tokenArgs.folder_id).toBe('folder-existing');
-        expect(tokenArgs.permission).toBe('write');
-        expect(tokenArgs.created_by).toBe(`user:${USER_ID}`);
-        expect(typeof tokenArgs.name).toBe('string');
-        expect(tokenArgs.name).toContain('routine-creation');
-        const expiresMs = Date.parse(tokenArgs.expires_at);
-        const expectedTtl = 24 * 60 * 60_000;
-        // Allow ±5s slack for clock drift between Date.now() calls.
-        expect(expiresMs).toBeGreaterThanOrEqual(before + expectedTtl - 5_000);
-        expect(expiresMs).toBeLessThanOrEqual(after + expectedTtl + 5_000);
+        // No write-scoped token is minted in the new model. Any
+        // folder9 createToken calls would only come from lazy
+        // provisioning (not triggered here because folderId is set).
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
 
-        // 2. createSession invoked with the populated componentConfigs.
+        // createSession invoked with the populated componentConfigs.
+        // The folderMap carries a STATIC intent — no `token` field.
         expect(clawHiveService.createSession).toHaveBeenCalledWith(
           AGENT_ID,
           expect.objectContaining({
@@ -4434,7 +4421,6 @@ describe('RoutinesService — TaskCast integration', () => {
                     workspaceId: TENANT_ID,
                     folderId: 'folder-existing',
                     folderType: 'managed',
-                    token: FAKE_TOKEN,
                     permission: 'write',
                     readOnly: false,
                   },
@@ -4445,6 +4431,13 @@ describe('RoutinesService — TaskCast integration', () => {
           }),
           TENANT_ID,
         );
+
+        const createSessionCall = (clawHiveService.createSession as jest.Mock)
+          .mock.calls[0] as [string, Record<string, any>, string];
+        const mountRef = (
+          createSessionCall[1].componentConfigs as Record<string, any>
+        )['just-bash-team9-workspace'].folderMap['routine.document'];
+        expect(mountRef).not.toHaveProperty('token');
       });
 
       it('lazy-provisions the folder when routine.folderId is NULL and uses the new id', async () => {
@@ -4475,12 +4468,13 @@ describe('RoutinesService — TaskCast integration', () => {
           id: 'folder-new',
           workspace_id: TENANT_ID,
         });
-        folder9Client.createToken
-          // Token #1: minted INSIDE provisionFolder9SkillFolder for the
-          // initial scaffold commit.
-          .mockResolvedValueOnce({ token: 'scaffold-tok', expires_at: 'x' })
-          // Token #2: the A.8 write-scoped token for the session.
-          .mockResolvedValueOnce({ token: 'session-tok', expires_at: 'y' });
+        // Only one token mint now — the one INSIDE
+        // provisionFolder9SkillFolder for the initial scaffold commit.
+        // The old A.8 session-write token is gone (dynamic issuance).
+        folder9Client.createToken.mockResolvedValueOnce({
+          token: 'scaffold-tok',
+          expires_at: 'x',
+        });
         folder9Client.commit.mockResolvedValueOnce({
           commit_id: 'commit-init',
         });
@@ -4488,46 +4482,17 @@ describe('RoutinesService — TaskCast integration', () => {
         await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
 
         // The session componentConfigs must reference the
-        // newly-provisioned folder id.
+        // newly-provisioned folder id, and must NOT carry a token.
         const createSessionCall = (clawHiveService.createSession as jest.Mock)
           .mock.calls[0] as [string, Record<string, any>, string];
         const cfg = createSessionCall[1].componentConfigs as Record<
           string,
           any
         >;
-        expect(
-          cfg['just-bash-team9-workspace'].folderMap['routine.document']
-            .folderId,
-        ).toBe('folder-new');
-        expect(
-          cfg['just-bash-team9-workspace'].folderMap['routine.document'].token,
-        ).toBe('session-tok');
-      });
-
-      it('rolls back channel + claim if the write-token mint fails', async () => {
-        mockGetRoutine();
-        folder9Client.createToken.mockRejectedValueOnce(
-          new Error('folder9 token boom'),
-        );
-
-        await expect(
-          service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
-        ).rejects.toThrow('folder9 token boom');
-
-        // Channel hard-deleted
-        expect(
-          channelsService.hardDeleteRoutineSessionChannel,
-        ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
-        // Routine fields cleared
-        expect(db.set).toHaveBeenCalledWith(
-          expect.objectContaining({
-            creationChannelId: null,
-            creationSessionId: null,
-          }),
-        );
-        // createSession was never called → no Hive session to delete
-        expect(clawHiveService.createSession).not.toHaveBeenCalled();
-        expect(clawHiveService.deleteSession).not.toHaveBeenCalled();
+        const mountRef =
+          cfg['just-bash-team9-workspace'].folderMap['routine.document'];
+        expect(mountRef.folderId).toBe('folder-new');
+        expect(mountRef).not.toHaveProperty('token');
       });
 
       it('rolls back channel + claim if ensureRoutineFolder fails (folder9 outage)', async () => {
