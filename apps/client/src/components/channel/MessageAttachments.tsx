@@ -12,16 +12,20 @@ import { cn } from "@/lib/utils";
 import { fileApi } from "@/services/api/file";
 import type { MessageAttachment } from "@/types/im";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
+import { VideoAttachment } from "./VideoAttachment";
 
 // Signed download URLs expire after 8h (see file.service.ts).
 // Cache for 7h so remounted image rows reuse the same URL and hit the
 // browser HTTP cache instead of re-fetching on every virtualized row mount.
 const DOWNLOAD_URL_STALE_TIME = 7 * 60 * 60 * 1000;
 
-function useFileDownloadUrl(fileKey: string) {
+function useFileDownloadUrl(fileKey: string | null) {
   return useQuery({
+    // External pass-through attachments (fileKey === null) have no key to
+    // presign — disable the query and let callers fall back to fileUrl.
+    enabled: fileKey !== null,
     queryKey: ["file-download-url", fileKey],
-    queryFn: () => fileApi.getDownloadUrl(fileKey),
+    queryFn: () => fileApi.getDownloadUrl(fileKey as string),
     staleTime: DOWNLOAD_URL_STALE_TIME,
     gcTime: DOWNLOAD_URL_STALE_TIME,
   });
@@ -93,7 +97,9 @@ function ImageAttachment({
   const { data, isLoading, error, refetch } = useFileDownloadUrl(
     attachment.fileKey,
   );
-  const imageUrl = data?.url ?? null;
+  // External attachments resolve via fileUrl directly (no presign needed).
+  const imageUrl =
+    attachment.fileKey === null ? attachment.fileUrl : (data?.url ?? null);
   const box = getImageBox(attachment);
 
   if (isLoading && !imageUrl) {
@@ -177,6 +183,12 @@ function FileAttachment({
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
+      // External attachments are already at a stable URL — open it directly
+      // instead of round-tripping through the presign endpoint.
+      if (attachment.fileKey === null) {
+        window.open(attachment.fileUrl, "_blank");
+        return;
+      }
       const result = await fileApi.getDownloadUrl(attachment.fileKey);
       // Open in new tab or trigger download
       window.open(result.url, "_blank");
@@ -259,15 +271,24 @@ export function MessageAttachments({
 }: MessageAttachmentsProps) {
   if (!attachments || attachments.length === 0) return null;
 
-  const imageAttachments = attachments.filter((a) =>
-    a.mimeType.startsWith("image/"),
-  );
-  const fileAttachments = attachments.filter(
-    (a) => !a.mimeType.startsWith("image/"),
-  );
+  const isImage = (a: MessageAttachment) => a.mimeType.startsWith("image/");
+  const isVideo = (a: MessageAttachment) => a.mimeType.startsWith("video/");
+
+  const imageAttachments = attachments.filter(isImage);
+  const videoAttachments = attachments.filter(isVideo);
+  const fileAttachments = attachments.filter((a) => !isImage(a) && !isVideo(a));
 
   return (
     <div className="mt-2 space-y-2">
+      {/* Video attachments */}
+      {videoAttachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {videoAttachments.map((attachment) => (
+            <VideoAttachment key={attachment.id} attachment={attachment} />
+          ))}
+        </div>
+      )}
+
       {/* Image attachments */}
       {imageAttachments.length > 0 && (
         <div className="flex flex-wrap gap-2">

@@ -110,6 +110,8 @@
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "Recherche approfondie",
   "dashboardActionGenerateImage": "Générer une image",
+  "dashboardActionVideoGeneration": "Créer une vidéo",
+  "dashboardVideoGenerationTemplate": "Please generate a short video:\n- Scene: [describe the visuals, subjects, actions, camera]\n- Style: [realistic / cartoon / cinematic / leave blank to let the model decide]\n- Duration: 5 seconds\n- Aspect: 16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "Appuyez sur Entrée pour envoyer. Maj+Entrée pour un retour à la ligne.",
   "dashboardWarmupNotice": "Votre OpenClaw est en cours de préparation. Il sera prêt dans environ 2 minutes. Une fois prêt, envoyez un message ci-dessous pour commencer à discuter avec {{name}}.",

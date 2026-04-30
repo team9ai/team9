@@ -97,10 +97,6 @@ interface RichTextEditorProps {
   isBotDm?: boolean;
   /** Bot model switching info */
   botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
-  /** Whether deep research mode is active */
-  isDeepResearch?: boolean;
-  /** Toggle deep research mode */
-  onToggleDeepResearch?: () => void;
 }
 
 function Placeholder({ text, compact }: { text: string; compact?: boolean }) {
@@ -419,8 +415,6 @@ export function RichTextEditor({
   onInitialDraftAutoSent,
   isBotDm = false,
   botModelSwitch,
-  isDeepResearch = false,
-  onToggleDeepResearch,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
   const hasAttachments = uploadingFiles.some((f) => f.status === "completed");
@@ -527,15 +521,12 @@ export function RichTextEditor({
                 channelId={channelId}
                 onFileSelect={onFileSelect}
                 isBotDm={isBotDm}
-                isDeepResearch={isDeepResearch}
-                onToggleDeepResearch={onToggleDeepResearch}
               />
             ) : (
               <div />
             )}
             <div className="flex items-center gap-1.5">
               {SHOW_COMPOSER_MODEL_CONTROL &&
-                !isDeepResearch &&
                 isBotDm &&
                 botModelSwitch &&
                 botModelSwitch.canSwitchModel && (
@@ -589,7 +580,6 @@ export function RichTextEditor({
                   </DropdownMenu>
                 )}
               {SHOW_COMPOSER_MODEL_CONTROL &&
-                !isDeepResearch &&
                 isBotDm &&
                 botModelSwitch &&
                 !botModelSwitch.canSwitchModel &&

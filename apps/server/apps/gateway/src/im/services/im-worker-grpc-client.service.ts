@@ -23,12 +23,14 @@ import {
   type CreateMessageResponse,
 } from '@team9/shared';
 
-// gRPC request/response types (snake_case matching proto)
+// gRPC request/response types (snake_case matching proto).
+// Exactly one of file_key / file_url is set per attachment; see proto for details.
 interface GrpcAttachment {
   file_key: string;
   file_name: string;
   file_size: string;
   mime_type: string;
+  file_url?: string;
 }
 
 interface GrpcCreateMessageRequest {
@@ -150,10 +152,13 @@ export class ImWorkerGrpcClientService
       type: dto.type,
       workspace_id: dto.workspaceId,
       attachments: dto.attachments?.map((att) => ({
-        file_key: att.fileKey,
+        // proto3 requires a non-optional string here; empty string when the
+        // attachment is an external pass-through (URL-only).
+        file_key: att.fileKey ?? '',
         file_name: att.fileName,
         file_size: att.fileSize.toString(),
         mime_type: att.mimeType,
+        ...(att.fileUrl ? { file_url: att.fileUrl } : {}),
       })),
       metadata_json: dto.metadata ? JSON.stringify(dto.metadata) : undefined,
       content_ast_json: dto.contentAst

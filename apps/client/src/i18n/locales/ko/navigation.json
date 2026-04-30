@@ -110,6 +110,8 @@
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "심층 연구",
   "dashboardActionGenerateImage": "이미지 생성",
+  "dashboardActionVideoGeneration": "동영상 만들기",
+  "dashboardVideoGenerationTemplate": "Please generate a short video:\n- Scene: [describe the visuals, subjects, actions, camera]\n- Style: [realistic / cartoon / cinematic / leave blank to let the model decide]\n- Duration: 5 seconds\n- Aspect: 16:9",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "Enter로 전송. Shift+Enter로 줄바꿈.",
   "dashboardWarmupNotice": "OpenClaw가 워밍업 중입니다. 약 2분 후에 사용 가능합니다. 준비가 되면 아래에서 프롬프트를 보내 {{name}}과(와) 채팅을 시작하세요.",

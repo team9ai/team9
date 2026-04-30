@@ -225,9 +225,22 @@ export interface PongMessage {
 /**
  * DTO for creating a message via HTTP API
  * Used by Gateway to call Logic Service
+ *
+ * Two upload paths:
+ *  - Owned: client uploaded the bytes to team9 S3 (presign + S3 + confirm)
+ *    and provides the resulting `fileKey`. im-worker derives the durable
+ *    `fileUrl` from `${env.S3_PUBLIC_URL}/${fileKey}`.
+ *  - External: bytes already live at a stable third-party URL (e.g. an
+ *    agent-generated video already mirrored into capability-hub's MinIO).
+ *    The client provides `fileUrl` directly — no team9-side upload, no
+ *    fileKey. The host must serve the URL durably (no expiring presign,
+ *    no auth required) since team9 will not re-fetch or migrate it.
+ *
+ * Exactly one of `fileKey` / `fileUrl` must be set.
  */
 export interface CreateMessageAttachmentDto {
-  fileKey: string;
+  fileKey?: string;
+  fileUrl?: string;
   fileName: string;
   fileSize: number;
   mimeType: string;

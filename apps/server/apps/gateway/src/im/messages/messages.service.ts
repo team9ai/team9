@@ -53,7 +53,9 @@ export interface MessageSender {
 export interface MessageAttachmentResponse {
   id: string;
   fileName: string;
-  fileKey: string;
+  // null when the attachment is an external pass-through — bytes live at a
+  // third-party URL (fileUrl) and were never uploaded to team9 S3.
+  fileKey: string | null;
   fileUrl: string;
   fileSize: number;
   mimeType: string;
@@ -1213,7 +1215,11 @@ export class MessagesService {
     channelId: string;
     content: string;
     attachments?: Array<{
-      fileKey: string;
+      // Owned upload: client uploaded to team9 S3 and supplies fileKey.
+      // External pass-through: client supplies fileUrl directly. Exactly
+      // one must be set per attachment.
+      fileKey?: string;
+      fileUrl?: string;
       fileName: string;
       mimeType: string;
       fileSize: number;

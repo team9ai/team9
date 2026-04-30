@@ -631,6 +631,58 @@ describe('MessageService', () => {
     );
   });
 
+  it('writes external pass-through attachment with the provided fileUrl and null fileKey', async () => {
+    const { service, db, redisService } = makeHarness();
+    const messageInsert = makeInsertChain();
+    const attachmentInsert = makeInsertChain();
+    const outboxInsert = makeInsertChain();
+    const tx = {
+      insert: jest
+        .fn()
+        .mockReturnValueOnce(messageInsert)
+        .mockReturnValueOnce(attachmentInsert)
+        .mockReturnValueOnce(outboxInsert),
+    };
+
+    db.transaction.mockImplementationOnce(async (callback: any) =>
+      callback(tx),
+    );
+    const channelQuery = makeSelectChain();
+    db.select.mockReturnValueOnce(channelQuery);
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
+
+    await service.createAndPersist({
+      clientMsgId: 'client-external-1',
+      channelId: 'channel-1',
+      senderId: 'user-1',
+      content: 'external video',
+      type: 'file',
+      attachments: [
+        {
+          fileUrl: 'http://capability-hub/seedance/video.mp4',
+          fileName: 'video.mp4',
+          fileSize: 4096,
+          mimeType: 'video/mp4',
+        },
+      ],
+      workspaceId: 'workspace-1',
+    });
+
+    expect(attachmentInsert.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        messageId: expect.any(String),
+        // External attachments persist a null fileKey since the bytes are
+        // not in team9 S3, and store the supplied URL verbatim.
+        fileKey: null,
+        fileName: 'video.mp4',
+        fileUrl: 'http://capability-hub/seedance/video.mp4',
+        mimeType: 'video/mp4',
+        fileSize: 4096,
+      }),
+    ]);
+    expect(redisService.set).toHaveBeenCalled();
+  });
+
   it('returns messages since a seqId with the requested limit', async () => {
     const { service, db } = makeHarness();
     const query = makeSelectChain();

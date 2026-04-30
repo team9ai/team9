@@ -8,14 +8,13 @@
  * at the module-provider level — the rest of the service runs as in
  * production.
  *
- * Covers the 7 scenarios from Phase 9 / Task 9.3 (issue #74):
+ * Covers the scenarios from Phase 9 / Task 9.3 (issue #74):
  *   1. DM happy path
  *   2. Group @mention (mentioned bot only)
  *   3. Topic-session collapse to wire `dm` location
  *   4. Mentor flag (true and false)
  *   5. Tracking auto-forward (thread reply with existing tracking channel)
  *   6. Skip non-human-authored messages
- *   7. Skip deep-research messages
  *
  * The DB is mocked via the same Drizzle chain-mock pattern as the
  * existing unit spec (post-broadcast.service.spec.ts) — kept here
@@ -626,38 +625,6 @@ describe('PostBroadcastService — ahand dynamic-device integration', () => {
       bots: [bot],
       message,
       sender: makeBotSender(),
-      channel: makeChannel('direct'),
-    });
-    stubOrchestrationHelpers(service, [SENDER_ID, bot.userId]);
-
-    await service.processTask({
-      msgId: message.id,
-      channelId: CHANNEL_ID,
-      senderId: SENDER_ID,
-      broadcastAt: Date.now(),
-    });
-
-    expect(clawHiveService.sendInput).not.toHaveBeenCalled();
-    expect(db.transaction).not.toHaveBeenCalled();
-  });
-
-  // ── Scenario 7: Skip deep-research messages ─────────────────────────
-
-  it('7. Skip deep-research: messages flagged in metadata.deepResearch.taskId do not fire sendInput', async () => {
-    const bot = makeHiveBot();
-    const message = makeMessage({
-      content: 'research market trends Q3',
-      metadata: {
-        deepResearch: {
-          taskId: uuidv7(),
-          version: 1,
-        },
-      },
-    });
-    primeHivePush(db, {
-      bots: [bot],
-      message,
-      sender: makeHumanSender(),
       channel: makeChannel('direct'),
     });
     stubOrchestrationHelpers(service, [SENDER_ID, bot.userId]);

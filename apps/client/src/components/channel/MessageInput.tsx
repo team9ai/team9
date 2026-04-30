@@ -1,13 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 import { RichTextEditor } from "./editor";
 import type { EditorSubmitPayload } from "./editor/utils/submitEditorContent";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { cn } from "@/lib/utils";
-import { deepResearchApi } from "@/services/api/deep-research";
-import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import type { AttachmentDto } from "@/types/im";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 
@@ -56,13 +53,10 @@ export function MessageInput({
   isBotDm = false,
   botModelSwitch,
 }: MessageInputProps) {
-  const { t } = useTranslation(["message", "thread", "navigation"]);
+  const { t } = useTranslation(["message", "thread"]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isDeepResearch, setIsDeepResearch] = useState(false);
-  const [isCreatingResearch, setIsCreatingResearch] = useState(false);
   const dragCounterRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
 
   const {
     uploadingFiles,
@@ -177,32 +171,11 @@ export function MessageInput({
     if (!hasContent && !hasAttachments) return;
     if (disabled) return;
 
-    if (isDeepResearch) {
-      if (!channelId || !hasContent || isCreatingResearch) return;
-      setIsCreatingResearch(true);
-      try {
-        const result = await deepResearchApi.startInChannel(channelId, {
-          input: payload.content.trim(),
-          origin: "chat",
-        });
-        upsertChannelMessageInCache(queryClient, channelId, result.message);
-        setIsDeepResearch(false);
-        clearFiles();
-      } finally {
-        setIsCreatingResearch(false);
-      }
-      return;
-    }
-
     await onSend(payload, attachments.length > 0 ? attachments : undefined);
 
     // Clear uploaded files after successful send
     clearFiles();
   };
-
-  const toggleDeepResearch = useCallback(() => {
-    setIsDeepResearch((v) => !v);
-  }, []);
 
   const handleFileSelect = (files: FileList) => {
     addFiles(files);
@@ -211,9 +184,7 @@ export function MessageInput({
   const defaultPlaceholder = compact
     ? t("thread:inputPlaceholder")
     : "Type a message... (Enter to send, Shift+Enter / Ctrl+Enter for new line, @ to mention)";
-  const effectivePlaceholder = isDeepResearch
-    ? t("navigation:dashboardDeepResearchPlaceholder")
-    : placeholder || defaultPlaceholder;
+  const effectivePlaceholder = placeholder || defaultPlaceholder;
 
   // Compact mode: simpler layout, still supports file upload via toolbar/paste
   if (compact) {
@@ -271,8 +242,6 @@ export function MessageInput({
           initialDraft={initialDraft}
           autoSendInitialDraft={autoSendInitialDraft}
           onInitialDraftAutoSent={onInitialDraftAutoSent}
-          isDeepResearch={isDeepResearch}
-          onToggleDeepResearch={toggleDeepResearch}
         />
       </div>
     );
@@ -323,8 +292,6 @@ export function MessageInput({
           onInitialDraftAutoSent={onInitialDraftAutoSent}
           isBotDm={isBotDm}
           botModelSwitch={botModelSwitch}
-          isDeepResearch={isDeepResearch}
-          onToggleDeepResearch={toggleDeepResearch}
         />
       </div>
     </div>

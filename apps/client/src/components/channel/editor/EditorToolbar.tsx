@@ -1,7 +1,14 @@
 import { useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getSelection, $isRangeSelection } from "lexical";
-import { Smile, Plus, AtSign } from "lucide-react";
+import {
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $insertNodes,
+  $isRangeSelection,
+} from "lexical";
+import { Smile, Plus, AtSign, Video } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -9,21 +16,18 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { EmojiPicker } from "./EmojiPicker";
-import { $createTextNode, $insertNodes } from "lexical";
 
 interface EditorToolbarProps {
   channelId?: string;
   onFileSelect?: (files: FileList) => void;
-  // Deep research / generate image entries temporarily hidden
   isBotDm?: boolean;
-  isDeepResearch?: boolean;
-  onToggleDeepResearch?: () => void;
 }
 
 export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editor] = useLexicalComposerContext();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const { t } = useTranslation("navigation");
 
   const insertEmoji = (emoji: string) => {
     editor.update(() => {
@@ -47,6 +51,24 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
       } else {
         const textNode = $createTextNode("@");
         $insertNodes([textNode]);
+      }
+    });
+    editor.focus();
+  };
+
+  const insertVideoTemplate = () => {
+    const template = t("dashboardVideoGenerationTemplate");
+    editor.update(() => {
+      let selection = $getSelection();
+      if (!$isRangeSelection(selection)) {
+        // No active selection (editor not focused yet) — append at the end.
+        $getRoot().selectEnd();
+        selection = $getSelection();
+      }
+      if ($isRangeSelection(selection)) {
+        // insertRawText splits on '\n' into LineBreakNodes so the multi-line
+        // template renders as a real multi-line draft, not a single run-on line.
+        selection.insertRawText(template);
       }
     });
     editor.focus();
@@ -125,7 +147,19 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         <AtSign size={16} />
       </Button>
 
-      {/* Deep research / generate image entries temporarily hidden */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={insertVideoTemplate}
+        title={t("dashboardActionVideoGeneration")}
+        className="group h-8 gap-1.5 rounded-full px-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/80 hover:px-3"
+      >
+        <Video size={14} />
+        <span className="hidden group-hover:inline">
+          {t("dashboardActionVideoGeneration")}
+        </span>
+      </Button>
     </div>
   );
 }
