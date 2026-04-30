@@ -116,10 +116,11 @@ pub struct StartResult {
 ///   respawn. The runtime is left in a session-less state (handle was
 ///   dropped); a follow-up `start()` is required to recover. We do NOT
 ///   force-kill — the `DaemonHandle::Drop` impl cancels the worker task.
-/// * `SpawnFailedRolledBack` — the new spawn failed but a rollback spawn
-///   with the previous `DaemonConfig` succeeded. The runtime is fully
-///   functional, just with the old config; the user's intended change
-///   didn't take effect.
+/// * `SpawnFailedRolledBack` — the config-rollout did not take effect
+///   (either the new config was invalid / failed to load, or the new
+///   spawn failed and a rollback spawn with the previous `DaemonConfig`
+///   succeeded). The runtime is fully functional on the previous config;
+///   the user's intended change didn't take effect.
 /// * `SpawnFailedNoRollback` — both spawns failed. The runtime has no
 ///   active daemon; the app needs to call `start()` again (or restart).
 #[derive(Debug, Serialize, thiserror::Error)]
@@ -345,6 +346,13 @@ impl AhandRuntime {
             Some(path) => match ahandd::config::Config::load(&path) {
                 Ok(c) => Some(c),
                 Err(e) => {
+                    // Config-load failure: the user's intent (apply new
+                    // config) didn't take effect; the old daemon is still
+                    // running on the previous config. Semantically this is
+                    // the same outcome as a primary-spawn failure that
+                    // succeeded its rollback — surface
+                    // `SpawnFailedRolledBack` so the UI reports an honest
+                    // "still online, on previous config" state.
                     let path_display = path.display().to_string();
                     *guard = Some(ActiveSession {
                         handle: old_handle,
@@ -356,9 +364,8 @@ impl AhandRuntime {
                         current_daemon_config: rollback_daemon_cfg,
                         config_path,
                     });
-                    return Err(ReloadError::SpawnFailedNoRollback {
-                        primary: format!("load new config from {path_display}: {e:#}"),
-                        rollback: "not attempted — old daemon left running".into(),
+                    return Err(ReloadError::SpawnFailedRolledBack {
+                        primary: format!("config load from {path_display}: {e:#}"),
                     });
                 }
             },
@@ -452,6 +459,14 @@ impl AhandRuntime {
     /// re-emit the new daemon's status. A future iteration may cache
     /// the `AppHandle` inside `AhandRuntime` so reload() forwards
     /// transparently.
+    // TODO(task-14): replace with real plumbing — pass the AppHandle through
+    // from the Tauri command site so post-reload daemon-status events reach
+    // the renderer. Today this returns None and the watch task at
+    // build_active_session is a no-op for reload-spawned daemons.
+    // The `_team9_user_id` parameter is currently unused; it exists so a
+    // single Tauri app could later scope per-user app handles when hosting
+    // multiple users. Keeping the signature stable means Task 14's wiring
+    // is a body-only change.
     fn app_emitter_for_session(&self, _team9_user_id: &str) -> Option<AppHandle> {
         None
     }
@@ -531,6 +546,8 @@ fn build_active_session(
                 }
             })
         }
+        // TODO(task-14): becomes unreachable once app_emitter_for_session returns Some.
+        // Until then, no-op so the JoinHandle field on ActiveSession is always populated.
         None => tokio::spawn(async {}),
     };
     ActiveSession {
@@ -785,28 +802,39 @@ mod tests {
     #[test]
     fn reload_error_serialize_shape() {
         // Verify the camelCase tagged-union shape expected by the TS side.
-        let e = ReloadError::ShutdownTimeout;
-        let json = serde_json::to_string(&e).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(v["kind"], "shutdownTimeout");
+        // Use full-JSON `assert_eq!` so any drift (e.g. a new field) breaks
+        // the test rather than silently widening the contract.
+        let timeout_json = serde_json::to_value(&ReloadError::ShutdownTimeout).unwrap();
+        assert_eq!(
+            timeout_json,
+            serde_json::json!({ "kind": "shutdownTimeout" })
+        );
 
-        let e = ReloadError::SpawnFailedRolledBack {
+        let rolled = ReloadError::SpawnFailedRolledBack {
             primary: "primary boom".into(),
         };
-        let v: serde_json::Value =
-            serde_json::from_value(serde_json::to_value(&e).unwrap()).unwrap();
-        assert_eq!(v["kind"], "spawnFailedRolledBack");
-        assert_eq!(v["primary"], "primary boom");
+        let rolled_json = serde_json::to_value(&rolled).unwrap();
+        assert_eq!(
+            rolled_json,
+            serde_json::json!({
+                "kind": "spawnFailedRolledBack",
+                "primary": "primary boom",
+            })
+        );
 
-        let e = ReloadError::SpawnFailedNoRollback {
-            primary: "p".into(),
-            rollback: "r".into(),
+        let no_rollback = ReloadError::SpawnFailedNoRollback {
+            primary: "primary boom".into(),
+            rollback: "rollback boom".into(),
         };
-        let v: serde_json::Value =
-            serde_json::from_value(serde_json::to_value(&e).unwrap()).unwrap();
-        assert_eq!(v["kind"], "spawnFailedNoRollback");
-        assert_eq!(v["primary"], "p");
-        assert_eq!(v["rollback"], "r");
+        let no_rollback_json = serde_json::to_value(&no_rollback).unwrap();
+        assert_eq!(
+            no_rollback_json,
+            serde_json::json!({
+                "kind": "spawnFailedNoRollback",
+                "primary": "primary boom",
+                "rollback": "rollback boom",
+            })
+        );
     }
 
     #[test]
@@ -894,6 +922,38 @@ mod tests {
         assert_eq!(cfg.device_jwt, "jwt");
         assert_eq!(cfg.device_id.as_deref(), Some("dev1"));
         assert_eq!(cfg.heartbeat_interval, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn build_daemon_config_browser_enabled_overlay_propagates_true() {
+        use std::io::Write;
+        // ahandd::config::Config doesn't implement Default and we don't
+        // want to pull `toml` as a new dev-dep just to construct one.
+        // `Config::load` already deserializes from a TOML file, so write
+        // a minimal TOML literal to a tempfile and reuse it. All Config
+        // fields are Option/serde-default, so `[browser] enabled = true`
+        // alone parses cleanly.
+        let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
+        writeln!(tmp.as_file(), "[browser]\nenabled = true").expect("write toml");
+        let cfg = ahandd::config::Config::load(tmp.path()).expect("valid TOML");
+
+        let inputs = StartupInputs {
+            hub_url: "wss://hub/ws".into(),
+            device_jwt: "jwt".into(),
+            identity_dir: PathBuf::from("/tmp/id"),
+            device_id: "dev1".into(),
+            heartbeat_interval: Duration::from_secs(30),
+        };
+
+        let daemon_cfg = build_daemon_config(Some(&cfg), &inputs);
+
+        assert!(
+            daemon_cfg.browser_enabled,
+            "overlay browser.enabled=true must propagate to DaemonConfig.browser_enabled"
+        );
+        // Other fields still come from inputs.
+        assert_eq!(daemon_cfg.hub_url, "wss://hub/ws");
+        assert_eq!(daemon_cfg.device_id.as_deref(), Some("dev1"));
     }
 
     // ── reload() integration tests ──────────────────────────────────────
