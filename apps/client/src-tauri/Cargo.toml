@@ -48,9 +48,8 @@ hex = "0.4"
 thiserror = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
-# ahand library embedding — pinned to aHand dev HEAD with duplicate
-# embedded-daemon session guard.
-ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", rev = "5972ef2da404a28031e1604f3b817a4db0187c08" }
+# ahand library embedding.
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", tag = "rust-v0.1.12" }
 
 [dev-dependencies]
 tempfile = "3"

@@ -11,7 +11,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 [[package]]
 name = "ahand-protocol"
 version = "0.1.2"
-source = "git+https://github.com/team9ai/aHand?rev=5972ef2da404a28031e1604f3b817a4db0187c08#5972ef2da404a28031e1604f3b817a4db0187c08"
+source = "git+https://github.com/team9ai/aHand?tag=rust-v0.1.12#103d2853966f6dc7edd640948ef7c81b3d77dd5a"
 dependencies = [
  "prost",
  "prost-build",
@@ -21,7 +21,7 @@ dependencies = [
 [[package]]
 name = "ahandd"
 version = "0.1.2"
-source = "git+https://github.com/team9ai/aHand?rev=5972ef2da404a28031e1604f3b817a4db0187c08#5972ef2da404a28031e1604f3b817a4db0187c08"
+source = "git+https://github.com/team9ai/aHand?tag=rust-v0.1.12#103d2853966f6dc7edd640948ef7c81b3d77dd5a"
 dependencies = [
  "ahand-protocol",
  "anyhow",
