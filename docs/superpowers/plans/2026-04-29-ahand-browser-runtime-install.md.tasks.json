@@ -10,15 +10,17 @@
       "notes": "Merged 2026-04-30 via squash. CI green. Worktree at aHand/.worktrees/browser-setup-progress-api is retained but branch was deleted remotely + rebased commits no longer on local tracking branch."
     },
     "phaseB": {
-      "status": "in-progress",
+      "status": "merged",
+      "pr": "team9ai/agent-pi#104",
+      "mergeCommit": "efbc56cf2dfe388b501af0aac5ad125620dbcbb3",
       "worktree": "/Users/winrey/Projects/weightwave/team9-agent-pi/.worktrees/browser-skill-migration",
       "branch": "feat/browser-skill-migration",
       "baseSha": "919181c4f2e5df8d097de3d63920efeac88b218b",
-      "notes": "Worktree + pnpm install already done. No Phase-B task work started yet; resume by dispatching Task 8's implementer. team9-agent-pi's ahandd-SDK-side CloudClient.browser() removal is noted in Task 9 Step 6 Option A — we chose @deprecated JSDoc in the aHand repo (NOT delete); it's a follow-up commit to Phase A, not a Phase-B dependency."
+      "notes": "Merged 2026-04-30 via merge commit (per plan — preserves 8 atomic commits). CI green. Remote branch deleted by gh. Local worktree + branch retained pending user cleanup confirmation. ahandd-SDK-side CloudClient.browser() @deprecated JSDoc still pending as separate aHand follow-up (NOT a blocker for Phase B or C)."
     },
     "phaseC": {
       "status": "pending",
-      "notes": "After Phase B merges, bump team9 Tauri's ahandd.rev to 5972ef2 (or whatever Phase-B merge SHA if SDK deprecation is bundled there), and @team9claw/* pins to Phase-B published versions. Task 13 Step 1 has the exact Cargo.toml line to update."
+      "notes": "Phase B merged at SHA efbc56cf. Phase C (team9 Tauri) needs to: (1) bump ahandd.rev in Cargo.toml to 5972ef2 (Phase A merge SHA); (2) bump @team9claw/* pins in package.json to a release built off agent-pi efbc56cf or later. Task 13 Step 1 has the exact lines."
     },
     "e2e": {
       "status": "pending"
@@ -74,35 +76,35 @@
     {
       "id": 8,
       "subject": "Task 8: team9-agent-pi — HostCapability rename + deriveCaps backwards-compat alias",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Repo:** team9-agent-pi. **Goal:** Rename HostCapability type value and add alias so legacy 'browser' string still maps to browser-playwright-cli. Legacy devices keep working.\n\n**Files:**\n- Modify: packages/types/src/host.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.test.ts\n- Modify: packages/claw-hive/src/components/ahand/gateway-client.ts\n\n**Verify:** `pnpm --filter @team9claw/types typecheck && pnpm --filter @team9claw/claw-hive typecheck && pnpm --filter @team9claw/claw-hive test -- deriveCaps`\n\n```json:metadata\n{\"files\":[\"packages/types/src/host.ts\",\"packages/claw-hive/src/components/ahand/integration.ts\",\"packages/claw-hive/src/components/ahand/integration.test.ts\",\"packages/claw-hive/src/components/ahand/gateway-client.ts\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && source /opt/homebrew/opt/nvm/nvm.sh && pnpm --filter @team9claw/types typecheck && pnpm --filter @team9claw/claw-hive typecheck && pnpm --filter @team9claw/claw-hive test -- deriveCaps\",\"acceptanceCriteria\":[\"HostCapability = 'shell' | 'browser-playwright-cli'\",\"deriveCaps maps both 'browser' and 'browser-playwright-cli' to browser-playwright-cli\",\"dedup when both present\",\"existing integration.test.ts updated to new shape\",\"pnpm typecheck + test green for modified packages\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: team9-agent-pi — delete browser LLM tool + AhandBackend.browser() + deprecate SDK CloudClient.browser()",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Repo:** team9-agent-pi (+ aHand SDK). **Goal:** Remove PR #97's LLM-tool pathway entirely. BrowserBackendResult type gone. SDK method @deprecated.\n\n**Files:**\n- Modify: packages/agent-components/src/components/host/host-component.ts\n- Modify: packages/agent-components/src/components/host/host-component.test.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.ts\n- Modify: packages/claw-hive/src/components/ahand/integration.test.ts\n- Modify: packages/types/src/host.ts (remove BrowserBackendResult)\n- Modify (in aHand repo — pair with Phase A): aHand/packages/sdk/src/cloud-client.ts (@deprecated JSDoc)\n\n**Verify:** `pnpm typecheck && pnpm test`\n\n```json:metadata\n{\"files\":[\"packages/agent-components/src/components/host/host-component.ts\",\"packages/agent-components/src/components/host/host-component.test.ts\",\"packages/claw-hive/src/components/ahand/integration.ts\",\"packages/claw-hive/src/components/ahand/integration.test.ts\",\"packages/types/src/host.ts\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && source /opt/homebrew/opt/nvm/nvm.sh && pnpm typecheck && pnpm test\",\"acceptanceCriteria\":[\"host-component.ts: no BROWSER_TOOL_DESCRIPTION / browserTool / browser branch / dispatcher\",\"BrowserBackendResult type removed — no consumers remain\",\"AhandBackend.browser() method and its tests deleted from integration.ts\",\"run_command tool untouched\",\"aHand SDK: CloudClient.browser() annotated @deprecated with explanation pointing at hub deprecation banner\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 10: team9-agent-pi — add browser-playwright-cli SKILL folder adapted from microsoft/playwright-cli",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Repo:** team9-agent-pi. **Goal:** Copy upstream playwright-cli SKILL folder, adapt frontmatter + preamble, preserve references verbatim, add MIT attribution.\n\n**Files (created):**\n- packages/agent-components/skills/browser-playwright-cli/SKILL.md\n- packages/agent-components/skills/browser-playwright-cli/LICENSE-UPSTREAM.md\n- packages/agent-components/skills/browser-playwright-cli/references/*.md (9 files)\n\n**Verify:** `ls packages/agent-components/skills/browser-playwright-cli/references/ | wc -l` returns 9\n\n```json:metadata\n{\"files\":[\"packages/agent-components/skills/browser-playwright-cli/SKILL.md\",\"packages/agent-components/skills/browser-playwright-cli/LICENSE-UPSTREAM.md\",\"packages/agent-components/skills/browser-playwright-cli/references/element-attributes.md\",\"packages/agent-components/skills/browser-playwright-cli/references/playwright-tests.md\",\"packages/agent-components/skills/browser-playwright-cli/references/request-mocking.md\",\"packages/agent-components/skills/browser-playwright-cli/references/running-code.md\",\"packages/agent-components/skills/browser-playwright-cli/references/session-management.md\",\"packages/agent-components/skills/browser-playwright-cli/references/storage-state.md\",\"packages/agent-components/skills/browser-playwright-cli/references/test-generation.md\",\"packages/agent-components/skills/browser-playwright-cli/references/tracing.md\",\"packages/agent-components/skills/browser-playwright-cli/references/video-recording.md\",\"packages/agent-components/package.json\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && ls packages/agent-components/skills/browser-playwright-cli/ && ls packages/agent-components/skills/browser-playwright-cli/references/\",\"acceptanceCriteria\":[\"all 9 references/*.md files byte-identical to upstream (sha verify)\",\"SKILL.md frontmatter: name browser-playwright-cli + description, no allowed-tools\",\"team9 preamble inserted as first H2 before upstream content\",\"LICENSE-UPSTREAM.md credits microsoft/playwright-cli MIT\",\"pnpm build includes skills/ in publish (files[] array in package.json)\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 11: team9-agent-pi — register SKILL conditionally from HostComponent based on backend cap",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 10],
       "description": "**Repo:** team9-agent-pi. **Goal:** Call registerSourceCodeSkills in onInitialize + onSessionStart when any backend has browser-playwright-cli cap; skill-tier dependency declared.\n\n**Files:**\n- Modify: packages/agent-components/src/components/host/host-component.ts\n- Modify: packages/agent-components/src/components/host/host-component.test.ts\n\n**Verify:** `pnpm --filter @team9claw/agent-components test -- host-component`\n\n```json:metadata\n{\"files\":[\"packages/agent-components/src/components/host/host-component.ts\",\"packages/agent-components/src/components/host/host-component.test.ts\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9-agent-pi && source /opt/homebrew/opt/nvm/nvm.sh && pnpm --filter @team9claw/agent-components typecheck && pnpm --filter @team9claw/agent-components test -- host-component\",\"acceptanceCriteria\":[\"HostComponent.dependencies includes 'skill-tier'\",\"registerSourceCodeSkills called with packageSkillDir(...,'browser-playwright-cli') and id='@team9claw/agent-components/browser-playwright-cli'\",\"gated on hasAnyBackendWithCap('browser-playwright-cli')\",\"idempotent across repeat calls\",\"no-skill-tier-dep case is no-op (no throw)\",\"tests cover all 4 matrix cells\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 12: team9-agent-pi — delete orphan docs/skills/browser.md + PR assembly",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9, 10, 11],
       "description": "**Repo:** team9-agent-pi. **Goal:** Remove orphan skill markdown, push branch, open PR, merge. Record merge SHA.\n\n**Files:**\n- Delete: docs/skills/browser.md\n\n**Verify:** `gh pr view <NUM> --repo team9ai/agent-pi --json state,mergeCommit`\n\n```json:metadata\n{\"files\":[\"docs/skills/browser.md\"],\"verifyCommand\":\"/opt/homebrew/bin/gh pr view <NUM> --repo team9ai/agent-pi --json state,mergeCommit\",\"acceptanceCriteria\":[\"docs/skills/browser.md deleted\",\"empty docs/skills/ directory removed\",\"pnpm install+typecheck+test+lint+build all green\",\"PR opened against team9ai/agent-pi dev\",\"CI green\",\"merged to dev (merge commit preferred — conceptual commits standalone)\",\"merge SHA captured\"]}\n```"
     },
