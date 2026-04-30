@@ -53,9 +53,7 @@ export function TrackingModal({
   } = useChannelMessages(isOpen ? trackingChannelId : undefined);
 
   // Catch-up sync
-  const { hasMoreUnsynced } = useSyncChannel(
-    isOpen ? trackingChannelId : undefined,
-  );
+  useSyncChannel(isOpen ? trackingChannelId : undefined);
 
   // Channel members (for MessageList member display)
   const { data: members = [] } = useChannelMembers(
@@ -164,7 +162,6 @@ export function TrackingModal({
               readOnly={!isActivated}
               showReadOnlyBar={!isActivated}
               members={members}
-              hasMoreUnsynced={hasMoreUnsynced}
               onSend={isActivated ? handleSend : undefined}
               isSendDisabled={sendMessage.isPending}
               inputPlaceholder="Send guidance to agent..."

@@ -42,7 +42,6 @@ export interface ChannelContentProps {
   botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
 
   // Optional UI controls
-  hasMoreUnsynced?: boolean;
   /** Show read-only bar at bottom (independent of readOnly which controls MessageList) */
   showReadOnlyBar?: boolean;
 }
@@ -69,19 +68,12 @@ export function ChannelContent({
   initialDraft,
   autoSendInitialDraft,
   onInitialDraftAutoSent,
-  hasMoreUnsynced,
   showReadOnlyBar,
   isBotDm,
   botModelSwitch,
 }: ChannelContentProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {hasMoreUnsynced && (
-        <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
-          You have older unread messages. Scroll up to load more.
-        </div>
-      )}
-
       <MessageList
         key={`${channelId}:${highlightSeq ?? 0}`}
         channelId={channelId}

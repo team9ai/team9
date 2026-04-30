@@ -350,5 +350,5 @@ export function useSyncChannel(channelId: string | undefined) {
     }
   }, [query.data, channelId, queryClient]);
 
-  return { ...query, hasMoreUnsynced: query.data?.hasMore ?? false };
+  return query;
 }
