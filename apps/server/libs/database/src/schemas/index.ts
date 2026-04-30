@@ -6,3 +6,4 @@ export * from './routine/index.js';
 export * from './resource/index.js';
 export * from './skill/index.js';
 export * from './wiki/index.js';
+export * from './folder9/index.js';
