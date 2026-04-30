@@ -14,10 +14,7 @@ import { $createTextNode, $insertNodes } from "lexical";
 interface EditorToolbarProps {
   channelId?: string;
   onFileSelect?: (files: FileList) => void;
-  // Deep research / generate image entries temporarily hidden
   isBotDm?: boolean;
-  isDeepResearch?: boolean;
-  onToggleDeepResearch?: () => void;
 }
 
 export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
@@ -124,8 +121,6 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
       >
         <AtSign size={16} />
       </Button>
-
-      {/* Deep research / generate image entries temporarily hidden */}
     </div>
   );
 }

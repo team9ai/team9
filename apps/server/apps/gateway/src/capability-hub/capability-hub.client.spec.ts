@@ -33,7 +33,7 @@ describe('CapabilityHubClient', () => {
 
   it('forwards auth + tenant headers and path', async () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
-    await client.request('POST', '/api/deep-research/tasks', {
+    await client.request('POST', '/api/proxy/openrouter/chat/completions', {
       headers: {
         authorization: 'Bearer T',
         'x-tenant-id': 'tnt',
@@ -41,7 +41,7 @@ describe('CapabilityHubClient', () => {
       body: JSON.stringify({ input: 'hi' }),
     });
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://hub.test/api/deep-research/tasks');
+    expect(url).toBe('http://hub.test/api/proxy/openrouter/chat/completions');
     expect((init as RequestInit).method).toBe('POST');
     expect((init as RequestInit).headers).toMatchObject({
       authorization: 'Bearer T',

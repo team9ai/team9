@@ -46,11 +46,11 @@ describe("loadLanguage", () => {
     const { loadLanguage } = await importModule();
     await loadLanguage("zh-CN");
 
-    // zh-CN directory exists with 15 namespace files (ahand, auth, channel,
-    // common, deepResearch, message, navigation, onboarding, resources,
-    // routines, settings, skills, thread, wiki, workspace), so
+    // zh-CN directory exists with 14 namespace files (ahand, auth, channel,
+    // common, message, navigation, onboarding, resources, routines,
+    // settings, skills, thread, wiki, workspace), so
     // addResourceBundle should be called once per namespace.
-    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(15);
+    expect(i18n.addResourceBundle).toHaveBeenCalledTimes(14);
     expect(i18n.addResourceBundle).toHaveBeenCalledWith(
       "zh-CN",
       "common",

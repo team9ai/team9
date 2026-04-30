@@ -41,7 +41,6 @@ import { DocumentsModule } from './documents/documents.module.js';
 import { RoutinesModule } from './routines/routines.module.js';
 import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
-import { DeepResearchModule } from './deep-research/deep-research.module.js';
 import { PushModule } from './push/push.module.js';
 import { WikisModule } from './wikis/wikis.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
@@ -90,7 +89,6 @@ import { AhandModule } from './ahand/ahand.module.js';
     RoutinesModule,
     ResourcesModule,
     SkillsModule,
-    DeepResearchModule,
     PushModule,
     WikisModule,
     AhandModule,

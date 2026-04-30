@@ -4,14 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseChannelsByType = vi.hoisted(() => vi.fn());
-const mockUseCreateDirectChannel = vi.hoisted(() => vi.fn());
 const mockUseDashboardAgents = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
-const mockDeepResearchCreateTask = vi.hoisted(() => vi.fn());
-const mockDeepResearchStartInChannel = vi.hoisted(() => vi.fn());
 const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
 
@@ -24,7 +21,9 @@ const translationMap: Record<
   dashboardModelLabel: "GPT5.4",
   dashboardPromptHint: "Press Enter to send. Use Shift+Enter for a new line.",
   dashboardActionDeepResearch: "Deep research",
-  dashboardDeepResearchPlaceholder: "Describe the topic you want to research…",
+  dashboardDeepResearchTemplate: "Please run a deep research task...",
+  dashboardActionVideoGeneration: "Video Generation",
+  dashboardVideoGenerationTemplate: "Please generate a short video...",
   dashboardActionGenerateImage: "Generate image",
   dashboardPlan: "Free plan",
   dashboardUpgrade: "Upgrade",
@@ -62,7 +61,6 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/hooks/useChannels", () => ({
   useChannelsByType: mockUseChannelsByType,
-  useCreateDirectChannel: mockUseCreateDirectChannel,
 }));
 
 vi.mock("@/hooks/useDashboardAgents", () => ({
@@ -77,13 +75,6 @@ vi.mock("@/hooks/useWorkspaceBilling", () => ({
 vi.mock("@/stores", () => ({
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
   useUser: mockUseUser,
-}));
-
-vi.mock("@/services/api/deep-research", () => ({
-  deepResearchApi: {
-    createTask: mockDeepResearchCreateTask,
-    startInChannel: mockDeepResearchStartInChannel,
-  },
 }));
 
 vi.mock("@/hooks/useTopicSessions", () => ({
@@ -129,10 +120,6 @@ describe("HomeMainContent", () => {
     mockUseChannelsByType.mockReturnValue({
       directChannels: [{ id: "bot-ch-1", otherUser: { userType: "bot" } }],
     });
-    mockUseCreateDirectChannel.mockReturnValue({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    });
     mockUseDashboardAgents.mockReturnValue({
       agents: [
         {
@@ -169,21 +156,6 @@ describe("HomeMainContent", () => {
       createdAt: "2024-01-01T00:00:00.000Z",
       name: "OpenClaw",
     });
-    mockDeepResearchCreateTask.mockResolvedValue({
-      id: "task-1",
-      status: "running",
-      createdAt: "",
-      updatedAt: "",
-    });
-    mockDeepResearchStartInChannel.mockResolvedValue({
-      task: {
-        id: "task-1",
-        status: "running",
-        createdAt: "",
-        updatedAt: "",
-      },
-      message: { id: "msg-1" },
-    });
     // Default: topic-session creation resolves to a fresh channel id so the
     // dashboard can navigate into the newly-created topic channel.
     mockCreateTopicSessionMutate.mockResolvedValue({
@@ -211,10 +183,10 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
-    // Deep research / Generate image chips are temporarily hidden in
-    // production (DASHBOARD_ACTION_CHIPS is an empty array).
-    expect(screen.queryByText(/deep research/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/generate image/i)).not.toBeInTheDocument();
+    // Deep research and Video generation chips inject prompt templates that
+    // route through the normal topic-session pipeline — no special endpoints.
+    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
+    expect(screen.getByText(/video generation/i)).toBeInTheDocument();
     expect(screen.getByText("Starter")).toBeInTheDocument();
     expect(screen.getByText("5,875")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
@@ -253,13 +225,16 @@ describe("HomeMainContent", () => {
     });
   });
 
-  it("keeps deep research actions hidden on the dashboard", () => {
+  it("injects the deep-research template into the composer when the chip is clicked", () => {
     renderWithProviders(<HomeMainContent />);
 
-    expect(
-      screen.queryByRole("button", { name: /deep research/i }),
-    ).not.toBeInTheDocument();
-    expect(mockDeepResearchStartInChannel).not.toHaveBeenCalled();
+    const chip = screen.getByRole("button", { name: /deep research/i });
+    fireEvent.click(chip);
+
+    const textarea = screen.getByPlaceholderText(
+      /message dashboard/i,
+    ) as HTMLTextAreaElement;
+    expect(textarea.value).toContain("Please run a deep research task");
   });
 
   it("shows a static model label for base-model agents that cannot switch", () => {

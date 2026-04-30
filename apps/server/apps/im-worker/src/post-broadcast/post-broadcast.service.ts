@@ -65,15 +65,6 @@ export class PostBroadcastService {
     return sender.userType === 'human';
   }
 
-  private isDeepResearchMessage(
-    metadata?: Record<string, unknown> | null,
-  ): boolean {
-    if (!metadata || typeof metadata !== 'object') return false;
-    const deepResearch = metadata.deepResearch;
-    if (!deepResearch || typeof deepResearch !== 'object') return false;
-    return typeof (deepResearch as Record<string, unknown>).taskId === 'string';
-  }
-
   /**
    * Process a post-broadcast task
    * Called immediately after Gateway broadcasts to online users
@@ -209,13 +200,6 @@ export class PostBroadcastService {
       }
 
       const { message, sender, channel, mentions, parentMessage } = messageData;
-
-      if (this.isDeepResearchMessage(message.metadata)) {
-        this.logger.debug(
-          `Skipping notification tasks for deep-research message ${msgId}`,
-        );
-        return;
-      }
 
       // Suppress noisy activity notifications for tracking channels,
       // routine-session channels (creation/reflection meta-chats), and
@@ -454,13 +438,6 @@ export class PostBroadcastService {
         return;
       }
 
-      if (this.isDeepResearchMessage(message.metadata)) {
-        this.logger.debug(
-          `Skipping bot webhook fanout for deep-research message ${msgId}`,
-        );
-        return;
-      }
-
       const webhookPayload = {
         event: 'message.created',
         timestamp: new Date().toISOString(),
@@ -670,13 +647,6 @@ export class PostBroadcastService {
       if (!this.isHumanAuthoredMessage(sender)) {
         this.logger.debug(
           `Skipping hive bot fanout for non-human-authored message ${msgId}`,
-        );
-        return;
-      }
-
-      if (this.isDeepResearchMessage(message.metadata)) {
-        this.logger.debug(
-          `Skipping hive bot fanout for deep-research message ${msgId}`,
         );
         return;
       }

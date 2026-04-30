@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { Badge } from "@/components/ui/badge";
-import { useCreateDirectChannel, useChannelsByType } from "@/hooks/useChannels";
+import { useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
 import {
   type DashboardAgent,
@@ -41,8 +40,6 @@ import {
   useWorkspaceBillingOverview,
   useWorkspaceBillingSummary,
 } from "@/hooks/useWorkspaceBilling";
-import { deepResearchApi } from "@/services/api/deep-research";
-import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import {
@@ -59,11 +56,19 @@ import { cn } from "@/lib/utils";
 
 const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
   key: ParseKeys<["navigation", "message"]>;
+  templateKey: ParseKeys<["navigation", "message"]>;
   icon: typeof Search;
   className: string;
 }> = [
   {
+    key: "dashboardActionDeepResearch",
+    templateKey: "dashboardDeepResearchTemplate",
+    icon: Search,
+    className: "",
+  },
+  {
     key: "dashboardActionVideoGeneration",
+    templateKey: "dashboardVideoGenerationTemplate",
     icon: Video,
     className: "",
   },
@@ -444,12 +449,8 @@ export function HomeMainContent({
 }: { agentId?: string | null } = {}) {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
-  // Deep research still uses the legacy direct channel as its container —
-  // it's orthogonal to topic sessions and can be migrated later.
-  const createDirectChannel = useCreateDirectChannel();
   const createTopicSession = useCreateTopicSession();
   const { agents } = useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
@@ -460,8 +461,6 @@ export function HomeMainContent({
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     agentId,
   );
-  const [isDeepResearch, setIsDeepResearch] = useState(false);
-  const [isCreatingResearch, setIsCreatingResearch] = useState(false);
   // Session-scoped model override: chosen in the dashboard dropdown, applied
   // only to the next topic session the user creates. Never written back to
   // the agent's persistent default. Cleared when the user switches agents.
@@ -471,14 +470,9 @@ export function HomeMainContent({
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
   const effectiveModel = sessionModelOverride ?? selectedAgent?.model ?? null;
-  const isSubmitting =
-    createDirectChannel.isPending ||
-    createTopicSession.isPending ||
-    isCreatingResearch;
+  const isSubmitting = createTopicSession.isPending;
   const canSubmit =
-    prompt.trim().length > 0 &&
-    !isSubmitting &&
-    (isDeepResearch || !!selectedAgent);
+    prompt.trim().length > 0 && !isSubmitting && !!selectedAgent;
   const activeSubscription = billingSummary.data?.subscription ?? null;
   const isSubscribed = !!activeSubscription;
   const currentPlanLabel =
@@ -513,8 +507,10 @@ export function HomeMainContent({
     setSessionModelOverride(null);
   }, [selectedAgentUserId]);
 
-  const insertVideoTemplate = () => {
-    const tpl = t("dashboardVideoGenerationTemplate");
+  const insertTemplate = (
+    templateKey: ParseKeys<["navigation", "message"]>,
+  ) => {
+    const tpl = t(templateKey);
     setPrompt((prev) => (prev.trim() ? `${prev}\n\n${tpl}` : tpl));
     requestAnimationFrame(() => {
       const el = promptRef.current;
@@ -531,43 +527,6 @@ export function HomeMainContent({
   const handleSubmit = async () => {
     const draft = prompt.trim();
     if (!draft) return;
-
-    if (isDeepResearch) {
-      if (!selectedAgent) return;
-      if (isCreatingResearch) return;
-      setIsCreatingResearch(true);
-      try {
-        const channelId =
-          selectedAgent.channelId ??
-          (await createDirectChannel.mutateAsync(selectedAgent.userId)).id;
-        const result = await deepResearchApi.startInChannel(channelId, {
-          input: draft,
-          origin: "dashboard",
-        });
-        upsertChannelMessageInCache(queryClient, channelId, result.message);
-
-        setPrompt("");
-        setIsDeepResearch(false);
-        navigate({
-          to: "/channels/$channelId",
-          params: { channelId },
-          search: { message: result.message.id },
-        });
-      } catch (error: unknown) {
-        const status = getHttpErrorStatus(error);
-        if (status === 403) {
-          alert(t("dmPermissionDenied"));
-          return;
-        }
-        alert(
-          getHttpErrorMessage(error) || t("dashboardDeepResearchCreateFailed"),
-        );
-      } finally {
-        setIsCreatingResearch(false);
-      }
-      return;
-    }
-
     if (!selectedAgent) return;
 
     try {
@@ -652,11 +611,7 @@ export function HomeMainContent({
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
-                  placeholder={t(
-                    isDeepResearch
-                      ? "dashboardDeepResearchPlaceholder"
-                      : "dashboardPromptPlaceholder",
-                  )}
+                  placeholder={t("dashboardPromptPlaceholder")}
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
@@ -701,32 +656,19 @@ export function HomeMainContent({
                       }}
                     />
 
-                    {DASHBOARD_ACTION_CHIPS.map((chip) => {
-                      const isDeepResearchChip =
-                        chip.key === "dashboardActionDeepResearch";
-                      const isVideoChip =
-                        chip.key === "dashboardActionVideoGeneration";
-                      return (
-                        <DashboardActionChip
-                          key={chip.key}
-                          label={t(chip.key)}
-                          icon={chip.icon}
-                          className={chip.className}
-                          isActive={isDeepResearchChip && isDeepResearch}
-                          onClick={
-                            isDeepResearchChip
-                              ? () => setIsDeepResearch((prev) => !prev)
-                              : isVideoChip
-                                ? insertVideoTemplate
-                                : undefined
-                          }
-                        />
-                      );
-                    })}
+                    {DASHBOARD_ACTION_CHIPS.map((chip) => (
+                      <DashboardActionChip
+                        key={chip.key}
+                        label={t(chip.key)}
+                        icon={chip.icon}
+                        className={chip.className}
+                        onClick={() => insertTemplate(chip.templateKey)}
+                      />
+                    ))}
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
-                    {!isDeepResearch && SHOW_COMPOSER_MODEL_CONTROL ? (
+                    {SHOW_COMPOSER_MODEL_CONTROL ? (
                       <DashboardModelControl
                         agent={selectedAgent}
                         model={effectiveModel}

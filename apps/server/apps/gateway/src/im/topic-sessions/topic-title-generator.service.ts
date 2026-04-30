@@ -17,7 +17,7 @@ import * as schema from '@team9/database/schemas';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
-import { CapabilityHubClient } from '../../deep-research/capability-hub.client.js';
+import { CapabilityHubClient } from '../../capability-hub/capability-hub.client.js';
 
 interface MessageCreatedPayload {
   message: {
@@ -221,8 +221,7 @@ export class TopicTitleGeneratorService {
       response = await this.hub.request(
         'POST',
         // capability-hub sets app.setGlobalPrefix('api'), so llm-proxy
-        // lives at /api/proxy/:provider/*path (same convention as
-        // /api/deep-research/tasks that DeepResearchController uses).
+        // lives at /api/proxy/:provider/*path.
         '/api/proxy/openrouter/chat/completions',
         {
           headers: {
