@@ -20,6 +20,7 @@ import {
   type Folder9Permission,
 } from '../wikis/types/folder9.types.js';
 import { FolderTokenRequestDto } from './dto/folder-token-request.dto.js';
+import { parseSessionShape } from './parse-session-shape.js';
 
 /**
  * Response body for `POST /api/v1/bot/folder-token`.
@@ -66,12 +67,21 @@ const KNOWN_LOGICAL_KEYS = new Set([
  *   same tenant as the routine, the routine's `folderId` matches the
  *   request's `folderId`, and the requested permission is `read` or
  *   `write` (no `propose`/`admin` for routines in v1).
- * - `session.*`, `agent.*`, `user.*`, `routine.tmp`, `routine.home`:
- *   stub — tenant alignment + bot-existence are still verified, then
- *   a token with the requested permission is minted. **TODO**: real
- *   authorization (session ownership / agent ownership / user-scoped
- *   home-dir gating) needs to land before these scopes ship to
- *   production. Tracked in the dynamic-token-issuance follow-up.
+ * - `session.{tmp,home}`, `agent.{tmp,home}`, `user.{tmp,home}`,
+ *   `routine.{tmp,home}`: real authz against `workspace_folder_mounts`
+ *   plus logicalKey-specific ownership. Every non-document logicalKey
+ *   first requires a matching `workspace_folder_mounts` row keyed by
+ *   `(workspaceId, folderId, scope, mountKey)`; the scope-specific
+ *   gates layer on top:
+ *     * `agent.*`  — `mountRow.scopeId === bot.managedMeta.agentId`.
+ *     * `session.*` — parsed sessionId is recognized AND
+ *       `parsed.agentId === bot.managedMeta.agentId` AND
+ *       `mountRow.scopeId === req.sessionId`.
+ *     * `user.*`   — parsed sessionId is a DM AND `req.userId` is a
+ *       member of the parsed channel AND `mountRow.scopeId === req.userId`.
+ *     * `routine.{tmp,home}` — `req.routineId` is provided AND a
+ *       `routines` row exists with `(id=req.routineId, botId=bot.id)`
+ *       AND `mountRow.scopeId === req.routineId`.
  * - `admin` permission: never issued from this endpoint, regardless
  *   of logical key. The bot surface is mount-time access; admin-tier
  *   lifecycle ops go through PSK paths.
@@ -174,24 +184,11 @@ export class FolderTokenService {
       const routine = await this.authorizeRoutineDocument(req);
       scopeId = routine.id;
     } else {
-      // Stub branch for session.*, agent.*, user.*, routine.tmp,
-      // routine.home. Tenant alignment is already verified above.
-      // TODO(team9-agent-pi #103): replace this stub with real authz
-      // when the corresponding agent-pi feature ships:
-      //   - session.{tmp,home}: verify session ownership (bot is the
-      //     persona attached to the session; sessionId belongs to the
-      //     same agent + tenant).
-      //   - agent.{tmp,home}: verify the bot is the agent runtime
-      //     (agentId matches the bot's managed agent).
-      //   - routine.{tmp,home}: verify the bot has access to the
-      //     routine (ownership or member-of routine.bots).
-      //   - user.{tmp,home}: verify the bot is acting on behalf of
-      //     `userId` (mentor relationship, DM channel, etc.).
-      this.logger.warn(
-        `folder-token issued via stub authz path: logicalKey=${req.logicalKey} ` +
-          `bot=${callerBotUserId} workspace=${req.workspaceId}`,
-      );
-      scopeId = req.routineId ?? req.sessionId;
+      // session.*, agent.*, user.*, routine.{tmp,home}: real authz
+      // delegated to a single helper that combines the
+      // workspace_folder_mounts row match with the logicalKey-specific
+      // ownership check.
+      scopeId = await this.authorizeNonDocumentLogicalKey(req, bot);
     }
 
     // Mint the folder9-scoped token.
@@ -354,14 +351,249 @@ export class FolderTokenService {
 
   private async loadActiveBotByUserId(
     botUserId: string,
-  ): Promise<{ userId: string } | null> {
+  ): Promise<BotIdentity | null> {
     const rows = await this.db
-      .select({ userId: schema.bots.userId })
+      .select({
+        id: schema.bots.id,
+        userId: schema.bots.userId,
+        managedMeta: schema.bots.managedMeta,
+      })
       .from(schema.bots)
       .where(
         and(eq(schema.bots.userId, botUserId), eq(schema.bots.isActive, true)),
       )
       .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const managedAgentId =
+      row.managedMeta &&
+      typeof row.managedMeta === 'object' &&
+      typeof (row.managedMeta as { agentId?: unknown }).agentId === 'string'
+        ? (row.managedMeta as { agentId: string }).agentId
+        : null;
+    return { id: row.id, userId: row.userId, managedAgentId };
+  }
+
+  /**
+   * Real authz for `session.*`, `agent.*`, `user.*`, `routine.{tmp,home}`.
+   *
+   * Common gate: every non-document logicalKey requires a matching
+   * `workspace_folder_mounts` row (identified by workspaceId + folderId
+   * + scope + mountKey). Without one, the caller is unconditionally
+   * unauthorized — the row is what ties a Folder9 folderId to an audit
+   * scope inside team9.
+   *
+   * After the row match, scope-specific ownership tightens the gate:
+   *   - `agent.*`: the row's `scopeId` must match the bot's
+   *     `managedMeta.agentId`.
+   *   - `session.*`: the sessionId must parse, the parsed `agentId`
+   *     must match the bot's managed agent, and the row's `scopeId`
+   *     must match the request's `sessionId`.
+   *   - `user.*`: only valid for DM sessions — the parsed channel must
+   *     contain `req.userId`, and the row's `scopeId` must match
+   *     `req.userId`.
+   *   - `routine.{tmp,home}`: `req.routineId` must be present, the
+   *     `routines` row must exist + be owned by the caller bot
+   *     (`routines.botId === bot.id`), and the row's `scopeId` must
+   *     match `req.routineId`.
+   *
+   * Returns the resolved audit `scopeId` (used for folder9 token
+   * naming + logging).
+   */
+  private async authorizeNonDocumentLogicalKey(
+    req: FolderTokenRequestDto,
+    bot: BotIdentity,
+  ): Promise<string> {
+    const mountKey = req.logicalKey.split('.')[1];
+    const scope = req.logicalKey.split('.')[0];
+    const mountRow = await this.findWorkspaceFolderMount(
+      req.workspaceId,
+      req.folderId,
+      scope,
+      mountKey,
+    );
+    if (!mountRow) {
+      throw new ForbiddenException(
+        'No workspace_folder_mounts row matches (workspaceId, folderId, ' +
+          'scope, mountKey) — caller is not authorized for this folder',
+      );
+    }
+
+    switch (req.logicalKey) {
+      case 'agent.tmp':
+      case 'agent.home': {
+        if (!bot.managedAgentId) {
+          throw new ForbiddenException(
+            'Caller bot has no managed agent — agent.* not allowed',
+          );
+        }
+        if (mountRow.scopeId !== bot.managedAgentId) {
+          throw new ForbiddenException(
+            'agent.* mount row belongs to a different agent',
+          );
+        }
+        return mountRow.scopeId;
+      }
+
+      case 'session.tmp':
+      case 'session.home': {
+        const shape = parseSessionShape(req.sessionId);
+        if (shape.kind === 'unknown') {
+          throw new ForbiddenException(`Unparseable sessionId for session.*`);
+        }
+        if (!bot.managedAgentId || shape.agentId !== bot.managedAgentId) {
+          throw new ForbiddenException(
+            'sessionId does not belong to caller bot',
+          );
+        }
+        if (mountRow.scopeId !== req.sessionId) {
+          throw new ForbiddenException(
+            'session.* mount row does not match sessionId',
+          );
+        }
+        return req.sessionId;
+      }
+
+      case 'user.tmp':
+      case 'user.home': {
+        const shape = parseSessionShape(req.sessionId);
+        if (shape.kind !== 'dm') {
+          throw new ForbiddenException('user.* is only valid for DM sessions');
+        }
+        if (req.userId === undefined) {
+          throw new ForbiddenException('user.* requires userId');
+        }
+        const isMember = await this.isUserMemberOfChannel(
+          shape.channelId,
+          req.userId,
+        );
+        if (!isMember) {
+          throw new ForbiddenException(
+            'userId is not a member of the DM channel',
+          );
+        }
+        if (mountRow.scopeId !== req.userId) {
+          throw new ForbiddenException(
+            'user.* mount row does not match userId',
+          );
+        }
+        return req.userId;
+      }
+
+      case 'routine.tmp':
+      case 'routine.home': {
+        if (req.routineId === undefined) {
+          throw new ForbiddenException('routine.{tmp,home} requires routineId');
+        }
+        const routine = await this.loadRoutineByIdAndBot(req.routineId, bot.id);
+        if (!routine) {
+          throw new ForbiddenException(
+            'Routine not found or not owned by caller bot',
+          );
+        }
+        if (mountRow.scopeId !== req.routineId) {
+          throw new ForbiddenException(
+            'routine.* mount row does not match routineId',
+          );
+        }
+        return req.routineId;
+      }
+
+      default:
+        // Defense-in-depth — KNOWN_LOGICAL_KEYS already screens the
+        // request earlier, and `routine.document` is handled before
+        // this helper runs. Anything else here is a server-side bug.
+        throw new ForbiddenException(
+          `Unsupported logicalKey for non-document authz: ${req.logicalKey}`,
+        );
+    }
+  }
+
+  /**
+   * Lookup helper for the `workspace_folder_mounts` row that backs a
+   * non-document logicalKey. Lookup is keyed by
+   * (workspaceId, folder9FolderId, scope, mountKey) — the unique index
+   * on the table makes this an indexed lookup.
+   */
+  private async findWorkspaceFolderMount(
+    workspaceId: string,
+    folder9FolderId: string,
+    scope: string,
+    mountKey: string,
+  ): Promise<{ scopeId: string; folderType: string } | null> {
+    const rows = await this.db
+      .select({
+        scopeId: schema.workspaceFolderMounts.scopeId,
+        folderType: schema.workspaceFolderMounts.folderType,
+      })
+      .from(schema.workspaceFolderMounts)
+      .where(
+        and(
+          eq(schema.workspaceFolderMounts.workspaceId, workspaceId),
+          eq(schema.workspaceFolderMounts.folder9FolderId, folder9FolderId),
+          eq(schema.workspaceFolderMounts.scope, scope),
+          eq(schema.workspaceFolderMounts.mountKey, mountKey),
+        ),
+      )
+      .limit(1);
     return rows[0] ?? null;
   }
+
+  /**
+   * Direct DB membership probe — mirrors the inline pattern in
+   * `FileService.canAccessFile` so we don't drag a full `ChannelsService`
+   * dependency into this module just for one boolean check. The unique
+   * `(channel_id, user_id)` index makes this a single-row lookup.
+   */
+  private async isUserMemberOfChannel(
+    channelId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: schema.channelMembers.id })
+      .from(schema.channelMembers)
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  /**
+   * Lookup a routine constrained by both `id` and `botId` — collapses
+   * "exists" + "owned by caller bot" into a single round-trip. Returns
+   * `null` if either condition fails.
+   */
+  private async loadRoutineByIdAndBot(
+    routineId: string,
+    botId: string,
+  ): Promise<{ id: string } | null> {
+    const rows = await this.db
+      .select({ id: schema.routines.id })
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.id, routineId),
+          eq(schema.routines.botId, botId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+}
+
+/**
+ * Caller-bot identity loaded once at the top of {@link FolderTokenService.issueToken}
+ * and threaded into every authz helper. `id` is the `im_bots.id` PK,
+ * `userId` is the shadow user (matches the JWT `sub`), `managedAgentId`
+ * is `managedMeta.agentId` lifted out and narrowed to `string | null`
+ * so callers don't need to re-parse the jsonb on every check.
+ */
+interface BotIdentity {
+  id: string;
+  userId: string;
+  managedAgentId: string | null;
 }
