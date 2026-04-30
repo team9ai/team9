@@ -19,11 +19,16 @@
       "notes": "Merged 2026-04-30 via merge commit (per plan — preserves 8 atomic commits). CI green. Remote branch deleted by gh. Local worktree + branch retained pending user cleanup confirmation. ahandd-SDK-side CloudClient.browser() @deprecated JSDoc still pending as separate aHand follow-up (NOT a blocker for Phase B or C)."
     },
     "phaseC": {
-      "status": "pending",
-      "notes": "Phase B merged at SHA efbc56cf. Phase C (team9 Tauri) needs to: (1) bump ahandd.rev in Cargo.toml to 5972ef2 (Phase A merge SHA); (2) bump @team9claw/* pins in package.json to a release built off agent-pi efbc56cf or later. Task 13 Step 1 has the exact lines."
+      "status": "merged",
+      "pr": "team9ai/team9#91",
+      "mergeCommit": "d08cf56d6313927ba734fa9508b359c462625151",
+      "branch": "feat/browser-runtime-install-ui",
+      "baseSha": "b9fcef70",
+      "notes": "Merged 2026-04-30 via merge commit (preserves 5 atomic commits). CI green (all GitHub Actions + Railway deploys passed). Worktree + local branch cleaned up. No @team9claw/* npm bumps needed — apps/client/package.json doesn't pin them. ahandd.rev bumped to 5972ef2. AhandRuntime now supports hot reload + rollback; 3 Tauri commands (browser_status/install/set_enabled); renderer has live RuntimeCard + log drawer + agent-visible toggle with out-of-sync indicator."
     },
     "e2e": {
-      "status": "pending"
+      "status": "pending",
+      "notes": "Task 17 manual E2E smoke (user-driven): open desktop app → 我的设备 → 浏览器控制 tab → click Install → observe live progress → on success see Agent-visible toggle become enabled → toggle off + on, daemon reload completes within ~5s → restart app, verify cap persists across launch."
     }
   },
   "tasks": [
@@ -111,28 +116,28 @@
     {
       "id": 13,
       "subject": "Task 13: team9 Tauri — bump ahandd.rev + @team9claw/* deps + AhandRuntime::reload() with rollback",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7, 12],
       "description": "**Repo:** team9. **Goal:** Pick up Phase A + B changes. Add reload() on AhandRuntime with rollback on spawn failure.\n\n**Files:**\n- Modify: apps/client/src-tauri/Cargo.toml\n- Modify: apps/client/src-tauri/src/ahand/runtime.rs\n- Modify: apps/client/package.json (or workspace pins)\n\n**Verify:** `cargo test --manifest-path apps/client/src-tauri/Cargo.toml runtime::tests::reload`\n\n```json:metadata\n{\"files\":[\"apps/client/src-tauri/Cargo.toml\",\"apps/client/src-tauri/src/ahand/runtime.rs\",\"apps/client/package.json\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9 && source /opt/homebrew/opt/nvm/nvm.sh && pnpm install && pnpm --filter @team9/client build && cargo test --manifest-path apps/client/src-tauri/Cargo.toml runtime\",\"acceptanceCriteria\":[\"ahandd.rev bumped to Phase A merge SHA\",\"@team9claw/* pins bumped to Phase B versions\",\"ReloadError enum with 3 variants (ShutdownTimeout / SpawnFailedRolledBack / SpawnFailedNoRollback)\",\"pub async fn reload takes &mut self, loads fresh Config, 5s shutdown timeout, respawn with rollback\",\"primary-spawn failure tries rollback spawn; on rollback success returns SpawnFailedRolledBack\",\"rollback failure returns SpawnFailedNoRollback with both messages\",\"AhandRuntime retains startup_inputs + current_daemon_config\",\"4 reload tests scaffolded (may be #[ignore] if mock infra not ready)\"]}\n```"
     },
     {
       "id": 14,
       "subject": "Task 14: team9 Tauri — browser_runtime.rs with 3 commands + progress adapter + log tee",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13],
       "description": "**Repo:** team9. **Goal:** Tauri backend: browser_status, browser_install, browser_set_enabled commands; ProgressEvent → BrowserProgressEvent adapter; 7-day log tee.\n\n**Files:**\n- Create: apps/client/src-tauri/src/ahand/browser_runtime.rs\n- Modify: apps/client/src-tauri/src/ahand/mod.rs\n- Modify: apps/client/src-tauri/src/lib.rs\n\n**Verify:** `cargo test --manifest-path apps/client/src-tauri/Cargo.toml browser_runtime`\n\n```json:metadata\n{\"files\":[\"apps/client/src-tauri/src/ahand/browser_runtime.rs\",\"apps/client/src-tauri/src/ahand/mod.rs\",\"apps/client/src-tauri/src/lib.rs\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9 && cargo test --manifest-path apps/client/src-tauri/Cargo.toml browser_runtime && cargo fmt --manifest-path apps/client/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path apps/client/src-tauri/Cargo.toml --all-targets -- -D warnings\",\"acceptanceCriteria\":[\"browser_status returns overall + per-step + enabled + agent_visible + queried_at\",\"browser_install streams BrowserProgressEvent via Channel; on success flips enabled=true + calls reload\",\"browser_set_enabled guards (can't enable if not installed); fast-fails if install in flight via try_lock\",\"adapter translates ahandd ProgressEvent per spec §5.3 table\",\"log tee to ~/.ahand/logs/browser-setup-{ts}.log with 7-day retention\",\"3 commands registered in tauri::generate_handler!\",\"AhandRuntime state is Arc<Mutex<AhandRuntime>>\",\"adapter unit tests cover StepStarted/StepLog/overall_from_reports/StepError mapping\"]}\n```"
     },
     {
       "id": 15,
       "subject": "Task 15: team9 Tauri renderer — useBrowserRuntime hook + BrowserConfigTab rewrite (split into 4 files) + i18n",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [14],
       "description": "**Repo:** team9. **Goal:** Frontend rewrite. Split existing 159-line flat BrowserConfigTab.tsx into directory with 4 focused components. Add useBrowserRuntime hook with reducer FSM. New i18n keys zh-CN + en-US.\n\n**Files:**\n- Create: apps/client/src/hooks/useBrowserRuntime.ts\n- Create: apps/client/src/components/layout/contents/devices/BrowserConfigTab/{index,RuntimeCard,StepRow,LogDrawer,BrowserBinaryCard}.tsx\n- Delete: apps/client/src/components/layout/contents/devices/BrowserConfigTab.tsx\n- Modify: apps/client/src/i18n/locales/zh-CN/ahand.json\n- Modify: apps/client/src/i18n/locales/en-US/ahand.json\n\n**Verify:** `pnpm --filter @team9/client typecheck && pnpm --filter @team9/client lint`\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useBrowserRuntime.ts\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/index.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/RuntimeCard.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/StepRow.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/LogDrawer.tsx\",\"apps/client/src/components/layout/contents/devices/BrowserConfigTab/BrowserBinaryCard.tsx\",\"apps/client/src/i18n/locales/zh-CN/ahand.json\",\"apps/client/src/i18n/locales/en-US/ahand.json\"],\"verifyCommand\":\"cd /Users/winrey/Projects/weightwave/team9 && source /opt/homebrew/opt/nvm/nvm.sh && pnpm --filter @team9/client typecheck && pnpm --filter @team9/client lint\",\"acceptanceCriteria\":[\"useBrowserRuntime exposes {state, install, setEnabled, refresh}\",\"state is discriminated union loading/idle/installing/reloading/error\",\"Channel-based event streaming from backend wired correctly\",\"RuntimeCard shows overall badge + install/retry button + agent-visible toggle + step rows + LogDrawer\",\"StepRow shows status icon + label + badge + help popover (only when failed)\",\"Help popover content keyed on errorCode\",\"LogDrawer auto-scrolls, collapsible, stream-colored\",\"all strings i18n'd; zh-CN + en-US parity\",\"Coming-Soon badge removed\",\"BrowserBinaryCard moved verbatim\"]}\n```"
     },
     {
       "id": 16,
       "subject": "Task 16: team9 Tauri — PR push + CI + merge (Phase C)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13, 14, 15],
       "description": "**Repo:** team9. **Goal:** Ship the Tauri install-UI PR. Merge commit. Record merge SHA.\n\n**Verify:** `gh pr view <NUM> --repo team9ai/team9 --json state,mergeCommit`\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"/opt/homebrew/bin/gh pr view <NUM> --repo team9ai/team9 --json state,mergeCommit\",\"acceptanceCriteria\":[\"branch pushed with all commits from tasks 13-15\",\"PR opened against team9ai/team9 dev\",\"CI green (Railway previews, CI Test lint/typecheck/test)\",\"merged (merge commit)\",\"merge SHA captured for release tracking\"]}\n```"
     },
