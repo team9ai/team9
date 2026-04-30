@@ -30,7 +30,6 @@ describe('RoutineBotController', () => {
         .mockResolvedValue({ id: 'routine-1', status: 'draft' }),
       getRoutineById: jest.fn<any>().mockResolvedValue({
         id: 'routine-1',
-        documentContent: '',
         triggers: [],
       }),
       updateRoutine: jest
@@ -74,7 +73,7 @@ describe('RoutineBotController', () => {
   it('delegates getRoutineById with routineId, bot user, and tenant', async () => {
     await expect(
       controller.getById('routine-1', 'bot-user-1', 'tenant-1'),
-    ).resolves.toEqual({ id: 'routine-1', documentContent: '', triggers: [] });
+    ).resolves.toEqual({ id: 'routine-1', triggers: [] });
 
     expect(routineBotService.getRoutineById).toHaveBeenCalledWith(
       'routine-1',

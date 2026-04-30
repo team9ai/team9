@@ -4717,17 +4717,15 @@ describe('RoutinesService — TaskCast integration', () => {
       });
     });
 
-    it('kickoff payload includes the enriched draft fields when doc is present', async () => {
-      const DOCUMENT_ID = 'doc-42';
+    it('kickoff payload includes the enriched draft fields (no documentContent — it is deprecated)', async () => {
+      // After the routine→folder9 skill migration the kickoff payload no
+      // longer carries a `documentContent` enrichment. The runbook lives
+      // in the folder9-mounted SKILL.md; legacy `documents` table reads
+      // would always return empty for new routines and only ever served
+      // to confuse the agent into "SKILL.md unwritten" loops.
       mockGetRoutine({
         description: 'My routine description',
-        documentId: DOCUMENT_ID,
         botId: BOT_ID,
-      });
-      documentsService.getById.mockResolvedValueOnce({
-        id: DOCUMENT_ID,
-        tenantId: TENANT_ID,
-        currentVersion: { versionIndex: 1, content: 'draft doc content' },
       });
 
       await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
@@ -4741,13 +4739,14 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(payload.creationChannelId).toBe(CHANNEL_ID);
       expect(payload.title).toBe('Test Draft');
       expect(payload.description).toBe('My routine description');
-      expect(payload.documentContent).toBe('draft doc content');
+      expect(payload).not.toHaveProperty('documentContent');
       expect(payload.botId).toBe(BOT_ID);
       expect(payload.triggers).toEqual([]);
     });
 
     it('payload uses null for missing optional fields when draft has none', async () => {
-      // Default mockGetRoutine has no description and no documentId
+      // Default mockGetRoutine has no description; documentId is also null
+      // but the field is no longer carried on the kickoff payload either way.
       mockGetRoutine({ description: null, documentId: null });
 
       await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
@@ -4756,7 +4755,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .calls[0] as [string, { payload: Record<string, unknown> }, string];
       const payload = sendInputCall[1].payload;
       expect(payload.description).toBeNull();
-      expect(payload.documentContent).toBeNull();
+      expect(payload).not.toHaveProperty('documentContent');
       expect(payload.triggers).toEqual([]);
     });
 
@@ -4840,24 +4839,20 @@ describe('RoutinesService — TaskCast integration', () => {
       );
     });
 
-    it('logs warn and uses null documentContent when documentsService.getById throws', async () => {
-      const DOCUMENT_ID = 'doc-fail';
+    it('startCreationSession: kickoff payload omits the deprecated documentContent field entirely', async () => {
+      // Routine→folder9 skill migration: the kickoff event used to carry a
+      // best-effort `documentContent` enrichment fetched from the legacy
+      // `documents` table. Routines created on the new path have
+      // documentId=null, so the field was always null for new routines and
+      // always misleading for the agent (it would interpret an empty
+      // documentContent as "SKILL.md unwritten" and start re-authoring on
+      // top of the actual SKILL.md living in folder9). The enrichment was
+      // removed; this test guards against re-introduction.
+      const DOCUMENT_ID = 'doc-legacy';
       mockGetRoutine({ documentId: DOCUMENT_ID });
-      documentsService.getById.mockRejectedValueOnce(
-        new Error('doc fetch boom'),
-      );
-      const loggerWarn = jest
-        .spyOn((service as any).logger, 'warn')
-        .mockImplementation(() => undefined);
 
-      // Should resolve successfully despite getById failure
       await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
 
-      expect(loggerWarn).toHaveBeenCalledWith(
-        expect.stringContaining('failed to fetch draft documentContent'),
-      );
-
-      // documentContent in the payload should be null
       const payload = (
         (clawHiveService.sendInput as jest.Mock).mock.calls[0] as [
           string,
@@ -4865,9 +4860,11 @@ describe('RoutinesService — TaskCast integration', () => {
           string,
         ]
       )[1].payload;
-      expect(payload.documentContent).toBeNull();
-
-      loggerWarn.mockRestore();
+      expect(payload).not.toHaveProperty('documentContent');
+      // The kickoff path must NOT touch documentsService — leaning on it
+      // brought tenant-mismatch / fetch-failure handling that is no longer
+      // relevant once SKILL.md is the source of truth.
+      expect(documentsService.getById).not.toHaveBeenCalled();
     });
 
     it('kickoff payload includes draft triggers from inline DB select', async () => {
@@ -4977,60 +4974,12 @@ describe('RoutinesService — TaskCast integration', () => {
       loggerWarn.mockRestore();
     });
 
-    // ── documentContent enrichment tests ──────────────────────────────
-
-    it('startCreationSession: kickoff payload includes documentContent from doc.currentVersion.content', async () => {
-      const DOCUMENT_ID = 'doc-1';
-      mockGetRoutine({ documentId: DOCUMENT_ID });
-      documentsService.getById.mockResolvedValueOnce({
-        id: DOCUMENT_ID,
-        tenantId: TENANT_ID,
-        currentVersion: { versionIndex: 1, content: 'doc body' },
-      } as any);
-
-      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
-
-      const payload = (clawHiveService.sendInput as jest.Mock).mock
-        .calls[0] as [string, { payload: Record<string, unknown> }, string];
-      expect(payload[1].payload.documentContent).toBe('doc body');
-    });
-
-    it('startCreationSession: documentContent stays null when doc tenantId mismatches', async () => {
-      const DOCUMENT_ID = 'doc-1';
-      mockGetRoutine({ documentId: DOCUMENT_ID });
-      documentsService.getById.mockResolvedValueOnce({
-        id: DOCUMENT_ID,
-        tenantId: 'other-tenant',
-        currentVersion: { versionIndex: 1, content: 'leaked' },
-      } as any);
-      const loggerWarn = jest.spyOn((service as any).logger, 'warn');
-
-      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
-
-      const payload = (clawHiveService.sendInput as jest.Mock).mock
-        .calls[0] as [string, { payload: Record<string, unknown> }, string];
-      expect(payload[1].payload.documentContent).toBeNull();
-      expect(loggerWarn).toHaveBeenCalledWith(
-        expect.stringContaining('tenant mismatch'),
-      );
-      loggerWarn.mockRestore();
-    });
-
-    it('startCreationSession: documentContent stays null when currentVersion is null', async () => {
-      const DOCUMENT_ID = 'doc-1';
-      mockGetRoutine({ documentId: DOCUMENT_ID });
-      documentsService.getById.mockResolvedValueOnce({
-        id: DOCUMENT_ID,
-        tenantId: TENANT_ID,
-        currentVersion: null,
-      } as any);
-
-      await service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID);
-
-      const payload = (clawHiveService.sendInput as jest.Mock).mock
-        .calls[0] as [string, { payload: Record<string, unknown> }, string];
-      expect(payload[1].payload.documentContent).toBeNull();
-    });
+    // documentContent enrichment was removed in the routine→folder9 skill
+    // migration — see the regression test above
+    // ("kickoff payload omits the deprecated documentContent field entirely").
+    // The previous tenant-mismatch / fetch-failure / currentVersion=null
+    // sub-cases all collapsed into "the field is not present and getById
+    // is never called", which is what the regression test asserts.
 
     describe('creator language propagation', () => {
       it("includes creator's language + timeZone in team9Context when both are set", async () => {

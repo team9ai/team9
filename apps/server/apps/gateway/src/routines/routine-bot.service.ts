@@ -24,7 +24,6 @@ import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
 import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import { TaskCastService } from './taskcast.service.js';
-import { DocumentsService } from '../documents/documents.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import { RoutinesService } from './routines.service.js';
 
@@ -32,13 +31,17 @@ import { RoutinesService } from './routines.service.js';
 
 @Injectable()
 export class RoutineBotService {
+  // `DocumentsService` is intentionally NOT injected here. It used to enrich
+  // `getRoutineById` with the legacy `documentContent` column; that
+  // enrichment was removed in the routine→folder9 skill migration (SKILL.md
+  // is now the source of truth, mounted via folder9). Re-introducing the
+  // injection without a real call site would resurrect dead DI wiring.
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     @Inject(WEBSOCKET_GATEWAY)
     private readonly wsGateway: WebsocketGateway,
     private readonly taskCastService: TaskCastService,
-    private readonly documentsService: DocumentsService,
     private readonly routineTriggersService: RoutineTriggersService,
     private readonly routinesService: RoutinesService,
   ) {}
@@ -469,7 +472,17 @@ export class RoutineBotService {
 
   /**
    * Fetch a routine by ID, verifying the calling bot is the assigned bot.
-   * Returns routine enriched with documentContent and triggers.
+   * Returns routine enriched with triggers.
+   *
+   * `documentContent` is no longer enriched onto the response — the field is
+   * a deprecated legacy column from before the folder9 migration and always
+   * read empty for routines created on the new path. Bots should read the
+   * runbook from the folder9-backed SKILL.md (mounted at
+   * `/workspace/routine/document/SKILL.md` in the agent session) and never
+   * derive runbook state from `documentContent`. Removed in the
+   * routine→folder9 skill migration to stop the field from misleading the
+   * agent into "documentContent is empty therefore SKILL.md is missing"
+   * loops.
    */
   async getRoutineById(routineId: string, botUserId: string, tenantId: string) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
@@ -480,24 +493,13 @@ export class RoutineBotService {
     }
     await this.verifyBotOwnership(routine.botId, botUserId);
 
-    // Enrich with document content
-    let documentContent = '';
-    if (routine.documentId) {
-      try {
-        const doc = await this.documentsService.getById(routine.documentId);
-        documentContent = (doc as { content?: string | null }).content ?? '';
-      } catch {
-        documentContent = '';
-      }
-    }
-
     // Enrich with triggers
     const triggers = await this.routineTriggersService.listByRoutine(
       routineId,
       tenantId,
     );
 
-    return { ...routine, documentContent, triggers };
+    return { ...routine, triggers };
   }
 
   /**

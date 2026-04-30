@@ -117,7 +117,6 @@ describe('RoutineBotService — TaskCast integration', () => {
       db as never,
       wsGateway as never,
       taskCastService as never,
-      {} as never, // documentsService — not used in TaskCast tests
       {} as never, // routineTriggersService — not used in TaskCast tests
       {} as never, // routinesService — not used in TaskCast tests
     );
@@ -543,7 +542,6 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
   let db: ReturnType<typeof mockDb>;
   let wsGateway: { broadcastToWorkspace: MockFn };
   let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
-  let documentsService: { create: MockFn; getById: MockFn; update: MockFn };
   let routineTriggersService: {
     listByRoutine: MockFn;
     replaceAllForRoutine: MockFn;
@@ -575,11 +573,6 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       publishEvent: jest.fn<any>().mockResolvedValue(undefined),
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
     };
-    documentsService = {
-      create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
-      getById: jest.fn<any>().mockResolvedValue({ content: 'doc content' }),
-      update: jest.fn<any>().mockResolvedValue(undefined),
-    };
     routineTriggersService = {
       listByRoutine: jest.fn<any>().mockResolvedValue([]),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
@@ -596,7 +589,6 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       db as never,
       wsGateway as never,
       taskCastService as never,
-      documentsService as never,
       routineTriggersService as never,
       routinesService as never,
     );
@@ -766,16 +758,13 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
   // ── getRoutineById ────────────────────────────────────────────────
 
   describe('getRoutineById', () => {
-    it('returns routine enriched with documentContent and triggers', async () => {
+    it('returns routine enriched with triggers (no documentContent — deprecated)', async () => {
       // getRoutineOrThrow: routine lookup
       db.limit
         .mockResolvedValueOnce([ROUTINE_ROW] as any)
         // verifyBotOwnership: bot lookup
         .mockResolvedValueOnce([BOT_ROW] as any);
 
-      documentsService.getById.mockResolvedValueOnce({
-        content: 'my content',
-      } as any);
       routineTriggersService.listByRoutine.mockResolvedValueOnce([
         { id: 'trigger-1' },
       ] as any);
@@ -788,9 +777,14 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
       expect(result).toMatchObject({
         id: 'routine-1',
-        documentContent: 'my content',
         triggers: [{ id: 'trigger-1' }],
       });
+      // documentContent must NOT be enriched onto the response — the field is
+      // a deprecated legacy column and was misleading the agent into thinking
+      // SKILL.md was unwritten when it was actually present in folder9.
+      expect(
+        (result as Record<string, unknown>).documentContent,
+      ).toBeUndefined();
     });
 
     it('throws NotFoundException when routine not found', async () => {
@@ -810,25 +804,6 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       await expect(
         service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1'),
       ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('returns empty documentContent when documentsService throws', async () => {
-      db.limit
-        .mockResolvedValueOnce([ROUTINE_ROW] as any)
-        .mockResolvedValueOnce([BOT_ROW] as any);
-
-      documentsService.getById.mockRejectedValueOnce(
-        new Error('not found') as any,
-      );
-      routineTriggersService.listByRoutine.mockResolvedValueOnce([] as any);
-
-      const result = await service.getRoutineById(
-        'routine-1',
-        'bot-user-1',
-        'tenant-1',
-      );
-
-      expect(result.documentContent).toBe('');
     });
   });
 
@@ -856,25 +831,17 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
     // The bot-side bridge `(dto as ...).documentContent` was removed in
     // A.4 along with its create-side counterpart. Bots no longer write
     // routine body via PATCH — that path moves to the folder9 SKILL.md
-    // proxy (A.6). The legacy assertion that updateRoutine called
-    // documentsService.update with a documentContent literal is replaced
-    // by a regression check that documentsService is NOT touched at all
-    // on a body-less update.
-    it('does NOT touch documentsService on a routine PATCH', async () => {
-      db.limit
-        .mockResolvedValueOnce([ROUTINE_ROW] as any)
-        .mockResolvedValueOnce([BOT_ROW] as any);
-
-      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
-
-      await service.updateRoutine(
-        'routine-1',
-        { title: 'Updated' } as never,
-        'bot-user-1',
-        'tenant-1',
-      );
-
-      expect(documentsService.update).not.toHaveBeenCalled();
+    // proxy (A.6). After the routine→folder9 skill migration the
+    // `documentsService` injection itself was dropped from
+    // `RoutineBotService` (no remaining call site), so a structural guard
+    // is more honest than asserting on a now-unwired mock: the constructor
+    // must not list DocumentsService as a parameter.
+    it('does NOT take DocumentsService as a constructor dependency', () => {
+      // RoutineBotService's constructor takes (db, wsGateway, taskCastService,
+      // routineTriggersService, routinesService) — 5 args, no documentsService.
+      // If a future contributor re-adds the injection without re-introducing a
+      // real call site, this length check will flag it.
+      expect(RoutineBotService.length).toBe(5);
     });
 
     it('replaces triggers when provided', async () => {
