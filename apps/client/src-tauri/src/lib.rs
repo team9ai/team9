@@ -368,6 +368,9 @@ pub fn run() {
             ahand::commands::ahand_stop,
             ahand::commands::ahand_status,
             ahand::commands::ahand_clear_identity,
+            ahand::browser_runtime::browser_status,
+            ahand::browser_runtime::browser_install,
+            ahand::browser_runtime::browser_set_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

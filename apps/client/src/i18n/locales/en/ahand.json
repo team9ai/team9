@@ -105,12 +105,16 @@
     }
   },
   "browser": {
-    "runtimeTitle": "Browser automation runtime",
+    "runtimeTitle": "Browser automation runtime (Playwright CLI)",
     "runtimeDescription": "The library agents use to actually drive a browser — click, type, read the page. We use Playwright under the hood.",
     "runtimeSubtitle": "Needed for agents to open and control web pages",
     "statusNotInstalled": "Not installed",
     "statusInstalled": "Installed",
+    "installing": "Installing…",
+    "reloading": "Applying…",
+    "installFailed": "Install failed",
     "install": "Install",
+    "retry": "Retry",
     "binaryTitle": "Which browser agents use",
     "binaryDescription": "Pick the browser agents will open by default. The bundled one is safest — it's isolated from your day-to-day browser.",
     "recommended": "Recommended",
@@ -121,6 +125,57 @@
       "chrome": "Google Chrome",
       "edge": "Microsoft Edge",
       "firefox": "Firefox"
+    },
+    "steps": {
+      "node": "Node.js",
+      "playwright": "Playwright CLI",
+      "browser": "System browser",
+      "unknown": "Unknown step"
+    },
+    "stepStatus": {
+      "ok": "Installed",
+      "skipped": "Skipped",
+      "failed": "Failed",
+      "notRun": "Pending"
+    },
+    "agentVisibility": {
+      "toggleLabel": "Available to agents",
+      "tooltip": "When off, agents won't see the browser skill. The installed Playwright runtime is preserved.",
+      "disabledHint": "Finish installing before enabling",
+      "outOfSync": "Daemon hasn't picked up this setting yet",
+      "outOfSyncTooltip": "Try toggling off and on, or restart the app"
+    },
+    "reloadStatus": {
+      "shutdownTimeout": "Daemon shutdown timed out (5s); reload may have left things in a bad state",
+      "spawnFailedRolledBack": "New daemon failed to start; rolled back to previous config",
+      "spawnFailedNoRollback": "Daemon respawn failed and rollback also failed; daemon is offline. Restart app."
+    },
+    "logDrawer": {
+      "expand": "View logs ({{count}} lines)",
+      "collapse": "Hide logs"
+    },
+    "help": {
+      "aria": "Show error help",
+      "permission_denied": "The installer needs permissions. Run the command below in your terminal and retry.",
+      "network": "Network unreachable. Check your connection; corporate networks may need a proxy.",
+      "no_system_browser": "No Chrome or Edge detected. Install one and retry.",
+      "node_missing": "Node.js isn't installed. Finish the Node.js step before Playwright.",
+      "version_mismatch": "Version mismatch. Click \"Retry with --force\" to reinstall.",
+      "unknown": "Unclassified failure. Check the logs for details.",
+      "copyCommand": "Copy command",
+      "copied": "Copied",
+      "networkHint": "You can inspect npm proxy settings: npm config get proxy",
+      "downloadChrome": "Download Chrome",
+      "nodeMissingHint": "Use \"Retry with --force\" to reinstall starting from the Node.js step.",
+      "retryWithForce": "Retry with --force",
+      "viewLogs": "View logs",
+      "clipboardUnavailable": "Clipboard unavailable; please copy manually"
+    },
+    "errors": {
+      "operationInProgress": "Another browser operation is running. Please wait for it to finish.",
+      "browserNotInstalled": "Finish installing the browser runtime before enabling agent access.",
+      "runtimeNotStarted": "The ahand runtime isn't running yet. Please try again shortly.",
+      "unavailableInWeb": "This setting is only available in the desktop app."
     }
   },
   "overview": {
