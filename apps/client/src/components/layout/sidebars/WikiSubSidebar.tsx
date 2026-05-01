@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { NotificationBadge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useWikis, useWikiPendingCounts } from "@/hooks/useWikis";
 import { useSelectedWikiId } from "@/stores/useWikiStore";
 import { WikiListItem } from "@/components/wiki/WikiListItem";
@@ -69,18 +75,28 @@ export function WikiSubSidebar() {
         </div>
         <div className="flex items-center gap-1">
           {reviewTargetSlug && (
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={t("reviewProposals")}
-              title={t("reviewProposals")}
-              onClick={handleOpenReview}
-              data-testid="wiki-sub-sidebar-review"
-              className="relative"
-            >
-              <MessageSquareText size={14} />
-              <NotificationBadge count={totalPending} />
-            </Button>
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={t("reviewProposals")}
+                    title={t("reviewProposals")}
+                    onClick={handleOpenReview}
+                    data-testid="wiki-sub-sidebar-review"
+                    className="relative"
+                  >
+                    <MessageSquareText size={14} />
+                    <span className="sr-only">{t("reviewProposals")}</span>
+                    <NotificationBadge count={totalPending} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {t("reviewProposals")}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           <Button
             size="sm"

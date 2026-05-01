@@ -249,6 +249,10 @@ export function Folder9FolderEditor({
     () => new Set(),
   );
 
+  useEffect(() => {
+    setSelectedPath(initialPath ?? null);
+  }, [initialPath]);
+
   const handleSelect = useCallback((path: string) => {
     setSelectedPath(path);
   }, []);

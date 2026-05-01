@@ -205,6 +205,43 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
     expect((editor as HTMLTextAreaElement).value).toBe("# Server body");
   });
 
+  it("reloads the body when the external initialPath changes", async () => {
+    const { api, fetchBlob } = makeApi();
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    expect(await screen.findByTestId("doc-editor")).toHaveValue(
+      "# Server body",
+    );
+
+    rerender(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            hideTree: true,
+            initialPath: "docs/intro.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(fetchBlob).toHaveBeenCalledWith("docs/intro.md"),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body of docs/intro.md",
+      ),
+    );
+  });
+
   it("falls back to a plain textarea for non-markdown text files", async () => {
     const { api } = makeApi();
     const Wrapper = makeWrapper();
