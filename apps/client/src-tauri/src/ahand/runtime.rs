@@ -218,11 +218,28 @@ impl AhandRuntime {
             heartbeat_interval: Duration::from_secs(cfg.heartbeat_interval_seconds),
         };
 
+        // Default to ~/.ahand/config.toml when the renderer didn't supply
+        // one. This matches the documented ahandd convention so the
+        // browser_install/browser_set_enabled commands have somewhere to
+        // persist [browser].enabled across daemon restarts. The TS-side
+        // StartConfig interface intentionally does not require this field
+        // so existing renderer call sites keep working unchanged.
+        let resolved_config_path = cfg.config_path.clone().or_else(|| {
+            dirs::home_dir().map(|h| h.join(".ahand").join("config.toml"))
+        });
+
+        // Make sure the parent dir exists before any future
+        // `set_browser_enabled` write — that helper does not mkdir.
+        if let Some(p) = &resolved_config_path {
+            if let Some(parent) = p.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+        }
+
         // Optionally overlay the on-disk Config (mainly for browser.enabled).
         // Failures to read are non-fatal during start() — we fall back to
         // pure in-memory defaults so the daemon can still spawn.
-        let on_disk = cfg
-            .config_path
+        let on_disk = resolved_config_path
             .as_deref()
             .and_then(|p| ahandd::config::Config::load(p).ok());
         let daemon_cfg = build_daemon_config(on_disk.as_ref(), &startup_inputs);
@@ -253,7 +270,7 @@ impl AhandRuntime {
             status_forwarder,
             startup_inputs,
             current_daemon_config: daemon_cfg,
-            config_path: cfg.config_path,
+            config_path: resolved_config_path,
         });
 
         Ok(StartResult { device_id })

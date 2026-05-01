@@ -375,11 +375,21 @@ pub async fn browser_status(state: State<'_, AhandRuntime>) -> Result<BrowserSta
         .config_path()
         .await
         .ok_or_else(|| "ahand runtime not started — call ahand_start first".to_string())?;
-    let config = Config::load(&config_path).map_err(|e| {
-        eprintln!("browser_status: config load failed: {e:#}");
-        "config_load_failed".to_string()
-    })?;
-    let enabled = config.browser_config().enabled.unwrap_or(false);
+    // Fresh users won't have ~/.ahand/config.toml yet; treat that as
+    // "browser disabled" rather than a hard error. The first successful
+    // browser_install or browser_set_enabled will create the file.
+    let enabled = if config_path.exists() {
+        Config::load(&config_path)
+            .map_err(|e| {
+                eprintln!("browser_status: config load failed: {e:#}");
+                "config_load_failed".to_string()
+            })?
+            .browser_config()
+            .enabled
+            .unwrap_or(false)
+    } else {
+        false
+    };
     let daemon_online = matches!(
         state.status().await,
         super::runtime::DaemonStatus::Online { .. }
@@ -511,6 +521,16 @@ pub async fn browser_install(
     // On success, flip the config flag and reload the daemon so the new
     // [browser].enabled value takes effect for the embedded ahandd.
     if matches!(overall_status, TauriStepStatus::Ok) {
+        // Fresh user: ensure the config file exists before Config::load.
+        // All Config fields are `#[serde(default)]`, so an empty TOML
+        // deserializes cleanly into a default Config that we can then
+        // mutate via set_browser_enabled (which will save_atomic and
+        // overwrite the empty file with proper TOML).
+        if !config_path.exists() {
+            if let Err(e) = std::fs::write(&config_path, "") {
+                eprintln!("browser_runtime: bootstrap empty config failed: {e:#}");
+            }
+        }
         match Config::load(&config_path) {
             Ok(mut cfg) => {
                 if let Err(e) = cfg.set_browser_enabled(&config_path, true) {
@@ -531,7 +551,7 @@ pub async fn browser_install(
                 }
             }
             Err(e) => {
-                eprintln!("browser_runtime: config reload failed: {e:#}");
+                eprintln!("browser_runtime: config load failed: {e:#}");
             }
         }
     }
@@ -590,6 +610,14 @@ pub async fn browser_set_enabled(
         }
     }
 
+    // Fresh user: bootstrap an empty config file if missing so Config::load
+    // succeeds. set_browser_enabled below will overwrite it via save_atomic.
+    if !config_path.exists() {
+        if let Err(e) = std::fs::write(&config_path, "") {
+            eprintln!("browser_set_enabled: bootstrap empty config failed: {e:#}");
+            return Err("config_load_failed".to_string());
+        }
+    }
     let mut cfg = Config::load(&config_path).map_err(|e| {
         eprintln!("browser_set_enabled: config load failed: {e:#}");
         "config_load_failed".to_string()
