@@ -70,15 +70,21 @@ export function getAgentEventMetadata(
   value: unknown,
   fallback: AgentEventMetadata,
 ): AgentEventMetadata {
+  return getOptionalAgentEventMetadata(value) ?? fallback;
+}
+
+export function getOptionalAgentEventMetadata(
+  value: unknown,
+): AgentEventMetadata | undefined {
   if (!isRecord(value)) {
-    return fallback;
+    return undefined;
   }
 
   const agentEventType = value.agentEventType;
   const status = value.status;
 
   if (!isAgentEventType(agentEventType) || !isAgentEventStatus(status)) {
-    return fallback;
+    return undefined;
   }
 
   return {
@@ -173,12 +179,11 @@ export function normalizeTrackingSnapshot(
 ): ChannelSnapshot {
   return {
     totalMessageCount: snapshot.totalMessageCount,
-    latestMessages: snapshot.latestMessages.map((message) => ({
-      ...message,
-      metadata: getAgentEventMetadata(message.metadata, {
-        agentEventType: "writing",
-        status: "completed",
-      }),
-    })),
+    latestMessages: snapshot.latestMessages.flatMap((message) => {
+      const metadata = getOptionalAgentEventMetadata(message.metadata);
+      return metadata && metadata.agentEventType !== "writing"
+        ? [{ ...message, metadata }]
+        : [];
+    }),
   };
 }

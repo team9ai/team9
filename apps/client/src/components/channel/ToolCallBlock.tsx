@@ -87,11 +87,9 @@ export function ToolCallBlock({
       ? "text-yellow-400"
       : "text-emerald-500";
 
-  // Label uses a muted gray so the icon (color) carries status signal
-  // and the label reads as secondary metadata. Failure is the one case
-  // we keep red on the label itself — silencing an error would be a
-  // bigger regression than visual inconsistency.
-  const labelColorClass = isError ? "text-red-500" : "text-foreground/70";
+  // Label uses a muted gray so the icon/indicator carry the status signal
+  // without making failed rows feel visually louder than normal tool output.
+  const labelColorClass = "text-foreground/70";
 
   // Success/failure indicator tail icon. Hidden while running.
   const indicatorChar =
@@ -134,7 +132,7 @@ export function ToolCallBlock({
         <span
           className={cn(
             "text-xs truncate flex-1 min-w-0 ml-2 font-mono",
-            isError ? "text-red-400" : "text-foreground/80",
+            "text-foreground/80",
           )}
         >
           {displayLine}

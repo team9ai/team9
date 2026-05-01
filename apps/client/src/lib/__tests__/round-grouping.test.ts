@@ -117,10 +117,9 @@ describe("groupMessagesByRound", () => {
       expect(round.isLatest).toBe(true);
     });
 
-    it("recognises every known agent event type as part of a round", () => {
+    it("recognises execution event types as part of a round", () => {
       const types: AgentEventMetadata["agentEventType"][] = [
         "thinking",
-        "writing",
         "tool_call",
         "tool_result",
         "agent_start",
@@ -141,6 +140,19 @@ describe("groupMessagesByRound", () => {
       expect(round.stepCount).toBe(types.length - 1);
       expect(round.messages).toEqual(events);
       expect(round.isLatest).toBe(true);
+    });
+
+    it("treats writing events as regular chat messages", () => {
+      const thinking = makeAgentEventMessage("thinking", "thinking");
+      const writing = makeAgentEventMessage("writing", "writing");
+      const end = makeAgentEventMessage("end", "agent_end");
+
+      const result = groupMessagesByRound([thinking, writing, end]);
+
+      expect(result).toHaveLength(3);
+      expectRound(result[0]);
+      expect(result[1]).toEqual({ type: "message", message: writing });
+      expectRound(result[2]);
     });
   });
 

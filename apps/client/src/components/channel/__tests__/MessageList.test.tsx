@@ -442,14 +442,14 @@ describe("MessageList — round auto-fold", () => {
       // simplest collapse trigger is a fresh click if we re-introduce the
       // summary via a re-render of the same data (expanded state is internal
       // to the component, so we rerender with different ids to reset).
-      // We pick `writing` + `agent_end` for the new round so neither is a
+      // We pick `agent_start` + `agent_end` for the new round so neither is a
       // "thinking" event — thinking rows stay visible even when folded, so
       // using them here would muddy the fold-behaviour assertion.
       rerender(
         <ProvidersWrapper>
           <MessageList
             {...asProps([
-              makeAgentEvent("b1", "writing"),
+              makeAgentEvent("b1", "agent_start"),
               makeAgentEvent("b2", "agent_end"),
               makeMessage("u2"),
             ])}

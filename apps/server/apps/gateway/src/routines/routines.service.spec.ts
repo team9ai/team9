@@ -4264,6 +4264,24 @@ describe('RoutinesService — TaskCast integration', () => {
         `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
       );
       expect(clawHiveService.createSession).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.createSession).toHaveBeenCalledWith(
+        AGENT_ID,
+        expect.objectContaining({
+          componentConfigs: expect.objectContaining({
+            'team9-routine-creation': expect.objectContaining({
+              routineId: ROUTINE_ID,
+              isCreationChannel: true,
+              team9Context: expect.objectContaining({
+                routineId: ROUTINE_ID,
+                creatorUserId: USER_ID,
+                creationChannelId: CHANNEL_ID,
+                isCreationChannel: true,
+              }),
+            }),
+          }),
+        }),
+        TENANT_ID,
+      );
       expect(clawHiveService.sendInput).toHaveBeenCalledWith(
         result.creationSessionId,
         expect.objectContaining({
@@ -4596,7 +4614,7 @@ describe('RoutinesService — TaskCast integration', () => {
         expect(clawHiveService.createSession).toHaveBeenCalledWith(
           AGENT_ID,
           expect.objectContaining({
-            componentConfigs: {
+            componentConfigs: expect.objectContaining({
               'just-bash-team9-workspace': {
                 folderMap: {
                   'routine.document': {
@@ -4609,7 +4627,7 @@ describe('RoutinesService — TaskCast integration', () => {
                 },
                 mountTeam9Skills: true,
               },
-            },
+            }),
           }),
           TENANT_ID,
         );

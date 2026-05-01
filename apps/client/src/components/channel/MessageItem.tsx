@@ -190,7 +190,7 @@ export function MessageItem({
 
   // Agent event message display (no avatar, compact, grouped)
   const agentMeta = getAgentMeta(message);
-  if (agentMeta) {
+  if (agentMeta && agentMeta.agentEventType !== "writing") {
     // Some agent event types render nothing by design (turn_separator is
     // an internal marker, not user-facing). Without this guard we'd
     // still emit the gray/bordered wrapper + pt/pb padding, producing an

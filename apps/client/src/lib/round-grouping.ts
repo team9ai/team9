@@ -23,7 +23,6 @@ import type { AgentEventMetadata, Message } from "@/types/im";
  */
 const AGENT_EVENT_TYPES = new Set<AgentEventMetadata["agentEventType"]>([
   "thinking",
-  "writing",
   "tool_call",
   "tool_result",
   "agent_start",

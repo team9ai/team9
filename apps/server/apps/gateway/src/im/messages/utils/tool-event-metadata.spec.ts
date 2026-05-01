@@ -37,6 +37,26 @@ describe('normalizeToolEventMetadata', () => {
     });
   });
 
+  it('sets success false when a completed tool_result returns a tool-not-found text error', () => {
+    const result = normalizeToolEventMetadata(
+      {
+        agentEventType: 'tool_result',
+        status: 'completed',
+        toolCallId: 'tc-not-found',
+      },
+      'tool not found: completeRoutine. Use search_tools to find available tools.',
+    );
+
+    expect(result).toMatchObject({
+      agentEventType: 'tool_result',
+      status: 'failed',
+      success: false,
+      toolCallId: 'tc-not-found',
+      errorMessage:
+        'tool not found: completeRoutine. Use search_tools to find available tools.',
+    });
+  });
+
   it('sets success true for completed tool_result with no failure evidence', () => {
     const result = normalizeToolEventMetadata(
       {

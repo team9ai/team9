@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
+import {
+  getAgentEventMetadata,
+  getOptionalAgentEventMetadata,
+} from "@/lib/agent-event-metadata";
 import { parseLikelyPastDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useTrackingChannel } from "@/hooks/useTrackingChannel";
@@ -133,16 +136,20 @@ export function TrackingCard({ message }: TrackingCardProps) {
   const showFrost = moreCount > 0;
 
   // Build display items: latest messages + active stream
-  const displayItems: TrackingDisplayItem[] = latestMessages.map((msg) => ({
-    id: msg.id,
-    content: msg.content ?? "",
-    metadata: getAgentEventMetadata(msg.metadata, {
-      agentEventType: "writing",
-      status: "completed",
-    }),
-    isStreaming: false,
-    createdAt: msg.createdAt,
-  }));
+  const displayItems: TrackingDisplayItem[] = latestMessages.flatMap((msg) => {
+    const metadata = getOptionalAgentEventMetadata(msg.metadata);
+    return metadata && metadata.agentEventType !== "writing"
+      ? [
+          {
+            id: msg.id,
+            content: msg.content ?? "",
+            metadata,
+            isStreaming: false,
+            createdAt: msg.createdAt,
+          },
+        ]
+      : [];
+  });
 
   if (activeStream) {
     displayItems.push({

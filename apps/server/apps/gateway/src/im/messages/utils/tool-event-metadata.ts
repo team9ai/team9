@@ -44,6 +44,14 @@ function getExplicitFailureMessage(content: string): string | undefined {
   return 'Tool returned success=false';
 }
 
+function getToolRuntimeFailureMessage(content: string): string | undefined {
+  const unwrapped = unwrapTextContent(content).trim();
+  if (/^tool not found:/i.test(unwrapped)) {
+    return unwrapped;
+  }
+  return undefined;
+}
+
 function getFailedStatusMessage(content: string): string | undefined {
   const unwrapped = unwrapTextContent(content);
   const parsed = parseJson(unwrapped);
@@ -68,12 +76,14 @@ export function normalizeToolEventMetadata(
     metadata.status === 'failed' ||
     metadata.status === 'cancelled' ||
     metadata.status === 'timeout';
+  const inferredFailureMessage =
+    getExplicitFailureMessage(content) ?? getToolRuntimeFailureMessage(content);
   const failureMessage =
     typeof metadata.errorMessage === 'string'
       ? metadata.errorMessage
       : failedStatus
         ? getFailedStatusMessage(content)
-        : getExplicitFailureMessage(content);
+        : inferredFailureMessage;
   const success =
     metadata.success === false || failedStatus || failureMessage ? false : true;
   const status =

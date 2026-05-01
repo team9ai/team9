@@ -66,6 +66,22 @@ describe("buildToolDisplayState", () => {
     expect(state.errorMessage).toBe("denied");
   });
 
+  it("detects tool-not-found text errors as failure even when old metadata says success", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({ toolName: "invoke_tool" }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent:
+        "tool not found: completeRoutine. Use search_tools to find available tools.",
+    });
+
+    expect(state.status).toBe("error");
+    expect(state.isError).toBe(true);
+    expect(state.indicator).toBe("cross");
+    expect(state.errorMessage).toBe(
+      "tool not found: completeRoutine. Use search_tools to find available tools.",
+    );
+  });
+
   it("renders a missing result as running", () => {
     const state = buildToolDisplayState({
       callMetadata: callMeta({

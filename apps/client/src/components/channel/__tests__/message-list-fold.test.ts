@@ -272,10 +272,9 @@ describe("computeRoundFoldMaps", () => {
   });
 
   describe("agent event types", () => {
-    it("treats any agent event type as part of a round", () => {
+    it("treats execution event types as part of a round", () => {
       const types: AgentEventMetadata["agentEventType"][] = [
         "thinking",
-        "writing",
         "tool_call",
         "tool_result",
         "agent_start",
@@ -294,12 +293,29 @@ describe("computeRoundFoldMaps", () => {
         chronoMessages: msgs,
         userExpandedRounds: new Set(),
       });
-      // Single folded round containing all 10 agent events
+      // Single folded round containing all execution events
       expect(maps.roundStateMap.size).toBe(1);
       const first = maps.roundStateMap.get("a0");
       // stepCount counts visible display rows — turn_separator renders as
       // null in TrackingEventItem, so it never contributes to the count.
       expect(first?.stepCount).toBe(types.length - 1);
+    });
+
+    it("does not fold writing events into execution rounds", () => {
+      const msgs: Message[] = [
+        makeAgentEvent("a1", "thinking"),
+        makeAgentEvent("w1", "writing"),
+        makeAgentEvent("a2", "agent_end"),
+        makeMessage("u1"),
+      ];
+
+      const maps = computeRoundFoldMaps({
+        channelType: "direct",
+        chronoMessages: msgs,
+        userExpandedRounds: new Set(),
+      });
+
+      expect(maps.messageRoundMap.has("w1")).toBe(false);
     });
   });
 });

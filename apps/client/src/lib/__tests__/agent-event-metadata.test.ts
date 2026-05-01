@@ -292,7 +292,7 @@ describe("normalizeTrackingSnapshot", () => {
     });
 
     expect(snapshot.totalMessageCount).toBe(2);
-    expect(snapshot.latestMessages).toHaveLength(2);
+    expect(snapshot.latestMessages).toHaveLength(1);
     expect(snapshot.latestMessages[0].metadata).toMatchObject({
       agentEventType: "thinking",
       status: "completed",
@@ -300,10 +300,38 @@ describe("normalizeTrackingSnapshot", () => {
       totalTokens: 10,
       durationMs: 500,
     });
-    // m2 should fall back to default writing/completed
-    expect(snapshot.latestMessages[1].metadata).toEqual({
-      agentEventType: "writing",
-      status: "completed",
+  });
+
+  it("drops plain messages instead of coercing them to writing events", () => {
+    const snapshot = normalizeTrackingSnapshot({
+      totalMessageCount: 1,
+      latestMessages: [
+        {
+          id: "m1",
+          content: "normal bot reply",
+          metadata: undefined,
+          createdAt: "2026-04-09T00:00:00.000Z",
+        },
+      ],
     });
+
+    expect(snapshot.totalMessageCount).toBe(1);
+    expect(snapshot.latestMessages).toEqual([]);
+  });
+
+  it("drops persisted writing messages from tracking snapshots", () => {
+    const snapshot = normalizeTrackingSnapshot({
+      totalMessageCount: 1,
+      latestMessages: [
+        {
+          id: "m1",
+          content: "Hi! 有什么需要帮忙的吗? 😊",
+          metadata: { agentEventType: "writing", status: "completed" },
+          createdAt: "2026-04-09T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(snapshot.latestMessages).toEqual([]);
   });
 });

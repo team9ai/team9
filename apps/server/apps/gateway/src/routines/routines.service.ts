@@ -1578,6 +1578,11 @@ export class RoutinesService {
       const routineFolderId = ensured.folderId!;
 
       const componentConfigs: Record<string, Record<string, unknown>> = {
+        'team9-routine-creation': {
+          routineId,
+          isCreationChannel: true,
+          team9Context,
+        },
         'just-bash-team9-workspace': {
           folderMap: {
             'routine.document': {

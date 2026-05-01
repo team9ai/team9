@@ -258,6 +258,26 @@ describe("ToolCallBlock", () => {
       expect(icon).not.toHaveClass("animate-pulse");
     });
 
+    it("keeps failed row text neutral while retaining failure indicators", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("RunScript")}
+          resultMetadata={makeResultMeta("failed")}
+          resultContent="permission denied"
+        />,
+      );
+
+      const label = screen.getByText("Tool call failed");
+      expect(label).toHaveClass("text-foreground/70");
+      expect(label).not.toHaveClass("text-red-500");
+
+      const displayLine = screen.getByText("RunScript");
+      expect(displayLine).toHaveClass("text-foreground/80");
+      expect(displayLine).not.toHaveClass("text-red-400");
+
+      expect(screen.getByText("\u2718")).toHaveClass("text-red-400");
+    });
+
     it("does NOT show a result indicator while still running", () => {
       render(
         <ToolCallBlock
@@ -305,6 +325,20 @@ describe("ToolCallBlock", () => {
 
       expect(screen.getByText("Tool call failed")).toBeInTheDocument();
       expect(screen.getByText("\u2718")).toBeInTheDocument();
+    });
+
+    it("shows failure for tool-not-found text results from old completed metadata", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("invoke_tool")}
+          resultMetadata={makeResultMeta("completed", { success: true })}
+          resultContent="tool not found: completeRoutine. Use search_tools to find available tools."
+        />,
+      );
+
+      expect(screen.getByText("Tool call failed")).toBeInTheDocument();
+      expect(screen.getByText("\u2718")).toBeInTheDocument();
+      expect(screen.queryByText("\u2714")).not.toBeInTheDocument();
     });
 
     it("renders a running tool call without result metadata", () => {

@@ -69,6 +69,14 @@ function detectLegacyFailure(resultText: string): string | undefined {
   return findFailure(parsed);
 }
 
+function detectToolRuntimeFailure(resultText: string): string | undefined {
+  const trimmed = resultText.trim();
+  if (/^tool not found:/i.test(trimmed)) {
+    return trimmed;
+  }
+  return undefined;
+}
+
 function canInferLegacyFailure(
   metadata: AgentEventMetadata | undefined,
 ): boolean {
@@ -96,17 +104,23 @@ export function buildToolDisplayState({
     resultMetadata?.status === "failed" ||
     resultMetadata?.status === "cancelled" ||
     resultMetadata?.status === "timeout";
+  const runtimeFailure = resultText
+    ? detectToolRuntimeFailure(resultText)
+    : undefined;
   const legacyFailure =
     resultText && canInferLegacyFailure(resultMetadata)
       ? detectLegacyFailure(resultText)
       : undefined;
   const errorMessage =
-    resultMetadata?.errorMessage ?? legacyFailure ?? undefined;
+    resultMetadata?.errorMessage ??
+    runtimeFailure ??
+    legacyFailure ??
+    undefined;
 
   const status: StatusType =
     !resultMetadata || resultMetadata.status === "running"
       ? "loading"
-      : explicitFailure || legacyFailure
+      : explicitFailure || runtimeFailure || legacyFailure
         ? "error"
         : "success";
 

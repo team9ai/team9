@@ -106,6 +106,33 @@ describe("MessageItem - agent event rendering", () => {
     expect(screen.getByText("Test User")).toBeInTheDocument();
   });
 
+  it("renders writing metadata as a normal chat message", () => {
+    const msg = makeMessage({
+      content: "Hi! 有什么需要帮忙的吗? 😊",
+      metadata: { agentEventType: "writing", status: "completed" },
+      sender: {
+        id: "bot-1",
+        email: "bot@example.com",
+        username: "helper-bot",
+        displayName: "Helper Bot",
+        avatarUrl: undefined,
+        status: "online",
+        isActive: true,
+        userType: "bot",
+        createdAt: "2026-03-27T12:00:00Z",
+        updatedAt: "2026-03-27T12:00:00Z",
+      },
+    });
+
+    renderWithProviders(<MessageItem message={msg} />);
+
+    expect(screen.getByText("Helper Bot")).toBeInTheDocument();
+    expect(screen.getByText("Hi! 有什么需要帮忙的吗? 😊")).toBeInTheDocument();
+    expect(
+      screen.queryByText("tracking.eventLabels.writing"),
+    ).not.toBeInTheDocument();
+  });
+
   it("should render with tight spacing when previous message is also an agent event", () => {
     const prevMsg = makeMessage({
       id: "msg-0",
