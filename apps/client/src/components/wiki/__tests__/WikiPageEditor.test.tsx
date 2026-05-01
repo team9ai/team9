@@ -554,6 +554,19 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       expect(screen.getByTestId("mock-cover-picker")).toBeInTheDocument();
     });
 
+    it("renders icon + cover popovers for md9 wiki pages", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+      expect(screen.getByTestId("mock-icon-picker")).toBeInTheDocument();
+      expect(screen.getByTestId("mock-cover-picker")).toBeInTheDocument();
+    });
+
     it("seeds the icon picker from the parsed frontmatter", () => {
       render(
         <WikiPageEditor

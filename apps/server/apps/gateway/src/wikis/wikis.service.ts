@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -83,6 +84,7 @@ const TOKEN_CACHE_TTL_MS = 15 * 60 * 1000;
  * Stays comfortably under folder9's 24h server-side cap. Passed as RFC3339.
  */
 const TOKEN_MINT_TTL_MS = 16 * 60 * 1000;
+const DEFAULT_WIKI_INDEX_PATH = 'index.md9';
 
 /**
  * Cache entry for a folder9-scoped token.
@@ -148,6 +150,18 @@ function folder9ErrorMessage(body: unknown, fallback: string): string {
 
 function folder9WikiName(wikiId: string): string {
   return `team9-wiki-${wikiId}`;
+}
+
+function defaultWikiIndexContent(name: string): string {
+  return `# ${name}\n\n`;
+}
+
+function isFolder9NotFound(err: unknown): boolean {
+  return err instanceof Folder9ApiError && err.status === 404;
+}
+
+function isFolder9Conflict(err: unknown): boolean {
+  return err instanceof Folder9ApiError && err.status === 409;
 }
 
 function team9WikiMetadata(
@@ -372,7 +386,53 @@ export class WikisService {
           throw new ConflictException(message);
         }
       }
-      throw err;
+      this.logger.warn(
+        `createWiki: folder9 folder creation failed for wiki slug '${slug}' in workspace ${workspaceId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      throw new ServiceUnavailableException(
+        'wiki storage temporarily unavailable, please retry',
+      );
+    }
+
+    try {
+      const token = await this.getFolderToken(
+        folder.id,
+        'write',
+        `wiki:${folder.id}`,
+      );
+      await this.folder9.commit(workspaceId, folder.id, token, {
+        message: 'Initialize wiki',
+        files: [
+          {
+            path: DEFAULT_WIKI_INDEX_PATH,
+            content: defaultWikiIndexContent(dto.name),
+            encoding: 'text',
+            action: 'create',
+          },
+        ],
+        propose: false,
+      });
+    } catch (err) {
+      try {
+        await this.folder9.deleteFolder(workspaceId, folder.id);
+      } catch (compensationErr) {
+        this.logger.error(
+          `Compensation failed: could not delete folder9 folder ${folder.id} after default page creation error`,
+          compensationErr instanceof Error
+            ? compensationErr.stack
+            : String(compensationErr),
+        );
+      }
+      this.logger.warn(
+        `createWiki: default ${DEFAULT_WIKI_INDEX_PATH} creation failed for wiki slug '${slug}' in workspace ${workspaceId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      throw new ServiceUnavailableException(
+        'wiki storage temporarily unavailable, please retry',
+      );
     }
 
     try {
@@ -558,6 +618,29 @@ export class WikisService {
     await this.safeBroadcast(workspaceId, 'wiki_archived', { wikiId });
   }
 
+  private async ensureDefaultIndexPage(
+    workspaceId: string,
+    wiki: WikiRow,
+  ): Promise<void> {
+    const token = await this.getFolderToken(
+      wiki.folder9FolderId,
+      'write',
+      this.readCreatedBy(wiki),
+    );
+    await this.folder9.commit(workspaceId, wiki.folder9FolderId, token, {
+      message: 'Initialize wiki',
+      files: [
+        {
+          path: DEFAULT_WIKI_INDEX_PATH,
+          content: defaultWikiIndexContent(wiki.name),
+          encoding: 'text',
+          action: 'create',
+        },
+      ],
+      propose: false,
+    });
+  }
+
   // ────────────────────────────────────────────────────────────────────
   // Content operations (tree / page / commit / proposals)
   // ────────────────────────────────────────────────────────────────────
@@ -599,7 +682,7 @@ export class WikisService {
       'read',
       this.readCreatedBy(wiki),
     );
-    const entries = await this.folder9.getTree(
+    let entries = await this.folder9.getTree(
       workspaceId,
       wiki.folder9FolderId,
       token,
@@ -608,6 +691,30 @@ export class WikisService {
         recursive: opts.recursive ?? false,
       },
     );
+    if (
+      entries.length === 0 &&
+      (opts.path === undefined || opts.path === '/') &&
+      opts.recursive === true
+    ) {
+      try {
+        await this.ensureDefaultIndexPage(workspaceId, wiki);
+      } catch (err) {
+        if (!isFolder9Conflict(err)) {
+          throw new ServiceUnavailableException(
+            'wiki storage temporarily unavailable, please retry',
+          );
+        }
+      }
+      entries = await this.folder9.getTree(
+        workspaceId,
+        wiki.folder9FolderId,
+        token,
+        {
+          path: opts.path ?? '/',
+          recursive: opts.recursive ?? false,
+        },
+      );
+    }
     return entries.map((e) => ({
       name: e.name,
       path: e.path,
@@ -641,12 +748,34 @@ export class WikisService {
       'read',
       this.readCreatedBy(wiki),
     );
-    const blob = await this.folder9.getBlob(
-      workspaceId,
-      wiki.folder9FolderId,
-      token,
-      path,
-    );
+    let blob;
+    try {
+      blob = await this.folder9.getBlob(
+        workspaceId,
+        wiki.folder9FolderId,
+        token,
+        path,
+      );
+    } catch (err) {
+      if (path !== DEFAULT_WIKI_INDEX_PATH || !isFolder9NotFound(err)) {
+        throw err;
+      }
+      try {
+        await this.ensureDefaultIndexPage(workspaceId, wiki);
+      } catch (createErr) {
+        if (!isFolder9Conflict(createErr)) {
+          throw new ServiceUnavailableException(
+            'wiki storage temporarily unavailable, please retry',
+          );
+        }
+      }
+      blob = await this.folder9.getBlob(
+        workspaceId,
+        wiki.folder9FolderId,
+        token,
+        path,
+      );
+    }
     let frontmatter: Record<string, unknown> = {};
     let body = blob.content;
     try {

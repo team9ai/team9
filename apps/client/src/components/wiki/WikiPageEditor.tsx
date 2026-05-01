@@ -147,9 +147,10 @@ export function WikiPageEditor({
       // Only the markdown body editor needs the wiki-flavoured
       // frontmatter pickers. Other text or binary files fall through
       // to the shell's default renderer.
+      const lowerPath = args.path.toLowerCase();
       if (
         args.encoding !== "text" ||
-        !args.path.toLowerCase().endsWith(".md")
+        (!lowerPath.endsWith(".md9") && !lowerPath.endsWith(".md"))
       ) {
         return undefined;
       }

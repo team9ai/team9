@@ -85,7 +85,13 @@
   "listItem": {
     "settings": "設定",
     "archive": "封存",
-    "actionsLabel": "{{name}} 操作"
+    "actionsLabel": "{{name}} 操作",
+    "createMenuLabel": "在 {{name}} 中建立",
+    "newPage": "新建頁面",
+    "newPagePrompt": "頁面路徑",
+    "newFolder": "新建資料夾",
+    "newFolderPrompt": "資料夾路徑",
+    "uploadFile": "上傳檔案"
   },
   "archive": {
     "title": "封存此知識庫？",

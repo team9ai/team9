@@ -39,7 +39,7 @@ describe("/_authenticated/wiki/$wikiSlug route component", () => {
     useWikiStore.getState().reset();
   });
 
-  it("looks up the wiki by slug and seeds selectedWikiId + index.md", async () => {
+  it("looks up the wiki by slug and seeds selectedWikiId + index.md9", async () => {
     mockUseParams.mockReturnValue({ wikiSlug: "public" });
     mockUseWikis.mockReturnValue({
       data: [
@@ -52,7 +52,7 @@ describe("/_authenticated/wiki/$wikiSlug route component", () => {
 
     await waitFor(() => {
       expect(useWikiStore.getState().selectedWikiId).toBe("wiki-public");
-      expect(useWikiStore.getState().selectedPagePath).toBe("index.md");
+      expect(useWikiStore.getState().selectedPagePath).toBe("index.md9");
     });
   });
 

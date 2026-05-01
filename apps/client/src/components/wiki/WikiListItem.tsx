@@ -1,21 +1,33 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   Archive,
   ChevronDown,
   ChevronRight,
+  FilePlus,
+  FolderPlus,
   Library as LibraryIcon,
   MoreHorizontal,
+  Plus,
   Settings,
+  Upload,
 } from "lucide-react";
 import { useWikiTree } from "@/hooks/useWikiTree";
+import { queryClient } from "@/lib/query-client";
 import {
   useSelectedWikiId,
   useWikiStore,
   wikiActions,
 } from "@/stores/useWikiStore";
 import { buildTree } from "@/lib/wiki-tree";
+import {
+  DEFAULT_WIKI_INDEX_FILENAME,
+  WIKI_PAGE_EXTENSION,
+  stripWikiPageExtension,
+} from "@/lib/wiki-paths";
+import { wikisApi } from "@/services/api/wikis";
+import { wikiKeys } from "@/hooks/useWikis";
 import { WikiTreeNode } from "./WikiTreeNode";
 import { WikiSettingsDialog } from "./WikiSettingsDialog";
 import {
@@ -66,6 +78,57 @@ function archiveErrorMessage(error: unknown): string {
   return i18n.t("wiki:settings.errors.archiveFailed");
 }
 
+function normalizePagePath(input: string): string | null {
+  const trimmed = input.trim().replace(/^\/+/, "");
+  if (!trimmed) return null;
+  if (trimmed.endsWith("/")) return `${trimmed}${DEFAULT_WIKI_INDEX_FILENAME}`;
+  if (/\.md$/i.test(trimmed))
+    return trimmed.replace(/\.md$/i, WIKI_PAGE_EXTENSION);
+  return /\.[^/.]+$/.test(trimmed)
+    ? trimmed
+    : `${trimmed}${WIKI_PAGE_EXTENSION}`;
+}
+
+function normalizeFolderIndexPath(input: string): string | null {
+  const trimmed = input.trim().replace(/^\/+|\/+$/g, "");
+  if (!trimmed) return null;
+  return `${trimmed}/${DEFAULT_WIKI_INDEX_FILENAME}`;
+}
+
+function uniquePath(path: string, existingPaths: Set<string>): string {
+  if (!existingPaths.has(path)) return path;
+  const dot = path.lastIndexOf(".");
+  const slash = path.lastIndexOf("/");
+  const hasExt = dot > slash;
+  const stem = hasExt ? path.slice(0, dot) : path;
+  const ext = hasExt ? path.slice(dot) : "";
+  for (let i = 2; i < 1000; i += 1) {
+    const candidate = `${stem}-${i}${ext}`;
+    if (!existingPaths.has(candidate)) return candidate;
+  }
+  return `${stem}-${Date.now()}${ext}`;
+}
+
+function isProbablyTextFile(file: File): boolean {
+  if (file.type.startsWith("text/")) return true;
+  return /\.(md|markdown|txt|json|yaml|yml|csv|tsv|js|jsx|ts|tsx|css|html)$/i.test(
+    file.name,
+  );
+}
+
+async function readFilePayload(file: File): Promise<{
+  content: string;
+  encoding: "text" | "base64";
+}> {
+  if (isProbablyTextFile(file)) {
+    return { content: await file.text(), encoding: "text" };
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return { content: window.btoa(binary), encoding: "base64" };
+}
+
 /**
  * One wiki row in the sub-sidebar. The wiki tree is lazy-loaded — the
  * `useWikiTree` query is disabled until the user expands this row, so
@@ -94,12 +157,22 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [isCreatingFile, setIsCreatingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const archiveWiki = useArchiveWiki();
   const isArchiving = archiveWiki.isPending;
 
   const navigate = useNavigate();
   const selectedWikiId = useSelectedWikiId();
+  const existingPaths = useMemo(
+    () =>
+      new Set(
+        (entries ?? []).filter((e) => e.type === "file").map((e) => e.path),
+      ),
+    [entries],
+  );
 
   // Note: a second invocation while the first is still pending is
   // prevented by the confirm button's `disabled` attribute (the button is
@@ -125,6 +198,78 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
     }
   };
 
+  const refreshAfterCreate = (path: string) => {
+    wikiActions.expandDirectory(expandKey);
+    wikiActions.setSelectedWiki(wiki.id);
+    wikiActions.setSelectedPage(path);
+    navigate({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: wiki.slug, _splat: path },
+    });
+    void queryClient.invalidateQueries({ queryKey: wikiKeys.trees(wiki.id) });
+    void queryClient.invalidateQueries({ queryKey: wikiKeys.pages(wiki.id) });
+  };
+
+  const createFile = async (
+    path: string,
+    content: string,
+    encoding: "text" | "base64",
+  ) => {
+    setIsCreatingFile(true);
+    try {
+      await wikisApi.commit(wiki.id, {
+        message: `Create ${path}`,
+        files: [{ path, content, encoding, action: "create" }],
+      });
+      refreshAfterCreate(path);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Create failed");
+    } finally {
+      setIsCreatingFile(false);
+    }
+  };
+
+  const handleCreatePage = () => {
+    if (isCreatingFile) return;
+    const input = window.prompt(
+      t("listItem.newPagePrompt"),
+      `untitled${WIKI_PAGE_EXTENSION}`,
+    );
+    if (input === null) return;
+    const normalized = normalizePagePath(input);
+    if (!normalized) return;
+    const path = uniquePath(normalized, existingPaths);
+    void createFile(
+      path,
+      `# ${stripWikiPageExtension(path).split("/").pop()}\n\n`,
+      "text",
+    );
+  };
+
+  const handleCreateFolder = () => {
+    if (isCreatingFile) return;
+    const input = window.prompt(t("listItem.newFolderPrompt"), "new-folder");
+    if (input === null) return;
+    const normalized = normalizeFolderIndexPath(input);
+    if (!normalized) return;
+    const path = uniquePath(normalized, existingPaths);
+    void createFile(path, "# Index\n\n", "text");
+  };
+
+  const handleUploadClick = () => {
+    if (isCreatingFile) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || isCreatingFile) return;
+    const path = uniquePath(file.name, existingPaths);
+    const payload = await readFilePayload(file);
+    await createFile(path, payload.content, payload.encoding);
+  };
+
   return (
     <div
       role="treeitem"
@@ -132,7 +277,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       aria-expanded={isOpen}
       className="group/wiki-row relative"
     >
-      <div className="flex items-center w-full hover:bg-accent">
+      <div className="flex items-center w-full hover:bg-muted/50">
         <button
           type="button"
           onClick={() => wikiActions.toggleDirectory(expandKey)}
@@ -149,10 +294,58 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               {wiki.icon}
             </span>
           ) : (
-            <LibraryIcon size={14} className="text-primary" />
+            <LibraryIcon
+              size={14}
+              className="text-primary group-hover/wiki-row:text-foreground"
+            />
           )}
           <span className="truncate">{wiki.name}</span>
         </button>
+        <DropdownMenu open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("listItem.createMenuLabel", { name: wiki.name })}
+              title={t("listItem.createMenuLabel", { name: wiki.name })}
+              data-testid={`wiki-list-item-create-${wiki.id}`}
+              disabled={isCreatingFile}
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded text-muted-foreground group-hover/wiki-row:text-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                createMenuOpen
+                  ? "opacity-100"
+                  : "opacity-0 group-hover/wiki-row:opacity-100 focus-visible:opacity-100",
+              )}
+            >
+              <Plus size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem
+              data-testid={`wiki-list-item-new-page-${wiki.id}`}
+              onSelect={handleCreatePage}
+              disabled={isCreatingFile}
+            >
+              <FilePlus size={14} className="mr-2" />
+              {t("listItem.newPage")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`wiki-list-item-new-folder-${wiki.id}`}
+              onSelect={handleCreateFolder}
+              disabled={isCreatingFile}
+            >
+              <FolderPlus size={14} className="mr-2" />
+              {t("listItem.newFolder")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`wiki-list-item-upload-file-${wiki.id}`}
+              onSelect={handleUploadClick}
+              disabled={isCreatingFile}
+            >
+              <Upload size={14} className="mr-2" />
+              {t("listItem.uploadFile")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
@@ -160,7 +353,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               aria-label={t("listItem.actionsLabel", { name: wiki.name })}
               data-testid={`wiki-list-item-kebab-${wiki.id}`}
               className={cn(
-                "mr-2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "mr-2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground group-hover/wiki-row:text-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 // Hidden until row (or the menu itself) is active, so the
                 // sidebar stays uncluttered in the resting state.
                 menuOpen
@@ -203,6 +396,15 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           ))}
         </div>
       )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        data-testid={`wiki-list-item-upload-input-${wiki.id}`}
+        className="hidden"
+        onChange={(event) => {
+          void handleUploadChange(event);
+        }}
+      />
       <WikiSettingsDialog
         open={showSettings}
         onOpenChange={setShowSettings}

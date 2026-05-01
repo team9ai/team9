@@ -38,12 +38,16 @@ describe("extractTitle", () => {
     );
   });
 
-  it("falls back to filename minus .md when no title and no H1", () => {
-    expect(extractTitle("docs/guide.md", {}, "just prose")).toBe("guide");
+  it("falls back to filename minus .md9 when no title and no H1", () => {
+    expect(extractTitle("docs/guide.md9", {}, "just prose")).toBe("guide");
   });
 
-  it("handles uppercase .MD", () => {
-    expect(extractTitle("docs/GUIDE.MD", {}, "")).toBe("GUIDE");
+  it("handles uppercase .MD9", () => {
+    expect(extractTitle("docs/GUIDE.MD9", {}, "")).toBe("GUIDE");
+  });
+
+  it("does not strip legacy .md by default", () => {
+    expect(extractTitle("docs/guide.md", {}, "")).toBe("guide.md");
   });
 
   it("handles empty path gracefully", () => {
@@ -51,7 +55,7 @@ describe("extractTitle", () => {
   });
 
   it("ignores non-string frontmatter.title", () => {
-    expect(extractTitle("x.md", { title: 123 }, "")).toBe("x");
+    expect(extractTitle("x.md9", { title: 123 }, "")).toBe("x");
   });
 });
 
@@ -60,7 +64,7 @@ describe("WikiPageHeader", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="index.md"
+        path="index.md9"
         frontmatter={{}}
         body=""
       />,
@@ -72,7 +76,7 @@ describe("WikiPageHeader", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="index.md"
+        path="index.md9"
         frontmatter={{ icon: "🚀" }}
         body=""
       />,
@@ -106,8 +110,7 @@ describe("WikiPageHeader", () => {
     // Parent dir segments shown; filename omitted (title takes its place).
     expect(screen.getByText("api")).toBeInTheDocument();
     expect(screen.getByText("docs")).toBeInTheDocument();
-    // Filename shouldn't be in the breadcrumb, but "auth.md" has .md stripped
-    // and the title is "Auth" (from body H1).
+    // Filename shouldn't be in the breadcrumb; the title is "Auth" from body H1.
     expect(screen.queryByText("auth.md")).toBeNull();
   });
 
@@ -115,7 +118,7 @@ describe("WikiPageHeader", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="index.md"
+        path="index.md9"
         frontmatter={{ title: "Home" }}
         body=""
       />,
@@ -143,7 +146,7 @@ describe("WikiPageHeader", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="docs/getting-started.md"
+        path="docs/getting-started.md9"
         frontmatter={{}}
         body=""
       />,

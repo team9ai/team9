@@ -85,7 +85,13 @@
   "listItem": {
     "settings": "设置",
     "archive": "归档",
-    "actionsLabel": "{{name}} 操作"
+    "actionsLabel": "{{name}} 操作",
+    "createMenuLabel": "在 {{name}} 中创建",
+    "newPage": "新建页面",
+    "newPagePrompt": "页面路径",
+    "newFolder": "新建文件夹",
+    "newFolderPrompt": "文件夹路径",
+    "uploadFile": "上传文件"
   },
   "archive": {
     "title": "归档此知识库？",

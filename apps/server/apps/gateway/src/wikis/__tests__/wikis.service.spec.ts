@@ -13,6 +13,7 @@ import {
   ForbiddenException,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WikisService } from '../wikis.service.js';
@@ -185,6 +186,16 @@ describe('WikisService', () => {
 
   // ── createWiki ───────────────────────────────────────────────────────
   describe('createWiki', () => {
+    beforeEach(() => {
+      f9.createToken.mockResolvedValue(
+        makeToken({ token: 'tok-wiki-bootstrap', permission: 'write' }),
+      );
+      f9.commit.mockResolvedValue({
+        commit: 'seed-sha',
+        branch: 'main',
+      });
+    });
+
     it('creates a Wiki end-to-end with folder9 + DB insert', async () => {
       f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
       // slug-uniqueness lookup → empty
@@ -220,6 +231,30 @@ describe('WikisService', () => {
             workspace_id: 'ws-1',
           },
         }),
+      );
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'f9-1',
+          permission: 'write',
+          created_by: 'wiki:f9-1',
+        }),
+      );
+      expect(f9.commit).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-wiki-bootstrap',
+        {
+          message: 'Initialize wiki',
+          files: [
+            expect.objectContaining({
+              path: 'index.md9',
+              action: 'create',
+              encoding: 'text',
+              content: expect.stringContaining('# public'),
+            }),
+          ],
+          propose: false,
+        },
       );
       expect(db.insert).toHaveBeenCalled();
       expect(db.values).toHaveBeenCalledWith(
@@ -414,6 +449,26 @@ describe('WikisService', () => {
       expect(f9.deleteFolder).toHaveBeenCalledWith('ws-1', 'f9-ghost');
     });
 
+    it('deletes the folder and returns ServiceUnavailableException when default page creation fails', async () => {
+      f9.createFolder.mockResolvedValue(
+        makeFolder9Response({ id: 'f9-empty' }) as never,
+      );
+      f9.deleteFolder.mockResolvedValue(undefined as never);
+      f9.commit.mockRejectedValueOnce(new Error('commit failed') as never);
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        svc.createWiki(
+          'ws-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'Docs' },
+        ),
+      ).rejects.toThrow(ServiceUnavailableException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(f9.deleteFolder).toHaveBeenCalledWith('ws-1', 'f9-empty');
+    });
+
     it('still re-throws original error and logs when compensation deleteFolder also fails', async () => {
       const errorSpy = jest
         .spyOn(Logger.prototype, 'error')
@@ -470,6 +525,24 @@ describe('WikisService', () => {
       ).rejects.toThrow(BadRequestException);
 
       expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('maps folder9 configuration/network failures during folder creation to ServiceUnavailableException', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      f9.createFolder.mockRejectedValueOnce(
+        new Error('FOLDER9_PSK is not configured') as never,
+      );
+
+      await expect(
+        svc.createWiki(
+          'ws-1',
+          { id: 'user-1', isAgent: false },
+          { name: 'dev', slug: 'dev' },
+        ),
+      ).rejects.toThrow(ServiceUnavailableException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(f9.deleteFolder).not.toHaveBeenCalled();
     });
 
     it('logs string-shaped compensation failure (non-Error throw)', async () => {
@@ -1338,6 +1411,47 @@ describe('WikisService', () => {
       });
     });
 
+    it('initializes index.md9 for an existing empty wiki tree', async () => {
+      const row = makeWikiRow({ name: 'Legacy handbook' });
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockImplementation((input) =>
+        Promise.resolve(
+          makeToken({
+            token: input.permission === 'write' ? 'tok-write' : 'tok-read',
+            permission: input.permission,
+          }),
+        ),
+      );
+      f9.getTree
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { name: 'index.md9', path: 'index.md9', type: 'file', size: 18 },
+        ]);
+      f9.commit.mockResolvedValue({ commit: 'seed-sha', branch: 'main' });
+
+      const result = await svc.getTree('ws-1', 'wiki-1', user, {
+        path: '/',
+        recursive: true,
+      });
+
+      expect(result).toEqual([
+        { name: 'index.md9', path: 'index.md9', type: 'file', size: 18 },
+      ]);
+      expect(f9.commit).toHaveBeenCalledWith('ws-1', 'f9-1', 'tok-write', {
+        message: 'Initialize wiki',
+        files: [
+          expect.objectContaining({
+            path: 'index.md9',
+            action: 'create',
+            encoding: 'text',
+            content: '# Legacy handbook\n\n',
+          }),
+        ],
+        propose: false,
+      });
+      expect(f9.getTree).toHaveBeenCalledTimes(2);
+    });
+
     it('throws NotFoundException before minting a token when wiki missing', async () => {
       db.limit.mockResolvedValueOnce([]);
       await expect(svc.getTree('ws-1', 'missing', user)).rejects.toThrow(
@@ -1486,6 +1600,53 @@ describe('WikisService', () => {
         expect.stringContaining('Malformed frontmatter'),
       );
       warnSpy.mockRestore();
+    });
+
+    it('initializes index.md9 for an existing wiki when the homepage is missing', async () => {
+      const row = makeWikiRow({ name: 'Legacy handbook' });
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockImplementation((input) =>
+        Promise.resolve(
+          makeToken({
+            token: input.permission === 'write' ? 'tok-write' : 'tok-read',
+            permission: input.permission,
+          }),
+        ),
+      );
+      f9.getBlob
+        .mockRejectedValueOnce(
+          new Folder9ApiError(404, '/blob', { message: 'not found' }),
+        )
+        .mockResolvedValueOnce({
+          path: 'index.md9',
+          size: 19,
+          content: '# Legacy handbook\n\n',
+          encoding: 'text',
+        });
+      f9.commit.mockResolvedValue({ commit: 'seed-sha', branch: 'main' });
+
+      const result = await svc.getPage('ws-1', 'wiki-1', user, 'index.md9');
+
+      expect(result).toEqual({
+        path: 'index.md9',
+        content: '# Legacy handbook\n\n',
+        encoding: 'text',
+        frontmatter: {},
+        lastCommit: null,
+      });
+      expect(f9.commit).toHaveBeenCalledWith('ws-1', 'f9-1', 'tok-write', {
+        message: 'Initialize wiki',
+        files: [
+          expect.objectContaining({
+            path: 'index.md9',
+            action: 'create',
+            encoding: 'text',
+            content: '# Legacy handbook\n\n',
+          }),
+        ],
+        propose: false,
+      });
+      expect(f9.getBlob).toHaveBeenCalledTimes(2);
     });
 
     it('rejects a traversal path (../foo.md) before any DB / folder9 work', async () => {

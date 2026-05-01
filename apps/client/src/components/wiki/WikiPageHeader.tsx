@@ -1,9 +1,10 @@
 import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
+import { stripWikiPageExtension } from "@/lib/wiki-paths";
 
 interface WikiPageHeaderProps {
   wikiSlug: string;
-  /** Folder9-relative path, e.g. `"api/docs/auth.md"` or `"index.md"`. */
+  /** Folder9-relative path, e.g. `"api/docs/auth.md9"` or `"index.md9"`. */
   path: string;
   frontmatter: Record<string, unknown>;
   body: string;
@@ -14,7 +15,7 @@ interface WikiPageHeaderProps {
  * the Notion-style wiki spec:
  *  1. `frontmatter.title` (explicit user intent wins)
  *  2. First top-level `# Heading` in the body
- *  3. The filename (minus `.md`) — last resort so we never show an empty
+ *  3. The filename (minus `.md9`) — last resort so we never show an empty
  *     title for pages that haven't been annotated yet.
  */
 export function extractTitle(
@@ -29,7 +30,7 @@ export function extractTitle(
   if (h1 && h1[1]) return h1[1].trim();
 
   const base = path.split("/").pop() ?? path;
-  return base.replace(/\.md$/i, "");
+  return stripWikiPageExtension(base);
 }
 
 /**

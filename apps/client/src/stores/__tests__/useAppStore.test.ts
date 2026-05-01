@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  SUB_SIDEBAR_WIDTH_DEFAULT,
+  SUB_SIDEBAR_WIDTH_MAX,
+  SUB_SIDEBAR_WIDTH_MIN,
   isRestorableSectionPath,
   sanitizeLastVisitedPaths,
   useAppStore,
@@ -62,5 +65,23 @@ describe("useAppStore navigation helpers", () => {
       application: null,
       more: null,
     });
+  });
+
+  it("defaults the secondary sidebar width to a wider size", () => {
+    useAppStore.getState().reset();
+
+    expect(useAppStore.getState().subSidebarWidth).toBe(
+      SUB_SIDEBAR_WIDTH_DEFAULT,
+    );
+  });
+
+  it("clamps secondary sidebar width updates to the supported range", () => {
+    useAppStore.getState().reset();
+
+    useAppStore.getState().setSubSidebarWidth(SUB_SIDEBAR_WIDTH_MIN - 50);
+    expect(useAppStore.getState().subSidebarWidth).toBe(SUB_SIDEBAR_WIDTH_MIN);
+
+    useAppStore.getState().setSubSidebarWidth(SUB_SIDEBAR_WIDTH_MAX + 50);
+    expect(useAppStore.getState().subSidebarWidth).toBe(SUB_SIDEBAR_WIDTH_MAX);
   });
 });

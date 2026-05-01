@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WikiListItem } from "../WikiListItem";
 import { useWikiStore } from "@/stores/useWikiStore";
@@ -6,6 +12,7 @@ import type { WikiDto, TreeEntryDto } from "@/types/wiki";
 
 const mockUseWikiTree = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockCommit = vi.hoisted(() => vi.fn());
 const archiveMutateAsync = vi.hoisted(() =>
   vi.fn<(id: string) => Promise<void>>(),
 );
@@ -17,6 +24,12 @@ vi.mock("@/hooks/useWikiTree", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+}));
+
+vi.mock("@/services/api/wikis", () => ({
+  wikisApi: {
+    commit: (...args: unknown[]) => mockCommit(...args),
+  },
 }));
 
 vi.mock("@/hooks/useWikis", () => ({
@@ -178,7 +191,7 @@ const wiki: WikiDto = {
 };
 
 const treeEntries: TreeEntryDto[] = [
-  { name: "index.md", path: "index.md", type: "file", size: 0 },
+  { name: "index.md9", path: "index.md9", type: "file", size: 0 },
   { name: "auth.md", path: "api/auth.md", type: "file", size: 0 },
 ];
 
@@ -186,10 +199,13 @@ describe("WikiListItem", () => {
   beforeEach(() => {
     mockUseWikiTree.mockReset();
     mockNavigate.mockReset();
+    mockCommit.mockReset();
+    mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
     archiveMutateAsync.mockReset();
     archivePending.value = false;
     document.body.innerHTML = "";
     vi.spyOn(window, "alert").mockImplementation(() => {});
+    vi.spyOn(window, "prompt").mockImplementation(() => null);
     act(() => {
       useWikiStore.getState().reset();
     });
@@ -208,7 +224,7 @@ describe("WikiListItem", () => {
     // Hook called with `null` so React Query stays disabled.
     expect(mockUseWikiTree).toHaveBeenCalledWith(null);
     // No tree rows rendered. WikiTreeNode buttons carry role="treeitem" (A-3 fix).
-    expect(screen.queryByRole("treeitem", { name: /index\.md/ })).toBeNull();
+    expect(screen.queryByRole("treeitem", { name: /^index$/ })).toBeNull();
   });
 
   it("outer div has role=treeitem, aria-level=1, and aria-expanded=false when collapsed", () => {
@@ -259,6 +275,128 @@ describe("WikiListItem", () => {
     expect(iconBadge).toHaveTextContent("📚");
   });
 
+  it("shows create and upload actions in the row create menu", async () => {
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    mockUseWikiTree.mockReturnValue({ data: [] });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    expect(
+      screen.queryByRole("button", { name: /new page/i }),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
+    });
+
+    expect(
+      screen.getByRole("menuitem", { name: /new page/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /new folder/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /upload file/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("creates a new markdown page from the row create menu", async () => {
+    vi.mocked(window.prompt).mockReturnValue("Roadmap");
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    mockUseWikiTree.mockReturnValue({ data: [] });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
+    });
+    fireEvent.click(screen.getByTestId("wiki-list-item-new-page-wiki-1"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Create Roadmap.md9",
+        files: [
+          {
+            path: "Roadmap.md9",
+            content: "# Roadmap\n\n",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      });
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/wiki/$wikiSlug/$",
+        params: { wikiSlug: "public", _splat: "Roadmap.md9" },
+      });
+    });
+  });
+
+  it("creates a folder by committing its index page", async () => {
+    vi.mocked(window.prompt).mockReturnValue("Specs");
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    mockUseWikiTree.mockReturnValue({ data: [] });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
+    });
+    fireEvent.click(screen.getByTestId("wiki-list-item-new-folder-wiki-1"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Create Specs/index.md9",
+        files: [
+          {
+            path: "Specs/index.md9",
+            content: "# Index\n\n",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      });
+    });
+  });
+
+  it("uploads a text file through the row create menu", async () => {
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    mockUseWikiTree.mockReturnValue({ data: [] });
+    const file = new File(["hello"], "notes.txt", { type: "text/plain" });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
+    });
+    fireEvent.click(screen.getByTestId("wiki-list-item-upload-file-wiki-1"));
+    fireEvent.change(screen.getByTestId("wiki-list-item-upload-input-wiki-1"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Create notes.txt",
+        files: [
+          {
+            path: "notes.txt",
+            content: "hello",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      });
+    });
+  });
+
   it("falls back to the default LibraryIcon when wiki.icon is null", () => {
     mockUseWikiTree.mockReturnValue({ data: undefined });
     render(<WikiListItem wiki={wiki} />);
@@ -287,7 +425,7 @@ describe("WikiListItem", () => {
     render(<WikiListItem wiki={wiki} />);
 
     expect(mockUseWikiTree).toHaveBeenCalledWith("wiki-1");
-    // Tree rows now present; `api` (dir) and `index.md` (file at root).
+    // Tree rows now present; `api` (dir) and `index` (file at root, .md9 hidden).
     // WikiTreeNode buttons carry role="treeitem" (A-3 fix). The outer
     // WikiListItem div also has role="treeitem", so accessible names are
     // shared across levels — use getAllByRole to avoid "multiple elements" error.
@@ -295,7 +433,7 @@ describe("WikiListItem", () => {
       screen.getAllByRole("treeitem", { name: /^api$/ }).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByRole("treeitem", { name: /index\.md/ }).length,
+      screen.getAllByRole("treeitem", { name: /^index$/ }).length,
     ).toBeGreaterThan(0);
   });
 
@@ -333,11 +471,51 @@ describe("WikiListItem", () => {
     expect(kebab).toHaveAttribute("aria-label", "Public Wiki actions");
   });
 
+  it("renders the create trigger with an accessible label", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    render(<WikiListItem wiki={wiki} />);
+    const create = screen.getByTestId("wiki-list-item-create-wiki-1");
+    expect(create).toBeInTheDocument();
+    expect(create).toHaveAttribute("aria-label", "Create in Public Wiki");
+  });
+
+  it("raises low-contrast wiki row icons to foreground on row hover", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    const { container } = render(<WikiListItem wiki={wiki} />);
+
+    const libraryIcon = container.querySelector(".lucide-library");
+    expect(libraryIcon).toHaveClass("group-hover/wiki-row:text-foreground");
+    expect(screen.getByTestId("wiki-list-item-kebab-wiki-1")).toHaveClass(
+      "group-hover/wiki-row:text-foreground",
+    );
+    expect(screen.getByTestId("wiki-list-item-create-wiki-1")).toHaveClass(
+      "group-hover/wiki-row:text-foreground",
+    );
+  });
+
+  it("uses a light hover background for wiki rows", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    const { container } = render(<WikiListItem wiki={wiki} />);
+
+    const row = container.querySelector(".group\\/wiki-row > div");
+    expect(row).toHaveClass("hover:bg-muted/50");
+    expect(row).not.toHaveClass("hover:bg-accent");
+  });
+
   it("kebab click does NOT toggle the row expansion", () => {
     mockUseWikiTree.mockReturnValue({ data: undefined });
     render(<WikiListItem wiki={wiki} />);
     fireEvent.click(screen.getByTestId("wiki-list-item-kebab-wiki-1"));
     // Row still collapsed.
+    expect(useWikiStore.getState().expandedDirectories.has("wiki:wiki-1")).toBe(
+      false,
+    );
+  });
+
+  it("create menu click does NOT toggle the row expansion", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    render(<WikiListItem wiki={wiki} />);
+    fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
     expect(useWikiStore.getState().expandedDirectories.has("wiki:wiki-1")).toBe(
       false,
     );

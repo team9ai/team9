@@ -85,7 +85,13 @@
   "listItem": {
     "settings": "Settings",
     "archive": "Archive",
-    "actionsLabel": "{{name}} actions"
+    "actionsLabel": "{{name}} actions",
+    "createMenuLabel": "Create in {{name}}",
+    "newPage": "New page",
+    "newPagePrompt": "Page path",
+    "newFolder": "New folder",
+    "newFolderPrompt": "Folder path",
+    "uploadFile": "Upload file"
   },
   "archive": {
     "title": "Archive this Wiki?",
