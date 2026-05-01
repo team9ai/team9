@@ -215,6 +215,16 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
     }
   };
 
+  const handleOpenRootDocument = () => {
+    wikiActions.expandDirectory(expandKey);
+    wikiActions.setSelectedWiki(wiki.id);
+    wikiActions.setSelectedPage(DEFAULT_WIKI_INDEX_PATH);
+    navigate({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: wiki.slug, _splat: DEFAULT_WIKI_INDEX_PATH },
+    });
+  };
+
   const refreshAfterCreate = (path: string) => {
     wikiActions.expandDirectory(expandKey);
     wikiActions.setSelectedWiki(wiki.id);
@@ -303,10 +313,18 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
         <button
           type="button"
           onClick={() => wikiActions.toggleDirectory(expandKey)}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm flex-1 text-left font-medium min-w-0"
+          aria-label={isOpen ? t("listItem.collapse") : t("listItem.expand")}
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid={`wiki-list-item-toggle-${wiki.id}`}
         >
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+        <button
+          type="button"
+          onClick={handleOpenRootDocument}
+          className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-2 text-left text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid={`wiki-list-item-open-${wiki.id}`}
+        >
           {wiki.icon ? (
             <span
               aria-hidden="true"

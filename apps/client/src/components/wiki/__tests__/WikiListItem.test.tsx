@@ -260,9 +260,9 @@ describe("WikiListItem", () => {
     mockUseWikiTree.mockReturnValue({ data: undefined });
     render(<WikiListItem wiki={wiki} />);
 
-    expect(
-      screen.getByTestId("wiki-list-item-toggle-wiki-1"),
-    ).toHaveTextContent(/Public Wiki/);
+    expect(screen.getByTestId("wiki-list-item-open-wiki-1")).toHaveTextContent(
+      /Public Wiki/,
+    );
     expect(screen.queryByRole("treeitem", { name: /api/ })).toBeNull();
   });
 
@@ -415,6 +415,22 @@ describe("WikiListItem", () => {
     );
   });
 
+  it("opens the root index document when the wiki name is clicked", () => {
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    render(<WikiListItem wiki={wiki} />);
+
+    fireEvent.click(screen.getByTestId("wiki-list-item-open-wiki-1"));
+
+    const state = useWikiStore.getState();
+    expect(state.expandedDirectories.has("wiki:wiki-1")).toBe(true);
+    expect(state.selectedWikiId).toBe("wiki-1");
+    expect(state.selectedPagePath).toBe("index.md9");
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: "public", _splat: "index.md9" },
+    });
+  });
+
   it("fetches the tree and renders tree nodes once expanded", () => {
     // Pre-expand so the first render passes the wiki id into the hook.
     act(() => {
@@ -458,9 +474,9 @@ describe("WikiListItem", () => {
     render(<WikiListItem wiki={wiki} />);
 
     // Only the wiki row is present — no tree rows yet.
-    expect(
-      screen.getByTestId("wiki-list-item-toggle-wiki-1"),
-    ).toHaveTextContent(/Public Wiki/);
+    expect(screen.getByTestId("wiki-list-item-open-wiki-1")).toHaveTextContent(
+      /Public Wiki/,
+    );
   });
 
   it("renders a chevron-down when expanded, chevron-right when collapsed", () => {

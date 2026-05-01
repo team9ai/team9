@@ -87,6 +87,8 @@
     "archive": "归档",
     "actionsLabel": "{{name}} 操作",
     "createMenuLabel": "在 {{name}} 中创建",
+    "expand": "展开",
+    "collapse": "收起",
     "newPage": "新建页面",
     "newPagePrompt": "页面路径",
     "newFolder": "新建文件夹",

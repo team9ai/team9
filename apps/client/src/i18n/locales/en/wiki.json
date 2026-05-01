@@ -87,6 +87,8 @@
     "archive": "Archive",
     "actionsLabel": "{{name}} actions",
     "createMenuLabel": "Create in {{name}}",
+    "expand": "Expand",
+    "collapse": "Collapse",
     "newPage": "New page",
     "newPagePrompt": "Page path",
     "newFolder": "New folder",
