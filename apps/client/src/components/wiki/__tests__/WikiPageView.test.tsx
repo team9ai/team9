@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageDto, WikiDto } from "@/types/wiki";
 
@@ -6,6 +6,7 @@ const mockUseWikiPage = vi.hoisted(() => vi.fn());
 const mockUseWikis = vi.hoisted(() => vi.fn());
 const mockUseSubmittedProposal = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockCommit = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiPage", () => ({
   useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
@@ -22,6 +23,12 @@ vi.mock("@/stores/useWikiStore", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+}));
+
+vi.mock("@/services/api/wikis", () => ({
+  wikisApi: {
+    commit: (...args: unknown[]) => mockCommit(...args),
+  },
 }));
 
 // Child components are covered by their own tests; stub them here so we
@@ -105,6 +112,8 @@ beforeEach(() => {
   mockUseSubmittedProposal.mockReset();
   mockUseSubmittedProposal.mockReturnValue(null);
   mockNavigate.mockReset();
+  mockCommit.mockReset();
+  mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
 });
 
 describe("WikiPageView", () => {
@@ -113,6 +122,18 @@ describe("WikiPageView", () => {
     mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
     expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
+  });
+
+  it("centers the loading cue in the content pane with a spinner", () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: true });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    const { container } = render(
+      <WikiPageView wikiId="wiki-1" path="index.md" />,
+    );
+
+    const loading = screen.getByTestId("wiki-page-loading");
+    expect(loading).toHaveClass("h-full", "items-center", "justify-center");
+    expect(container.querySelector("svg.animate-spin")).not.toBeNull();
   });
 
   it("shows loading cue while the wikis list is fetching", () => {
@@ -140,6 +161,38 @@ describe("WikiPageView", () => {
     mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
     expect(screen.queryByTestId("wiki-page-loading")).toBeNull();
+    expect(
+      screen.getByText(/page doesn't exist/i, { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("creates the default md9 homepage when it is missing and the user can write", async () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Create index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content: "# Handbook\n\n",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      });
+    });
+  });
+
+  it("does not auto-create non-index missing pages", () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="docs/missing.md9" />);
+
+    expect(mockCommit).not.toHaveBeenCalled();
     expect(
       screen.getByText(/page doesn't exist/i, { exact: false }),
     ).toBeInTheDocument();

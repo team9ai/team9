@@ -6,3 +6,7 @@ export const LEGACY_WIKI_INDEX_FILENAME = "index.md";
 export function stripWikiPageExtension(name: string): string {
   return name.replace(/\.md9$/i, "");
 }
+
+// Backward-compatible export for stale chunks/imports after the md9 rename.
+// Despite the historical name, only `.md9` is hidden by default.
+export const stripMarkdownPageExtension = stripWikiPageExtension;

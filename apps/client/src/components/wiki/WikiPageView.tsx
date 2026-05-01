@@ -1,7 +1,12 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWikiPage } from "@/hooks/useWikiPage";
-import { useWikis } from "@/hooks/useWikis";
+import { useWikis, wikiKeys } from "@/hooks/useWikis";
+import { queryClient } from "@/lib/query-client";
+import { DEFAULT_WIKI_INDEX_PATH } from "@/lib/wiki-paths";
+import { wikisApi } from "@/services/api/wikis";
 import { useSubmittedProposal } from "@/stores/useWikiStore";
 import { WikiCover } from "./WikiCover";
 import { WikiEmptyState } from "./WikiEmptyState";
@@ -44,6 +49,76 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   const { data: wikis, isLoading: wikisLoading } = useWikis();
   const wiki = wikis?.find((w) => w.id === wikiId);
   const pendingProposalId = useSubmittedProposal(wikiId, path);
+  const bootstrapKey = `${wikiId}:${path}`;
+  const [bootstrappingKey, setBootstrappingKey] = useState<string | null>(null);
+  const [bootstrapFailedKey, setBootstrapFailedKey] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (
+      !wiki ||
+      page ||
+      pageLoading ||
+      wikisLoading ||
+      path !== DEFAULT_WIKI_INDEX_PATH ||
+      wiki.humanPermission !== "write" ||
+      bootstrappingKey === bootstrapKey ||
+      bootstrapFailedKey === bootstrapKey
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setBootstrappingKey(bootstrapKey);
+    void wikisApi
+      .commit(wiki.id, {
+        message: `Create ${DEFAULT_WIKI_INDEX_PATH}`,
+        files: [
+          {
+            path: DEFAULT_WIKI_INDEX_PATH,
+            content: `# ${wiki.name}\n\n`,
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      })
+      .then(() => {
+        queryClient.setQueryData(wikiKeys.page(wiki.id, path), {
+          path,
+          content: `# ${wiki.name}\n\n`,
+          encoding: "text",
+          frontmatter: {},
+          lastCommit: null,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.trees(wiki.id),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.page(wiki.id, path),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setBootstrapFailedKey(bootstrapKey);
+      })
+      .finally(() => {
+        if (!cancelled) setBootstrappingKey(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bootstrapFailedKey,
+    bootstrapKey,
+    bootstrappingKey,
+    page,
+    pageLoading,
+    path,
+    wiki,
+    wikiId,
+    wikisLoading,
+  ]);
 
   // Split the loading / missing-wiki / missing-page checks.
   //
@@ -53,10 +128,16 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   // mid-session). Now we surface an explicit "not found" empty state
   // when the wikis list has resolved without the target id, so the user
   // can recover by picking another wiki from the sidebar.
-  if (pageLoading || wikisLoading) {
+  if (pageLoading || wikisLoading || bootstrappingKey === bootstrapKey) {
     return (
-      <div data-testid="wiki-page-loading" className="p-8">
-        {t("page.loading")}
+      <div
+        data-testid="wiki-page-loading"
+        role="status"
+        aria-live="polite"
+        className="h-full flex flex-col items-center justify-center gap-3 bg-background text-muted-foreground"
+      >
+        <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+        <span className="text-sm">{t("page.loading")}</span>
       </div>
     );
   }
