@@ -35,7 +35,7 @@ import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
-import { ClawHiveService } from '@team9/claw-hive';
+import { ClawHiveService, type HiveSessionDetail } from '@team9/claw-hive';
 import { appMetrics } from '@team9/observability';
 import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
@@ -1338,6 +1338,138 @@ export class RoutinesService {
     }
   }
 
+  private buildRoutineCreationTeam9Context(params: {
+    routineId: string;
+    userId: string;
+    channelId: string;
+    locale: { language?: string | null; timeZone?: string | null };
+  }): Record<string, unknown> {
+    return {
+      routineId: params.routineId,
+      creatorUserId: params.userId,
+      creationChannelId: params.channelId,
+      isCreationChannel: true,
+      ...(params.locale.language ? { language: params.locale.language } : {}),
+      ...(params.locale.timeZone ? { timeZone: params.locale.timeZone } : {}),
+    };
+  }
+
+  private buildRoutineCreationComponentConfigs(params: {
+    routineId: string;
+    tenantId: string;
+    routineFolderId: string;
+    team9Context: Record<string, unknown>;
+  }): Record<string, Record<string, unknown>> {
+    return {
+      'team9-routine-creation': {
+        routineId: params.routineId,
+        isCreationChannel: true,
+        team9Context: params.team9Context,
+      },
+      'just-bash-team9-workspace': {
+        folderMap: {
+          'routine.document': {
+            workspaceId: params.tenantId,
+            folderId: params.routineFolderId,
+            folderType: 'managed',
+            permission: 'write',
+            readOnly: false,
+          },
+        },
+        mountTeam9Skills: true,
+      },
+    };
+  }
+
+  private extractAgentIdFromCreationSessionId(
+    sessionId: string,
+  ): string | null {
+    const parts = sessionId.split('/');
+    if (parts[0] !== 'team9' || parts.length < 5) return null;
+    return parts[2] || null;
+  }
+
+  private needsRoutineCreationSessionRepair(
+    session: HiveSessionDetail | null,
+    routineId: string,
+  ): boolean {
+    if (!session) return true;
+
+    const sessionContext = session.team9Context as
+      | Record<string, unknown>
+      | undefined;
+    const hasSessionContext = sessionContext?.routineId === routineId;
+
+    const componentConfigs = session.componentConfigs as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    const routineConfig = componentConfigs?.['team9-routine-creation'];
+    const routineConfigContext = routineConfig?.team9Context as
+      | Record<string, unknown>
+      | undefined;
+    const hasRoutineComponentContext =
+      routineConfig?.routineId === routineId &&
+      routineConfigContext?.routineId === routineId;
+
+    return !hasSessionContext || !hasRoutineComponentContext;
+  }
+
+  private async repairRoutineCreationHiveSessionIfNeeded(params: {
+    routineId: string;
+    userId: string;
+    tenantId: string;
+    channelId: string;
+    sessionId: string;
+  }): Promise<void> {
+    const session = await this.clawHiveService.getSession(
+      params.sessionId,
+      params.tenantId,
+    );
+    if (!this.needsRoutineCreationSessionRepair(session, params.routineId)) {
+      return;
+    }
+
+    const agentId = this.extractAgentIdFromCreationSessionId(params.sessionId);
+    if (!agentId) {
+      throw new BadRequestException(
+        'Creation session id is malformed; cannot repair Hive session context',
+      );
+    }
+
+    const locale = await this.usersService.getLocalePreferences(params.userId);
+    const team9Context = this.buildRoutineCreationTeam9Context({
+      routineId: params.routineId,
+      userId: params.userId,
+      channelId: params.channelId,
+      locale,
+    });
+    const ensured = await ensureRoutineFolder(params.routineId, {
+      db: this.db,
+      provisionDeps: {
+        folder9Client: this.folder9Client,
+        workspaceId: params.tenantId,
+        psk: '',
+      },
+    });
+    const routineFolderId = ensured.folderId!;
+
+    await this.clawHiveService.createSession(
+      agentId,
+      {
+        userId: params.userId,
+        sessionId: params.sessionId,
+        team9Context,
+        componentConfigs: this.buildRoutineCreationComponentConfigs({
+          routineId: params.routineId,
+          tenantId: params.tenantId,
+          routineFolderId,
+          team9Context,
+        }),
+      },
+      params.tenantId,
+    );
+  }
+
   async startCreationSession(
     routineId: string,
     userId: string,
@@ -1368,6 +1500,13 @@ export class RoutinesService {
         .limit(1);
 
       if (existingChannel?.type === 'routine-session') {
+        await this.repairRoutineCreationHiveSessionIfNeeded({
+          routineId,
+          userId,
+          tenantId,
+          channelId: routine.creationChannelId,
+          sessionId: routine.creationSessionId,
+        });
         return {
           creationChannelId: routine.creationChannelId,
           creationSessionId: routine.creationSessionId,
@@ -1531,15 +1670,12 @@ export class RoutinesService {
       claimed = true;
 
       const locale = await this.usersService.getLocalePreferences(userId);
-
-      const team9Context: Record<string, unknown> = {
+      const team9Context = this.buildRoutineCreationTeam9Context({
         routineId,
-        creatorUserId: userId,
-        creationChannelId: channel.id,
-        isCreationChannel: true,
-        ...(locale.language ? { language: locale.language } : {}),
-        ...(locale.timeZone ? { timeZone: locale.timeZone } : {}),
-      };
+        userId,
+        channelId: channel.id,
+        locale,
+      });
 
       // ── Routine folder intent for JustBashTeam9WorkspaceComponent ───
       //
@@ -1577,25 +1713,12 @@ export class RoutinesService {
       });
       const routineFolderId = ensured.folderId!;
 
-      const componentConfigs: Record<string, Record<string, unknown>> = {
-        'team9-routine-creation': {
-          routineId,
-          isCreationChannel: true,
-          team9Context,
-        },
-        'just-bash-team9-workspace': {
-          folderMap: {
-            'routine.document': {
-              workspaceId: tenantId,
-              folderId: routineFolderId,
-              folderType: 'managed',
-              permission: 'write',
-              readOnly: false,
-            },
-          },
-          mountTeam9Skills: true,
-        },
-      };
+      const componentConfigs = this.buildRoutineCreationComponentConfigs({
+        routineId,
+        tenantId,
+        routineFolderId,
+        team9Context,
+      });
 
       await this.clawHiveService.createSession(
         agentId,
