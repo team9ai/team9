@@ -7,6 +7,7 @@ import {
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { SidebarNavRail } from "@/components/layout/SidebarNavRail";
+import { RoutePendingOverlay } from "@/components/layout/RoutePendingOverlay";
 import { useFontScales, useSidebarCollapsed } from "@/stores";
 import type { CSSProperties } from "react";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
@@ -323,10 +324,11 @@ function AuthenticatedLayout() {
           {!sidebarCollapsed && <SidebarNavRail />}
           <DynamicSubSidebar />
           <main
-            className="font-scope flex-1 overflow-hidden bg-background"
+            className="font-scope relative flex-1 overflow-hidden bg-background"
             style={mainFontStyle}
           >
             <Outlet />
+            <RoutePendingOverlay />
           </main>
         </div>
       </div>
