@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $getSelection,
@@ -16,7 +17,11 @@ import {
   ListNode,
 } from "@lexical/list";
 import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
-import { $createQuoteNode, $isQuoteNode } from "@lexical/rich-text";
+import {
+  $createHeadingNode,
+  $createQuoteNode,
+  $isQuoteNode,
+} from "@lexical/rich-text";
 import { $setBlocksType } from "@lexical/selection";
 import {
   Bold,
@@ -25,7 +30,10 @@ import {
   ListOrdered,
   Code,
   Quote,
-  Plus,
+  GripVertical,
+  Heading1,
+  Heading2,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,6 +46,7 @@ interface OverlayPosition {
 interface OverlayState {
   toolbar: OverlayPosition | null;
   block: OverlayPosition | null;
+  blockMenu: OverlayPosition | null;
 }
 
 export function DocumentFormattingOverlay() {
@@ -47,16 +56,18 @@ export function DocumentFormattingOverlay() {
   const [isCode, setIsCode] = useState(false);
   const [isQuote, setIsQuote] = useState(false);
   const [listType, setListType] = useState<"bullet" | "number" | null>(null);
+  const [blockMenuOpen, setBlockMenuOpen] = useState(false);
   const [overlay, setOverlay] = useState<OverlayState>({
     toolbar: null,
     block: null,
+    blockMenu: null,
   });
 
   const updateToolbar = useCallback(() => {
     const selection = $getSelection();
     const rootElement = editor.getRootElement();
     if (!rootElement) {
-      setOverlay({ toolbar: null, block: null });
+      setOverlay({ toolbar: null, block: null, blockMenu: null });
       return;
     }
 
@@ -91,8 +102,19 @@ export function DocumentFormattingOverlay() {
       const block =
         elementDOM && blockRect
           ? {
-              x: 4,
-              y: blockRect.top - rootRect.top + rootElement.scrollTop + 2,
+              x: 0,
+              y:
+                blockRect.top -
+                rootRect.top +
+                rootElement.scrollTop +
+                Math.max(0, (blockRect.height - 20) / 2),
+            }
+          : null;
+      const blockMenu =
+        elementDOM && blockRect
+          ? {
+              x: rootRect.left + 24,
+              y: blockRect.top + Math.max(0, (blockRect.height - 20) / 2),
             }
           : null;
 
@@ -112,24 +134,27 @@ export function DocumentFormattingOverlay() {
       const toolbar =
         hasVisibleSelection && selectionRect
           ? {
-              x:
-                selectionRect.left -
-                rootRect.left +
-                rootElement.scrollLeft +
-                selectionRect.width / 2,
-              y: Math.max(
-                0,
-                selectionRect.top - rootRect.top + rootElement.scrollTop - 42,
+              x: Math.min(
+                window.innerWidth - 160,
+                Math.max(160, selectionRect.left + selectionRect.width / 2),
               ),
+              y:
+                selectionRect.top > 56
+                  ? selectionRect.top - 48
+                  : selectionRect.bottom + 8,
             }
           : null;
 
-      setOverlay({ toolbar, block });
+      setOverlay({ toolbar, block, blockMenu });
       return;
     }
 
-    setOverlay({ toolbar: null, block: null });
+    setOverlay({ toolbar: null, block: null, blockMenu: null });
   }, [editor]);
+
+  useEffect(() => {
+    if (!overlay.block) setBlockMenuOpen(false);
+  }, [overlay.block]);
 
   useEffect(() => {
     return mergeRegister(
@@ -216,20 +241,53 @@ export function DocumentFormattingOverlay() {
     });
   };
 
-  const insertParagraphAfterBlock = () => {
+  const toggleBlockMenu = () => {
+    setBlockMenuOpen((open) => !open);
+    editor.focus();
+  };
+
+  const applyParagraph = () => {
     editor.update(() => {
       const selection = $getSelection();
-      if (!$isRangeSelection(selection)) return;
-      const anchorNode = selection.anchor.getNode();
-      const element =
-        anchorNode.getKey() === "root"
-          ? null
-          : anchorNode.getTopLevelElementOrThrow();
-      if (!element) return;
-      const next = $createParagraphNode();
-      element.insertAfter(next);
-      next.selectStart();
+      if ($isRangeSelection(selection)) {
+        $setBlocksType(selection, () => $createParagraphNode());
+      }
     });
+    setBlockMenuOpen(false);
+    editor.focus();
+  };
+
+  const applyHeading = (level: "h1" | "h2") => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        $setBlocksType(selection, () => $createHeadingNode(level));
+      }
+    });
+    setBlockMenuOpen(false);
+    editor.focus();
+  };
+
+  const applyQuote = () => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        $setBlocksType(selection, () => $createQuoteNode());
+      }
+    });
+    setBlockMenuOpen(false);
+    editor.focus();
+  };
+
+  const applyBulletList = () => {
+    editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
+    setBlockMenuOpen(false);
+    editor.focus();
+  };
+
+  const applyNumberedList = () => {
+    editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
+    setBlockMenuOpen(false);
     editor.focus();
   };
 
@@ -245,120 +303,190 @@ export function DocumentFormattingOverlay() {
           variant="ghost"
           size="sm"
           onMouseDown={keepSelection}
-          onClick={insertParagraphAfterBlock}
-          className="absolute z-10 h-6 w-6 p-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={toggleBlockMenu}
+          className="absolute z-10 h-5 w-5 p-0 rounded text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
           style={{ left: overlay.block.x, top: overlay.block.y }}
-          title="Insert block"
+          title="Block actions"
           data-testid="document-block-insert-button"
         >
-          <Plus size={14} />
+          <GripVertical size={14} />
         </Button>
       )}
-      {overlay.toolbar && (
-        <div
-          className="absolute z-20 flex items-center gap-1 rounded-md border border-border bg-popover px-1 py-1 text-popover-foreground shadow-md"
-          style={{
-            left: overlay.toolbar.x,
-            top: overlay.toolbar.y,
-            transform: "translateX(-50%)",
-          }}
-          data-testid="document-floating-toolbar"
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onMouseDown={keepSelection}
-            onClick={formatBold}
-            className={cn(
-              "h-7 w-7 p-0",
-              isBold && "bg-primary/10 text-primary",
-            )}
-            title="Bold (Ctrl+B)"
+      {overlay.blockMenu &&
+        blockMenuOpen &&
+        createPortal(
+          <div
+            className="fixed z-[1000] w-44 rounded-md border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
+            style={{
+              left: overlay.blockMenu.x,
+              top: overlay.blockMenu.y,
+            }}
+            data-testid="document-block-menu"
           >
-            <Bold size={14} />
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onMouseDown={keepSelection}
-            onClick={formatItalic}
-            className={cn(
-              "h-7 w-7 p-0",
-              isItalic && "bg-primary/10 text-primary",
-            )}
-            title="Italic (Ctrl+I)"
+            <button
+              type="button"
+              onMouseDown={keepSelection}
+              onClick={applyParagraph}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <Type size={14} />
+              Text
+            </button>
+            <button
+              type="button"
+              onMouseDown={keepSelection}
+              onClick={() => applyHeading("h1")}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <Heading1 size={14} />
+              Heading 1
+            </button>
+            <button
+              type="button"
+              onMouseDown={keepSelection}
+              onClick={() => applyHeading("h2")}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <Heading2 size={14} />
+              Heading 2
+            </button>
+            <button
+              type="button"
+              onMouseDown={keepSelection}
+              onClick={applyQuote}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <Quote size={14} />
+              Quote
+            </button>
+            <button
+              type="button"
+              onMouseDown={keepSelection}
+              onClick={applyBulletList}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <List size={14} />
+              Bullet list
+            </button>
+            <button
+              type="button"
+              onMouseDown={keepSelection}
+              onClick={applyNumberedList}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <ListOrdered size={14} />
+              Numbered list
+            </button>
+          </div>,
+          document.body,
+        )}
+      {overlay.toolbar &&
+        createPortal(
+          <div
+            className="fixed z-[1000] flex items-center gap-1 rounded-md border border-border bg-popover px-1 py-1 text-popover-foreground shadow-md"
+            style={{
+              left: overlay.toolbar.x,
+              top: overlay.toolbar.y,
+              transform: "translateX(-50%)",
+            }}
+            data-testid="document-floating-toolbar"
           >
-            <Italic size={14} />
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onMouseDown={keepSelection}
+              onClick={formatBold}
+              className={cn(
+                "h-7 w-7 p-0",
+                isBold && "bg-primary/10 text-primary",
+              )}
+              title="Bold (Ctrl+B)"
+            >
+              <Bold size={14} />
+            </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onMouseDown={keepSelection}
-            onClick={formatCode}
-            className={cn(
-              "h-7 w-7 p-0",
-              isCode && "bg-primary/10 text-primary",
-            )}
-            title="Inline Code"
-          >
-            <Code size={14} />
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onMouseDown={keepSelection}
+              onClick={formatItalic}
+              className={cn(
+                "h-7 w-7 p-0",
+                isItalic && "bg-primary/10 text-primary",
+              )}
+              title="Italic (Ctrl+I)"
+            >
+              <Italic size={14} />
+            </Button>
 
-          <div className="w-px h-5 bg-muted mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onMouseDown={keepSelection}
+              onClick={formatCode}
+              className={cn(
+                "h-7 w-7 p-0",
+                isCode && "bg-primary/10 text-primary",
+              )}
+              title="Inline Code"
+            >
+              <Code size={14} />
+            </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onMouseDown={keepSelection}
-            onClick={formatBulletList}
-            className={cn(
-              "h-7 w-7 p-0",
-              listType === "bullet" && "bg-primary/10 text-primary",
-            )}
-            title="Bullet List"
-          >
-            <List size={14} />
-          </Button>
+            <div className="w-px h-5 bg-muted mx-1" />
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onMouseDown={keepSelection}
-            onClick={formatNumberedList}
-            className={cn(
-              "h-7 w-7 p-0",
-              listType === "number" && "bg-primary/10 text-primary",
-            )}
-            title="Numbered List"
-          >
-            <ListOrdered size={14} />
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onMouseDown={keepSelection}
+              onClick={formatBulletList}
+              className={cn(
+                "h-7 w-7 p-0",
+                listType === "bullet" && "bg-primary/10 text-primary",
+              )}
+              title="Bullet List"
+            >
+              <List size={14} />
+            </Button>
 
-          <div className="w-px h-5 bg-muted mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onMouseDown={keepSelection}
+              onClick={formatNumberedList}
+              className={cn(
+                "h-7 w-7 p-0",
+                listType === "number" && "bg-primary/10 text-primary",
+              )}
+              title="Numbered List"
+            >
+              <ListOrdered size={14} />
+            </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onMouseDown={keepSelection}
-            onClick={toggleQuote}
-            className={cn(
-              "h-7 w-7 p-0",
-              isQuote && "bg-primary/10 text-primary",
-            )}
-            title="Quote"
-          >
-            <Quote size={14} />
-          </Button>
-        </div>
-      )}
+            <div className="w-px h-5 bg-muted mx-1" />
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onMouseDown={keepSelection}
+              onClick={toggleQuote}
+              className={cn(
+                "h-7 w-7 p-0",
+                isQuote && "bg-primary/10 text-primary",
+              )}
+              title="Quote"
+            >
+              <Quote size={14} />
+            </Button>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
