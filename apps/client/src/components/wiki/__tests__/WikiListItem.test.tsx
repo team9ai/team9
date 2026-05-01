@@ -308,7 +308,7 @@ describe("WikiListItem", () => {
     );
   });
 
-  it("shows create and upload actions in the row create menu", async () => {
+  it("uses the row create button as a direct new-page action", () => {
     act(() => {
       useWikiStore.getState().toggleDirectory("wiki:wiki-1");
     });
@@ -317,24 +317,13 @@ describe("WikiListItem", () => {
     render(<WikiListItem wiki={wiki} />);
 
     expect(
-      screen.queryByRole("button", { name: /new page/i }),
-    ).not.toBeInTheDocument();
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
-    });
-
-    expect(
-      screen.getByRole("menuitem", { name: /new page/i }),
+      screen.getByRole("button", { name: /new page/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("menuitem", { name: /new folder/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("menuitem", { name: /upload file/i }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /new folder/i })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /upload file/i })).toBeNull();
   });
 
-  it("creates a new markdown page from the row create menu", async () => {
+  it("creates a new markdown page directly from the row create button", async () => {
     vi.mocked(window.prompt).mockReturnValue("Roadmap");
     act(() => {
       useWikiStore.getState().toggleDirectory("wiki:wiki-1");
@@ -346,7 +335,6 @@ describe("WikiListItem", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
     });
-    fireEvent.click(screen.getByTestId("wiki-list-item-new-page-wiki-1"));
 
     await waitFor(() => {
       expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
@@ -365,67 +353,6 @@ describe("WikiListItem", () => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/wiki/$wikiSlug/$",
         params: { wikiSlug: "public", _splat: "Roadmap.md9" },
-      });
-    });
-  });
-
-  it("creates a folder by committing its index page", async () => {
-    vi.mocked(window.prompt).mockReturnValue("Specs");
-    act(() => {
-      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
-    });
-    mockUseWikiTree.mockReturnValue({ data: [] });
-
-    render(<WikiListItem wiki={wiki} />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
-    });
-    fireEvent.click(screen.getByTestId("wiki-list-item-new-folder-wiki-1"));
-
-    await waitFor(() => {
-      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
-        message: "Create Specs/index.md9",
-        files: [
-          {
-            path: "Specs/index.md9",
-            content: "# Index\n\n",
-            encoding: "text",
-            action: "create",
-          },
-        ],
-      });
-    });
-  });
-
-  it("uploads a text file through the row create menu", async () => {
-    act(() => {
-      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
-    });
-    mockUseWikiTree.mockReturnValue({ data: [] });
-    const file = new File(["hello"], "notes.txt", { type: "text/plain" });
-
-    render(<WikiListItem wiki={wiki} />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
-    });
-    fireEvent.click(screen.getByTestId("wiki-list-item-upload-file-wiki-1"));
-    fireEvent.change(screen.getByTestId("wiki-list-item-upload-input-wiki-1"), {
-      target: { files: [file] },
-    });
-
-    await waitFor(() => {
-      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
-        message: "Create notes.txt",
-        files: [
-          {
-            path: "notes.txt",
-            content: "hello",
-            encoding: "text",
-            action: "create",
-          },
-        ],
       });
     });
   });
@@ -532,12 +459,12 @@ describe("WikiListItem", () => {
     expect(kebab).toHaveAttribute("aria-label", "Public Wiki actions");
   });
 
-  it("renders the create trigger with an accessible label", () => {
+  it("renders the direct new-page trigger with an accessible label", () => {
     mockUseWikiTree.mockReturnValue({ data: undefined });
     render(<WikiListItem wiki={wiki} />);
     const create = screen.getByTestId("wiki-list-item-create-wiki-1");
     expect(create).toBeInTheDocument();
-    expect(create).toHaveAttribute("aria-label", "Create in Public Wiki");
+    expect(create).toHaveAttribute("aria-label", "New page");
   });
 
   it("raises low-contrast wiki row icons to foreground on row hover", () => {
