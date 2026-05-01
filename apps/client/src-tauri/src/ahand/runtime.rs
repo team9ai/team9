@@ -177,17 +177,34 @@ struct ActiveSession {
 
 pub struct AhandRuntime {
     inner: Arc<Mutex<Option<ActiveSession>>>,
+    /// Captured at the first successful `start()` call. Lets `reload()` —
+    /// which doesn't have an `&AppHandle` of its own — emit
+    /// `ahand-daemon-status` events from the respawned daemon's status
+    /// watcher. Cleared by `stop()`. Stored separately from
+    /// `ActiveSession` so it survives the take/replace dance during
+    /// reload and so it remains available even if the active session
+    /// is currently `None` mid-reload.
+    cached_app_handle: Arc<std::sync::Mutex<Option<AppHandle>>>,
 }
 
 impl AhandRuntime {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(None)),
+            cached_app_handle: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
     /// Start a new daemon session, stopping any existing one first.
     pub async fn start(&self, app: &AppHandle, cfg: StartConfig) -> Result<StartResult, String> {
+        // Capture the AppHandle so `reload()` can emit status events from
+        // respawned daemons. The clone is cheap (an Arc bump). Poison
+        // recovery is best-effort — `reload()` falls back to a no-op
+        // forwarder if this lock is poisoned.
+        if let Ok(mut h) = self.cached_app_handle.lock() {
+            *h = Some(app.clone());
+        }
+
         let mut guard = self.inner.lock().await;
 
         if let Some(prev) = guard.take() {
@@ -475,28 +492,22 @@ impl AhandRuntime {
     }
 
     /// Hook that returns the `AppHandle` used to forward status events
-    /// from the new daemon spawned during `reload()`. The current
-    /// implementation has no `AppHandle` cached on `AhandRuntime` (it's
-    /// passed per-call to `start()`/`stop()`), so the reload path emits
-    /// no status events directly — the new daemon's own status watch
-    /// will be subscribed to once a Tauri command resolves the handle
-    /// again. Tests pass `None`.
+    /// from the new daemon spawned during `reload()`. Reads from
+    /// `cached_app_handle` populated by `start()`. Without this,
+    /// reload-spawned daemons would not emit `ahand-daemon-status`
+    /// events to the renderer, leaving `useAhandLocalStatus` stuck
+    /// on whatever state was last seen before the reload — observably:
+    /// `agentVisible` would never flip back to true even after the new
+    /// daemon completed its hub handshake.
     ///
-    /// NOTE for Task 14: when wiring up the `browser_install` Tauri
-    /// command, the caller is expected to also `state.app_handle()` and
-    /// re-emit the new daemon's status. A future iteration may cache
-    /// the `AppHandle` inside `AhandRuntime` so reload() forwards
-    /// transparently.
-    // TODO(task-14): replace with real plumbing — pass the AppHandle through
-    // from the Tauri command site so post-reload daemon-status events reach
-    // the renderer. Today this returns None and the watch task at
-    // build_active_session is a no-op for reload-spawned daemons.
-    // The `_team9_user_id` parameter is currently unused; it exists so a
-    // single Tauri app could later scope per-user app handles when hosting
-    // multiple users. Keeping the signature stable means Task 14's wiring
-    // is a body-only change.
+    /// The `_team9_user_id` parameter is currently unused. It exists so
+    /// a future single-app-multiple-users layout can scope per-user
+    /// AppHandles without changing this signature.
     fn app_emitter_for_session(&self, _team9_user_id: &str) -> Option<AppHandle> {
-        None
+        self.cached_app_handle
+            .lock()
+            .ok()
+            .and_then(|h| h.clone())
     }
 
     async fn shutdown_session(session: ActiveSession) {
@@ -574,8 +585,10 @@ fn build_active_session(
                 }
             })
         }
-        // TODO(task-14): becomes unreachable once app_emitter_for_session returns Some.
-        // Until then, no-op so the JoinHandle field on ActiveSession is always populated.
+        // Test paths that pass `None` — and the rare race where
+        // `start()` was never called before `reload()` — fall through
+        // to a no-op so the JoinHandle field on ActiveSession is
+        // always populated.
         None => tokio::spawn(async {}),
     };
     ActiveSession {

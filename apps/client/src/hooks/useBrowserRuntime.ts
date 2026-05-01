@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { isTauriApp } from "@/lib/tauri";
+import type { DaemonStatus } from "@/types/tauri-ahand";
 
 // ---------------------------------------------------------------------------
 // Wire types — MUST match apps/client/src-tauri/src/ahand/browser_runtime.rs.
@@ -347,6 +349,40 @@ export function useBrowserRuntime(): UseBrowserRuntimeResult {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  // Re-fetch status whenever the embedded ahandd daemon transitions to
+  // "online". Without this, the renderer would keep the stale
+  // `agentVisible: false` snapshot captured the moment `browser_install` /
+  // `browser_set_enabled` resolved — at that point the respawned daemon is
+  // typically still mid-handshake, so the warning indicator would never
+  // clear without a manual reload. Listens to the same event channel as
+  // `useAhandLocalStatus`.
+  useEffect(() => {
+    if (!isTauriApp()) return;
+    let unlisten: (() => void) | null = null;
+    listen<DaemonStatus>("ahand-daemon-status", (ev) => {
+      // Skip while a command is in flight — install/setEnabled return
+      // fresh status when they resolve, so we'd just race them.
+      if (
+        stateRef.current.kind === "installing" ||
+        stateRef.current.kind === "reloading"
+      ) {
+        return;
+      }
+      // Only refresh on online transitions — that's the case where
+      // agentVisible would flip from false → true.
+      if (ev.payload.state === "online") {
+        void refresh();
+      }
+    })
+      .then((u) => {
+        unlisten = u;
+      })
+      .catch(() => {});
+    return () => {
+      unlisten?.();
+    };
   }, [refresh]);
 
   const install = useCallback(async (force: boolean) => {
