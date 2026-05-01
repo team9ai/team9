@@ -37,11 +37,10 @@ export class FolderTokenRequestDto {
   userId?: string;
 
   /**
-   * One of the `Team9LogicalMountKey` union values. v1 only accepts
-   * `routine.document`; other values are rejected with 403 at the
-   * service layer (see {@link FolderTokenService}). Kept as
+   * One of the `Team9LogicalMountKey` union values. Kept as
    * loosely-validated string here so the wire format stays stable as
-   * we incrementally expand the allow-list.
+   * we incrementally expand the allow-list, with semantic acceptance
+   * enforced by `FolderTokenService`.
    */
   @IsString()
   @MaxLength(64)

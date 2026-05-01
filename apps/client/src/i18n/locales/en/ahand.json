@@ -175,7 +175,10 @@
       "operationInProgress": "Another browser operation is running. Please wait for it to finish.",
       "browserNotInstalled": "Finish installing the browser runtime before enabling agent access.",
       "runtimeNotStarted": "The ahand runtime isn't running yet. Please try again shortly.",
-      "unavailableInWeb": "This setting is only available in the desktop app."
+      "unavailableInWeb": "This setting is only available in the desktop app.",
+      "configLoadFailed": "Failed to read the ahand config file. See logs for details.",
+      "configWriteFailed": "Failed to write the ahand config file (may be a permissions issue). See logs for details.",
+      "configFinalLoadFailed": "Couldn't re-read the config after the operation; the displayed state may be stale. See logs for details."
     }
   },
   "overview": {

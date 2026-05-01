@@ -87,7 +87,9 @@ export class TopicSessionsService {
     title?: string | null;
   }): Promise<TopicSessionResponse> {
     const { creatorId, tenantId, botUserId, initialMessage, model } = params;
-    const title = params.title ?? null;
+    const explicitTitle = params.title?.trim();
+    const title = explicitTitle || this.deriveTemporaryTitle(initialMessage);
+    const titleSource = explicitTitle ? 'manual' : 'temporary';
 
     // --- Step 1: resolve agentId from bot ---
     const [botRow] = await this.db
@@ -168,6 +170,7 @@ export class TopicSessionsService {
         agentId,
         sessionId,
         title,
+        titleSource,
         channelId,
       });
     } catch (err) {
@@ -603,6 +606,21 @@ export class TopicSessionsService {
     // there's no collision with legacy direct / routine-session ids
     // that also live under the dm/ scope.
     return `team9/${tenantId ?? ''}/${agentId}/dm/${channelId}`;
+  }
+
+  private deriveTemporaryTitle(initialMessage: string): string {
+    const normalized = initialMessage.replace(/\s+/g, ' ').trim();
+    const hasCjk =
+      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
+        normalized,
+      );
+
+    if (hasCjk) {
+      return Array.from(normalized).slice(0, 12).join('');
+    }
+
+    const firstWords = normalized.split(' ').slice(0, 6).join(' ');
+    return Array.from(firstWords).slice(0, 40).join('');
   }
 
   /**

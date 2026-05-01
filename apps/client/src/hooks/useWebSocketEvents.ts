@@ -20,6 +20,7 @@ import type {
   MessagePropertyChangedEvent,
   MessageRelationChangedEvent,
   MessageRelationsPurgedEvent,
+  TopicSessionUpdatedEvent,
 } from "@/types/ws-events";
 import { relationKeys } from "@/lib/query-client";
 import { useAppStore, useSelectedWorkspaceId, useUser } from "@/stores";
@@ -102,6 +103,49 @@ export function useWebSocketEvents() {
         });
         queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
       }, 500);
+    };
+
+    const handleTopicSessionUpdated = (event: TopicSessionUpdatedEvent) => {
+      queryClient.setQueriesData<TopicSessionGroup[]>(
+        { queryKey: ["topic-sessions-grouped", workspaceId] },
+        (old) => {
+          if (!old) return old;
+          let changed = false;
+          const next = old.map((group) => {
+            if (
+              !group.recentSessions.some((s) => s.channelId === event.channelId)
+            ) {
+              return group;
+            }
+            changed = true;
+            return {
+              ...group,
+              recentSessions: group.recentSessions.map((s) =>
+                s.channelId === event.channelId
+                  ? { ...s, title: event.title }
+                  : s,
+              ),
+            };
+          });
+          return changed ? next : old;
+        },
+      );
+
+      queryClient.setQueryData(
+        ["channels", workspaceId],
+        (old: ChannelWithUnread[] | undefined) => {
+          if (!old) return old;
+          let changed = false;
+          const next = old.map((channel) => {
+            if (channel.id !== event.channelId) return channel;
+            changed = true;
+            return { ...channel, name: event.title };
+          });
+          return changed ? next : old;
+        },
+      );
+
+      invalidateTopicSessions();
     };
 
     // Handle new message - immediately increment unread count
@@ -481,7 +525,7 @@ export function useWebSocketEvents() {
 
     // Topic-session lifecycle events
     wsService.on("topic_session_created", invalidateTopicSessions);
-    wsService.on("topic_session_updated", invalidateTopicSessions);
+    wsService.on("topic_session_updated", handleTopicSessionUpdated);
     wsService.on("topic_session_deleted", invalidateTopicSessions);
 
     // Message events for unread counts
@@ -538,7 +582,7 @@ export function useWebSocketEvents() {
 
       // Topic-session events
       wsService.off("topic_session_created", invalidateTopicSessions);
-      wsService.off("topic_session_updated", invalidateTopicSessions);
+      wsService.off("topic_session_updated", handleTopicSessionUpdated);
       wsService.off("topic_session_deleted", invalidateTopicSessions);
 
       // Message events

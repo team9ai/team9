@@ -41,8 +41,7 @@ import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
 import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
-import { StreamingMessageItem } from "./StreamingMessageItem";
-import { StreamingThinkingRow } from "./StreamingThinkingRow";
+import { StreamingMessageParts } from "./StreamingMessageParts";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
@@ -443,8 +442,7 @@ export function MessageList({
         // finalizes, which can be several seconds in).
         return (
           <div className="py-2">
-            <StreamingThinkingRow stream={item.stream} />
-            <StreamingMessageItem stream={item.stream} members={members} />
+            <StreamingMessageParts stream={item.stream} members={members} />
           </div>
         );
       }

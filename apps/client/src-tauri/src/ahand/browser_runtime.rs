@@ -375,8 +375,21 @@ pub async fn browser_status(state: State<'_, AhandRuntime>) -> Result<BrowserSta
         .config_path()
         .await
         .ok_or_else(|| "ahand runtime not started — call ahand_start first".to_string())?;
-    let config = Config::load(&config_path).map_err(|e| format!("config load: {e:#}"))?;
-    let enabled = config.browser_config().enabled.unwrap_or(false);
+    // Fresh users won't have ~/.ahand/config.toml yet; treat that as
+    // "browser disabled" rather than a hard error. The first successful
+    // browser_install or browser_set_enabled will create the file.
+    let enabled = if config_path.exists() {
+        Config::load(&config_path)
+            .map_err(|e| {
+                eprintln!("browser_status: config load failed: {e:#}");
+                "config_load_failed".to_string()
+            })?
+            .browser_config()
+            .enabled
+            .unwrap_or(false)
+    } else {
+        false
+    };
     let daemon_online = matches!(
         state.status().await,
         super::runtime::DaemonStatus::Online { .. }
@@ -508,6 +521,16 @@ pub async fn browser_install(
     // On success, flip the config flag and reload the daemon so the new
     // [browser].enabled value takes effect for the embedded ahandd.
     if matches!(overall_status, TauriStepStatus::Ok) {
+        // Fresh user: ensure the config file exists before Config::load.
+        // All Config fields are `#[serde(default)]`, so an empty TOML
+        // deserializes cleanly into a default Config that we can then
+        // mutate via set_browser_enabled (which will save_atomic and
+        // overwrite the empty file with proper TOML).
+        if !config_path.exists() {
+            if let Err(e) = std::fs::write(&config_path, "") {
+                eprintln!("browser_runtime: bootstrap empty config failed: {e:#}");
+            }
+        }
         match Config::load(&config_path) {
             Ok(mut cfg) => {
                 if let Err(e) = cfg.set_browser_enabled(&config_path, true) {
@@ -528,7 +551,7 @@ pub async fn browser_install(
                 }
             }
             Err(e) => {
-                eprintln!("browser_runtime: config reload failed: {e:#}");
+                eprintln!("browser_runtime: config load failed: {e:#}");
             }
         }
     }
@@ -540,8 +563,10 @@ pub async fn browser_install(
     } else {
         reports_for_status
     };
-    let config_after =
-        Config::load(&config_path).map_err(|e| format!("config final load: {e:#}"))?;
+    let config_after = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_install: config final load failed: {e:#}");
+        "config_final_load_failed".to_string()
+    })?;
     let enabled_after = config_after.browser_config().enabled.unwrap_or(false);
     let agent_visible = enabled_after
         && matches!(
@@ -585,10 +610,24 @@ pub async fn browser_set_enabled(
         }
     }
 
-    let mut cfg = Config::load(&config_path).map_err(|e| format!("config load: {e:#}"))?;
+    // Fresh user: bootstrap an empty config file if missing so Config::load
+    // succeeds. set_browser_enabled below will overwrite it via save_atomic.
+    if !config_path.exists() {
+        if let Err(e) = std::fs::write(&config_path, "") {
+            eprintln!("browser_set_enabled: bootstrap empty config failed: {e:#}");
+            return Err("config_load_failed".to_string());
+        }
+    }
+    let mut cfg = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_set_enabled: config load failed: {e:#}");
+        "config_load_failed".to_string()
+    })?;
     let old = cfg
         .set_browser_enabled(&config_path, enabled)
-        .map_err(|e| format!("config write: {e:#}"))?;
+        .map_err(|e| {
+            eprintln!("browser_set_enabled: config write failed: {e:#}");
+            "config_write_failed".to_string()
+        })?;
 
     // No-op optimisation: skip the reload if the value didn't actually
     // change. Saves ~3-5s of daemon shutdown/respawn time.
@@ -616,8 +655,10 @@ pub async fn browser_set_enabled(
     }
 
     let reports = browser_setup::inspect_all().await;
-    let config_after =
-        Config::load(&config_path).map_err(|e| format!("config final load: {e:#}"))?;
+    let config_after = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_set_enabled: config final load failed: {e:#}");
+        "config_final_load_failed".to_string()
+    })?;
     let enabled_after = config_after.browser_config().enabled.unwrap_or(false);
     let agent_visible = enabled_after
         && matches!(

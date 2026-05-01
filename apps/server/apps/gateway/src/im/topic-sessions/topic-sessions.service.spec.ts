@@ -201,7 +201,7 @@ describe('TopicSessionsService', () => {
       expect(result.sessionId).toBe(
         `team9/${TENANT_ID}/${AGENT_ID}/dm/${result.channelId}`,
       );
-      expect(result.title).toBeNull();
+      expect(result.title).toBe('Hello agent, help me kick off');
 
       // Ordering invariants:
       expect(channels.assertDirectMessageAllowed).toHaveBeenCalledWith(
@@ -227,6 +227,8 @@ describe('TopicSessionsService', () => {
           agentId: AGENT_ID,
           sessionId: result.sessionId,
           channelId: result.channelId,
+          title: 'Hello agent, help me kick off',
+          titleSource: 'temporary',
         }),
       );
       expect(imWorkerGrpc.createMessage).toHaveBeenCalledWith(
@@ -243,6 +245,29 @@ describe('TopicSessionsService', () => {
         expect.objectContaining({
           channelId: result.channelId,
           sessionId: result.sessionId,
+        }),
+      );
+    });
+
+    it('derives a short temporary CJK title from the initial message', async () => {
+      db.limit.mockResolvedValueOnce([makeHiveBotRow()]);
+      channels.createTopicSessionChannel.mockImplementationOnce(
+        async ({ channelId }: any) =>
+          makeTopicChannelRow(channelId ?? 'generated'),
+      );
+
+      const result = await service.create({
+        creatorId: CREATOR_ID,
+        tenantId: TENANT_ID,
+        botUserId: BOT_USER_ID,
+        initialMessage: '  新话题默认的标题在AI智能总结标题之前显示  ',
+      });
+
+      expect(result.title).toBe('新话题默认的标题在AI智');
+      expect(channels.createTopicSessionChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '新话题默认的标题在AI智',
+          titleSource: 'temporary',
         }),
       );
     });

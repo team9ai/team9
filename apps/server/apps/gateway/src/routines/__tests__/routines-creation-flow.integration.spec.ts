@@ -633,13 +633,24 @@ describe('Routine Creation Flow — integration', () => {
           creationChannelId: CHANNEL_ID,
           title: DRAFT_ROUTINE.title,
           description: null,
-          documentContent: null,
+          // documentContent dropped post-folder9 migration: SKILL.md is the
+          // source of truth for runbook body content. The agent reads it
+          // from /workspace/routine/document/SKILL.md, not from this field.
           botId: DRAFT_ROUTINE.botId,
           triggers: [],
         }),
       }),
       TENANT_ID,
     );
+    const sendCall = (clawHiveService.sendInput as jest.Mock).mock.calls.find(
+      (c) =>
+        (c[1] as { type?: string } | undefined)?.type ===
+        'team9:routine-creation.start',
+    );
+    expect(sendCall).toBeDefined();
+    expect(
+      (sendCall![1] as { payload: Record<string, unknown> }).payload,
+    ).not.toHaveProperty('documentContent');
   });
 
   it('hard-deletes the creation channel when deleting a draft', async () => {

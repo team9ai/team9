@@ -133,6 +133,19 @@ const mockQueryClient = vi.hoisted(() => ({
     queryCache.set(cacheKey, next);
     return next;
   }),
+  setQueriesData: vi.fn(
+    (filters: { queryKey: unknown[] }, updater: unknown) => {
+      const prefix = JSON.stringify(filters.queryKey).slice(0, -1);
+      for (const [cacheKey, previous] of queryCache.entries()) {
+        if (!cacheKey.startsWith(prefix)) continue;
+        const next =
+          typeof updater === "function"
+            ? (updater as (value: unknown) => unknown)(previous)
+            : updater;
+        queryCache.set(cacheKey, next);
+      }
+    },
+  ),
   invalidateQueries: vi.fn(),
 }));
 
@@ -552,6 +565,47 @@ describe("useWebSocketEvents", () => {
     // Second call with same ID: should be skipped by idempotency check
     callback?.(sampleNotificationEvent);
     expect(mockShowTauriNotification).toHaveBeenCalledTimes(1);
+  });
+
+  // ==================== Topic Session Updated ====================
+
+  it("patches topic-session sidebar cache immediately when title updates", () => {
+    queryCache.set(
+      JSON.stringify(["topic-sessions-grouped", "workspace-1", 5]),
+      [
+        {
+          agentUserId: "bot-1",
+          agentId: "agent-1",
+          agentDisplayName: "Agent",
+          agentAvatarUrl: null,
+          legacyDirectChannelId: null,
+          totalCount: 1,
+          recentSessions: [
+            {
+              channelId: "channel-1",
+              sessionId: "session-1",
+              title: "临时标题",
+              lastMessageAt: null,
+              unreadCount: 0,
+              createdAt: "2026-04-01T00:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    );
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("topic_session_updated")?.[0];
+    expect(callback).toBeDefined();
+
+    callback?.({ channelId: "channel-1", title: "AI总结标题" });
+
+    const cached = queryCache.get(
+      JSON.stringify(["topic-sessions-grouped", "workspace-1", 5]),
+    ) as Array<{ recentSessions: Array<{ title: string | null }> }>;
+
+    expect(cached[0].recentSessions[0].title).toBe("AI总结标题");
   });
 
   // ==================== Routine Updated ====================

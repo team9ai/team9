@@ -252,6 +252,12 @@ export interface ChannelModelChangedEvent {
   changedAt: string;
 }
 
+/** Topic-session title updated event */
+export interface TopicSessionUpdatedEvent {
+  channelId: string;
+  title: string;
+}
+
 // ==================== Message Event Types ====================
 
 import type { Message } from "./im";

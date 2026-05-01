@@ -22,6 +22,7 @@ function makeStream(
     isThinking: true,
     isStreaming: true,
     startedAt: Date.now(),
+    parts: [],
     ...overrides,
   };
 }
@@ -135,6 +136,7 @@ describe("StreamingThinkingRow", () => {
         isThinking: false,
         isStreaming: true,
         startedAt,
+        parts: [],
       };
       const { rerender } = render(<StreamingThinkingRow stream={firstFrame} />);
       expect(screen.getByText("Thought for 4s")).toBeInTheDocument();

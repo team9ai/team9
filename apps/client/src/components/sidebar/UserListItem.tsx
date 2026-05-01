@@ -80,12 +80,12 @@ export function UserListItem({
       onClick={channelId ? undefined : onClick}
       disabled={disabled}
       className={cn(
-        "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground",
+        "w-full min-w-0 overflow-hidden justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground",
         isSelected && "bg-nav-active text-nav-foreground",
         disabled && "opacity-50",
       )}
     >
-      <div className="relative">
+      <div className="relative shrink-0">
         <UserAvatar
           userId={userId}
           name={name || avatar}
@@ -118,7 +118,10 @@ export function UserListItem({
             ownerName={ownerName}
           />
         ) : subtitle ? (
-          <div className="text-xs text-nav-foreground-faint truncate">
+          <div
+            className="min-w-0 max-w-full truncate text-xs text-nav-foreground-faint"
+            title={subtitle}
+          >
             {subtitle}
           </div>
         ) : null}

@@ -33,10 +33,7 @@ import {
 import { WS_EVENTS } from '@team9/shared';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
-import {
-  DocumentsService,
-  type DocumentResponse,
-} from '../documents/documents.service.js';
+import { DocumentsService } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { appMetrics } from '@team9/observability';
@@ -1431,34 +1428,13 @@ export class RoutinesService {
       );
     }
 
-    // Fetch document content as best-effort enrichment for the kickoff payload.
-    let draftDocumentContent: string | null = null;
-    if (routine.documentId) {
-      try {
-        const doc: DocumentResponse = await this.documentsService.getById(
-          routine.documentId,
-        );
-        if (doc.tenantId !== tenantId) {
-          this.logger.warn(
-            `startCreationSession: routine ${routineId} document ${routine.documentId} tenant mismatch (got ${doc.tenantId}, expected ${tenantId}); skipping enrichment`,
-          );
-          // leave draftDocumentContent as null
-        } else {
-          const content = doc.currentVersion?.content;
-          if (typeof content === 'string') {
-            const trimmed = content.trim();
-            if (trimmed.length > 0) {
-              draftDocumentContent = trimmed;
-            }
-          }
-        }
-      } catch (err) {
-        // Best-effort enrichment; if the document fetch fails, leave null.
-        this.logger.warn(
-          `startCreationSession: failed to fetch draft documentContent for routine ${routineId}: ${err}`,
-        );
-      }
-    }
+    // documentContent is no longer enriched onto the kickoff payload — the
+    // routine→folder9 skill migration moved runbook body content to a
+    // managed folder9 SKILL.md, and the agent now reads it via the
+    // filesystem-backed mount at `/workspace/routine/document/SKILL.md`.
+    // Carrying the deprecated legacy column on the kickoff event misled the
+    // agent into "documentContent is empty therefore SKILL.md is missing"
+    // loops when the actual source of truth lives in folder9.
 
     // Fetch existing triggers as best-effort enrichment so the agent can
     // render an accurate state (e.g. "1 trigger configured") instead of
@@ -1636,7 +1612,6 @@ export class RoutinesService {
             creationChannelId: channel.id,
             title: routine.title,
             description: routine.description ?? null,
-            documentContent: draftDocumentContent,
             botId: routine.botId,
             triggers: draftTriggers,
           },

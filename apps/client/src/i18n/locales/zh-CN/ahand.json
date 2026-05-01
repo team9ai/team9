@@ -172,7 +172,10 @@
       "operationInProgress": "已有一项浏览器操作在运行，请稍候。",
       "browserNotInstalled": "请先完成浏览器组件安装，再启用 Agent 可用。",
       "runtimeNotStarted": "ahand 运行时未启动，请稍后再试。",
-      "unavailableInWeb": "此功能仅在桌面应用中可用。"
+      "unavailableInWeb": "此功能仅在桌面应用中可用。",
+      "configLoadFailed": "读取 ahand 配置文件失败。详情见日志。",
+      "configWriteFailed": "写入 ahand 配置文件失败（可能是权限问题）。详情见日志。",
+      "configFinalLoadFailed": "操作完成后读取配置失败，状态可能不准确。详情见日志。"
     }
   },
   "overview": {

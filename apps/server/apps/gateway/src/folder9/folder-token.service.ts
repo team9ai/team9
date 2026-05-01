@@ -186,31 +186,6 @@ export class FolderTokenService {
       throw new ForbiddenException('Caller is not a known bot user');
     }
 
-    // I7: stub authz scopes are read-only.
-    //
-    // session.{tmp,home}, agent.{tmp,home}, user.{tmp,home},
-    // routine.{tmp,home} ride a stub authz path until real RBAC lands
-    // (per design spec). Until then, write/propose access through this
-    // endpoint would silently widen the trust boundary, so we cap the
-    // permitted action at `read`. routine.document keeps its own real
-    // authz (already gated above) and is unaffected.
-    const STUB_AUTHZ_LOGICAL_KEYS = new Set([
-      'session.tmp',
-      'session.home',
-      'agent.tmp',
-      'agent.home',
-      'user.tmp',
-      'user.home',
-      'routine.tmp',
-      'routine.home',
-    ]);
-    if (
-      STUB_AUTHZ_LOGICAL_KEYS.has(req.logicalKey) &&
-      req.permission !== 'read'
-    ) {
-      throw new ForbiddenException('stub authz; only read permitted');
-    }
-
     // Resolve the audit `scopeId` and run logical-key-specific authz.
     let scopeId: string;
     if (req.logicalKey === 'routine.document') {
