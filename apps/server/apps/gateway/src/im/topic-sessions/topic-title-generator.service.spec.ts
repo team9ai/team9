@@ -1,3 +1,7 @@
+// Required env vars must be set before importing the service, since some
+// transitively-imported modules (e.g. websocket.gateway) read env at load time.
+process.env.CORS_ORIGIN ??= 'http://localhost:3000';
+
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
 const { TopicTitleGeneratorService } =
