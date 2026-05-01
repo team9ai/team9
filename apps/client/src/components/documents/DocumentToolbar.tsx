@@ -102,18 +102,14 @@ export function DocumentFormattingOverlay() {
       const block =
         elementDOM && blockRect
           ? {
-              x: 0,
-              y:
-                blockRect.top -
-                rootRect.top +
-                rootElement.scrollTop +
-                Math.max(0, (blockRect.height - 20) / 2),
+              x: rootRect.left - 28,
+              y: blockRect.top + Math.max(0, (blockRect.height - 20) / 2),
             }
           : null;
       const blockMenu =
         elementDOM && blockRect
           ? {
-              x: rootRect.left + 24,
+              x: rootRect.left - 4,
               y: blockRect.top + Math.max(0, (blockRect.height - 20) / 2),
             }
           : null;
@@ -297,21 +293,23 @@ export function DocumentFormattingOverlay() {
 
   return (
     <>
-      {overlay.block && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onMouseDown={keepSelection}
-          onClick={toggleBlockMenu}
-          className="absolute z-10 h-5 w-5 p-0 rounded text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
-          style={{ left: overlay.block.x, top: overlay.block.y }}
-          title="Block actions"
-          data-testid="document-block-insert-button"
-        >
-          <GripVertical size={14} />
-        </Button>
-      )}
+      {overlay.block &&
+        createPortal(
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={toggleBlockMenu}
+            className="fixed z-[1000] h-5 w-5 p-0 rounded text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
+            style={{ left: overlay.block.x, top: overlay.block.y }}
+            title="Block actions"
+            data-testid="document-block-insert-button"
+          >
+            <GripVertical size={14} />
+          </Button>,
+          document.body,
+        )}
       {overlay.blockMenu &&
         blockMenuOpen &&
         createPortal(
