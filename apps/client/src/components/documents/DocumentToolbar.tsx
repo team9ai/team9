@@ -33,6 +33,7 @@ import {
   GripVertical,
   Heading1,
   Heading2,
+  Heading3,
   Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -253,7 +254,7 @@ export function DocumentFormattingOverlay() {
     editor.focus();
   };
 
-  const applyHeading = (level: "h1" | "h2") => {
+  const applyHeading = (level: "h1" | "h2" | "h3") => {
     editor.update(() => {
       const selection = $getSelection();
       if ($isRangeSelection(selection)) {
@@ -323,8 +324,10 @@ export function DocumentFormattingOverlay() {
           >
             <button
               type="button"
-              onMouseDown={keepSelection}
-              onClick={applyParagraph}
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyParagraph();
+              }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
             >
               <Type size={14} />
@@ -332,8 +335,10 @@ export function DocumentFormattingOverlay() {
             </button>
             <button
               type="button"
-              onMouseDown={keepSelection}
-              onClick={() => applyHeading("h1")}
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyHeading("h1");
+              }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
             >
               <Heading1 size={14} />
@@ -341,8 +346,10 @@ export function DocumentFormattingOverlay() {
             </button>
             <button
               type="button"
-              onMouseDown={keepSelection}
-              onClick={() => applyHeading("h2")}
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyHeading("h2");
+              }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
             >
               <Heading2 size={14} />
@@ -350,8 +357,21 @@ export function DocumentFormattingOverlay() {
             </button>
             <button
               type="button"
-              onMouseDown={keepSelection}
-              onClick={applyQuote}
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyHeading("h3");
+              }}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+            >
+              <Heading3 size={14} />
+              Heading 3
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyQuote();
+              }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
             >
               <Quote size={14} />
@@ -359,8 +379,10 @@ export function DocumentFormattingOverlay() {
             </button>
             <button
               type="button"
-              onMouseDown={keepSelection}
-              onClick={applyBulletList}
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyBulletList();
+              }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
             >
               <List size={14} />
@@ -368,8 +390,10 @@ export function DocumentFormattingOverlay() {
             </button>
             <button
               type="button"
-              onMouseDown={keepSelection}
-              onClick={applyNumberedList}
+              onMouseDown={(event) => {
+                keepSelection(event);
+                applyNumberedList();
+              }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
             >
               <ListOrdered size={14} />

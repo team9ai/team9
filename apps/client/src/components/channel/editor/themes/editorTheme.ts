@@ -2,6 +2,11 @@ import type { EditorThemeClasses } from "lexical";
 
 export const editorTheme: EditorThemeClasses = {
   paragraph: "mb-1 last:mb-0",
+  heading: {
+    h1: "text-3xl font-bold leading-tight mt-4 mb-2",
+    h2: "text-2xl font-semibold leading-snug mt-3 mb-2",
+    h3: "text-xl font-semibold leading-snug mt-3 mb-1.5",
+  },
   text: {
     bold: "font-bold",
     italic: "italic",

@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { DocumentEditor } from "../DocumentEditor";
 
 vi.mock("@/components/channel/editor/themes/editorTheme", () => ({
-  editorTheme: {},
+  editorTheme: {
+    heading: {
+      h1: "text-3xl",
+      h2: "text-2xl",
+      h3: "text-xl",
+    },
+  },
 }));
 
 describe("DocumentEditor", () => {
