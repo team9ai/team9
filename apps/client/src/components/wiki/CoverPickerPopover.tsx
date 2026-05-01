@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { ImageIcon, Trash2 } from "lucide-react";
+import { ImageIcon, Trash2, Upload } from "lucide-react";
 import {
   Popover,
   PopoverTrigger,
@@ -21,6 +21,12 @@ export interface CoverPickerPopoverProps {
    * of length 0 is the explicit "remove" signal.
    */
   onChange: (coverPath: string) => void;
+  /** Optional local-image upload hook. Resolves to the committed cover path. */
+  onUpload?: (file: File) => Promise<string>;
+  /** External uploading state from the caller's upload hook. */
+  uploading?: boolean;
+  /** Extra classes for the trigger button. */
+  className?: string;
   /**
    * Disables the trigger button and prevents the popover from opening —
    * used for read-only viewers.
@@ -46,11 +52,16 @@ export function CoverPickerPopover({
   wikiId: _wikiId,
   value,
   onChange,
+  onUpload,
+  uploading = false,
+  className,
   disabled = false,
 }: CoverPickerPopoverProps) {
   const { t } = useTranslation("wiki");
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
   const [draftPath, setDraftPath] = useState(value ?? "");
+  const [localUploading, setLocalUploading] = useState(false);
 
   // When the popover re-opens, re-seed the draft from the current value so
   // the input always reflects what's saved. We can't trust `value` to stay
@@ -70,7 +81,42 @@ export function CoverPickerPopover({
     setOpen(false);
   };
 
+  const handleUploadClick = () => {
+    inputRef.current?.click();
+  };
+
+  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !onUpload) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert(
+        t("coverPicker.imageOnly", {
+          defaultValue: "Only image files can be used as covers.",
+        }),
+      );
+      return;
+    }
+    setLocalUploading(true);
+    try {
+      const uploadedPath = await onUpload(file);
+      onChange(uploadedPath);
+      setOpen(false);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : t("coverPicker.uploadFailed", {
+              defaultValue: "Cover upload failed.",
+            }),
+      );
+    } finally {
+      setLocalUploading(false);
+    }
+  };
+
   const hasCover = typeof value === "string" && value.length > 0;
+  const isUploading = uploading || localUploading;
 
   return (
     <Popover open={open} onOpenChange={disabled ? undefined : setOpen}>
@@ -88,6 +134,7 @@ export function CoverPickerPopover({
             "inline-flex items-center gap-1.5 px-2.5 h-9 rounded-md border border-border bg-background text-sm",
             "hover:bg-muted transition-colors text-muted-foreground",
             "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
+            className,
           )}
         >
           <ImageIcon size={14} />
@@ -100,6 +147,34 @@ export function CoverPickerPopover({
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={8} className="w-80">
         <div className="flex flex-col gap-3">
+          {onUpload && (
+            <div>
+              <input
+                ref={inputRef}
+                data-testid="wiki-cover-upload-input"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleUploadChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleUploadClick}
+                disabled={isUploading}
+                data-testid="wiki-cover-upload"
+                className="w-full justify-center"
+              >
+                <Upload size={14} className="mr-1" />
+                {isUploading
+                  ? t("coverPicker.uploading", { defaultValue: "Uploading..." })
+                  : t("coverPicker.uploadLocal", {
+                      defaultValue: "Upload from computer",
+                    })}
+              </Button>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <label
               htmlFor="wiki-cover-path-input"

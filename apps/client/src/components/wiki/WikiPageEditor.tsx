@@ -6,6 +6,8 @@ import {
 } from "@/components/folder9-editor/Folder9FolderEditor";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWikiImageUpload } from "@/hooks/useWikiImageUpload";
+import { wikiKeys } from "@/hooks/useWikis";
+import { queryClient } from "@/lib/query-client";
 import { resolveClientPermission } from "@/lib/wiki-permission";
 import { parseFrontmatter, serializeFrontmatter } from "@/lib/wiki-frontmatter";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
@@ -16,8 +18,6 @@ import type {
   CommitResult,
   Folder9FolderApi,
 } from "@/services/api/folder9-folder";
-import { IconPickerPopover } from "./IconPickerPopover";
-import { CoverPickerPopover } from "./CoverPickerPopover";
 import {
   SubmitForReviewDialog,
   type SubmitForReviewInput,
@@ -54,11 +54,10 @@ export interface WikiPageEditorProps {
  *    `<SubmitForReviewDialog>` and call `proceed({message})` with the
  *    `${title}\n\n${description}` (or just `${title}`) once the user
  *    submits.
- *  - Wiki frontmatter (icon + cover popovers) — embedded in the
- *    `renderFile` slot so the picker UI lives at the top of the editor
- *    pane. Edits round-trip through `parseFrontmatter` /
- *    `serializeFrontmatter` so the body the shell commits already
- *    carries the YAML fence.
+ *  - Wiki frontmatter preservation — the rendered document editor receives
+ *    only the markdown body, then body edits round-trip through
+ *    `parseFrontmatter` / `serializeFrontmatter` so the shell commits the
+ *    original YAML fence alongside the changed body.
  *  - Proposal id mirroring — the shell's `api.commit` adapter records
  *    the returned proposal id into `wikiActions.setSubmittedProposal`
  *    so the proposal banner (rendered above the editor by
@@ -85,6 +84,34 @@ export function WikiPageEditor({
       ...base,
       commit: async (req: CommitRequest): Promise<CommitResult> => {
         const result = await base.commit(req);
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.trees(wikiId),
+        });
+        for (const file of req.files) {
+          if (file.action !== "delete" && file.encoding !== "base64") {
+            let frontmatter: Record<string, unknown> = {};
+            try {
+              frontmatter = parseFrontmatter(file.content).frontmatter;
+            } catch {
+              frontmatter = {};
+            }
+            queryClient.setQueryData<PageDto>(
+              wikiKeys.page(wikiId, file.path),
+              (current) =>
+                current
+                  ? {
+                      ...current,
+                      content: file.content,
+                      encoding: file.encoding ?? current.encoding,
+                      frontmatter,
+                    }
+                  : current,
+            );
+          }
+          void queryClient.invalidateQueries({
+            queryKey: wikiKeys.page(wikiId, file.path),
+          });
+        }
         if (result.proposalId && req.files.length > 0) {
           wikiActions.setSubmittedProposal(
             wikiId,
@@ -142,30 +169,26 @@ export function WikiPageEditor({
     if (!open) setPendingProceed(null);
   }, []);
 
-  const renderFile = useCallback(
-    (args: Folder9RenderFileArgs) => {
-      // Only the markdown body editor needs the wiki-flavoured
-      // frontmatter pickers. Other text or binary files fall through
-      // to the shell's default renderer.
-      const lowerPath = args.path.toLowerCase();
-      if (
-        args.encoding !== "text" ||
-        (!lowerPath.endsWith(".md9") && !lowerPath.endsWith(".md"))
-      ) {
-        return undefined;
-      }
-      return (
-        <WikiMarkdownFile
-          wikiId={wikiId}
-          path={args.path}
-          content={args.content}
-          readOnly={args.readOnly}
-          onChange={args.onChange}
-        />
-      );
-    },
-    [wikiId],
-  );
+  const renderFile = useCallback((args: Folder9RenderFileArgs) => {
+    // Only the markdown body editor needs the wiki-flavoured
+    // frontmatter pickers. Other text or binary files fall through
+    // to the shell's default renderer.
+    const lowerPath = args.path.toLowerCase();
+    if (
+      args.encoding !== "text" ||
+      (!lowerPath.endsWith(".md9") && !lowerPath.endsWith(".md"))
+    ) {
+      return undefined;
+    }
+    return (
+      <WikiMarkdownFile
+        path={args.path}
+        content={args.content}
+        readOnly={args.readOnly}
+        onChange={args.onChange}
+      />
+    );
+  }, []);
 
   // The shell's `permission` prop is the same coarse triple the wiki
   // already uses, so this is a straight pass-through.
@@ -207,13 +230,11 @@ export function WikiPageEditor({
 }
 
 interface WikiMarkdownFileProps {
-  wikiId: string;
   path: string;
   /**
    * The raw file body (frontmatter fence + markdown), as the shell
-   * stores it. We split it on render so the icon/cover popovers
-   * can edit just the YAML fence without disturbing the markdown
-   * underneath.
+   * stores it. We split it on render so the document editor can work with
+   * just the markdown body while we preserve the YAML fence on save.
    */
   content: string;
   readOnly: boolean;
@@ -223,16 +244,14 @@ interface WikiMarkdownFileProps {
 /**
  * Markdown body renderer for wiki pages.
  *
- * Wraps the icon + cover popovers around `<DocumentEditor>` and
- * round-trips the YAML frontmatter through `parseFrontmatter` /
- * `serializeFrontmatter` on every edit so the shell — which only
- * knows about raw text — always commits the rebuilt source.
+ * Wraps `<DocumentEditor>` and round-trips the YAML frontmatter through
+ * `parseFrontmatter` / `serializeFrontmatter` on every edit so the shell —
+ * which only knows about raw text — always commits the rebuilt source.
  *
  * Lives inside `WikiPageEditor` (rather than as a standalone
  * component) because nothing else needs this stitching today.
  */
 function WikiMarkdownFile({
-  wikiId,
   path,
   content,
   readOnly,
@@ -253,35 +272,6 @@ function WikiMarkdownFile({
   const frontmatter = parsed.frontmatter;
   const body = parsed.body;
 
-  const writeFrontmatter = useCallback(
-    (next: Record<string, unknown>) => {
-      if (readOnly) return;
-      const merged = serializeFrontmatter({ frontmatter: next, body });
-      onChange(merged);
-    },
-    [body, onChange, readOnly],
-  );
-
-  const handleIconChange = useCallback(
-    (icon: string) => {
-      writeFrontmatter({ ...frontmatter, icon });
-    },
-    [frontmatter, writeFrontmatter],
-  );
-
-  const handleCoverChange = useCallback(
-    (cover: string) => {
-      if (cover.length === 0) {
-        const next = { ...frontmatter };
-        delete next.cover;
-        writeFrontmatter(next);
-        return;
-      }
-      writeFrontmatter({ ...frontmatter, cover });
-    },
-    [frontmatter, writeFrontmatter],
-  );
-
   const handleBodyChange = useCallback(
     (md: string) => {
       if (readOnly) return;
@@ -293,28 +283,6 @@ function WikiMarkdownFile({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div
-        className="flex items-center gap-2 py-2"
-        data-testid="wiki-page-editor-controls"
-      >
-        <IconPickerPopover
-          value={
-            typeof frontmatter.icon === "string" ? frontmatter.icon : undefined
-          }
-          onChange={handleIconChange}
-          disabled={readOnly}
-        />
-        <CoverPickerPopover
-          wikiId={wikiId}
-          value={
-            typeof frontmatter.cover === "string"
-              ? frontmatter.cover
-              : undefined
-          }
-          onChange={handleCoverChange}
-          disabled={readOnly}
-        />
-      </div>
       <div className="flex-1 min-h-0">
         <DocumentEditor
           key={path}

@@ -242,6 +242,63 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
     );
   });
 
+  it("reloads the body when the folder changes but the path stays the same", async () => {
+    const apiA = makeApi({
+      fetchBlob: vi.fn(
+        async (path: string): Promise<BlobDto> => ({
+          path,
+          content: "body from folder A",
+          encoding: "text",
+        }),
+      ),
+    }).api;
+    const apiB = makeApi({
+      fetchBlob: vi.fn(
+        async (path: string): Promise<BlobDto> => ({
+          path,
+          content: "body from folder B",
+          encoding: "text",
+        }),
+      ),
+    }).api;
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api: apiA,
+            folderId: "folder-a",
+            hideTree: true,
+            initialPath: "index.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    expect(await screen.findByTestId("doc-editor")).toHaveValue(
+      "body from folder A",
+    );
+
+    rerender(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api: apiB,
+            folderId: "folder-b",
+            hideTree: true,
+            initialPath: "index.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body from folder B",
+      ),
+    );
+  });
+
   it("falls back to a plain textarea for non-markdown text files", async () => {
     const { api } = makeApi();
     const Wrapper = makeWrapper();

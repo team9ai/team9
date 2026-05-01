@@ -137,4 +137,48 @@ describe("CoverPickerPopover", () => {
     expect(screen.queryByTestId("wiki-cover-path-input")).toBeNull();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("uploads a local image and applies the returned cover path", async () => {
+    const onChange = vi.fn();
+    const onUpload = vi.fn().mockResolvedValue("covers/uploaded.png");
+    render(
+      <CoverPickerPopover
+        wikiId="w-1"
+        onChange={onChange}
+        onUpload={onUpload}
+      />,
+    );
+
+    await click(screen.getByTestId("wiki-cover-picker-trigger"));
+    const input = await screen.findByTestId("wiki-cover-upload-input");
+    const file = new File(["image"], "cover.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    expect(onUpload).toHaveBeenCalledWith(file);
+    expect(onChange).toHaveBeenCalledWith("covers/uploaded.png");
+  });
+
+  it("rejects non-image local cover files before upload", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onUpload = vi.fn();
+    render(
+      <CoverPickerPopover
+        wikiId="w-1"
+        onChange={() => {}}
+        onUpload={onUpload}
+      />,
+    );
+
+    await click(screen.getByTestId("wiki-cover-picker-trigger"));
+    const input = await screen.findByTestId("wiki-cover-upload-input");
+    const file = new File(["text"], "cover.txt", { type: "text/plain" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    expect(onUpload).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalled();
+  });
 });

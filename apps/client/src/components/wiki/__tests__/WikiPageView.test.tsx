@@ -8,6 +8,7 @@ const mockUseSubmittedProposal = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockCommit = vi.hoisted(() => vi.fn());
 const mockSetSubmittedProposal = vi.hoisted(() => vi.fn());
+const mockUploadCover = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiPage", () => ({
   useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
@@ -15,6 +16,13 @@ vi.mock("@/hooks/useWikiPage", () => ({
 
 vi.mock("@/hooks/useWikis", () => ({
   useWikis: (...args: unknown[]) => mockUseWikis(...args),
+}));
+
+vi.mock("@/hooks/useWikiImageUpload", () => ({
+  useWikiImageUpload: () => ({
+    upload: (...args: unknown[]) => mockUploadCover(...args),
+    uploading: false,
+  }),
 }));
 
 vi.mock("@/stores/useWikiStore", () => ({
@@ -43,16 +51,44 @@ vi.mock("../WikiCover", () => ({
   WikiCover: ({
     wikiId,
     coverPath,
+    editable,
+    onChangeCover,
+    onUploadCover,
   }: {
     wikiId: string;
     coverPath: string | null;
-  }) => (
-    <div
-      data-testid="cover-stub"
-      data-wiki-id={wikiId}
-      data-cover-path={coverPath ?? ""}
-    />
-  ),
+    editable?: boolean;
+    onChangeCover?: (cover: string) => void;
+    onUploadCover?: (file: File) => Promise<string>;
+  }) => {
+    const uploadAndApply = async () => {
+      const path = await onUploadCover?.(
+        new File(["image"], "cover.png", { type: "image/png" }),
+      );
+      if (path) onChangeCover?.(path);
+    };
+    return (
+      <div
+        data-testid="cover-stub"
+        data-wiki-id={wikiId}
+        data-cover-path={coverPath ?? ""}
+        data-editable={editable ? "true" : "false"}
+      >
+        <button
+          type="button"
+          data-testid="cover-change-stub"
+          onClick={() => onChangeCover?.("covers/manual.png")}
+        />
+        <button
+          type="button"
+          data-testid="cover-upload-stub"
+          onClick={() => {
+            void uploadAndApply();
+          }}
+        />
+      </div>
+    );
+  },
 }));
 
 vi.mock("../WikiPageHeader", () => ({
@@ -133,6 +169,8 @@ beforeEach(() => {
   mockNavigate.mockReset();
   mockCommit.mockReset();
   mockSetSubmittedProposal.mockReset();
+  mockUploadCover.mockReset();
+  mockUploadCover.mockResolvedValue("covers/uploaded.png");
   mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
   vi.spyOn(window, "alert").mockImplementation(() => {});
 });
@@ -281,6 +319,65 @@ describe("WikiPageView", () => {
     expect(screen.getByTestId("cover-stub").dataset.coverPath).toBe(
       "assets/banner.png",
     );
+  });
+
+  it("commits cover metadata changes from the cover band", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        ...page,
+        path: "index.md9",
+        content: "# Body",
+        frontmatter: { title: "Home" },
+      },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    fireEvent.click(screen.getByTestId("cover-change-stub"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Update index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content:
+              "---\ntitle: Home\ncover: covers/manual.png\n---\n\n# Body",
+            encoding: "text",
+            action: "update",
+          },
+        ],
+      });
+    });
+  });
+
+  it("uploads a local cover image and commits the uploaded path", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: { ...page, path: "index.md9", content: "Body" },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    fireEvent.click(screen.getByTestId("cover-upload-stub"));
+
+    await waitFor(() => {
+      expect(mockUploadCover).toHaveBeenCalledWith(expect.any(File), "covers");
+    });
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Update index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content: "---\ncover: covers/uploaded.png\n---\n\nBody",
+            encoding: "text",
+            action: "update",
+          },
+        ],
+      });
+    });
   });
 
   it("ignores non-string frontmatter.cover values", () => {

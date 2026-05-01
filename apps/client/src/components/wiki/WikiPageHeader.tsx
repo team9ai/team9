@@ -16,25 +16,28 @@ interface WikiPageHeaderProps {
 }
 
 /**
- * Derive the rendered page title, falling back in the order documented on
- * the Notion-style wiki spec:
+ * Derive the rendered page title, falling back in the order used by the
+ * wiki tree:
  *  1. `frontmatter.title` (explicit user intent wins)
- *  2. First top-level `# Heading` in the body
- *  3. The filename (minus `.md9`) — last resort so we never show an empty
- *     title for pages that haven't been annotated yet.
+ *  2. The filename (minus `.md9` / `.md`)
+ *
+ * Body headings are real document content and must not rename the page shell.
+ * For folder documents (`folder/index.md9`), the visible filename is the
+ * folder segment itself rather than the hidden index file.
  */
 export function extractTitle(
   path: string,
   frontmatter: Record<string, unknown>,
-  body: string,
+  _body: string,
 ): string {
   const fmTitle = frontmatter.title;
   if (typeof fmTitle === "string" && fmTitle.trim().length > 0) return fmTitle;
 
-  const h1 = body.match(/^#\s+(.+)$/m);
-  if (h1 && h1[1]) return h1[1].trim();
-
-  const base = path.split("/").pop() ?? path;
+  const segments = path.split("/").filter(Boolean);
+  const base = segments[segments.length - 1] ?? path;
+  if (/^index\.md9?$/i.test(base) && segments.length > 1) {
+    return segments[segments.length - 2] ?? stripWikiPageExtension(base);
+  }
   return stripWikiPageExtension(base);
 }
 

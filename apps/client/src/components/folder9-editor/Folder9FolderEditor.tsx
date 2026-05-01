@@ -251,7 +251,7 @@ export function Folder9FolderEditor({
 
   useEffect(() => {
     setSelectedPath(initialPath ?? null);
-  }, [initialPath]);
+  }, [folderId, initialPath]);
 
   const handleSelect = useCallback((path: string) => {
     setSelectedPath(path);
@@ -326,7 +326,7 @@ export function Folder9FolderEditor({
     draftSeededRef.current = false;
     serverSeededRef.current = false;
     setBody("");
-  }, [selectedPath]);
+  }, [folderId, selectedPath]);
 
   // Hydrate from draft when the hook surfaces one (e.g. async
   // localStorage reconciliation completes after mount).
@@ -448,6 +448,16 @@ export function Folder9FolderEditor({
       // affected blob is now stale.
       void queryClient.invalidateQueries({ queryKey: treeKey });
       for (const file of variables.files) {
+        if (file.action !== "delete") {
+          queryClient.setQueryData<BlobDto>(
+            [FILE_QUERY_KEY, folderId, "blob", file.path],
+            (current) => ({
+              path: file.path,
+              content: file.content,
+              encoding: file.encoding ?? current?.encoding ?? "text",
+            }),
+          );
+        }
         void queryClient.invalidateQueries({
           queryKey: [FILE_QUERY_KEY, folderId, "blob", file.path],
         });

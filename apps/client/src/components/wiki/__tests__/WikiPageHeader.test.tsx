@@ -48,16 +48,16 @@ describe("extractTitle", () => {
   });
 
   it("ignores empty/whitespace frontmatter.title", () => {
-    expect(extractTitle("f.md", { title: "   " }, "# Body H1")).toBe("Body H1");
+    expect(extractTitle("f.md", { title: "   " }, "# Body H1")).toBe("f.md");
   });
 
-  it("falls back to first H1 in body when no frontmatter title", () => {
+  it("ignores the first H1 in body when no frontmatter title", () => {
     expect(extractTitle("f.md", {}, "intro\n# Heading One\n## sub")).toBe(
-      "Heading One",
+      "f.md",
     );
   });
 
-  it("falls back to filename minus .md9 when no title and no H1", () => {
+  it("falls back to filename minus .md9 when no title", () => {
     expect(extractTitle("docs/guide.md9", {}, "just prose")).toBe("guide");
   });
 
@@ -67,6 +67,12 @@ describe("extractTitle", () => {
 
   it("does not strip legacy .md by default", () => {
     expect(extractTitle("docs/guide.md", {}, "")).toBe("guide.md");
+  });
+
+  it("uses the parent folder name for hidden index documents", () => {
+    expect(extractTitle("docs/handbook/index.md9", {}, "# Body")).toBe(
+      "handbook",
+    );
   });
 
   it("handles empty path gracefully", () => {
@@ -129,8 +135,11 @@ describe("WikiPageHeader", () => {
     // Parent dir segments shown; filename omitted (title takes its place).
     expect(screen.getByText("api")).toBeInTheDocument();
     expect(screen.getByText("docs")).toBeInTheDocument();
-    // Filename shouldn't be in the breadcrumb; the title is "Auth" from body H1.
-    expect(screen.queryByText("auth.md")).toBeNull();
+    // Filename shouldn't be in the breadcrumb; the title below is derived
+    // from the file path.
+    expect(
+      screen.getByRole("navigation", { name: "breadcrumb" }),
+    ).not.toHaveTextContent("auth.md");
   });
 
   it("renders an empty breadcrumb for root pages without crashing", () => {
@@ -158,7 +167,7 @@ describe("WikiPageHeader", () => {
         body="# Root"
       />,
     );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Root");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("");
   });
 
   it("renders the derived title as an H1", () => {

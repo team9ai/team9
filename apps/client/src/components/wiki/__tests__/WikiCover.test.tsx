@@ -31,6 +31,20 @@ describe("WikiCover", () => {
     expect(mockGetRawObjectUrl).not.toHaveBeenCalled();
   });
 
+  it("shows the cover picker on the cover band when editable", () => {
+    render(
+      <WikiCover
+        wikiId="wiki-1"
+        coverPath={null}
+        editable
+        onChangeCover={() => {}}
+        onUploadCover={async () => "covers/uploaded.png"}
+      />,
+    );
+
+    expect(screen.getByTestId("wiki-cover-picker-trigger")).toBeInTheDocument();
+  });
+
   it("renders the fetched blob URL when a coverPath is provided", async () => {
     mockGetRawObjectUrl.mockResolvedValue("blob:cover");
     render(<WikiCover wikiId="wiki-1" coverPath="cover.png" />);

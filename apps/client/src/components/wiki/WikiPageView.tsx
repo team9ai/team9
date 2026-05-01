@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useWikiImageUpload } from "@/hooks/useWikiImageUpload";
 import { useWikiPage } from "@/hooks/useWikiPage";
 import { useWikis, wikiKeys } from "@/hooks/useWikis";
 import { queryClient } from "@/lib/query-client";
@@ -57,6 +58,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   );
   const [isSavingMetadata, setIsSavingMetadata] = useState(false);
   const canEditMetadata = Boolean(wiki && wiki.humanPermission !== "read");
+  const coverUpload = useWikiImageUpload(wikiId);
 
   const handleFrontmatterChange = useCallback(
     async (nextFrontmatter: Record<string, unknown>) => {
@@ -95,6 +97,26 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
       }
     },
     [canEditMetadata, page, path, wikiId],
+  );
+
+  const handleCoverChange = useCallback(
+    (cover: string) => {
+      if (!page) return;
+      const nextFrontmatter = { ...page.frontmatter };
+      const trimmed = cover.trim();
+      if (trimmed.length > 0) {
+        nextFrontmatter.cover = trimmed;
+      } else {
+        delete nextFrontmatter.cover;
+      }
+      void handleFrontmatterChange(nextFrontmatter);
+    },
+    [handleFrontmatterChange, page],
+  );
+
+  const handleCoverUpload = useCallback(
+    (file: File) => coverUpload.upload(file, "covers"),
+    [coverUpload],
   );
 
   useEffect(() => {
@@ -209,7 +231,14 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
         data-testid="wiki-page-view"
         className="h-full flex flex-col bg-background overflow-auto"
       >
-        <WikiCover wikiId={wikiId} coverPath={coverPath} />
+        <WikiCover
+          wikiId={wikiId}
+          coverPath={coverPath}
+          editable={canEditMetadata}
+          isSaving={isSavingMetadata || coverUpload.uploading}
+          onChangeCover={handleCoverChange}
+          onUploadCover={handleCoverUpload}
+        />
         <WikiPageHeader
           wikiSlug={wiki.slug}
           path={path}
@@ -234,7 +263,14 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
       data-testid="wiki-page-view"
       className="h-full flex flex-col bg-background overflow-auto"
     >
-      <WikiCover wikiId={wikiId} coverPath={coverPath} />
+      <WikiCover
+        wikiId={wikiId}
+        coverPath={coverPath}
+        editable={canEditMetadata}
+        isSaving={isSavingMetadata || coverUpload.uploading}
+        onChangeCover={handleCoverChange}
+        onUploadCover={handleCoverUpload}
+      />
       <WikiPageHeader
         wikiSlug={wiki.slug}
         path={path}
