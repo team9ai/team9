@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { Upload } from "lucide-react";
 import { wikisApi } from "@/services/api/wikis";
-import { CoverPickerPopover } from "./CoverPickerPopover";
 
 interface WikiCoverProps {
   wikiId: string;
@@ -37,8 +38,11 @@ export function WikiCover({
   onChangeCover,
   onUploadCover,
 }: WikiCoverProps) {
+  const { t } = useTranslation("wiki");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [localUploading, setLocalUploading] = useState(false);
 
   useEffect(() => {
     if (!coverPath) {
@@ -72,6 +76,41 @@ export function WikiCover({
   }, [wikiId, coverPath]);
 
   const hasImage = Boolean(coverPath && !failed && objectUrl);
+  const isBusy = isSaving || localUploading;
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !onUploadCover || !onChangeCover) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert(
+        t("coverPicker.imageOnly", {
+          defaultValue: "Only image files can be used as covers.",
+        }),
+      );
+      return;
+    }
+
+    setLocalUploading(true);
+    try {
+      const uploadedPath = await onUploadCover(file);
+      onChangeCover(uploadedPath);
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : t("coverPicker.uploadFailed", {
+              defaultValue: "Cover upload failed.",
+            }),
+      );
+    } finally {
+      setLocalUploading(false);
+    }
+  };
 
   return (
     <div
@@ -88,17 +127,37 @@ export function WikiCover({
           : undefined
       }
     >
-      {editable && onChangeCover && (
+      {editable && onChangeCover && onUploadCover && (
         <div className="absolute right-6 bottom-4 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <CoverPickerPopover
-            wikiId={wikiId}
-            value={coverPath ?? undefined}
-            onChange={onChangeCover}
-            onUpload={onUploadCover}
-            uploading={isSaving}
-            disabled={isSaving}
-            className="border-white/40 bg-background/90 text-foreground shadow-sm backdrop-blur hover:bg-background"
+          <input
+            ref={fileInputRef}
+            data-testid="wiki-cover-upload-input"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleUploadChange}
           />
+          <button
+            type="button"
+            aria-label={
+              coverPath
+                ? t("coverPicker.changeTriggerAria")
+                : t("coverPicker.addTriggerAria")
+            }
+            data-testid="wiki-cover-picker-trigger"
+            disabled={isBusy}
+            onClick={handleUploadClick}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-white/40 bg-background/90 px-2.5 text-sm text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Upload size={14} />
+            <span>
+              {isBusy
+                ? t("coverPicker.uploading", { defaultValue: "Uploading..." })
+                : coverPath
+                  ? t("coverPicker.changeCover")
+                  : t("coverPicker.addCover")}
+            </span>
+          </button>
         </div>
       )}
     </div>

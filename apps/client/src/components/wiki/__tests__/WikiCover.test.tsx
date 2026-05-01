@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetRawObjectUrl = vi.hoisted(() => vi.fn());
@@ -31,7 +37,7 @@ describe("WikiCover", () => {
     expect(mockGetRawObjectUrl).not.toHaveBeenCalled();
   });
 
-  it("shows the cover picker on the cover band when editable", () => {
+  it("shows a direct upload trigger on the cover band when editable", () => {
     render(
       <WikiCover
         wikiId="wiki-1"
@@ -43,6 +49,55 @@ describe("WikiCover", () => {
     );
 
     expect(screen.getByTestId("wiki-cover-picker-trigger")).toBeInTheDocument();
+    expect(screen.getByTestId("wiki-cover-upload-input")).toBeInTheDocument();
+  });
+
+  it("uploads the selected local image and applies the returned cover path", async () => {
+    const onUploadCover = vi.fn().mockResolvedValue("covers/uploaded.png");
+    const onChangeCover = vi.fn();
+    render(
+      <WikiCover
+        wikiId="wiki-1"
+        coverPath={null}
+        editable
+        onChangeCover={onChangeCover}
+        onUploadCover={onUploadCover}
+      />,
+    );
+
+    const file = new File(["image"], "cover.png", { type: "image/png" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("wiki-cover-upload-input"), {
+        target: { files: [file] },
+      });
+    });
+
+    expect(onUploadCover).toHaveBeenCalledWith(file);
+    expect(onChangeCover).toHaveBeenCalledWith("covers/uploaded.png");
+  });
+
+  it("rejects non-image cover uploads before calling the uploader", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onUploadCover = vi.fn();
+    render(
+      <WikiCover
+        wikiId="wiki-1"
+        coverPath={null}
+        editable
+        onChangeCover={() => {}}
+        onUploadCover={onUploadCover}
+      />,
+    );
+
+    const file = new File(["text"], "cover.txt", { type: "text/plain" });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("wiki-cover-upload-input"), {
+        target: { files: [file] },
+      });
+    });
+
+    expect(onUploadCover).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalled();
   });
 
   it("renders the fetched blob URL when a coverPath is provided", async () => {

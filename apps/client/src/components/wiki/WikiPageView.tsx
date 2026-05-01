@@ -241,6 +241,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
         />
         <WikiPageHeader
           wikiSlug={wiki.slug}
+          wikiName={wiki.name}
           path={path}
           frontmatter={page.frontmatter}
           body={page.content}
@@ -273,6 +274,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
       />
       <WikiPageHeader
         wikiSlug={wiki.slug}
+        wikiName={wiki.name}
         path={path}
         frontmatter={page.frontmatter}
         body={page.content}

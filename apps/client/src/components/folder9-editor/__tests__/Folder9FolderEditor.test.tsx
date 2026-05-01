@@ -200,9 +200,9 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
       </Wrapper>,
     );
 
-    const editor = await screen.findByTestId("doc-editor");
-    expect(editor).toBeInTheDocument();
-    expect((editor as HTMLTextAreaElement).value).toBe("# Server body");
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
   });
 
   it("reloads the body when the external initialPath changes", async () => {
@@ -216,8 +216,8 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
       </Wrapper>,
     );
 
-    expect(await screen.findByTestId("doc-editor")).toHaveValue(
-      "# Server body",
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
     );
 
     rerender(
@@ -275,8 +275,10 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
       </Wrapper>,
     );
 
-    expect(await screen.findByTestId("doc-editor")).toHaveValue(
-      "body from folder A",
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body from folder A",
+      ),
     );
 
     rerender(
@@ -724,11 +726,13 @@ describe("Folder9FolderEditor — commit pipeline", () => {
 
 describe("Folder9FolderEditor — renderFile slot", () => {
   it("uses renderFile when it returns a node", async () => {
-    const renderFile = vi.fn((args: { path: string; content: string }) => (
-      <div data-testid="custom-renderer">
-        custom for {args.path}: {args.content}
-      </div>
-    ));
+    const renderFile = vi.fn(
+      (args: { path: string; editorKey: string; content: string }) => (
+        <div data-testid="custom-renderer">
+          custom for {args.path}: {args.content}
+        </div>
+      ),
+    );
     const Wrapper = makeWrapper();
     render(
       <Wrapper>
@@ -752,6 +756,7 @@ describe("Folder9FolderEditor — renderFile slot", () => {
     });
     const last = renderFile.mock.lastCall?.[0] as Record<string, unknown>;
     expect(last.path).toBe("SKILL.md");
+    expect(last.editorKey).toMatch(/^folder-1:SKILL\.md:/);
     expect(last.readOnly).toBe(false);
     expect(last.encoding).toBe("text");
     expect(typeof last.onChange).toBe("function");
@@ -769,7 +774,9 @@ describe("Folder9FolderEditor — renderFile slot", () => {
     );
 
     // Default renderer for .md = DocumentEditor (mocked to a textarea).
-    expect(await screen.findByTestId("doc-editor")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toBeInTheDocument(),
+    );
     expect(renderFile).toHaveBeenCalled();
   });
 });

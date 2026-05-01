@@ -37,7 +37,8 @@ vi.mock("@/components/folder9-editor/Folder9FolderEditor", () => ({
     // picker, document editor stand-in).
     const slot = props.renderFile?.({
       path: props.initialPath ?? "index.md",
-      content: "---\nicon: 🚀\ntitle: Home\n---\n\nserver body",
+      editorKey: `mock:${props.folderId}:${props.initialPath ?? "index.md"}`,
+      content: `---\nicon: 🚀\ntitle: Home\n---\n\nbody from ${props.folderId}`,
       encoding: "text",
       readOnly: props.permission === "read",
       onChange: (next) => {
@@ -528,11 +529,35 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       expect(screen.queryByTestId("wiki-page-editor-controls")).toBeNull();
     });
 
+    it("reinitializes the markdown editor when switching wikis with the same page path", () => {
+      const { rerender } = render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+      expect(screen.getByTestId("doc-editor")).toHaveValue("body from wiki-1");
+
+      rerender(
+        <WikiPageEditor
+          wikiId="wiki-2"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={{ ...baseWiki, id: "wiki-2" }}
+        />,
+      );
+
+      expect(screen.getByTestId("doc-editor")).toHaveValue("body from wiki-2");
+    });
+
     it("falls back to the default renderer for non-markdown text files", () => {
       let slotResult: unknown;
       folderEditorProps.mockImplementation((props) => {
         slotResult = props.renderFile?.({
           path: "scripts/run.sh",
+          editorKey: "mock:scripts/run.sh",
           content: "echo hi",
           encoding: "text",
           readOnly: false,
@@ -556,6 +581,7 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       folderEditorProps.mockImplementation((props) => {
         slotResult = props.renderFile?.({
           path: "image.png",
+          editorKey: "mock:image.png",
           content: "blob",
           encoding: "base64",
           readOnly: false,
@@ -613,6 +639,7 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       folderEditorProps.mockImplementation((props) => {
         slotResult = props.renderFile?.({
           path: "index.md",
+          editorKey: "mock:index.md",
           content: "---\n: bad-yaml: [\n---\n\nbody",
           encoding: "text",
           readOnly: false,

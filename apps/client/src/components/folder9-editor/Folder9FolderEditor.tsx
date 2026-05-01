@@ -65,6 +65,11 @@ export type Folder9ApprovalMode = "auto" | "review";
  */
 export interface Folder9RenderFileArgs {
   path: string;
+  /**
+   * Stable key for the current loaded source. Changes when the shell
+   * rehydrates a different file/folder snapshot, but not on every keystroke.
+   */
+  editorKey: string;
   content: string;
   encoding: "text" | "base64";
   readOnly: boolean;
@@ -316,6 +321,7 @@ export function Folder9FolderEditor({
   // already has the right content (the effects below only fire on
   // *subsequent* re-seed events).
   const [body, setBody] = useState<string>(() => "");
+  const [editorSeedVersion, setEditorSeedVersion] = useState(0);
 
   const draftSeededRef = useRef(false);
   const serverSeededRef = useRef(false);
@@ -326,6 +332,7 @@ export function Folder9FolderEditor({
     draftSeededRef.current = false;
     serverSeededRef.current = false;
     setBody("");
+    setEditorSeedVersion((version) => version + 1);
   }, [folderId, selectedPath]);
 
   // Hydrate from draft when the hook surfaces one (e.g. async
@@ -338,6 +345,7 @@ export function Folder9FolderEditor({
     if (draftSeededRef.current) return;
     draftSeededRef.current = true;
     setBody(draft.body);
+    setEditorSeedVersion((version) => version + 1);
   }, [draft]);
 
   // Hydrate from server blob when the fetch resolves and we have no
@@ -351,6 +359,7 @@ export function Folder9FolderEditor({
     }
     serverSeededRef.current = true;
     setBody(blobQuery.data.content);
+    setEditorSeedVersion((version) => version + 1);
   }, [blobQuery.data, isDirty]);
 
   // Latest-body ref for async closures (image upload completion).
@@ -618,6 +627,7 @@ export function Folder9FolderEditor({
         >
           {selectedPath && blobQuery.data ? (
             <FileBody
+              editorKey={`${folderId}:${selectedPath}:${editorSeedVersion}`}
               path={selectedPath}
               content={body}
               encoding={blobQuery.data.encoding}
@@ -646,6 +656,7 @@ export function Folder9FolderEditor({
 }
 
 interface FileBodyProps {
+  editorKey: string;
   path: string;
   content: string;
   encoding: "text" | "base64";
@@ -661,6 +672,7 @@ interface FileBodyProps {
  * `<textarea>` for everything else.
  */
 function FileBody({
+  editorKey,
   path,
   content,
   encoding,
@@ -671,6 +683,7 @@ function FileBody({
   if (renderFile) {
     const custom = renderFile({
       path,
+      editorKey,
       content,
       encoding,
       readOnly,
@@ -695,7 +708,7 @@ function FileBody({
   if (path.toLowerCase().endsWith(".md")) {
     return (
       <DocumentEditor
-        key={path}
+        key={editorKey}
         initialContent={content}
         onChange={onChange}
         readOnly={readOnly}

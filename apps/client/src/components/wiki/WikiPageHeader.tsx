@@ -6,6 +6,7 @@ import { IconPickerPopover } from "./IconPickerPopover";
 
 interface WikiPageHeaderProps {
   wikiSlug: string;
+  wikiName?: string;
   /** Folder9-relative path, e.g. `"api/docs/auth.md9"` or `"index.md9"`. */
   path: string;
   frontmatter: Record<string, unknown>;
@@ -29,12 +30,16 @@ export function extractTitle(
   path: string,
   frontmatter: Record<string, unknown>,
   _body: string,
+  rootTitle?: string,
 ): string {
   const fmTitle = frontmatter.title;
   if (typeof fmTitle === "string" && fmTitle.trim().length > 0) return fmTitle;
 
   const segments = path.split("/").filter(Boolean);
   const base = segments[segments.length - 1] ?? path;
+  if (/^index\.md9?$/i.test(base) && segments.length === 1) {
+    return rootTitle?.trim() || stripWikiPageExtension(base);
+  }
   if (/^index\.md9?$/i.test(base) && segments.length > 1) {
     return segments[segments.length - 2] ?? stripWikiPageExtension(base);
   }
@@ -60,6 +65,7 @@ function iconFor(frontmatter: Record<string, unknown>): string {
  */
 export function WikiPageHeader({
   wikiSlug,
+  wikiName,
   path,
   frontmatter,
   body,
@@ -68,7 +74,7 @@ export function WikiPageHeader({
   onFrontmatterChange,
 }: WikiPageHeaderProps) {
   const icon = iconFor(frontmatter);
-  const title = extractTitle(path, frontmatter, body);
+  const title = extractTitle(path, frontmatter, body, wikiName);
   const canEdit = !readOnly && onFrontmatterChange !== undefined;
   const [draftTitle, setDraftTitle] = useState(title);
   const segments = path ? path.split("/").slice(0, -1) : [];

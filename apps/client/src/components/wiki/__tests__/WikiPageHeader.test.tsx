@@ -75,6 +75,12 @@ describe("extractTitle", () => {
     );
   });
 
+  it("uses the wiki name for the root index document", () => {
+    expect(extractTitle("index.md9", {}, "# Body", "Team Handbook")).toBe(
+      "Team Handbook",
+    );
+  });
+
   it("handles empty path gracefully", () => {
     expect(extractTitle("", {}, "")).toBe("");
   });

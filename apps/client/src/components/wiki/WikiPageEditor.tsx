@@ -182,7 +182,7 @@ export function WikiPageEditor({
     }
     return (
       <WikiMarkdownFile
-        path={args.path}
+        editorKey={args.editorKey}
         content={args.content}
         readOnly={args.readOnly}
         onChange={args.onChange}
@@ -230,7 +230,7 @@ export function WikiPageEditor({
 }
 
 interface WikiMarkdownFileProps {
-  path: string;
+  editorKey: string;
   /**
    * The raw file body (frontmatter fence + markdown), as the shell
    * stores it. We split it on render so the document editor can work with
@@ -252,7 +252,7 @@ interface WikiMarkdownFileProps {
  * component) because nothing else needs this stitching today.
  */
 function WikiMarkdownFile({
-  path,
+  editorKey,
   content,
   readOnly,
   onChange,
@@ -285,7 +285,7 @@ function WikiMarkdownFile({
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0">
         <DocumentEditor
-          key={path}
+          key={editorKey}
           initialContent={body}
           onChange={handleBodyChange}
           readOnly={readOnly}
