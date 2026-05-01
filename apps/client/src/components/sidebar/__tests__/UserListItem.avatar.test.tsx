@@ -42,4 +42,20 @@ describe("UserListItem avatar fallback", () => {
     );
     expect(screen.getByText("OpenClaw")).toHaveClass("shrink-0");
   });
+
+  it("clips a long start-conversation subtitle inside the sidebar row", () => {
+    render(
+      <UserListItem
+        name="Personal Assistant"
+        userId="bot_2ca59e7a_1777056260734"
+        subtitle="@bot_2ca59e7a_1777056260734_very_long_workspace_id"
+        isBot
+      />,
+    );
+
+    expect(screen.getByRole("button")).toHaveClass("min-w-0");
+    expect(
+      screen.getByText("@bot_2ca59e7a_1777056260734_very_long_workspace_id"),
+    ).toHaveClass("min-w-0", "max-w-full", "truncate");
+  });
 });
