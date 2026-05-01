@@ -113,19 +113,11 @@ export function RoutinesSidebar({
     staleTime: 60_000,
   });
 
-  const draftRoutines = useMemo(
-    () => allRoutines.filter((r) => r.status === "draft"),
-    [allRoutines],
-  );
-  const nonDraftRoutines = useMemo(
-    () => allRoutines.filter((r) => r.status !== "draft"),
-    [allRoutines],
-  );
-  const filteredRoutines = useMemo(() => {
-    if (tab === "all") return nonDraftRoutines;
+  const visibleRoutines = useMemo(() => {
+    if (tab === "all") return allRoutines;
     const statuses = STATUS_FILTERS[tab];
-    return nonDraftRoutines.filter((r) => statuses.includes(r.status));
-  }, [nonDraftRoutines, tab]);
+    return allRoutines.filter((r) => statuses.includes(r.status));
+  }, [allRoutines, tab]);
 
   const handleToggleExpand = useCallback(
     (routineId: string) => {
@@ -237,12 +229,15 @@ export function RoutinesSidebar({
 
           <div className="flex-1 overflow-y-auto">
             <div className="px-2 py-1 space-y-1">
-              {draftRoutines.length > 0 && (
-                <>
-                  <p className="px-0.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t("draft.badge")}
+              {visibleRoutines.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-xs text-muted-foreground">
+                    {t("noRoutines")}
                   </p>
-                  {draftRoutines.map((routine) => (
+                </div>
+              ) : (
+                visibleRoutines.map((routine) =>
+                  routine.status === "draft" ? (
                     <DraftRoutineCard
                       key={routine.id}
                       routine={routine}
@@ -258,44 +253,31 @@ export function RoutinesSidebar({
                       }}
                       onDeleted={handleDraftDeleted}
                     />
-                  ))}
-                  {filteredRoutines.length > 0 && (
-                    <div className="border-t border-border my-1" />
-                  )}
-                </>
-              )}
-
-              {filteredRoutines.length === 0 && draftRoutines.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <p className="text-xs text-muted-foreground">
-                    {t("noRoutines")}
-                  </p>
-                </div>
-              ) : filteredRoutines.length === 0 ? null : (
-                filteredRoutines.map((routine) => (
-                  <ExpandableRoutineCard
-                    key={routine.id}
-                    routine={routine}
-                    isExpanded={expandedRoutineIds.has(routine.id)}
-                    isActive={selectedRoutineId === routine.id}
-                    selectedExecutionId={
-                      selectedRoutineId === routine.id
-                        ? selectedExecutionId
-                        : null
-                    }
-                    botNameMap={botNameMap}
-                    onToggleExpand={() => handleToggleExpand(routine.id)}
-                    onOpenRoutine={() => handleOpenRoutine(routine)}
-                    onSelectRun={handleSelectRun}
-                    onOpenSettings={() =>
-                      void navigate({
-                        to: "/routines/$routineId",
-                        params: { routineId: routine.id },
-                        search: { tab: "overview" },
-                      })
-                    }
-                  />
-                ))
+                  ) : (
+                    <ExpandableRoutineCard
+                      key={routine.id}
+                      routine={routine}
+                      isExpanded={expandedRoutineIds.has(routine.id)}
+                      isActive={selectedRoutineId === routine.id}
+                      selectedExecutionId={
+                        selectedRoutineId === routine.id
+                          ? selectedExecutionId
+                          : null
+                      }
+                      botNameMap={botNameMap}
+                      onToggleExpand={() => handleToggleExpand(routine.id)}
+                      onOpenRoutine={() => handleOpenRoutine(routine)}
+                      onSelectRun={handleSelectRun}
+                      onOpenSettings={() =>
+                        void navigate({
+                          to: "/routines/$routineId",
+                          params: { routineId: routine.id },
+                          search: { tab: "overview" },
+                        })
+                      }
+                    />
+                  ),
+                )
               )}
             </div>
           </div>

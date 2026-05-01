@@ -164,6 +164,54 @@ describe("RoutinesSidebar", () => {
     expect(screen.getByText("Done task")).toBeInTheDocument();
   });
 
+  it("keeps drafts mixed with created routines in API time order on the all tab", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-new",
+        title: "Newest created routine",
+        status: "in_progress",
+        createdAt: "2026-04-29T15:00:00.000Z",
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+      {
+        id: "draft-middle",
+        title: "Middle draft routine",
+        status: "draft",
+        createdAt: "2026-04-29T14:00:00.000Z",
+        botId: "bot-1",
+        tokenUsage: 0,
+        creationChannelId: "ch-creation-1",
+      },
+      {
+        id: "r-old",
+        title: "Oldest created routine",
+        status: "completed",
+        createdAt: "2026-04-29T13:00:00.000Z",
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    const { container } = renderSidebar({
+      selectedRoutineId: null,
+      selectedExecutionId: null,
+    });
+
+    await screen.findByText("Newest created routine");
+    const text = container.textContent ?? "";
+
+    expect(text.indexOf("Newest created routine")).toBeLessThan(
+      text.indexOf("Middle draft routine"),
+    );
+    expect(text.indexOf("Middle draft routine")).toBeLessThan(
+      text.indexOf("Oldest created routine"),
+    );
+  });
+
   it("navigates to detail page on non-draft routine click", async () => {
     mockList.mockResolvedValue([
       {

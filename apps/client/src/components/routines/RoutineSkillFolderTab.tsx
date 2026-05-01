@@ -14,9 +14,9 @@ import { SkillMdEditor } from "./SkillMdEditor";
 
 export interface RoutineSkillFolderTabProps {
   /**
-   * Routine the editor is bound to. Must have `folderId` populated;
-   * routines created before the folder9 migration have a null
-   * `folderId` and surface a placeholder until the backfill runs.
+   * Routine the editor is bound to. `folderId` may be null for legacy
+   * rows; the routine folder proxy lazily provisions the folder on the
+   * first tree/blob/commit request.
    */
   routine: RoutineDetail;
 }
@@ -71,6 +71,7 @@ export function RoutineSkillFolderTab({ routine }: RoutineSkillFolderTabProps) {
   const permission: Folder9Permission = canEdit ? "write" : "read";
 
   const api = useMemo(() => routineFolderApi(routine.id), [routine.id]);
+  const folderEditorId = routine.folderId ?? `routine:${routine.id}`;
 
   const userId = currentUser?.id ?? null;
   // Compose a workspace-scoped layout so the user's in-flight drafts
@@ -152,21 +153,6 @@ export function RoutineSkillFolderTab({ routine }: RoutineSkillFolderTabProps) {
     [routine],
   );
 
-  // Routine doesn't have a folder yet — surface a stable placeholder
-  // instead of mounting the shell with a fake folder id (which would
-  // pop a 404 on every render). The migration backfills this column
-  // for legacy rows; once that lands every routine has one.
-  if (!routine.folderId) {
-    return (
-      <div
-        className="p-4 text-xs text-muted-foreground"
-        data-testid="routine-skill-folder-empty"
-      >
-        Skill folder is not yet provisioned.
-      </div>
-    );
-  }
-
   // I12 — defer the editor mount while currentUser is loading.
   // Rendering with `canEdit = false` here would briefly mount the
   // DocumentEditor in read-mode, then re-mount it in write-mode once
@@ -196,7 +182,7 @@ export function RoutineSkillFolderTab({ routine }: RoutineSkillFolderTabProps) {
       data-testid="routine-skill-folder-tab"
     >
       <Folder9FolderEditor
-        folderId={routine.folderId}
+        folderId={folderEditorId}
         permission={permission}
         approvalMode="auto"
         api={api}

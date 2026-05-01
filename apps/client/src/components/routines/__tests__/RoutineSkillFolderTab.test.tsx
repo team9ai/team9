@@ -216,17 +216,21 @@ describe("RoutineSkillFolderTab — folder shell wiring", () => {
     );
   });
 
-  it("renders an empty placeholder when routine.folderId is null", () => {
+  it("renders the folder shell when routine.folderId is null so the proxy can lazy-provision it", async () => {
     const Wrapper = makeWrapper();
     render(
       <Wrapper>
         <RoutineSkillFolderTab routine={{ ...baseRoutine, folderId: null }} />
       </Wrapper>,
     );
-    expect(
-      screen.getByTestId("routine-skill-folder-empty"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("folder9-folder-editor")).toBeNull();
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("routine-skill-folder-tab"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("folder9-folder-editor")).toBeInTheDocument();
+    expect(fetchTreeMock).toHaveBeenCalled();
   });
 
   it("renders nothing while the workspace / user identity is unresolved", () => {
