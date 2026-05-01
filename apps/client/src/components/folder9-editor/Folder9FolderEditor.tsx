@@ -353,10 +353,7 @@ export function Folder9FolderEditor({
   useEffect(() => {
     if (!blobQuery.data) return;
     if (serverSeededRef.current) return;
-    if (isDirty) {
-      serverSeededRef.current = true;
-      return;
-    }
+    if (isDirty) return;
     serverSeededRef.current = true;
     setBody(blobQuery.data.content);
     setEditorSeedVersion((version) => version + 1);

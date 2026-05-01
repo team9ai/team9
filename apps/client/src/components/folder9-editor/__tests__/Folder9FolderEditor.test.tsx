@@ -301,6 +301,35 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
     );
   });
 
+  it("hydrates the server body after a transient dirty state clears", async () => {
+    const { api } = makeApi();
+    draftHook.state = makeDraftState({ isDirty: true });
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("doc-editor");
+    expect(screen.getByTestId("doc-editor")).toHaveValue("");
+
+    draftHook.state = makeDraftState({ isDirty: false });
+    rerender(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+  });
+
   it("falls back to a plain textarea for non-markdown text files", async () => {
     const { api } = makeApi();
     const Wrapper = makeWrapper();
