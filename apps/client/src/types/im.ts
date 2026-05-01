@@ -87,6 +87,7 @@ export interface IMUser {
   isActive: boolean;
   userType?: "human" | "bot" | "system";
   agentType?: AgentType | null;
+  agentId?: string | null;
   staffKind?: "common" | "personal" | "other" | null;
   roleTitle?: string | null;
   ownerName?: string | null;
@@ -125,6 +126,7 @@ export interface ChannelWithUnread extends Channel {
     status: UserStatus;
     userType?: "human" | "bot" | "system";
     agentType?: AgentType | null;
+    agentId?: string | null;
     staffKind?: "common" | "personal" | "other" | null;
     roleTitle?: string | null;
     ownerName?: string | null;
@@ -207,6 +209,7 @@ export interface Message {
     avatarUrl: string | null;
     userType: string;
     agentType?: AgentType | null;
+    agentId?: string | null;
     staffKind?: "common" | "personal" | "other" | null;
     roleTitle?: string | null;
     ownerName?: string | null;
@@ -382,6 +385,7 @@ export interface SyncMessageItem {
     displayName: string | null;
     avatarUrl: string | null;
     agentType?: AgentType | null;
+    agentId?: string | null;
     staffKind?: "common" | "personal" | "other" | null;
     roleTitle?: string | null;
     ownerName?: string | null;

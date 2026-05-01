@@ -106,6 +106,7 @@ export interface ChannelWithUnread extends ChannelResponse {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    agentId: string | null;
     staffKind: 'common' | 'personal' | 'other' | null;
     roleTitle: string | null;
     ownerName: string | null;
@@ -127,6 +128,7 @@ export interface ChannelMemberResponse {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    agentId: string | null;
     staffKind: 'common' | 'personal' | 'other' | null;
     roleTitle: string | null;
     ownerName: string | null;
@@ -383,6 +385,18 @@ export class ChannelsService {
       }
     }
 
+    const managedAgentId =
+      row.managedMeta &&
+      typeof row.managedMeta === 'object' &&
+      typeof row.managedMeta.agentId === 'string'
+        ? row.managedMeta.agentId
+        : null;
+    const openClawAgentId =
+      row.botExtra?.openclaw &&
+      typeof row.botExtra.openclaw.agentId === 'string'
+        ? row.botExtra.openclaw.agentId
+        : null;
+
     return {
       id: row.userId,
       username: row.username,
@@ -396,6 +410,7 @@ export class ChannelsService {
         managedProvider: row.managedProvider,
         managedMeta: row.managedMeta,
       }),
+      agentId: managedAgentId ?? openClawAgentId,
       staffKind,
       roleTitle,
       ownerName,
@@ -1173,13 +1188,50 @@ export class ChannelsService {
     dto: UpdateChannelDto,
     requesterId: string,
   ): Promise<ChannelResponse> {
-    // Check permission using effective role (includes mentor-derived access)
-    const tenantId = await this.getChannelTenantId(id);
+    const [existingChannel] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, id))
+      .limit(1);
+
+    if (!existingChannel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    // Check permission using effective role (includes mentor-derived access).
+    // Topic-session participants may rename their own session title even
+    // though the channel membership role is only "member".
+    const tenantId = existingChannel.tenantId;
     const role = tenantId
       ? await this.getEffectiveRole(id, requesterId, tenantId)
       : await this.getMemberRole(id, requesterId);
-    if (!role || !['owner', 'admin'].includes(role)) {
+    const isTopicSessionTitleUpdate =
+      existingChannel.type === 'topic-session' &&
+      dto.name !== undefined &&
+      dto.description === undefined &&
+      dto.avatarUrl === undefined &&
+      dto.isArchived === undefined;
+
+    if (
+      !role ||
+      (!['owner', 'admin'].includes(role) && !isTopicSessionTitleUpdate)
+    ) {
       throw new ForbiddenException('Insufficient permissions');
+    }
+
+    if (isTopicSessionTitleUpdate) {
+      const updated = await this.updateTopicSessionTitle(
+        id,
+        dto.name?.trim() || null,
+        { titleSource: 'manual' },
+      );
+
+      if (!updated) {
+        throw new NotFoundException('Channel not found');
+      }
+
+      await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(id));
+      return updated;
     }
 
     const [channel] = await this.db
@@ -1305,6 +1357,7 @@ export class ChannelsService {
       status: 'online' | 'offline' | 'away' | 'busy';
       userType: 'human' | 'bot' | 'system';
       agentType: AgentType | null;
+      agentId: string | null;
       staffKind: 'common' | 'personal' | 'other' | null;
       roleTitle: string | null;
       ownerName: string | null;
@@ -1459,6 +1512,7 @@ export class ChannelsService {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    agentId: string | null;
     staffKind: 'common' | 'personal' | 'other' | null;
     roleTitle: string | null;
     ownerName: string | null;
@@ -1500,6 +1554,7 @@ export class ChannelsService {
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
     agentType: AgentType | null;
+    agentId: string | null;
     staffKind: 'common' | 'personal' | 'other' | null;
     roleTitle: string | null;
     ownerName: string | null;

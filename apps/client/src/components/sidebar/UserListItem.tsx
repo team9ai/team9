@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -74,17 +73,14 @@ export function UserListItem({
   const onlineIndicatorSize = avatarSize === "sm" ? "w-2.5 h-2.5" : "w-3 h-3";
   const username = subtitle?.startsWith("@") ? subtitle.slice(1) : undefined;
 
+  const rootClassName = cn(
+    "flex w-full min-w-0 max-w-full shrink items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sm font-medium text-nav-foreground-muted transition-all hover:bg-nav-hover hover:text-nav-foreground",
+    isSelected && "bg-nav-active text-nav-foreground",
+    disabled && "pointer-events-none cursor-not-allowed opacity-50",
+  );
+
   const content = (
-    <Button
-      variant="ghost"
-      onClick={channelId ? undefined : onClick}
-      disabled={disabled}
-      className={cn(
-        "w-full min-w-0 overflow-hidden justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground",
-        isSelected && "bg-nav-active text-nav-foreground",
-        disabled && "opacity-50",
-      )}
-    >
+    <>
       <div className="relative shrink-0">
         <UserAvatar
           userId={userId}
@@ -104,7 +100,7 @@ export function UserListItem({
           />
         )}
       </div>
-      <div className="flex-1 min-w-0 text-left">
+      <div className="min-w-0 flex-1 basis-0 overflow-hidden text-left">
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex-1 min-w-0 truncate" title={name}>
             {name}
@@ -119,7 +115,7 @@ export function UserListItem({
           />
         ) : subtitle ? (
           <div
-            className="min-w-0 max-w-full truncate text-xs text-nav-foreground-faint"
+            className="block w-full min-w-0 max-w-[22ch] truncate text-xs text-nav-foreground-faint"
             title={subtitle}
           >
             {subtitle}
@@ -129,7 +125,7 @@ export function UserListItem({
       {unreadCount > 0 && (
         <Badge variant="notification" size="sm" count={unreadCount} />
       )}
-    </Button>
+    </>
   );
 
   if (channelId) {
@@ -138,11 +134,20 @@ export function UserListItem({
         ? "/messages/$channelId"
         : "/channels/$channelId";
     return (
-      <Link to={linkTo} params={{ channelId }} className="block min-w-0">
+      <Link to={linkTo} params={{ channelId }} className={rootClassName}>
         {content}
       </Link>
     );
   }
 
-  return content;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={rootClassName}
+    >
+      {content}
+    </button>
+  );
 }

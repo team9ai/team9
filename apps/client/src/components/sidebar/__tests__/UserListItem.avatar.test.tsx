@@ -53,9 +53,11 @@ describe("UserListItem avatar fallback", () => {
       />,
     );
 
-    expect(screen.getByRole("button")).toHaveClass("min-w-0");
+    expect(screen.getByRole("button")).toHaveClass("flex", "shrink");
+    expect(screen.getByRole("button")).not.toHaveClass("inline-flex");
+    expect(screen.getByRole("button")).not.toHaveClass("shrink-0");
     expect(
       screen.getByText("@bot_2ca59e7a_1777056260734_very_long_workspace_id"),
-    ).toHaveClass("min-w-0", "max-w-full", "truncate");
+    ).toHaveClass("block", "w-full", "min-w-0", "max-w-[22ch]", "truncate");
   });
 });

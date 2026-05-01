@@ -963,7 +963,7 @@ describe('ChannelsService', () => {
           createdAt: new Date('2026-04-01T00:00:00Z'),
           applicationId: 'common-staff',
           managedProvider: null,
-          managedMeta: null,
+          managedMeta: { agentId: 'agent-hr-1' },
           botExtra,
           ownerDisplayName: null,
           ownerUsername: null,
@@ -975,6 +975,7 @@ describe('ChannelsService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].user.staffKind).toBe('common');
       expect(result[0].user.roleTitle).toBe('HR Lead');
+      expect(result[0].user.agentId).toBe('agent-hr-1');
       expect(result[0].user.ownerName).toBeNull();
     });
   });
@@ -1025,7 +1026,7 @@ describe('ChannelsService', () => {
       const redisService = (service as any).redis;
       const updatedChannel = {
         id: 'channel-1',
-        tenantId: 'tenant-1',
+        tenantId: null,
         name: 'renamed',
         description: 'updated',
         type: 'public',
@@ -1040,6 +1041,9 @@ describe('ChannelsService', () => {
         updatedAt: new Date('2026-03-24T00:00:00Z'),
       };
 
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', tenantId: null, type: 'public' },
+      ] as any);
       jest.spyOn(service, 'getMemberRole').mockResolvedValue('admin');
       db.returning.mockResolvedValueOnce([updatedChannel] as any);
 
@@ -1063,6 +1067,9 @@ describe('ChannelsService', () => {
     });
 
     it('rejects updates from non-admin members', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', tenantId: null, type: 'public' },
+      ] as any);
       jest.spyOn(service, 'getMemberRole').mockResolvedValue('member');
 
       await expect(
@@ -1072,9 +1079,40 @@ describe('ChannelsService', () => {
       expect(db.update).not.toHaveBeenCalled();
     });
 
+    it('allows topic-session members to update only the session title', async () => {
+      const updatedChannel = {
+        id: 'channel-1',
+        tenantId: null,
+        name: 'manual title',
+        type: 'topic-session',
+      };
+
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', tenantId: null, type: 'topic-session' },
+      ] as any);
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('member');
+      const updateTopicSessionTitle = jest
+        .spyOn(service, 'updateTopicSessionTitle')
+        .mockResolvedValue(updatedChannel as any);
+
+      await expect(
+        service.update(
+          'channel-1',
+          { name: ' manual title ' } as any,
+          'user-1',
+        ),
+      ).resolves.toEqual(updatedChannel);
+
+      expect(updateTopicSessionTitle).toHaveBeenCalledWith(
+        'channel-1',
+        'manual title',
+        { titleSource: 'manual' },
+      );
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
     it('throws when the channel no longer exists', async () => {
-      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
-      db.returning.mockResolvedValueOnce([] as any);
+      db.limit.mockResolvedValueOnce([] as any);
 
       await expect(
         service.update('channel-1', { name: 'renamed' } as any, 'user-1'),
@@ -2378,6 +2416,7 @@ describe('ChannelsService', () => {
             status: 'online' | 'offline' | 'away' | 'busy';
             userType: 'human' | 'bot' | 'system';
             agentType: string | null;
+            agentId: string | null;
             staffKind: 'common' | 'personal' | 'other' | null;
             roleTitle: string | null;
             ownerName: string | null;
@@ -2394,6 +2433,26 @@ describe('ChannelsService', () => {
       expect(result.staffKind).toBe('common');
       expect(result.roleTitle).toBe('Engineer');
       expect(result.ownerName).toBeNull();
+    });
+
+    it('returns the managed agent id when present', () => {
+      const result = map({
+        ...baseRow,
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-managed-1' },
+      });
+
+      expect(result.agentId).toBe('agent-managed-1');
+    });
+
+    it('falls back to the OpenClaw agent id in bot extra', () => {
+      const result = map({
+        ...baseRow,
+        applicationId: 'openclaw',
+        botExtra: { openclaw: { agentId: 'agent-openclaw-1' } },
+      });
+
+      expect(result.agentId).toBe('agent-openclaw-1');
     });
 
     it('common staff without roleTitle → staffKind=common, roleTitle=null', () => {
