@@ -23,6 +23,8 @@ import {
 import { buildTree } from "@/lib/wiki-tree";
 import {
   DEFAULT_WIKI_INDEX_FILENAME,
+  DEFAULT_WIKI_INDEX_PATH,
+  LEGACY_WIKI_INDEX_FILENAME,
   WIKI_PAGE_EXTENSION,
   stripWikiPageExtension,
 } from "@/lib/wiki-paths";
@@ -153,6 +155,18 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
 
   const { data: entries } = useWikiTree(isOpen ? wiki.id : null);
   const tree = useMemo(() => (entries ? buildTree(entries) : []), [entries]);
+  const visibleTree = useMemo(
+    () =>
+      tree.filter(
+        (node) =>
+          !(
+            node.type === "file" &&
+            (node.name === DEFAULT_WIKI_INDEX_FILENAME ||
+              node.name === LEGACY_WIKI_INDEX_FILENAME)
+          ),
+      ),
+    [tree],
+  );
 
   const [showSettings, setShowSettings] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -166,6 +180,9 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
 
   const navigate = useNavigate();
   const selectedWikiId = useSelectedWikiId();
+  const selectedPagePath = useWikiStore((s) => s.selectedPagePath);
+  const isRootDocumentSelected =
+    selectedWikiId === wiki.id && selectedPagePath === DEFAULT_WIKI_INDEX_PATH;
   const existingPaths = useMemo(
     () =>
       new Set(
@@ -277,7 +294,12 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       aria-expanded={isOpen}
       className="group/wiki-row relative"
     >
-      <div className="flex items-center w-full hover:bg-muted/50">
+      <div
+        className={cn(
+          "flex items-center w-full hover:bg-muted/50",
+          isRootDocumentSelected && "bg-primary/10 text-primary font-medium",
+        )}
+      >
         <button
           type="button"
           onClick={() => wikiActions.toggleDirectory(expandKey)}
@@ -386,7 +408,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       </div>
       {isOpen && (
         <div role="group">
-          {tree.map((node) => (
+          {visibleTree.map((node) => (
             <WikiTreeNode
               key={node.path}
               node={node}

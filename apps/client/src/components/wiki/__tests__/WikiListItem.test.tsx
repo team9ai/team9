@@ -425,16 +425,28 @@ describe("WikiListItem", () => {
     render(<WikiListItem wiki={wiki} />);
 
     expect(mockUseWikiTree).toHaveBeenCalledWith("wiki-1");
-    // Tree rows now present; `api` (dir) and `index` (file at root, .md9 hidden).
+    // Tree rows now present; `api` (dir). The root index.md9 is the wiki row's
+    // folder document, so it is not rendered as a child file.
     // WikiTreeNode buttons carry role="treeitem" (A-3 fix). The outer
     // WikiListItem div also has role="treeitem", so accessible names are
     // shared across levels — use getAllByRole to avoid "multiple elements" error.
     expect(
       screen.getAllByRole("treeitem", { name: /^api$/ }).length,
     ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("treeitem", { name: /^index$/ }).length,
-    ).toBeGreaterThan(0);
+    expect(screen.queryByRole("treeitem", { name: /^index$/ })).toBeNull();
+  });
+
+  it("highlights the wiki row when the root index document is selected", () => {
+    act(() => {
+      useWikiStore.getState().setSelectedWiki("wiki-1");
+      useWikiStore.getState().setSelectedPage("index.md9");
+    });
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+
+    const { container } = render(<WikiListItem wiki={wiki} />);
+
+    const row = container.querySelector(".group\\/wiki-row > div");
+    expect(row).toHaveClass("bg-primary/10", "text-primary", "font-medium");
   });
 
   it("renders an empty tree without crashing while loading", () => {
