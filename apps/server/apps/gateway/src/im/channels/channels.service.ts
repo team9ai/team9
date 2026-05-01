@@ -574,7 +574,8 @@ export class ChannelsService {
    * contract between team9 and agent-pi observable at construction time
    * and keeps compensation logic on the caller where the saga lives.
    *
-   * propertySettings.topicSession caches `{ agentId, sessionId, title }`
+   * propertySettings.topicSession caches `{ agentId, sessionId, title,
+   * titleSource }`
    * for cheap sidebar/search reads; title is eventually consistent with
    * agent-pi (the source of truth) via the `topic_session_updated` WS
    * event. Membership: creator + bot shadow user, both 'member'.
@@ -586,14 +587,22 @@ export class ChannelsService {
     agentId: string;
     sessionId: string;
     title: string | null;
+    titleSource?: 'temporary' | 'manual' | 'generated';
     channelId?: string;
   }): Promise<ChannelResponse> {
-    const { creatorId, botUserId, tenantId, agentId, sessionId, title } =
-      params;
+    const {
+      creatorId,
+      botUserId,
+      tenantId,
+      agentId,
+      sessionId,
+      title,
+      titleSource,
+    } = params;
     const channelId = params.channelId ?? uuidv7();
 
     const propertySettings: unknown = {
-      topicSession: { agentId, sessionId, title },
+      topicSession: { agentId, sessionId, title, titleSource },
     };
 
     const channel = await this.db.transaction(async (tx) => {
@@ -603,7 +612,7 @@ export class ChannelsService {
           id: channelId,
           tenantId: tenantId ?? null,
           type: 'topic-session',
-          name: null,
+          name: title,
           createdBy: creatorId,
           propertySettings,
         })
@@ -651,14 +660,19 @@ export class ChannelsService {
    * fan out `channel.updated` (for search re-index) and `topic_session_updated`
    * (for sidebar live refresh) with consistent payloads.
    *
-   * Uses an atomic guard (`WHERE title IS NULL`) when `expectCurrentTitleNull`
-   * is set so concurrent callers racing on the same channel can't double-write.
+   * Uses a guard when `expectCurrentTitleNull` is set so concurrent callers
+   * racing on the same channel can't double-write. A temporary title may be
+   * overwritten only when `allowTemporaryTitle` is also set.
    * Returns `null` when the guard rejects the write.
    */
   async updateTopicSessionTitle(
     channelId: string,
     title: string | null,
-    options: { expectCurrentTitleNull?: boolean } = {},
+    options: {
+      expectCurrentTitleNull?: boolean;
+      allowTemporaryTitle?: boolean;
+      titleSource?: 'temporary' | 'manual' | 'generated';
+    } = {},
   ): Promise<schema.Channel | null> {
     const [row] = await this.db
       .select()
@@ -674,18 +688,27 @@ export class ChannelsService {
           agentId?: string;
           sessionId?: string;
           title?: string | null;
+          titleSource?: 'temporary' | 'manual' | 'generated';
         };
       } | null) ?? {};
     const ts = existing.topicSession ?? {};
 
-    if (options.expectCurrentTitleNull && ts.title) {
+    if (
+      options.expectCurrentTitleNull &&
+      ts.title &&
+      !(options.allowTemporaryTitle && ts.titleSource === 'temporary')
+    ) {
       // Another writer beat us to it — bail without overwriting.
       return null;
     }
 
     const next = {
       ...existing,
-      topicSession: { ...ts, title },
+      topicSession: {
+        ...ts,
+        title,
+        titleSource: options.titleSource ?? ts.titleSource,
+      },
     };
 
     await this.db

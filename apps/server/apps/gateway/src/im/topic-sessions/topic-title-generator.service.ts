@@ -71,7 +71,8 @@ export class TopicTitleGeneratorService {
    * Listen for any freshly persisted message (human, bot, streaming end…)
    * and decide whether to generate a title for the channel it landed in.
    * The decision is "bot just replied in a topic-session channel whose
-   * title is still null" — exactly the first-turn-done signal we want.
+   * title is missing or still temporary" — exactly the first-turn-done
+   * signal we want.
    */
   @OnEvent('message.created')
   async onMessageCreated(payload: MessageCreatedPayload): Promise<void> {
@@ -104,7 +105,8 @@ export class TopicTitleGeneratorService {
     }
     if (senderUserType !== 'bot') return;
 
-    // Channel must be a topic session and its title must still be null.
+    // Channel must be a topic session and its title must either be empty
+    // or the first-message placeholder created before the AI summary.
     const [channel] = await this.db
       .select()
       .from(schema.channels)
@@ -115,10 +117,13 @@ export class TopicTitleGeneratorService {
     const ts =
       (
         channel.propertySettings as {
-          topicSession?: { title?: string | null };
+          topicSession?: {
+            title?: string | null;
+            titleSource?: 'temporary' | 'manual' | 'generated';
+          };
         } | null
       )?.topicSession ?? {};
-    if (ts.title) return;
+    if (ts.title && ts.titleSource !== 'temporary') return;
 
     // capability-hub needs a billable identity (userId + tenantId) on
     // every LLM call so it can pre-authorize and then record usage
@@ -150,7 +155,11 @@ export class TopicTitleGeneratorService {
       const updated = await this.channels.updateTopicSessionTitle(
         channelId,
         title,
-        { expectCurrentTitleNull: true },
+        {
+          expectCurrentTitleNull: true,
+          allowTemporaryTitle: true,
+          titleSource: 'generated',
+        },
       );
       if (!updated) return;
 
