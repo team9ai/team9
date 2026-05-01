@@ -479,7 +479,10 @@ describe("Folder9FolderEditor — read-only mode", () => {
       </Wrapper>,
     );
 
-    const editor = await screen.findByTestId("doc-editor");
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
     expect(editor).toHaveAttribute("data-readonly", "true");
 
     const saveBtn = screen.getByRole("button", { name: /save/i });
@@ -498,7 +501,10 @@ describe("Folder9FolderEditor — read-only mode", () => {
       </Wrapper>,
     );
 
-    const editor = await screen.findByTestId("doc-editor");
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
     fireEvent.change(editor, { target: { value: "user typed" } });
     // setDraft is gated by readOnly inside the shell.
     expect(setDraft).not.toHaveBeenCalled();
@@ -659,6 +665,135 @@ describe("Folder9FolderEditor — commit pipeline", () => {
     expect(commit).toHaveBeenCalledWith(
       expect.objectContaining({ propose: false }),
     );
+  });
+
+  it("auto-saves dirty edits after a debounce when the user can commit directly", async () => {
+    const { api, commit } = makeApi();
+    const setDraft = vi.fn();
+    const clearDraft = vi.fn();
+    draftHook.state = makeDraftState({ setDraft, clearDraft });
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps({ api, initialPath: "SKILL.md" })} />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(editor, { target: { value: "auto body" } });
+      expect(setDraft).toHaveBeenCalledWith({
+        body: "auto body",
+        frontmatter: {},
+      });
+
+      draftHook.state = makeDraftState({
+        draft: { body: "auto body", frontmatter: {} },
+        isDirty: true,
+        setDraft,
+        clearDraft,
+      });
+      rerender(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({ api, initialPath: "SKILL.md" })}
+          />
+        </Wrapper>,
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+      });
+
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(commit).toHaveBeenCalledWith({
+        message: "Update SKILL.md",
+        files: [
+          {
+            path: "SKILL.md",
+            content: "auto body",
+            action: "update",
+          },
+        ],
+        propose: false,
+      });
+      expect(clearDraft).toHaveBeenCalledTimes(1);
+
+      rerender(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({ api, initialPath: "SKILL.md" })}
+          />
+        </Wrapper>,
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+      });
+      expect(commit).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not auto-save review proposals because they need explicit submit metadata", async () => {
+    const { api, commit } = makeApi();
+    const setDraft = vi.fn();
+    draftHook.state = makeDraftState({ setDraft });
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "SKILL.md",
+            permission: "propose",
+            approvalMode: "review",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(editor, { target: { value: "proposal body" } });
+
+      draftHook.state = makeDraftState({
+        draft: { body: "proposal body", frontmatter: {} },
+        isDirty: true,
+        setDraft,
+      });
+      rerender(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({
+              api,
+              initialPath: "SKILL.md",
+              permission: "propose",
+              approvalMode: "review",
+            })}
+          />
+        </Wrapper>,
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+      });
+
+      expect(commit).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("defers to onProposeReview when provided in review mode", async () => {

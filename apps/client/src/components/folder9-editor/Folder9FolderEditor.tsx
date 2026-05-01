@@ -170,6 +170,7 @@ export interface ProposeReviewInput {
 }
 
 const FILE_QUERY_KEY = "folder9-folder";
+const AUTO_SAVE_DELAY_MS = 800;
 
 function commitErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
@@ -325,15 +326,41 @@ export function Folder9FolderEditor({
 
   const draftSeededRef = useRef(false);
   const serverSeededRef = useRef(false);
+  const hasLocalEditRef = useRef(false);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoSavedSignatureRef = useRef<string | null>(null);
+  const failedAutoSaveSignatureRef = useRef<string | null>(null);
+  const latestSelectedPathRef = useRef<string | null>(selectedPath);
+
+  useEffect(() => {
+    latestSelectedPathRef.current = selectedPath;
+  }, [selectedPath]);
 
   // Re-seed when the selected path changes — clear the gates so the
   // next blob arrival hydrates fresh state.
   useEffect(() => {
     draftSeededRef.current = false;
     serverSeededRef.current = false;
+    hasLocalEditRef.current = false;
+    lastAutoSavedSignatureRef.current = null;
+    failedAutoSaveSignatureRef.current = null;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
     setBody("");
     setEditorSeedVersion((version) => version + 1);
   }, [folderId, selectedPath]);
+
+  useEffect(
+    () => () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
   // Hydrate from draft when the hook surfaces one (e.g. async
   // localStorage reconciliation completes after mount).
@@ -368,6 +395,7 @@ export function Folder9FolderEditor({
   const handleBodyChange = useCallback(
     (next: string) => {
       if (readOnly) return;
+      hasLocalEditRef.current = true;
       setBody(next);
       setDraft({ body: next, frontmatter: {} });
     },
@@ -399,6 +427,7 @@ export function Folder9FolderEditor({
           ? `${latestBodyRef.current}\n\n${markdown}\n`
           : `${markdown}\n`;
         latestBodyRef.current = next;
+        hasLocalEditRef.current = true;
         setBody(next);
         setDraft({ body: next, frontmatter: {} });
       } catch (err) {
@@ -479,9 +508,14 @@ export function Folder9FolderEditor({
   }
 
   const runCommit = useCallback(
-    async (overrideMessage?: string) => {
+    async (
+      overrideMessage?: string,
+      options?: { silentSuccess?: boolean; autoSaveSignature?: string },
+    ) => {
       if (!selectedPath) return;
-      const message = overrideMessage?.trim() || `Update ${selectedPath}`;
+      const committedPath = selectedPath;
+      const committedBody = body;
+      const message = overrideMessage?.trim() || `Update ${committedPath}`;
       // The propose hint is recomputed server-side from approval mode
       // × permission; we set it as a client hint so the wire payload
       // still reflects the user's intent (matches wikis behaviour).
@@ -489,16 +523,39 @@ export function Folder9FolderEditor({
       try {
         await commit.mutateAsync({
           message,
-          files: [{ path: selectedPath, content: body, action: "update" }],
+          files: [
+            { path: committedPath, content: committedBody, action: "update" },
+          ],
           propose,
         });
+        if (options?.autoSaveSignature) {
+          lastAutoSavedSignatureRef.current = options.autoSaveSignature;
+          if (
+            failedAutoSaveSignatureRef.current === options.autoSaveSignature
+          ) {
+            failedAutoSaveSignatureRef.current = null;
+          }
+        }
         if (!propose) {
           // Auto-mode commit succeeded — the draft is now part of the
-          // server's copy.
-          clearDraft();
+          // server's copy. If the user typed again while the commit was
+          // in flight, keep that newer draft and let the next debounce
+          // save it instead of clearing it out from under them.
+          if (
+            latestSelectedPathRef.current === committedPath &&
+            latestBodyRef.current === committedBody
+          ) {
+            clearDraft();
+            hasLocalEditRef.current = false;
+          }
         }
-        notify(t(propose ? "editor.notifySubmitted" : "editor.notifySaved"));
+        if (!options?.silentSuccess) {
+          notify(t(propose ? "editor.notifySubmitted" : "editor.notifySaved"));
+        }
       } catch (error) {
+        if (options?.autoSaveSignature) {
+          failedAutoSaveSignatureRef.current = options.autoSaveSignature;
+        }
         notify(commitErrorMessage(error));
       }
     },
@@ -526,6 +583,57 @@ export function Folder9FolderEditor({
     isDirty,
     isReview,
     onProposeReview,
+    runCommit,
+    selectedPath,
+  ]);
+
+  // Direct-write edits save themselves after the user pauses typing.
+  // Review proposals still require the explicit submit dialog because
+  // the commit needs proposal metadata.
+  useEffect(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const canAutoSave = !readOnly && !isReview;
+    if (
+      !canAutoSave ||
+      !selectedPath ||
+      !isDirty ||
+      commit.isPending ||
+      !hasLocalEditRef.current
+    ) {
+      return;
+    }
+
+    const signature = `${selectedPath}\0${body}`;
+    if (
+      lastAutoSavedSignatureRef.current === signature ||
+      failedAutoSaveSignatureRef.current === signature
+    ) {
+      return;
+    }
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveTimerRef.current = null;
+      void runCommit(undefined, {
+        silentSuccess: true,
+        autoSaveSignature: signature,
+      });
+    }, AUTO_SAVE_DELAY_MS);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    body,
+    commit.isPending,
+    isDirty,
+    isReview,
+    readOnly,
     runCommit,
     selectedPath,
   ]);
