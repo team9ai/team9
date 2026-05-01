@@ -135,11 +135,14 @@ describe("WikiPageView", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows loading cue when the wiki list is resolved but the page hasn't loaded yet", () => {
+  it("shows an empty state when the selected page is missing after the query settles", () => {
     mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
     mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
-    expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("wiki-page-loading")).toBeNull();
+    expect(
+      screen.getByText(/page doesn't exist/i, { exact: false }),
+    ).toBeInTheDocument();
   });
 
   it("renders the composite when both queries resolve", () => {

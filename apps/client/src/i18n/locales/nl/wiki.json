@@ -129,6 +129,7 @@
   },
   "page": {
     "loading": "Laden…",
+    "notFound": "Deze pagina bestaat nog niet: {{path}}. Kies een bestaande pagina in de boomstructuur of maak deze in de editor.",
     "binaryFile": "Binair bestand — hier niet bewerkbaar."
   },
   "proposalBanner": {

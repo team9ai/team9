@@ -64,11 +64,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
     return <WikiEmptyState message={t("errors.wikiNotFound")} />;
   }
   if (!page) {
-    return (
-      <div data-testid="wiki-page-loading" className="p-8">
-        {t("page.loading")}
-      </div>
-    );
+    return <WikiEmptyState message={t("page.notFound", { path })} />;
   }
 
   const coverPath =

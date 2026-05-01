@@ -364,6 +364,24 @@ describe('WikisService', () => {
       );
     });
 
+    it('transliterates non-Latin names into ASCII slugs', async () => {
+      f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([
+        makeWikiRow({ name: '团队手册', slug: 'tuan-dui-shou-ce' }),
+      ]);
+
+      await svc.createWiki(
+        'ws-1',
+        { id: 'user-1', isAgent: false },
+        { name: '团队手册' },
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'tuan-dui-shou-ce' }),
+      );
+    });
+
     it('falls back to "wiki" when name strips down to nothing', async () => {
       f9.createFolder.mockResolvedValue(makeFolder9Response() as never);
       db.limit.mockResolvedValueOnce([]);

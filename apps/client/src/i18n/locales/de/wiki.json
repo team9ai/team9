@@ -129,6 +129,7 @@
   },
   "page": {
     "loading": "Lädt…",
+    "notFound": "Diese Seite existiert noch nicht: {{path}}. Wählen Sie links eine vorhandene Seite aus oder erstellen Sie sie im Editor.",
     "binaryFile": "Binärdatei — hier nicht bearbeitbar."
   },
   "proposalBanner": {

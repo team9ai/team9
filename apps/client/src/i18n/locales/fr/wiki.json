@@ -129,6 +129,7 @@
   },
   "page": {
     "loading": "Chargement…",
+    "notFound": "Cette page n’existe pas encore : {{path}}. Sélectionnez une page existante dans l’arborescence ou créez-la dans l’éditeur.",
     "binaryFile": "Fichier binaire — non modifiable ici."
   },
   "proposalBanner": {

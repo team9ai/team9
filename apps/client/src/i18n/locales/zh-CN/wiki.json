@@ -129,6 +129,7 @@
   },
   "page": {
     "loading": "加载中…",
+    "notFound": "此页面尚不存在：{{path}}。请从左侧树选择已有页面，或在编辑器中创建它。",
     "binaryFile": "二进制文件 — 不支持在此编辑。"
   },
   "proposalBanner": {

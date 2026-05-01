@@ -16,6 +16,7 @@ import {
   isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
+import { slugify } from 'transliteration';
 import * as schema from '@team9/database/schemas';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { Folder9ClientService } from './folder9-client.service.js';
@@ -115,18 +116,14 @@ function tokenCacheKey(
 
 /**
  * Normalise a free-form Wiki name into a URL-safe slug:
+ *   - transliterate non-Latin scripts on a best-effort basis
  *   - lowercase
- *   - replace any run of non-alphanumeric chars with a single dash
- *   - strip leading/trailing dashes
+ *   - collapse non-slug characters to dashes
  *   - clamp to 100 chars (matches the slug column constraint)
  *   - fall back to "wiki" if everything stripped away
  */
 function deriveSlug(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100);
+  const slug = slugify(name, { lowercase: true, separator: '-' }).slice(0, 100);
   return slug || 'wiki';
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { slugify } from "transliteration";
 import {
   Dialog,
   DialogContent,
@@ -33,19 +34,15 @@ const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const SLUG_MAX_LENGTH = 100;
 
 /**
- * Normalize a free-text name into a URL-safe slug. Keeps the algorithm tiny
- * (lower-case → collapse non-alphanumerics to `-` → trim dashes) since the
- * server enforces uniqueness and pattern regardless of what we send.
+ * Normalize a free-text name into a URL-safe slug. Transliterates non-Latin
+ * scripts on a best-effort basis, then lowercases/collapses the result to the
+ * server-accepted ASCII slug shape.
  *
  * Exported so the matching unit test can pin the derivation rules without
  * duplicating the regex.
  */
 export function slugifyWikiName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 50);
+  return slugify(value, { lowercase: true, separator: "-" }).slice(0, 50);
 }
 
 /**
