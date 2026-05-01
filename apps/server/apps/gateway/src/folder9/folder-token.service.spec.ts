@@ -445,16 +445,10 @@ describe('FolderTokenService', () => {
     });
   });
 
-  // ── I7: stub-authz scopes are read-only ────────────────────────────────
-  //
-  // session.{tmp,home}, agent.{tmp,home}, user.{tmp,home},
-  // routine.{tmp,home} ride a stub authz path until real RBAC lands.
-  // Until then, write/propose tokens through this endpoint would
-  // silently widen the trust boundary, so the v1 endpoint caps the
-  // permitted action at `read`. routine.document keeps its own real
-  // authz and is unaffected.
-  describe('I7 — stub-authz scopes are read-only', () => {
-    const STUB_KEYS = [
+  // ── Non-document scopes may issue write tokens after real authz ─────────
+
+  describe('non-document scopes — write tokens after real authz', () => {
+    const WRITABLE_KEYS = [
       'session.tmp',
       'session.home',
       'agent.tmp',
@@ -465,56 +459,48 @@ describe('FolderTokenService', () => {
       'routine.home',
     ] as const;
 
-    for (const logicalKey of STUB_KEYS) {
-      it(`403: ${logicalKey} rejects permission=write before any token mint`, async () => {
-        // The I7 gate runs after the bot identity lookup but before
-        // any logical-key authz (mount row check, ownership, etc).
-        // Each `await ... rejects` consumes one full call, so we
-        // queue a bot row per call here (two assertions = two calls).
-        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
-        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
-        const dto = makeDto({
-          logicalKey,
-          permission: 'write',
-        });
-        await expect(
-          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
-        ).rejects.toThrow(ForbiddenException);
-        await expect(
-          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
-        ).rejects.toThrow(/stub authz; only read permitted/);
-        expect(folder9Client.createToken).not.toHaveBeenCalled();
-      });
+    function queueAuthorizedPath(
+      logicalKey: (typeof WRITABLE_KEYS)[number],
+    ): Partial<FolderTokenRequestDto> {
+      queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
 
-      it(`403: ${logicalKey} rejects permission=propose`, async () => {
-        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
-        const dto = makeDto({
-          logicalKey,
-          permission: 'propose',
-        });
-        await expect(
-          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
-        ).rejects.toThrow(/stub authz; only read permitted/);
-        expect(folder9Client.createToken).not.toHaveBeenCalled();
-      });
+      if (logicalKey.startsWith('agent.')) {
+        queueMount({ scopeId: AGENT_ID });
+        return { logicalKey };
+      }
+
+      if (logicalKey.startsWith('session.')) {
+        queueMount({ scopeId: DM_SESSION_ID });
+        return { logicalKey, sessionId: DM_SESSION_ID };
+      }
+
+      if (logicalKey.startsWith('user.')) {
+        queueMount({ scopeId: USER_ID });
+        queueChannelMember(true);
+        return { logicalKey, sessionId: DM_SESSION_ID, userId: USER_ID };
+      }
+
+      queueMount({ scopeId: ROUTINE_ID });
+      queueRoutineForBot({ id: ROUTINE_ID });
+      return { logicalKey, routineId: ROUTINE_ID };
     }
 
-    it('routine.document is NOT a stub-authz scope: write is still allowed', async () => {
-      // I7 must not regress routine.document, which has real authz.
-      queueBot({ userId: BOT_USER_ID });
-      queueRoutine({
-        id: ROUTINE_ID,
-        tenantId: TENANT_ID,
-        folderId: FOLDER_ID,
-      });
+    for (const logicalKey of WRITABLE_KEYS) {
+      it(`200: ${logicalKey} mints permission=write after mount + ownership checks`, async () => {
+        const dto = makeDto({
+          ...queueAuthorizedPath(logicalKey),
+          permission: 'write',
+        });
 
-      const dto = makeDto({
-        logicalKey: 'routine.document',
-        permission: 'write',
+        const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
+
+        expect(result.token).toBe('opaque-token');
+        expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
+        expect(folder9Client.createToken.mock.calls[0][0].permission).toBe(
+          'write',
+        );
       });
-      const result = await service.issueToken(dto, BOT_USER_ID, TENANT_ID);
-      expect(result.token).toBe('opaque-token');
-    });
+    }
   });
 
   // ── Admin permission rejection ────────────────────────────────────────────
@@ -554,9 +540,6 @@ describe('FolderTokenService', () => {
     it('rejects when caller bot is not active or not found', async () => {
       queueBot(null);
 
-      // Use `permission: 'read'` so the request bypasses the I7
-      // stub-authz read-only gate and actually exercises the bot
-      // identity lookup (the next gate after the early checks).
       await expect(
         service.issueToken(
           makeDto({ logicalKey: 'session.tmp', permission: 'read' }),
@@ -592,11 +575,6 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
-        // Use `permission: 'read'` here so the rejection path runs the
-        // real authz logic (mount row absent → 403). I7 caps stub-authz
-        // scopes at read; with the default 'write' the test would
-        // short-circuit at the I7 gate and never exercise the mount
-        // check we're trying to verify.
         const dto = makeDto({ logicalKey, permission: 'read' });
         await expect(
           service.issueToken(dto, BOT_USER_ID, TENANT_ID),
@@ -654,7 +632,6 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
-        // permission: 'read' — see the agent.* tests above for rationale.
         const dto = makeDto({
           logicalKey,
           sessionId: DM_SESSION_ID,
@@ -741,7 +718,6 @@ describe('FolderTokenService', () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount(null);
 
-        // permission: 'read' required by I7 — see agent.* tests.
         const dto = makeDto({
           logicalKey,
           sessionId: DM_SESSION_ID,
@@ -824,10 +800,8 @@ describe('FolderTokenService', () => {
 
   // ── TTL on real authz path ────────────────────────────────────────────────
   //
-  // After I7, stub-authz logical keys (agent.*, session.*, user.*,
-  // routine.{tmp,home}) are read-only. Read tokens use a 6h TTL on
-  // those scopes. (The `propose` 1h-TTL path remains exercised
-  // indirectly via routine.document tests above.)
+  // Read tokens use a 6h TTL on non-document scopes. Write and
+  // propose tokens use the shorter 1h window.
   describe('TTL on real authz path', () => {
     it('uses 6h read TTL on agent.home with permission=read', async () => {
       queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
