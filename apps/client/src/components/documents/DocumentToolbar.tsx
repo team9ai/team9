@@ -18,20 +18,48 @@ import {
 import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
 import { $createQuoteNode, $isQuoteNode } from "@lexical/rich-text";
 import { $setBlocksType } from "@lexical/selection";
-import { Bold, Italic, List, ListOrdered, Code, Quote } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Code,
+  Quote,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function DocumentToolbar() {
+interface OverlayPosition {
+  x: number;
+  y: number;
+}
+
+interface OverlayState {
+  toolbar: OverlayPosition | null;
+  block: OverlayPosition | null;
+}
+
+export function DocumentFormattingOverlay() {
   const [editor] = useLexicalComposerContext();
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [isCode, setIsCode] = useState(false);
   const [isQuote, setIsQuote] = useState(false);
   const [listType, setListType] = useState<"bullet" | "number" | null>(null);
+  const [overlay, setOverlay] = useState<OverlayState>({
+    toolbar: null,
+    block: null,
+  });
 
   const updateToolbar = useCallback(() => {
     const selection = $getSelection();
+    const rootElement = editor.getRootElement();
+    if (!rootElement) {
+      setOverlay({ toolbar: null, block: null });
+      return;
+    }
+
     if ($isRangeSelection(selection)) {
       setIsBold(selection.hasFormat("bold"));
       setIsItalic(selection.hasFormat("italic"));
@@ -57,7 +85,50 @@ export function DocumentToolbar() {
         // Check for quote
         setIsQuote($isQuoteNode(element));
       }
+
+      const rootRect = rootElement.getBoundingClientRect();
+      const blockRect = elementDOM?.getBoundingClientRect();
+      const block =
+        elementDOM && blockRect
+          ? {
+              x: 4,
+              y: blockRect.top - rootRect.top + rootElement.scrollTop + 2,
+            }
+          : null;
+
+      const nativeSelection = window.getSelection();
+      const range =
+        nativeSelection && nativeSelection.rangeCount > 0
+          ? nativeSelection.getRangeAt(0)
+          : null;
+      const selectedText = nativeSelection?.toString().trim() ?? "";
+      const selectionRect = range?.getBoundingClientRect();
+      const hasVisibleSelection =
+        selectedText.length > 0 &&
+        !selection.isCollapsed() &&
+        selectionRect !== undefined &&
+        selectionRect.width > 0 &&
+        selectionRect.height > 0;
+      const toolbar =
+        hasVisibleSelection && selectionRect
+          ? {
+              x:
+                selectionRect.left -
+                rootRect.left +
+                rootElement.scrollLeft +
+                selectionRect.width / 2,
+              y: Math.max(
+                0,
+                selectionRect.top - rootRect.top + rootElement.scrollTop - 42,
+              ),
+            }
+          : null;
+
+      setOverlay({ toolbar, block });
+      return;
     }
+
+    setOverlay({ toolbar: null, block: null });
   }, [editor]);
 
   useEffect(() => {
@@ -70,11 +141,37 @@ export function DocumentToolbar() {
       editor.registerCommand(
         SELECTION_CHANGE_COMMAND,
         () => {
-          updateToolbar();
+          window.requestAnimationFrame(() => {
+            editor.getEditorState().read(updateToolbar);
+          });
           return false;
         },
         COMMAND_PRIORITY_CRITICAL,
       ),
+      editor.registerRootListener((rootElement, previousRootElement) => {
+        const handleRootEvent = () => {
+          window.requestAnimationFrame(() => {
+            editor.getEditorState().read(updateToolbar);
+          });
+        };
+
+        previousRootElement?.removeEventListener("keyup", handleRootEvent);
+        previousRootElement?.removeEventListener("mouseup", handleRootEvent);
+        previousRootElement?.removeEventListener("focus", handleRootEvent);
+        previousRootElement?.removeEventListener("blur", handleRootEvent);
+
+        rootElement?.addEventListener("keyup", handleRootEvent);
+        rootElement?.addEventListener("mouseup", handleRootEvent);
+        rootElement?.addEventListener("focus", handleRootEvent);
+        rootElement?.addEventListener("blur", handleRootEvent);
+
+        return () => {
+          rootElement?.removeEventListener("keyup", handleRootEvent);
+          rootElement?.removeEventListener("mouseup", handleRootEvent);
+          rootElement?.removeEventListener("focus", handleRootEvent);
+          rootElement?.removeEventListener("blur", handleRootEvent);
+        };
+      }),
     );
   }, [editor, updateToolbar]);
 
@@ -119,83 +216,149 @@ export function DocumentToolbar() {
     });
   };
 
+  const insertParagraphAfterBlock = () => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      const anchorNode = selection.anchor.getNode();
+      const element =
+        anchorNode.getKey() === "root"
+          ? null
+          : anchorNode.getTopLevelElementOrThrow();
+      if (!element) return;
+      const next = $createParagraphNode();
+      element.insertAfter(next);
+      next.selectStart();
+    });
+    editor.focus();
+  };
+
+  const keepSelection = (event: React.MouseEvent) => {
+    event.preventDefault();
+  };
+
   return (
-    <div className="flex items-center gap-1 pb-2 border-b border-border">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatBold}
-        className={cn("h-7 w-7 p-0", isBold && "bg-primary/10 text-primary")}
-        title="Bold (Ctrl+B)"
-      >
-        <Bold size={14} />
-      </Button>
+    <>
+      {overlay.block && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onMouseDown={keepSelection}
+          onClick={insertParagraphAfterBlock}
+          className="absolute z-10 h-6 w-6 p-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          style={{ left: overlay.block.x, top: overlay.block.y }}
+          title="Insert block"
+          data-testid="document-block-insert-button"
+        >
+          <Plus size={14} />
+        </Button>
+      )}
+      {overlay.toolbar && (
+        <div
+          className="absolute z-20 flex items-center gap-1 rounded-md border border-border bg-popover px-1 py-1 text-popover-foreground shadow-md"
+          style={{
+            left: overlay.toolbar.x,
+            top: overlay.toolbar.y,
+            transform: "translateX(-50%)",
+          }}
+          data-testid="document-floating-toolbar"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={formatBold}
+            className={cn(
+              "h-7 w-7 p-0",
+              isBold && "bg-primary/10 text-primary",
+            )}
+            title="Bold (Ctrl+B)"
+          >
+            <Bold size={14} />
+          </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatItalic}
-        className={cn("h-7 w-7 p-0", isItalic && "bg-primary/10 text-primary")}
-        title="Italic (Ctrl+I)"
-      >
-        <Italic size={14} />
-      </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={formatItalic}
+            className={cn(
+              "h-7 w-7 p-0",
+              isItalic && "bg-primary/10 text-primary",
+            )}
+            title="Italic (Ctrl+I)"
+          >
+            <Italic size={14} />
+          </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatCode}
-        className={cn("h-7 w-7 p-0", isCode && "bg-primary/10 text-primary")}
-        title="Inline Code"
-      >
-        <Code size={14} />
-      </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={formatCode}
+            className={cn(
+              "h-7 w-7 p-0",
+              isCode && "bg-primary/10 text-primary",
+            )}
+            title="Inline Code"
+          >
+            <Code size={14} />
+          </Button>
 
-      <div className="w-px h-5 bg-muted mx-1" />
+          <div className="w-px h-5 bg-muted mx-1" />
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatBulletList}
-        className={cn(
-          "h-7 w-7 p-0",
-          listType === "bullet" && "bg-primary/10 text-primary",
-        )}
-        title="Bullet List"
-      >
-        <List size={14} />
-      </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={formatBulletList}
+            className={cn(
+              "h-7 w-7 p-0",
+              listType === "bullet" && "bg-primary/10 text-primary",
+            )}
+            title="Bullet List"
+          >
+            <List size={14} />
+          </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatNumberedList}
-        className={cn(
-          "h-7 w-7 p-0",
-          listType === "number" && "bg-primary/10 text-primary",
-        )}
-        title="Numbered List"
-      >
-        <ListOrdered size={14} />
-      </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={formatNumberedList}
+            className={cn(
+              "h-7 w-7 p-0",
+              listType === "number" && "bg-primary/10 text-primary",
+            )}
+            title="Numbered List"
+          >
+            <ListOrdered size={14} />
+          </Button>
 
-      <div className="w-px h-5 bg-muted mx-1" />
+          <div className="w-px h-5 bg-muted mx-1" />
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={toggleQuote}
-        className={cn("h-7 w-7 p-0", isQuote && "bg-primary/10 text-primary")}
-        title="Quote"
-      >
-        <Quote size={14} />
-      </Button>
-    </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onMouseDown={keepSelection}
+            onClick={toggleQuote}
+            className={cn(
+              "h-7 w-7 p-0",
+              isQuote && "bg-primary/10 text-primary",
+            )}
+            title="Quote"
+          >
+            <Quote size={14} />
+          </Button>
+        </div>
+      )}
+    </>
   );
 }

@@ -23,7 +23,7 @@ import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { editorTheme } from "@/components/channel/editor/themes/editorTheme";
 import { DOCUMENT_MARKDOWN_TRANSFORMERS } from "./markdownTransformers";
-import { DocumentToolbar } from "./DocumentToolbar";
+import { DocumentFormattingOverlay } from "./DocumentToolbar";
 import { cn } from "@/lib/utils";
 
 interface DocumentEditorProps {
@@ -36,7 +36,7 @@ interface DocumentEditorProps {
 
 function Placeholder({ text }: { text: string }) {
   return (
-    <div className="absolute top-0 left-0 text-muted-foreground pointer-events-none select-none text-sm">
+    <div className="absolute top-0 left-8 text-muted-foreground pointer-events-none select-none text-sm">
       {text}
     </div>
   );
@@ -128,7 +128,6 @@ export function DocumentEditor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className={cn("flex flex-col", className)}>
-        {!readOnly && <DocumentToolbar />}
         <div
           className={cn(
             "relative flex-1 overflow-y-auto mt-2",
@@ -139,7 +138,7 @@ export function DocumentEditor({
             contentEditable={
               <ContentEditable
                 className={cn(
-                  "outline-none text-sm leading-relaxed min-h-[120px]",
+                  "outline-none text-sm leading-relaxed min-h-[120px] pl-8",
                   readOnly && "cursor-default",
                 )}
                 aria-placeholder={placeholder}
@@ -155,6 +154,7 @@ export function DocumentEditor({
           />
           <CodeHighlightPlugin />
           <OnChangePlugin onChange={handleChange} />
+          {!readOnly && <DocumentFormattingOverlay />}
           <InitialContentPlugin
             content={initialContent}
             transformers={DOCUMENT_MARKDOWN_TRANSFORMERS}

@@ -11,6 +11,7 @@ import { useWikiStore } from "@/stores/useWikiStore";
 import type { WikiDto, TreeEntryDto } from "@/types/wiki";
 
 const mockUseWikiTree = vi.hoisted(() => vi.fn());
+const mockUseWikiPage = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockCommit = vi.hoisted(() => vi.fn());
 const archiveMutateAsync = vi.hoisted(() =>
@@ -20,6 +21,10 @@ const archivePending = vi.hoisted(() => ({ value: false }));
 
 vi.mock("@/hooks/useWikiTree", () => ({
   useWikiTree: (...args: unknown[]) => mockUseWikiTree(...args),
+}));
+
+vi.mock("@/hooks/useWikiPage", () => ({
+  useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -198,6 +203,8 @@ const treeEntries: TreeEntryDto[] = [
 describe("WikiListItem", () => {
   beforeEach(() => {
     mockUseWikiTree.mockReset();
+    mockUseWikiPage.mockReset();
+    mockUseWikiPage.mockReturnValue({ data: undefined });
     mockNavigate.mockReset();
     mockCommit.mockReset();
     mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
@@ -273,6 +280,32 @@ describe("WikiListItem", () => {
 
     const iconBadge = screen.getByTestId("wiki-list-item-icon-wiki-1");
     expect(iconBadge).toHaveTextContent("📚");
+  });
+
+  it("uses the root index frontmatter title and icon while the wiki row is active", () => {
+    act(() => {
+      useWikiStore.getState().setSelectedWiki("wiki-1");
+      useWikiStore.getState().setSelectedPage("index.md9");
+    });
+    mockUseWikiTree.mockReturnValue({ data: undefined });
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        path: "index.md9",
+        content: "",
+        encoding: "text",
+        frontmatter: { title: "Public Handbook", icon: "📘" },
+        lastCommit: null,
+      },
+    });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    expect(screen.getByTestId("wiki-list-item-open-wiki-1")).toHaveTextContent(
+      /Public Handbook/,
+    );
+    expect(screen.getByTestId("wiki-list-item-icon-wiki-1")).toHaveTextContent(
+      "📘",
+    );
   });
 
   it("shows create and upload actions in the row create menu", async () => {

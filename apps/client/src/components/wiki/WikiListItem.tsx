@@ -29,6 +29,7 @@ import {
   stripWikiPageExtension,
 } from "@/lib/wiki-paths";
 import { wikisApi } from "@/services/api/wikis";
+import { useWikiPage } from "@/hooks/useWikiPage";
 import { wikiKeys } from "@/hooks/useWikis";
 import { WikiTreeNode } from "./WikiTreeNode";
 import { WikiSettingsDialog } from "./WikiSettingsDialog";
@@ -181,8 +182,23 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
   const navigate = useNavigate();
   const selectedWikiId = useSelectedWikiId();
   const selectedPagePath = useWikiStore((s) => s.selectedPagePath);
+  const shouldReadRootDocument = isOpen || selectedWikiId === wiki.id;
+  const { data: rootPage } = useWikiPage(
+    wiki.id,
+    shouldReadRootDocument ? DEFAULT_WIKI_INDEX_PATH : null,
+  );
   const isRootDocumentSelected =
     selectedWikiId === wiki.id && selectedPagePath === DEFAULT_WIKI_INDEX_PATH;
+  const rootTitle =
+    typeof rootPage?.frontmatter.title === "string" &&
+    rootPage.frontmatter.title.trim().length > 0
+      ? rootPage.frontmatter.title.trim()
+      : wiki.name;
+  const rootIcon =
+    typeof rootPage?.frontmatter.icon === "string" &&
+    rootPage.frontmatter.icon.trim().length > 0
+      ? rootPage.frontmatter.icon.trim()
+      : wiki.icon;
   const existingPaths = useMemo(
     () =>
       new Set(
@@ -325,13 +341,13 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-2 text-left text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid={`wiki-list-item-open-${wiki.id}`}
         >
-          {wiki.icon ? (
+          {rootIcon ? (
             <span
               aria-hidden="true"
               className="inline-flex h-[14px] w-[14px] items-center justify-center text-[12px] leading-none"
               data-testid={`wiki-list-item-icon-${wiki.id}`}
             >
-              {wiki.icon}
+              {rootIcon}
             </span>
           ) : (
             <LibraryIcon
@@ -339,14 +355,14 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               className="text-primary group-hover/wiki-row:text-foreground"
             />
           )}
-          <span className="truncate">{wiki.name}</span>
+          <span className="truncate">{rootTitle}</span>
         </button>
         <DropdownMenu open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={t("listItem.createMenuLabel", { name: wiki.name })}
-              title={t("listItem.createMenuLabel", { name: wiki.name })}
+              aria-label={t("listItem.createMenuLabel", { name: rootTitle })}
+              title={t("listItem.createMenuLabel", { name: rootTitle })}
               data-testid={`wiki-list-item-create-${wiki.id}`}
               disabled={isCreatingFile}
               className={cn(
@@ -390,7 +406,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={t("listItem.actionsLabel", { name: wiki.name })}
+              aria-label={t("listItem.actionsLabel", { name: rootTitle })}
               data-testid={`wiki-list-item-kebab-${wiki.id}`}
               className={cn(
                 "mr-2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground group-hover/wiki-row:text-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
