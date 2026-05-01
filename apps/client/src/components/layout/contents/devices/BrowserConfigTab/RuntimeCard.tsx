@@ -169,6 +169,12 @@ export function RuntimeCard() {
           translated = t("browser.errors.runtimeNotStarted");
         else if (raw === "browser_runtime_unavailable_in_web")
           translated = t("browser.errors.unavailableInWeb");
+        else if (raw === "config_load_failed")
+          translated = t("browser.errors.configLoadFailed");
+        else if (raw === "config_write_failed")
+          translated = t("browser.errors.configWriteFailed");
+        else if (raw === "config_final_load_failed")
+          translated = t("browser.errors.configFinalLoadFailed");
         toast.error(translated);
       }
     } else {

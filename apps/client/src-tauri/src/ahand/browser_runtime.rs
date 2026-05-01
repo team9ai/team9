@@ -375,7 +375,10 @@ pub async fn browser_status(state: State<'_, AhandRuntime>) -> Result<BrowserSta
         .config_path()
         .await
         .ok_or_else(|| "ahand runtime not started — call ahand_start first".to_string())?;
-    let config = Config::load(&config_path).map_err(|e| format!("config load: {e:#}"))?;
+    let config = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_status: config load failed: {e:#}");
+        "config_load_failed".to_string()
+    })?;
     let enabled = config.browser_config().enabled.unwrap_or(false);
     let daemon_online = matches!(
         state.status().await,
@@ -540,8 +543,10 @@ pub async fn browser_install(
     } else {
         reports_for_status
     };
-    let config_after =
-        Config::load(&config_path).map_err(|e| format!("config final load: {e:#}"))?;
+    let config_after = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_install: config final load failed: {e:#}");
+        "config_final_load_failed".to_string()
+    })?;
     let enabled_after = config_after.browser_config().enabled.unwrap_or(false);
     let agent_visible = enabled_after
         && matches!(
@@ -585,10 +590,16 @@ pub async fn browser_set_enabled(
         }
     }
 
-    let mut cfg = Config::load(&config_path).map_err(|e| format!("config load: {e:#}"))?;
+    let mut cfg = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_set_enabled: config load failed: {e:#}");
+        "config_load_failed".to_string()
+    })?;
     let old = cfg
         .set_browser_enabled(&config_path, enabled)
-        .map_err(|e| format!("config write: {e:#}"))?;
+        .map_err(|e| {
+            eprintln!("browser_set_enabled: config write failed: {e:#}");
+            "config_write_failed".to_string()
+        })?;
 
     // No-op optimisation: skip the reload if the value didn't actually
     // change. Saves ~3-5s of daemon shutdown/respawn time.
@@ -616,8 +627,10 @@ pub async fn browser_set_enabled(
     }
 
     let reports = browser_setup::inspect_all().await;
-    let config_after =
-        Config::load(&config_path).map_err(|e| format!("config final load: {e:#}"))?;
+    let config_after = Config::load(&config_path).map_err(|e| {
+        eprintln!("browser_set_enabled: config final load failed: {e:#}");
+        "config_final_load_failed".to_string()
+    })?;
     let enabled_after = config_after.browser_config().enabled.unwrap_or(false);
     let agent_visible = enabled_after
         && matches!(
