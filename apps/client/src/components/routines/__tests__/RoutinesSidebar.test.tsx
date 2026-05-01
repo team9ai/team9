@@ -128,6 +128,34 @@ describe("RoutinesSidebar", () => {
     });
   });
 
+  it("opens an existing draft creation session when clicking the draft card title", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "draft-title-click",
+        title: "Clickable Draft",
+        status: "draft",
+        createdAt: new Date().toISOString(),
+        botId: "bot-1",
+        tokenUsage: 0,
+        creationChannelId: "ch-creation-1",
+      },
+    ]);
+
+    renderSidebar({ selectedRoutineId: null, selectedExecutionId: null });
+
+    fireEvent.click(await screen.findByText("Clickable Draft"));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/routines/$routineId/runs/$executionId",
+        params: {
+          routineId: "draft-title-click",
+          executionId: "creation",
+        },
+      });
+    });
+  });
+
   it("filters routines by tab — clicking 'finished' hides in_progress routines", async () => {
     mockList.mockResolvedValue([
       {
@@ -235,6 +263,37 @@ describe("RoutinesSidebar", () => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/routines/$routineId",
         params: { routineId: "r1" },
+      });
+    });
+  });
+
+  it("navigates to detail page when clicking non-draft routine card body", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-body",
+        title: "Body Click Routine",
+        description: "Clicking this description should open the routine",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: null,
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    renderSidebar({ selectedRoutineId: null, selectedExecutionId: null });
+
+    fireEvent.click(
+      await screen.findByText(
+        "Clicking this description should open the routine",
+      ),
+    );
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/routines/$routineId",
+        params: { routineId: "r-body" },
       });
     });
   });

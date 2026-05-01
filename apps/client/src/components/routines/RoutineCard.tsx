@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
@@ -86,19 +86,23 @@ export function RoutineCard({
   // Body click navigates to the detail page; chevron toggles expansion.
   // The two are intentionally split so the user can preview active runs
   // (chevron) without leaving the current page.
-  const handleHeaderClick = () => {
+  const handleHeaderClick = (event?: MouseEvent) => {
+    event?.stopPropagation();
     onOpenRoutine();
   };
 
-  const handleChevronClick = () => {
+  const handleChevronClick = (event: MouseEvent) => {
+    event.stopPropagation();
     onToggleExpand();
   };
 
-  const handleSettingsClick = () => {
+  const handleSettingsClick = (event: MouseEvent) => {
+    event.stopPropagation();
     onOpenSettings();
   };
 
-  const handleStartClick = () => {
+  const handleStartClick = (event: MouseEvent) => {
+    event.stopPropagation();
     setShowStartDialog(true);
   };
 
@@ -116,8 +120,9 @@ export function RoutineCard({
 
   return (
     <div
+      onClick={() => handleHeaderClick()}
       className={cn(
-        "rounded-lg border bg-card transition-colors",
+        "rounded-lg border bg-card transition-colors cursor-pointer",
         isActive && "border-primary",
         !isActive && "hover:border-primary/50",
       )}
@@ -205,7 +210,7 @@ export function RoutineCard({
           can act on). Empty active list collapses to header only — no
           "no runs yet" placeholder. */}
       {isExpanded && hasExpandableContent && (
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-3" onClick={(event) => event.stopPropagation()}>
           <div className="ml-3 pl-2 border-l-2 border-border space-y-0.5">
             {activeRuns.map((exec) => (
               <RunItem

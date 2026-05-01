@@ -1,5 +1,5 @@
 // apps/client/src/components/routines/DraftRoutineCard.tsx
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
@@ -74,7 +74,13 @@ export function DraftRoutineCard({
     startMutation.mutate();
   }
 
-  function handleConfirmDelete() {
+  function handleCardClick() {
+    if (!routine.botId || startMutation.isPending) return;
+    handleCompleteCreation();
+  }
+
+  function handleConfirmDelete(event: MouseEvent) {
+    event.stopPropagation();
     deleteMutation.mutate();
     setShowDeleteDialog(false);
   }
@@ -84,9 +90,11 @@ export function DraftRoutineCard({
 
   return (
     <div
+      onClick={handleCardClick}
       className={cn(
         "rounded-md border border-border px-2.5 py-2 text-sm",
         "bg-muted/30 space-y-1.5",
+        routine.botId && !startMutation.isPending && "cursor-pointer",
       )}
     >
       <div className="flex items-center gap-2">
@@ -103,27 +111,34 @@ export function DraftRoutineCard({
           size="icon-sm"
           className="shrink-0 text-muted-foreground hover:text-destructive"
           aria-label={t("draft.delete")}
-          onClick={() => setShowDeleteDialog(true)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setShowDeleteDialog(true);
+          }}
           disabled={deleteMutation.isPending}
         >
           <Trash2 size={14} />
         </Button>
       </div>
 
-      <CreationSessionRunItem
-        isSelected={isCreationSelected}
-        onClick={handleCompleteCreation}
-        isPending={startMutation.isPending}
-        disabled={!routine.botId}
-        title={
-          !routine.botId
-            ? t(
-                "draft.noBotTooltip",
-                "Assign an agent to this draft before starting creation",
-              )
-            : undefined
-        }
-      />
+      <div onClick={(event) => event.stopPropagation()}>
+        <CreationSessionRunItem
+          isSelected={isCreationSelected}
+          onClick={() => {
+            handleCompleteCreation();
+          }}
+          isPending={startMutation.isPending}
+          disabled={!routine.botId}
+          title={
+            !routine.botId
+              ? t(
+                  "draft.noBotTooltip",
+                  "Assign an agent to this draft before starting creation",
+                )
+              : undefined
+          }
+        />
+      </div>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="max-w-sm">
