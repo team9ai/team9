@@ -22,7 +22,6 @@ import {
   DEFAULT_WIKI_INDEX_FILENAME,
   DEFAULT_WIKI_INDEX_PATH,
   LEGACY_WIKI_INDEX_FILENAME,
-  WIKI_PAGE_EXTENSION,
   stripWikiPageExtension,
 } from "@/lib/wiki-paths";
 import { wikisApi } from "@/services/api/wikis";
@@ -78,29 +77,28 @@ function archiveErrorMessage(error: unknown): string {
   return i18n.t("wiki:settings.errors.archiveFailed");
 }
 
-function normalizePagePath(input: string): string | null {
-  const trimmed = input.trim().replace(/^\/+/, "");
+function normalizePageFolderIndexPath(input: string): string | null {
+  let trimmed = input.trim().replace(/^\/+|\/+$/g, "");
   if (!trimmed) return null;
-  if (trimmed.endsWith("/")) return `${trimmed}${DEFAULT_WIKI_INDEX_FILENAME}`;
-  if (/\.md$/i.test(trimmed))
-    return trimmed.replace(/\.md$/i, WIKI_PAGE_EXTENSION);
-  return /\.[^/.]+$/.test(trimmed)
-    ? trimmed
-    : `${trimmed}${WIKI_PAGE_EXTENSION}`;
+  trimmed = trimmed.replace(/\.md9?$/i, "");
+  if (!trimmed) return null;
+  return `${trimmed}/${DEFAULT_WIKI_INDEX_FILENAME}`;
 }
 
-function uniquePath(path: string, existingPaths: Set<string>): string {
+function uniqueFolderIndexPath(
+  path: string,
+  existingPaths: Set<string>,
+): string {
   if (!existingPaths.has(path)) return path;
-  const dot = path.lastIndexOf(".");
-  const slash = path.lastIndexOf("/");
-  const hasExt = dot > slash;
-  const stem = hasExt ? path.slice(0, dot) : path;
-  const ext = hasExt ? path.slice(dot) : "";
+  const suffix = `/${DEFAULT_WIKI_INDEX_FILENAME}`;
+  const folderPath = path.endsWith(suffix)
+    ? path.slice(0, -suffix.length)
+    : path;
   for (let i = 2; i < 1000; i += 1) {
-    const candidate = `${stem}-${i}${ext}`;
+    const candidate = `${folderPath}-${i}${suffix}`;
     if (!existingPaths.has(candidate)) return candidate;
   }
-  return `${stem}-${Date.now()}${ext}`;
+  return `${folderPath}-${Date.now()}${suffix}`;
 }
 
 /**
@@ -243,19 +241,14 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
 
   const handleCreatePage = () => {
     if (isCreatingFile) return;
-    const input = window.prompt(
-      t("listItem.newPagePrompt"),
-      `untitled${WIKI_PAGE_EXTENSION}`,
-    );
+    const input = window.prompt(t("listItem.newPagePrompt"), "untitled");
     if (input === null) return;
-    const normalized = normalizePagePath(input);
+    const normalized = normalizePageFolderIndexPath(input);
     if (!normalized) return;
-    const path = uniquePath(normalized, existingPaths);
-    void createFile(
-      path,
-      `# ${stripWikiPageExtension(path).split("/").pop()}\n\n`,
-      "text",
-    );
+    const path = uniqueFolderIndexPath(normalized, existingPaths);
+    const pathSegments = path.split("/");
+    const title = pathSegments[pathSegments.length - 2] ?? "untitled";
+    void createFile(path, `# ${stripWikiPageExtension(title)}\n\n`, "text");
   };
 
   return (

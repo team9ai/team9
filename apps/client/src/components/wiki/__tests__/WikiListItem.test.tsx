@@ -323,7 +323,7 @@ describe("WikiListItem", () => {
     expect(screen.queryByRole("menuitem", { name: /upload file/i })).toBeNull();
   });
 
-  it("creates a new markdown page directly from the row create button", async () => {
+  it("creates a new page folder directly from the row create button", async () => {
     vi.mocked(window.prompt).mockReturnValue("Roadmap");
     act(() => {
       useWikiStore.getState().toggleDirectory("wiki:wiki-1");
@@ -338,10 +338,10 @@ describe("WikiListItem", () => {
 
     await waitFor(() => {
       expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
-        message: "Create Roadmap.md9",
+        message: "Create Roadmap/index.md9",
         files: [
           {
-            path: "Roadmap.md9",
+            path: "Roadmap/index.md9",
             content: "# Roadmap\n\n",
             encoding: "text",
             action: "create",
@@ -352,7 +352,44 @@ describe("WikiListItem", () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/wiki/$wikiSlug/$",
-        params: { wikiSlug: "public", _splat: "Roadmap.md9" },
+        params: { wikiSlug: "public", _splat: "Roadmap/index.md9" },
+      });
+    });
+  });
+
+  it("deduplicates new page folders by renaming the folder segment", async () => {
+    vi.mocked(window.prompt).mockReturnValue("Roadmap");
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+    });
+    mockUseWikiTree.mockReturnValue({
+      data: [
+        {
+          name: "index.md9",
+          path: "Roadmap/index.md9",
+          type: "file",
+          size: 1,
+        },
+      ],
+    });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-list-item-create-wiki-1"));
+    });
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Create Roadmap-2/index.md9",
+        files: [
+          {
+            path: "Roadmap-2/index.md9",
+            content: "# Roadmap-2\n\n",
+            encoding: "text",
+            action: "create",
+          },
+        ],
       });
     });
   });
