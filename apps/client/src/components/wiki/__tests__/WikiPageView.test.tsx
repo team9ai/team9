@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageDto, WikiDto } from "@/types/wiki";
 
 const mockUseWikiPage = vi.hoisted(() => vi.fn());
@@ -7,6 +7,7 @@ const mockUseWikis = vi.hoisted(() => vi.fn());
 const mockUseSubmittedProposal = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockCommit = vi.hoisted(() => vi.fn());
+const mockSetSubmittedProposal = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiPage", () => ({
   useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
@@ -19,6 +20,10 @@ vi.mock("@/hooks/useWikis", () => ({
 vi.mock("@/stores/useWikiStore", () => ({
   useSubmittedProposal: (...args: unknown[]) =>
     mockUseSubmittedProposal(...args),
+  wikiActions: {
+    setSubmittedProposal: (...args: unknown[]) =>
+      mockSetSubmittedProposal(...args),
+  },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -51,8 +56,22 @@ vi.mock("../WikiCover", () => ({
 }));
 
 vi.mock("../WikiPageHeader", () => ({
-  WikiPageHeader: ({ wikiSlug, path }: { wikiSlug: string; path: string }) => (
-    <div data-testid="header-stub" data-slug={wikiSlug} data-path={path} />
+  WikiPageHeader: ({
+    wikiSlug,
+    path,
+    onFrontmatterChange,
+  }: {
+    wikiSlug: string;
+    path: string;
+    onFrontmatterChange?: (next: Record<string, unknown>) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="header-stub"
+      data-slug={wikiSlug}
+      data-path={path}
+      onClick={() => onFrontmatterChange?.({ title: "Renamed", icon: "🎨" })}
+    />
   ),
 }));
 
@@ -113,7 +132,13 @@ beforeEach(() => {
   mockUseSubmittedProposal.mockReturnValue(null);
   mockNavigate.mockReset();
   mockCommit.mockReset();
+  mockSetSubmittedProposal.mockReset();
   mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
+  vi.spyOn(window, "alert").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("WikiPageView", () => {
@@ -207,6 +232,36 @@ describe("WikiPageView", () => {
     expect(screen.getByTestId("cover-stub")).toBeInTheDocument();
     expect(screen.getByTestId("header-stub").dataset.slug).toBe("handbook");
     expect(screen.getByTestId("editor-stub").dataset.path).toBe("index.md");
+  });
+
+  it("commits title and emoji metadata changes from the page header", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        ...page,
+        path: "index.md9",
+        content: "Body",
+        frontmatter: { title: "Old", icon: "📄" },
+      },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    fireEvent.click(screen.getByTestId("header-stub"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Update index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content: "---\ntitle: Renamed\nicon: 🎨\n---\n\nBody",
+            encoding: "text",
+            action: "update",
+          },
+        ],
+      });
+    });
   });
 
   it("passes coverPath=null when frontmatter.cover is missing", () => {

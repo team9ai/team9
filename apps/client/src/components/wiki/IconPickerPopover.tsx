@@ -22,6 +22,7 @@ export interface IconPickerPopoverProps {
    * opening. Used for read-only viewers (permission === "read").
    */
   disabled?: boolean;
+  className?: string;
 }
 
 /**
@@ -37,6 +38,7 @@ export function IconPickerPopover({
   value,
   onChange,
   disabled = false,
+  className,
 }: IconPickerPopoverProps) {
   const { t } = useTranslation("wiki");
   const [open, setOpen] = useState(false);
@@ -58,6 +60,7 @@ export function IconPickerPopover({
             "inline-flex items-center justify-center w-9 h-9 rounded-md border border-border bg-background text-lg",
             "hover:bg-muted transition-colors",
             "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background",
+            className,
           )}
         >
           <span aria-hidden="true">

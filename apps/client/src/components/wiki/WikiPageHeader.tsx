@@ -1,6 +1,8 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { stripWikiPageExtension } from "@/lib/wiki-paths";
+import { cn } from "@/lib/utils";
+import { IconPickerPopover } from "./IconPickerPopover";
 
 interface WikiPageHeaderProps {
   wikiSlug: string;
@@ -8,6 +10,9 @@ interface WikiPageHeaderProps {
   path: string;
   frontmatter: Record<string, unknown>;
   body: string;
+  readOnly?: boolean;
+  isSavingMetadata?: boolean;
+  onFrontmatterChange?: (next: Record<string, unknown>) => void;
 }
 
 /**
@@ -55,18 +60,52 @@ export function WikiPageHeader({
   path,
   frontmatter,
   body,
+  readOnly = true,
+  isSavingMetadata = false,
+  onFrontmatterChange,
 }: WikiPageHeaderProps) {
   const icon = iconFor(frontmatter);
   const title = extractTitle(path, frontmatter, body);
+  const canEdit = !readOnly && onFrontmatterChange !== undefined;
+  const [draftTitle, setDraftTitle] = useState(title);
   const segments = path ? path.split("/").slice(0, -1) : [];
+
+  useEffect(() => {
+    setDraftTitle(title);
+  }, [title]);
+
+  const commitTitle = () => {
+    if (!canEdit || isSavingMetadata) return;
+    const nextTitle = draftTitle.trim();
+    const currentTitle =
+      typeof frontmatter.title === "string" ? frontmatter.title.trim() : "";
+    if (nextTitle === currentTitle || nextTitle.length === 0) {
+      if (nextTitle.length === 0) setDraftTitle(title);
+      return;
+    }
+    onFrontmatterChange?.({ ...frontmatter, title: nextTitle });
+  };
+
+  const handleIconChange = (nextIcon: string) => {
+    if (!canEdit || isSavingMetadata) return;
+    onFrontmatterChange?.({ ...frontmatter, icon: nextIcon });
+  };
 
   return (
     <header className="relative px-12 pb-3 pt-8">
-      <div
-        data-testid="wiki-page-icon"
-        className="absolute -top-7 left-12 w-14 h-14 flex items-center justify-center text-4xl bg-background rounded-lg shadow-lg"
-      >
-        {icon}
+      <div data-testid="wiki-page-icon" className="absolute -top-7 left-12">
+        {canEdit ? (
+          <IconPickerPopover
+            value={icon}
+            onChange={handleIconChange}
+            disabled={isSavingMetadata}
+            className="w-14 h-14 text-4xl rounded-lg shadow-lg border-0"
+          />
+        ) : (
+          <div className="w-14 h-14 flex items-center justify-center text-4xl bg-background rounded-lg shadow-lg">
+            {icon}
+          </div>
+        )}
       </div>
       <nav
         aria-label="breadcrumb"
@@ -86,7 +125,32 @@ export function WikiPageHeader({
           </Fragment>
         ))}
       </nav>
-      <h1 className="text-3xl font-bold">{title}</h1>
+      {canEdit ? (
+        <input
+          aria-label="Page title"
+          data-testid="wiki-page-title-input"
+          value={draftTitle}
+          disabled={isSavingMetadata}
+          onChange={(event) => setDraftTitle(event.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+            if (event.key === "Escape") {
+              setDraftTitle(title);
+              event.currentTarget.blur();
+            }
+          }}
+          className={cn(
+            "w-full bg-transparent text-3xl font-bold outline-none",
+            "rounded-sm focus-visible:ring-2 focus-visible:ring-ring",
+            "disabled:opacity-60",
+          )}
+        />
+      ) : (
+        <h1 className="text-3xl font-bold">{title}</h1>
+      )}
     </header>
   );
 }

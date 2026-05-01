@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { extractTitle, WikiPageHeader } from "../WikiPageHeader";
 
@@ -20,6 +20,25 @@ vi.mock("@tanstack/react-router", () => ({
     >
       {children}
     </a>
+  ),
+}));
+
+vi.mock("../IconPickerPopover", () => ({
+  IconPickerPopover: (props: {
+    value?: string;
+    onChange: (icon: string) => void;
+    disabled?: boolean;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-icon-picker"
+      disabled={props.disabled}
+      className={props.className}
+      onClick={() => props.onChange("🎨")}
+    >
+      {props.value ?? "📄"}
+    </button>
   ),
 }));
 
@@ -154,5 +173,51 @@ describe("WikiPageHeader", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "getting-started",
     );
+  });
+
+  it("renders an editable title input when metadata editing is enabled", () => {
+    const onFrontmatterChange = vi.fn();
+    render(
+      <WikiPageHeader
+        wikiSlug="public"
+        path="index.md9"
+        frontmatter={{ title: "Home", icon: "🚀" }}
+        body=""
+        readOnly={false}
+        onFrontmatterChange={onFrontmatterChange}
+      />,
+    );
+
+    const input = screen.getByTestId("wiki-page-title-input");
+    expect(input).toHaveValue("Home");
+
+    fireEvent.change(input, { target: { value: "Updated" } });
+    fireEvent.blur(input);
+
+    expect(onFrontmatterChange).toHaveBeenCalledWith({
+      title: "Updated",
+      icon: "🚀",
+    });
+  });
+
+  it("renders an editable emoji picker when metadata editing is enabled", () => {
+    const onFrontmatterChange = vi.fn();
+    render(
+      <WikiPageHeader
+        wikiSlug="public"
+        path="index.md9"
+        frontmatter={{ title: "Home", icon: "🚀" }}
+        body=""
+        readOnly={false}
+        onFrontmatterChange={onFrontmatterChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("mock-icon-picker"));
+
+    expect(onFrontmatterChange).toHaveBeenCalledWith({
+      title: "Home",
+      icon: "🎨",
+    });
   });
 });

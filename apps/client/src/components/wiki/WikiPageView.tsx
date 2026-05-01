@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWikiPage } from "@/hooks/useWikiPage";
 import { useWikis, wikiKeys } from "@/hooks/useWikis";
 import { queryClient } from "@/lib/query-client";
+import { serializeFrontmatter } from "@/lib/wiki-frontmatter";
 import { DEFAULT_WIKI_INDEX_PATH } from "@/lib/wiki-paths";
 import { wikisApi } from "@/services/api/wikis";
-import { useSubmittedProposal } from "@/stores/useWikiStore";
+import { useSubmittedProposal, wikiActions } from "@/stores/useWikiStore";
 import { WikiCover } from "./WikiCover";
 import { WikiEmptyState } from "./WikiEmptyState";
 import { WikiPageHeader } from "./WikiPageHeader";
@@ -53,6 +54,47 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   const [bootstrappingKey, setBootstrappingKey] = useState<string | null>(null);
   const [bootstrapFailedKey, setBootstrapFailedKey] = useState<string | null>(
     null,
+  );
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const canEditMetadata = Boolean(wiki && wiki.humanPermission !== "read");
+
+  const handleFrontmatterChange = useCallback(
+    async (nextFrontmatter: Record<string, unknown>) => {
+      if (!canEditMetadata || !page || page.encoding !== "text") return;
+      setIsSavingMetadata(true);
+      const nextSource = serializeFrontmatter({
+        frontmatter: nextFrontmatter,
+        body: page.content,
+      });
+      try {
+        const result = await wikisApi.commit(wikiId, {
+          message: `Update ${path}`,
+          files: [
+            {
+              path,
+              content: nextSource,
+              encoding: "text",
+              action: "update",
+            },
+          ],
+        });
+        queryClient.setQueryData(wikiKeys.page(wikiId, path), {
+          ...page,
+          frontmatter: nextFrontmatter,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.page(wikiId, path),
+        });
+        if (result.proposal) {
+          wikiActions.setSubmittedProposal(wikiId, path, result.proposal.id);
+        }
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Save failed");
+      } finally {
+        setIsSavingMetadata(false);
+      }
+    },
+    [canEditMetadata, page, path, wikiId],
   );
 
   useEffect(() => {
@@ -173,6 +215,9 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
           path={path}
           frontmatter={page.frontmatter}
           body={page.content}
+          readOnly={!canEditMetadata}
+          isSavingMetadata={isSavingMetadata}
+          onFrontmatterChange={handleFrontmatterChange}
         />
         <div
           data-testid="wiki-page-binary"
@@ -195,6 +240,9 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
         path={path}
         frontmatter={page.frontmatter}
         body={page.content}
+        readOnly={!canEditMetadata}
+        isSavingMetadata={isSavingMetadata}
+        onFrontmatterChange={handleFrontmatterChange}
       />
       {pendingProposalId && (
         <WikiProposalBanner
