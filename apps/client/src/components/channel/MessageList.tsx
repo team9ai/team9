@@ -54,6 +54,11 @@ import {
   decideRoundRender,
   toggleExpandedRound,
 } from "./message-list-fold";
+import {
+  usePendingPermissionRequests,
+  useDecidePermission,
+} from "@/hooks/usePermissions";
+import { PermissionRequestCard } from "@/components/permissions/PermissionRequestCard";
 
 interface MessageListProps {
   messages: Message[];
@@ -719,6 +724,13 @@ export function MessageList({
     ],
   );
 
+  // Pending permission requests for this channel (shown above the composer)
+  const { data: pendingRequests = [] } = usePendingPermissionRequests();
+  const decidePermission = useDecidePermission();
+  const inChannelRequests = pendingRequests.filter(
+    (r) => r.contextChannelId === channelId,
+  );
+
   if (isLoading && listData.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -728,74 +740,104 @@ export function MessageList({
   }
   if (listData.length === 0) {
     return (
-      <EmptyMessageState
-        channelId={channelId}
-        readOnly={readOnly}
-        isPublic={channelType === "public"}
-      />
+      <>
+        <EmptyMessageState
+          channelId={channelId}
+          readOnly={readOnly}
+          isPublic={channelType === "public"}
+        />
+        {inChannelRequests.length > 0 && (
+          <div className="px-4 py-2 space-y-2 bg-muted/40 border-y">
+            {inChannelRequests.map((req) => (
+              <PermissionRequestCard
+                key={req.id}
+                request={{ ...req, requesterBotName: req.requesterBotId }}
+                onDecide={(input) =>
+                  decidePermission.mutate({ requestId: req.id, ...input })
+                }
+              />
+            ))}
+          </div>
+        )}
+      </>
     );
   }
 
   return (
-    <div ref={containerRef} className="flex-1 min-h-0 relative">
-      <Virtuoso
-        ref={virtuosoRef}
-        data={listData}
-        firstItemIndex={firstItemIndex}
-        alignToBottom
-        // Spread exactly one of the two props. Passing `prop={undefined}`
-        // still puts the key on the props object, and react-virtuoso's
-        // dispatcher publishes that undefined into its urx cell, which then
-        // crashes downstream pipelines that expect a number / IndexLocation.
-        {...positionProps}
-        computeItemKey={(_index, item) => {
-          if (item.type === "message") return item.message.id;
-          if (item.type === "stream") return `stream-${item.stream.streamId}`;
-          return `thinking-${item.key}`;
-        }}
-        itemContent={itemContent}
-        startReached={handleStartReached}
-        endReached={handleEndReached}
-        followOutput={handleFollowOutput}
-        atBottomStateChange={handleAtBottomStateChange}
-        atBottomThreshold={150}
-        // Pre-render a tall buffer above and below the viewport so that fast
-        // trackpad/wheel scrolling through heavy messages (images, code
-        // blocks, tool-call cards, A2UI surfaces) doesn't expose blank
-        // regions before React catches up. The prior 300/100 values were
-        // smaller than a single tall message and caused intermittent
-        // "white flash" bands during rapid scrolling.
-        increaseViewportBy={{ top: 1200, bottom: 800 }}
-        className="h-full px-4 overflow-x-hidden"
-        components={{
-          Header: () =>
-            hasMore && isLoading ? (
-              <div className="py-4 flex justify-center">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading more messages...</span>
+    <>
+      <div ref={containerRef} className="flex-1 min-h-0 relative">
+        <Virtuoso
+          ref={virtuosoRef}
+          data={listData}
+          firstItemIndex={firstItemIndex}
+          alignToBottom
+          // Spread exactly one of the two props. Passing `prop={undefined}`
+          // still puts the key on the props object, and react-virtuoso's
+          // dispatcher publishes that undefined into its urx cell, which then
+          // crashes downstream pipelines that expect a number / IndexLocation.
+          {...positionProps}
+          computeItemKey={(_index, item) => {
+            if (item.type === "message") return item.message.id;
+            if (item.type === "stream") return `stream-${item.stream.streamId}`;
+            return `thinking-${item.key}`;
+          }}
+          itemContent={itemContent}
+          startReached={handleStartReached}
+          endReached={handleEndReached}
+          followOutput={handleFollowOutput}
+          atBottomStateChange={handleAtBottomStateChange}
+          atBottomThreshold={150}
+          // Pre-render a tall buffer above and below the viewport so that fast
+          // trackpad/wheel scrolling through heavy messages (images, code
+          // blocks, tool-call cards, A2UI surfaces) doesn't expose blank
+          // regions before React catches up. The prior 300/100 values were
+          // smaller than a single tall message and caused intermittent
+          // "white flash" bands during rapid scrolling.
+          increaseViewportBy={{ top: 1200, bottom: 800 }}
+          className="h-full px-4 overflow-x-hidden"
+          components={{
+            Header: () =>
+              hasMore && isLoading ? (
+                <div className="py-4 flex justify-center">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading more messages...</span>
+                  </div>
                 </div>
-              </div>
-            ) : null,
-          Footer: () =>
-            hasNewer && isLoadingNewer ? (
-              <div className="py-4 flex justify-center">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading newer messages...</span>
+              ) : null,
+            Footer: () =>
+              hasNewer && isLoadingNewer ? (
+                <div className="py-4 flex justify-center">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading newer messages...</span>
+                  </div>
                 </div>
-              </div>
-            ) : null,
-        }}
-      />
-
-      {showIndicator && (
-        <NewMessagesIndicator
-          count={scrollState.context.newMessageCount}
-          onClick={handleJumpToLatest}
+              ) : null,
+          }}
         />
+
+        {showIndicator && (
+          <NewMessagesIndicator
+            count={scrollState.context.newMessageCount}
+            onClick={handleJumpToLatest}
+          />
+        )}
+      </div>
+      {inChannelRequests.length > 0 && (
+        <div className="px-4 py-2 space-y-2 bg-muted/40 border-y">
+          {inChannelRequests.map((req) => (
+            <PermissionRequestCard
+              key={req.id}
+              request={{ ...req, requesterBotName: req.requesterBotId }}
+              onDecide={(input) =>
+                decidePermission.mutate({ requestId: req.id, ...input })
+              }
+            />
+          ))}
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
