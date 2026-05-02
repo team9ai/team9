@@ -8,6 +8,9 @@ module.exports = {
     // The script itself ships outside the gateway runtime bundle (it's a
     // one-off CLI), but its unit tests run alongside the rest of the suite.
     '<rootDir>/scripts/**/*.spec.ts',
+    // Bootstrap / module-wiring smoke tests that live in test/ alongside the
+    // e2e specs but do NOT require live infrastructure (unlike *.e2e-spec.ts).
+    '<rootDir>/test/**/*.spec.ts',
   ],
   transform: {
     '^.+\\.(t|j)s$': [
