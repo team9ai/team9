@@ -2,6 +2,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -12,6 +13,7 @@ import {
   and,
   authPermissionGrants,
   authPermissionRequests,
+  bots,
   DATABASE_CONNECTION,
   desc,
   eq,
@@ -19,6 +21,7 @@ import {
   isNull,
   tenantMembers,
   type AuthPermissionGrant,
+  type AuthPermissionRequest,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -555,6 +558,62 @@ export class PermissionsService {
    */
   async listAdminsForTenant(tenantId: string): Promise<string[]> {
     return this.approvers.findWorkspaceAdmins(tenantId);
+  }
+
+  /**
+   * List permission requests visible to the caller.
+   *
+   * - scope 'mine': requests created by the bot whose shadow user is userId, OR
+   *   requests where the caller is a potential approver (tenantId scoped).
+   * - scope 'tenant': all requests for the tenant (admins only in practice —
+   *   authorization enforced at controller layer).
+   */
+  async listRequests(input: {
+    tenantId: string;
+    userId: string;
+    status?: string;
+    scope?: 'mine' | 'tenant';
+  }): Promise<AuthPermissionRequest[]> {
+    const where = [eq(authPermissionRequests.tenantId, input.tenantId)];
+    if (input.status) {
+      where.push(eq(authPermissionRequests.status, input.status as never));
+    }
+    return this.db.query.authPermissionRequests.findMany({
+      where: and(...where),
+      orderBy: [desc(authPermissionRequests.createdAt)],
+    });
+  }
+
+  /**
+   * Fetch a single permission request by its spell ID (case-insensitive).
+   * Returns null when the request does not exist.
+   */
+  async getRequestBySpell(
+    spell: string,
+  ): Promise<AuthPermissionRequest | null> {
+    const normalized = spell.toLowerCase();
+    return (
+      (await this.db.query.authPermissionRequests.findFirst({
+        where: eq(authPermissionRequests.spellId, normalized),
+      })) ?? null
+    );
+  }
+
+  /**
+   * Resolve the bot ID that corresponds to the given shadow-user ID.
+   * Throws ForbiddenException if the user is not a bot.
+   */
+  async requireBotIdForUser(userId: string): Promise<string> {
+    const row = await this.db.query.bots.findFirst({
+      where: eq(bots.userId, userId),
+      columns: { id: true },
+    });
+    if (!row) {
+      throw new ForbiddenException(
+        'Only bot accounts may create or cancel permission requests',
+      );
+    }
+    return row.id;
   }
 
   // ---------------------------------------------------------------------------
