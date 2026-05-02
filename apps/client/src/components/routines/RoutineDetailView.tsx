@@ -29,6 +29,7 @@ import { RoutineTriggersTab } from "./RoutineTriggersTab";
 import { RoutineSkillFolderTab } from "./RoutineSkillFolderTab";
 import { RoutineOverviewTab } from "./tabs/RoutineOverviewTab";
 import { RoutineRunsTab } from "./tabs/RoutineRunsTab";
+import { GrantList } from "@/components/permissions/GrantList";
 import type { RoutineDetail, RoutineStatus } from "@/types/routine";
 
 const DELETABLE_STATUSES: RoutineStatus[] = [
@@ -44,6 +45,7 @@ export const ROUTINE_DETAIL_TABS = [
   "triggers",
   "documents",
   "runs",
+  "permissions",
 ] as const;
 export type RoutineDetailTabKey = (typeof ROUTINE_DETAIL_TABS)[number];
 
@@ -128,6 +130,9 @@ export function RoutineDetailView({
           <TabsTrigger value="runs">
             {t("detail.tabs.runs", "Runs")}
           </TabsTrigger>
+          <TabsTrigger value="permissions">
+            {t("detail.tabs.permissions", "Permissions")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 mt-0">
@@ -150,6 +155,13 @@ export function RoutineDetailView({
             selectedExecutionId={null}
             active={tab === "runs"}
           />
+        </TabsContent>
+        <TabsContent value="permissions" className="flex-1 min-h-0 mt-0">
+          <ScrollArea className="h-full">
+            <div className="p-4">
+              <GrantList subjectKind="task" subjectId={routine.id} />
+            </div>
+          </ScrollArea>
         </TabsContent>
       </Tabs>
 
