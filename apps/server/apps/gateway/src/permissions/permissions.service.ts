@@ -537,6 +537,26 @@ export class PermissionsService {
     return ids.includes(userId);
   }
 
+  /**
+   * Fetch a single permission request by its ID.
+   * Returns null when the request does not exist.
+   */
+  async getRequest(id: string) {
+    return (
+      this.db.query.authPermissionRequests.findFirst({
+        where: eq(authPermissionRequests.id, id),
+      }) ?? null
+    );
+  }
+
+  /**
+   * Returns user IDs of all workspace admins (owners + admins) for the tenant.
+   * Delegates to the approver repository.
+   */
+  async listAdminsForTenant(tenantId: string): Promise<string[]> {
+    return this.approvers.findWorkspaceAdmins(tenantId);
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------

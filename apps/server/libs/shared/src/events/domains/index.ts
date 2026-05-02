@@ -39,3 +39,6 @@ export * from './streaming.events.js';
 
 // Property, View, and Tab events
 export * from './property.events.js';
+
+// Permission events
+export * from './permissions/index.js';

@@ -871,6 +871,15 @@ export class BotService implements OnModuleInit {
   }
 
   /**
+   * Resolve the shadow user ID for a given bot ID.
+   * Returns null when the bot does not exist.
+   */
+  async getBotUserIdByBotId(botId: string): Promise<string | null> {
+    const bot = await this.getBotById(botId);
+    return bot?.userId ?? null;
+  }
+
+  /**
    * Get a bot by its botId (from im_bots table).
    */
   async getBotById(botId: string): Promise<BotInfo | null> {
