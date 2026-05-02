@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   ForbiddenException,
   Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -45,6 +46,7 @@ export class ForwardsService {
 
   constructor(
     private readonly channelsService: ChannelsService,
+    @Inject(forwardRef(() => MessagesService))
     private readonly messagesService: MessagesService,
     private readonly grpc: ImWorkerGrpcClientService,
     @Inject(DATABASE_CONNECTION)

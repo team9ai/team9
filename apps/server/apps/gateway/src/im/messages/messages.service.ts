@@ -4,6 +4,7 @@ import {
   Optional,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -38,8 +39,13 @@ import { MessagePropertiesService } from '../properties/message-properties.servi
 import { GatewayMQService } from '@team9/rabbitmq';
 import { type PostBroadcastTask } from '@team9/shared';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
-import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import {
+  WEBSOCKET_GATEWAY,
+  FORWARDS_SERVICE,
+} from '../../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import type { ForwardsService } from './forwards/forwards.service.js';
+import type { ForwardMetadata, ForwardPayload } from './forwards/types.js';
 
 export interface MessageSender {
   id: string;
@@ -81,7 +87,14 @@ export interface MessageResponse {
   // Lexical serialized EditorState (null for legacy/bot/system messages that
   // render via the sanitized HTML/Markdown fallback path).
   contentAst: Record<string, unknown> | null;
-  type: 'text' | 'file' | 'image' | 'system' | 'tracking' | 'long_text';
+  type:
+    | 'text'
+    | 'file'
+    | 'image'
+    | 'system'
+    | 'tracking'
+    | 'long_text'
+    | 'forward';
   isTruncated?: boolean;
   fullContentLength?: number;
   isPinned: boolean;
@@ -97,6 +110,7 @@ export interface MessageResponse {
   lastReplyAt: Date | null;
   metadata?: Record<string, unknown> | null;
   properties?: Record<string, unknown>;
+  forward?: ForwardPayload;
 }
 
 export interface PaginatedMessagesResponse {
@@ -144,6 +158,15 @@ export class MessagesService {
   /** Lazily resolve WebsocketGateway to avoid ESM circular dependency at import time */
   private get wsGateway(): WebsocketGateway {
     return this.moduleRef.get(WEBSOCKET_GATEWAY, { strict: false });
+  }
+
+  /** Lazily resolve ForwardsService to avoid ESM circular dependency at import time */
+  private get forwardsService(): ForwardsService | undefined {
+    try {
+      return this.moduleRef.get(FORWARDS_SERVICE, { strict: false });
+    } catch {
+      return undefined;
+    }
   }
 
   private mapMessageSender(row: {
@@ -207,7 +230,10 @@ export class MessagesService {
     return sendersMap;
   }
 
-  async getMessageWithDetails(messageId: string): Promise<MessageResponse> {
+  async getMessageWithDetails(
+    messageId: string,
+    userId?: string,
+  ): Promise<MessageResponse> {
     const [message] = await this.db
       .select()
       .from(schema.messages)
@@ -294,7 +320,7 @@ export class MessagesService {
       }
     }
 
-    return {
+    const response: MessageResponse = {
       id: message.id,
       clientMsgId: message.clientMsgId ?? null,
       channelId: message.channelId,
@@ -317,6 +343,19 @@ export class MessagesService {
       lastReplyAt,
       metadata: message.metadata,
     };
+
+    if (response.type === 'forward' && userId && this.forwardsService) {
+      const meta = (response.metadata ?? {}) as { forward?: ForwardMetadata };
+      if (meta.forward) {
+        response.forward = await this.forwardsService.hydratePayload(
+          response.id,
+          userId,
+          meta.forward,
+        );
+      }
+    }
+
+    return response;
   }
 
   /**
@@ -494,6 +533,31 @@ export class MessagesService {
   }
 
   /**
+   * Hydrate forward payloads for all forward-type messages in a batch.
+   * Mutates the passed array in place for efficiency.
+   */
+  private async hydrateForwardsBatch(
+    messages: MessageResponse[],
+    userId: string | undefined,
+  ): Promise<void> {
+    if (!userId || !this.forwardsService) return;
+    const fwd = messages.filter((m) => m.type === 'forward');
+    if (fwd.length === 0) return;
+    await Promise.all(
+      fwd.map(async (m) => {
+        const meta = (m.metadata ?? {}) as { forward?: ForwardMetadata };
+        if (meta.forward) {
+          m.forward = await this.forwardsService!.hydratePayload(
+            m.id,
+            userId,
+            meta.forward,
+          );
+        }
+      }),
+    );
+  }
+
+  /**
    * Batch-load properties for messages and merge into responses.
    * Only loads properties with showInChatPolicy !== 'hide'.
    */
@@ -521,6 +585,7 @@ export class MessagesService {
     channelId: string,
     limit = 50,
     before?: string,
+    userId?: string,
   ): Promise<MessageResponse[]> {
     let query = this.db
       .select()
@@ -567,6 +632,7 @@ export class MessagesService {
     const messages = messageList
       .map((m) => detailsMap.get(m.id))
       .filter((m): m is MessageResponse => !!m);
+    await this.hydrateForwardsBatch(messages, userId);
     return this.mergeProperties(messages);
   }
 
@@ -582,6 +648,7 @@ export class MessagesService {
     channelId: string,
     limit: number,
     cursors: { before?: string; after?: string; around?: string },
+    userId?: string,
   ): Promise<PaginatedMessagesResponse> {
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -610,7 +677,7 @@ export class MessagesService {
       const anchorTime = await resolveTimestamp(cursors.around);
       if (!anchorTime) {
         // Anchor message not found, fall back to latest
-        return this.getChannelMessagesPaginated(channelId, limit, {});
+        return this.getChannelMessagesPaginated(channelId, limit, {}, userId);
       }
 
       const halfBefore = Math.floor(limit / 2);
@@ -644,11 +711,11 @@ export class MessagesService {
       );
 
       const detailsMap = await this.getMessagesWithDetailsBatch(combined);
-      const messages = await this.mergeProperties(
-        combined
-          .map((m) => detailsMap.get(m.id))
-          .filter((m): m is MessageResponse => !!m),
-      );
+      const rawMessages = combined
+        .map((m) => detailsMap.get(m.id))
+        .filter((m): m is MessageResponse => !!m);
+      await this.hydrateForwardsBatch(rawMessages, userId);
+      const messages = await this.mergeProperties(rawMessages);
 
       return { messages, hasOlder, hasNewer };
     }
@@ -673,11 +740,11 @@ export class MessagesService {
       trimmed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
-      const messages = await this.mergeProperties(
-        trimmed
-          .map((m) => detailsMap.get(m.id))
-          .filter((m): m is MessageResponse => !!m),
-      );
+      const rawMessages = trimmed
+        .map((m) => detailsMap.get(m.id))
+        .filter((m): m is MessageResponse => !!m);
+      await this.hydrateForwardsBatch(rawMessages, userId);
+      const messages = await this.mergeProperties(rawMessages);
 
       return { messages, hasOlder: true, hasNewer };
     }
@@ -708,11 +775,11 @@ export class MessagesService {
     const trimmed = rows.slice(0, limit);
 
     const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
-    const messages = await this.mergeProperties(
-      trimmed
-        .map((m) => detailsMap.get(m.id))
-        .filter((m): m is MessageResponse => !!m),
-    );
+    const rawMessages = trimmed
+      .map((m) => detailsMap.get(m.id))
+      .filter((m): m is MessageResponse => !!m);
+    await this.hydrateForwardsBatch(rawMessages, userId);
+    const messages = await this.mergeProperties(rawMessages);
 
     return { messages, hasOlder, hasNewer: hasCursor };
   }
@@ -731,9 +798,10 @@ export class MessagesService {
     rootMessageId: string,
     limit = 20,
     cursor?: string,
+    userId?: string,
   ): Promise<ThreadResponse> {
     // Get root message
-    const rootMessage = await this.getMessageWithDetails(rootMessageId);
+    const rootMessage = await this.getMessageWithDetails(rootMessageId, userId);
 
     // Build query conditions
     const conditions = [
@@ -826,6 +894,14 @@ export class MessagesService {
     // Total first-level reply count
     const totalReplyCount = firstLevelReplies.length;
 
+    // Hydrate forwards in all reply messages (first-level + sub-replies)
+    const allReplyMessages: MessageResponse[] = [];
+    for (const r of replies) {
+      allReplyMessages.push(r);
+      allReplyMessages.push(...r.subReplies);
+    }
+    await this.hydrateForwardsBatch(allReplyMessages, userId);
+
     return {
       rootMessage,
       replies,
@@ -848,6 +924,7 @@ export class MessagesService {
     parentId: string,
     limit = 20,
     cursor?: string,
+    userId?: string,
   ): Promise<SubRepliesResponse> {
     // Build query conditions
     const conditions = [
@@ -883,9 +960,11 @@ export class MessagesService {
 
     // Use batch query instead of N individual queries
     const detailsMap = await this.getMessagesWithDetailsBatch(actualReplies);
+    const replyMessages = actualReplies.map((m) => detailsMap.get(m.id)!);
+    await this.hydrateForwardsBatch(replyMessages, userId);
 
     return {
-      replies: actualReplies.map((m) => detailsMap.get(m.id)!),
+      replies: replyMessages,
       hasMore,
       nextCursor,
     };
@@ -928,6 +1007,10 @@ export class MessagesService {
 
     if (!message) {
       throw new NotFoundException('Message not found');
+    }
+
+    if (message.type === 'forward') {
+      throw new BadRequestException('forward.editDisabled');
     }
 
     if (message.senderId !== userId) {

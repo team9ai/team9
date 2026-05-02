@@ -239,6 +239,7 @@ describe('MessagesController', () => {
         CHANNEL_ID,
         50,
         'cursor-1',
+        USER_ID,
       );
       expect(
         messagesService.getChannelMessagesPaginated,
@@ -265,6 +266,7 @@ describe('MessagesController', () => {
         CHANNEL_ID,
         25,
         { before: undefined, after: 'after-cursor', around: undefined },
+        USER_ID,
       );
       expect(messagesService.getChannelMessages).not.toHaveBeenCalled();
     });
@@ -766,6 +768,7 @@ describe('MessagesController', () => {
 
       expect(messagesService.getMessageWithDetails).toHaveBeenCalledWith(
         MESSAGE_ID,
+        USER_ID,
       );
       expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
         CHANNEL_ID,
@@ -865,6 +868,7 @@ describe('MessagesController', () => {
         MESSAGE_ID,
         12,
         'cursor-12',
+        USER_ID,
       );
     });
 
@@ -881,6 +885,7 @@ describe('MessagesController', () => {
         MESSAGE_ID,
         20,
         'cursor-2',
+        USER_ID,
       );
     });
   });
@@ -989,6 +994,25 @@ describe('MessagesController', () => {
       expect(result).toEqual(customContent);
       expect(messagesService.getFullContent).toHaveBeenCalledTimes(1);
       expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
+    });
+  });
+
+  describe('updateMessage — forward guard', () => {
+    it('propagates forward.editDisabled from service when PATCHing a forward-type message', async () => {
+      messagesService.update.mockRejectedValueOnce(
+        new BadRequestException('forward.editDisabled'),
+      );
+
+      await expect(
+        controller.updateMessage(USER_ID, MESSAGE_ID, {
+          content: 'x',
+        } as never),
+      ).rejects.toThrow('forward.editDisabled');
+
+      expect(messagesService.update).toHaveBeenCalledWith(MESSAGE_ID, USER_ID, {
+        content: 'x',
+      });
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
   });
 });

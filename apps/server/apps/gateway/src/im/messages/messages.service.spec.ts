@@ -21,9 +21,17 @@ jest.unstable_mockModule(
     ImWorkerGrpcClientService: class ImWorkerGrpcClientService {},
   }),
 );
+// Mock ForwardsService to break the circular import chain
+jest.unstable_mockModule('./forwards/forwards.service.js', () => ({
+  ForwardsService: class ForwardsService {},
+}));
+
+const WEBSOCKET_GATEWAY_TOKEN = Symbol('WEBSOCKET_GATEWAY');
+const FORWARDS_SERVICE_TOKEN = Symbol('FORWARDS_SERVICE');
 
 jest.unstable_mockModule('../../shared/constants/injection-tokens.js', () => ({
-  WEBSOCKET_GATEWAY: Symbol('WEBSOCKET_GATEWAY'),
+  WEBSOCKET_GATEWAY: WEBSOCKET_GATEWAY_TOKEN,
+  FORWARDS_SERVICE: FORWARDS_SERVICE_TOKEN,
 }));
 
 const { MessagesService } = await import('./messages.service.js');
@@ -138,6 +146,11 @@ describe('MessagesService', () => {
   let mockWsGateway: {
     emitRelationsPurged: jest.Mock<any>;
   };
+  let forwardsService: {
+    hydratePayload: jest.Mock<any>;
+    forward: jest.Mock<any>;
+    getForwardItems: jest.Mock<any>;
+  };
   let logger: {
     warn: jest.Mock<any>;
     error: jest.Mock<any>;
@@ -157,8 +170,16 @@ describe('MessagesService', () => {
     mockWsGateway = {
       emitRelationsPurged: jest.fn<any>().mockResolvedValue(undefined),
     };
+    forwardsService = {
+      hydratePayload: jest.fn<any>().mockResolvedValue(undefined),
+      forward: jest.fn<any>().mockResolvedValue(undefined),
+      getForwardItems: jest.fn<any>().mockResolvedValue([]),
+    };
     const moduleRef = {
-      get: jest.fn<any>().mockReturnValue(mockWsGateway),
+      get: jest.fn<any>().mockImplementation((token: unknown) => {
+        if (token === FORWARDS_SERVICE_TOKEN) return forwardsService;
+        return mockWsGateway;
+      }),
     };
     service = new MessagesService(
       db as never,
@@ -2054,5 +2075,235 @@ describe('MessagesService', () => {
     expect(db.chains.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({ isDeleted: true }),
     );
+  });
+
+  // ---- forward hydration tests ----
+
+  describe('forward hydration', () => {
+    function makeSelectChain(returnValue: unknown) {
+      return {
+        from: jest.fn<any>().mockReturnValue({
+          leftJoin: jest.fn<any>().mockReturnThis(),
+          where: jest.fn<any>().mockReturnValue(returnValue),
+        }),
+      };
+    }
+
+    function setupForwardMessageMocks(metadata: Record<string, unknown>) {
+      const messageRow = makeMessageRow({
+        id: 'm-fwd',
+        type: 'forward',
+        metadata,
+      });
+      db.select
+        .mockReturnValueOnce(
+          makeSelectChain({
+            limit: jest.fn<any>().mockResolvedValue([messageRow]),
+          }),
+        )
+        // getSendersByIds (sender lookup)
+        .mockReturnValueOnce(makeSelectChain([]))
+        // attachments
+        .mockReturnValueOnce(makeSelectChain([]))
+        // reactions
+        .mockReturnValueOnce(makeSelectChain([]))
+        // reply count
+        .mockReturnValueOnce(makeSelectChain([{ count: 0 }]))
+        // recent repliers
+        .mockReturnValueOnce(
+          makeSelectChain({
+            orderBy: jest.fn<any>().mockResolvedValue([]),
+          }),
+        );
+    }
+
+    function setupTextMessageMocks() {
+      const messageRow = makeMessageRow({ id: 'm-text', type: 'text' });
+      db.select
+        .mockReturnValueOnce(
+          makeSelectChain({
+            limit: jest.fn<any>().mockResolvedValue([messageRow]),
+          }),
+        )
+        .mockReturnValueOnce(makeSelectChain([]))
+        .mockReturnValueOnce(makeSelectChain([]))
+        .mockReturnValueOnce(makeSelectChain([]))
+        .mockReturnValueOnce(makeSelectChain([{ count: 0 }]))
+        .mockReturnValueOnce(
+          makeSelectChain({
+            orderBy: jest.fn<any>().mockResolvedValue([]),
+          }),
+        );
+    }
+
+    it('attaches forward payload for type=forward messages', async () => {
+      const fakePayload = {
+        kind: 'single',
+        count: 1,
+        items: [],
+        sourceChannelId: 'c',
+        sourceChannelName: null,
+        truncated: false,
+      };
+      forwardsService.hydratePayload.mockResolvedValueOnce(
+        fakePayload as never,
+      );
+
+      setupForwardMessageMocks({
+        forward: {
+          kind: 'single',
+          count: 1,
+          sourceChannelId: 'c',
+          sourceChannelName: '',
+        },
+      });
+
+      const m = await service.getMessageWithDetails('m-fwd', 'u-1');
+      expect(m.forward?.kind).toBe('single');
+      expect(forwardsService.hydratePayload).toHaveBeenCalledTimes(1);
+      expect(forwardsService.hydratePayload).toHaveBeenCalledWith(
+        'm-fwd',
+        'u-1',
+        expect.objectContaining({ kind: 'single' }),
+      );
+    });
+
+    it('skips hydration for non-forward messages', async () => {
+      setupTextMessageMocks();
+
+      const m = await service.getMessageWithDetails('m-text', 'u-1');
+      expect(m.forward).toBeUndefined();
+      expect(forwardsService.hydratePayload).not.toHaveBeenCalled();
+    });
+
+    it('skips hydration when userId is undefined', async () => {
+      setupForwardMessageMocks({
+        forward: {
+          kind: 'single',
+          count: 1,
+          sourceChannelId: 'c',
+          sourceChannelName: '',
+        },
+      });
+
+      const m = await service.getMessageWithDetails('m-fwd');
+      expect(m.forward).toBeUndefined();
+      expect(forwardsService.hydratePayload).not.toHaveBeenCalled();
+    });
+
+    it('hydrates each forward in a paginated page via hydrateForwardsBatch', async () => {
+      const fwdPayload = {
+        kind: 'single',
+        count: 1,
+        items: [],
+        sourceChannelId: 'c',
+        sourceChannelName: null,
+        truncated: false,
+      };
+      forwardsService.hydratePayload.mockResolvedValue(fwdPayload as never);
+
+      // Use mergeProperties spy to avoid DB complexity and focus on hydration logic.
+      const fwdMsg1 = makeMessageResponse({
+        id: 'fwd-1',
+        type: 'forward' as never,
+        metadata: {
+          forward: {
+            kind: 'single',
+            count: 1,
+            sourceChannelId: 'c',
+            sourceChannelName: '',
+          },
+        },
+      });
+      const fwdMsg2 = makeMessageResponse({
+        id: 'fwd-2',
+        type: 'forward' as never,
+        metadata: {
+          forward: {
+            kind: 'single',
+            count: 1,
+            sourceChannelId: 'c',
+            sourceChannelName: '',
+          },
+        },
+      });
+      const textMsg = makeMessageResponse({ id: 'text-1', type: 'text' });
+
+      // Spy on hydrateForwardsBatch so we can verify it's called properly.
+      const hydrateForwardsBatchSpy = jest
+        .spyOn(service as any, 'hydrateForwardsBatch')
+        .mockImplementation(async (messages: MessageResponse[]) => {
+          for (const m of messages) {
+            if (m.type === 'forward') {
+              (m as any).forward = fwdPayload;
+            }
+          }
+        });
+
+      // Spy on mergeProperties and getMessagesWithDetailsBatch to isolate
+      jest
+        .spyOn(service, 'mergeProperties')
+        .mockImplementation(async (msgs) => msgs);
+
+      jest
+        .spyOn(service as any, 'getMessagesWithDetailsBatch')
+        .mockResolvedValue(
+          new Map([
+            ['fwd-1', fwdMsg1],
+            ['fwd-2', fwdMsg2],
+            ['text-1', textMsg],
+          ]),
+        );
+
+      // Mock DB rows query (before mode): needs .orderBy().limit() chain
+      const limitMock = jest
+        .fn<any>()
+        .mockResolvedValue([
+          makeMessageRow({ id: 'fwd-1' }),
+          makeMessageRow({ id: 'fwd-2' }),
+          makeMessageRow({ id: 'text-1' }),
+        ]);
+      const orderByMock = jest.fn<any>().mockReturnValue({ limit: limitMock });
+      const whereMock = jest
+        .fn<any>()
+        .mockReturnValue({ orderBy: orderByMock });
+      const fromMock = jest.fn<any>().mockReturnValue({ where: whereMock });
+      db.select.mockReturnValueOnce({ from: fromMock });
+
+      const page = await service.getChannelMessagesPaginated(
+        'ch-1',
+        50,
+        {},
+        'u-1',
+      );
+
+      expect(hydrateForwardsBatchSpy).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'forward' }),
+          expect.objectContaining({ type: 'forward' }),
+          expect.objectContaining({ type: 'text' }),
+        ]),
+        'u-1',
+      );
+      const fwdCount = page.messages.filter((m) => m.type === 'forward').length;
+      expect(fwdCount).toBe(2);
+      // hydratePayload is called by hydrateForwardsBatch (which is the real impl
+      // in production — here we mocked it, so verify the spy was called)
+      expect(hydrateForwardsBatchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ---- PATCH guard for forward type ----
+
+  describe('update', () => {
+    it('rejects PATCH on forward-type message with forward.editDisabled', async () => {
+      db.chains.selectLimit.mockResolvedValueOnce([
+        makeMessageRow({ type: 'forward' }),
+      ]);
+
+      await expect(
+        service.update('m-fwd', 'u-1', { content: 'x' } as never),
+      ).rejects.toThrow('forward.editDisabled');
+    });
   });
 });

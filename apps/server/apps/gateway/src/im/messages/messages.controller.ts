@@ -148,6 +148,7 @@ export class MessagesController {
     // Fetch the full message details for response
     const message = await this.messagesService.getMessageWithDetails(
       result.msgId,
+      userId,
     );
     const t4 = Date.now();
 
@@ -290,6 +291,7 @@ export class MessagesController {
         channelId,
         parsedLimit,
         { before, after, around },
+        userId,
       );
       return {
         ...paginated,
@@ -303,6 +305,7 @@ export class MessagesController {
       channelId,
       parsedLimit,
       before,
+      userId,
     );
 
     const total = Date.now() - t0;
@@ -350,7 +353,10 @@ export class MessagesController {
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<MessageResponse> {
-    const message = await this.messagesService.getMessageWithDetails(messageId);
+    const message = await this.messagesService.getMessageWithDetails(
+      messageId,
+      userId,
+    );
     await this.channelsService.assertReadAccess(message.channelId, userId);
     return this.messagesService.truncateForPreview(message);
   }
@@ -451,6 +457,7 @@ export class MessagesController {
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
+      userId,
     );
     const tp = (m: MessageResponse) =>
       this.messagesService.truncateForPreview(m);
@@ -482,6 +489,7 @@ export class MessagesController {
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
+      userId,
     );
     return {
       ...subReplies,

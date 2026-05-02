@@ -10,6 +10,7 @@ import { WebsocketModule } from '../websocket/websocket.module.js';
 import { PropertiesModule } from '../properties/properties.module.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { StreamingController } from '../streaming/streaming.controller.js';
+import { FORWARDS_SERVICE } from '../../shared/constants/injection-tokens.js';
 
 @Module({
   imports: [
@@ -20,7 +21,15 @@ import { StreamingController } from '../streaming/streaming.controller.js';
     forwardRef(() => WebsocketModule),
   ],
   controllers: [MessagesController, StreamingController, ForwardsController],
-  providers: [MessagesService, ImWorkerGrpcClientService, ForwardsService],
+  providers: [
+    MessagesService,
+    ImWorkerGrpcClientService,
+    ForwardsService,
+    {
+      provide: FORWARDS_SERVICE,
+      useExisting: ForwardsService,
+    },
+  ],
   exports: [MessagesService, ImWorkerGrpcClientService, ForwardsService],
 })
 export class MessagesModule {}
