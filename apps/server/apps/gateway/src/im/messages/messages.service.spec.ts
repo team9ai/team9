@@ -1985,4 +1985,74 @@ describe('MessagesService', () => {
       expect.objectContaining({ isDeleted: true }),
     );
   });
+
+  // ---- helpers used by ForwardsService ----
+
+  it('findManyByIds returns empty array for empty input', async () => {
+    const result = await service.findManyByIds([]);
+    expect(result).toEqual([]);
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('findManyByIds calls db.select with inArray filter', async () => {
+    db.chains.selectWhere.mockResolvedValueOnce([makeMessageRow()]);
+    const result = await service.findManyByIds(['msg-1']);
+    expect(result).toHaveLength(1);
+    expect(db.select).toHaveBeenCalled();
+  });
+
+  it('getAttachmentsForMessages returns empty map for empty input', async () => {
+    const result = await service.getAttachmentsForMessages([]);
+    expect(result.size).toBe(0);
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('getAttachmentsForMessages groups attachments by messageId', async () => {
+    db.chains.selectWhere.mockResolvedValueOnce([
+      {
+        id: 'att-1',
+        messageId: 'msg-1',
+        fileName: 'file.txt',
+        fileUrl: 'https://x',
+        fileKey: null,
+        fileSize: 100,
+        mimeType: 'text/plain',
+        thumbnailUrl: null,
+        width: null,
+        height: null,
+        createdAt: new Date(),
+      },
+    ]);
+    const result = await service.getAttachmentsForMessages(['msg-1']);
+    expect(result.get('msg-1')).toHaveLength(1);
+  });
+
+  it('findUsersByIds returns empty array for empty input', async () => {
+    const result = await service.findUsersByIds([]);
+    expect(result).toEqual([]);
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('findUsersByIds returns user fields for provided ids', async () => {
+    db.chains.selectWhere.mockResolvedValueOnce([
+      {
+        id: 'user-1',
+        username: 'alice',
+        displayName: 'Alice',
+        avatarUrl: null,
+      },
+    ]);
+    const result = await service.findUsersByIds(['user-1']);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('user-1');
+  });
+
+  it('softDelete sets isDeleted=true and does not throw', async () => {
+    await expect(
+      service.softDelete('msg-1', 'user-1'),
+    ).resolves.toBeUndefined();
+    expect(db.chains.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({ isDeleted: true }),
+    );
+  });
 });

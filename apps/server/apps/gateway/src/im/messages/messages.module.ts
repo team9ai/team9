@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { RedisModule } from '@team9/redis';
 import { MessagesController } from './messages.controller.js';
 import { MessagesService } from './messages.service.js';
+import { ForwardsService } from './forwards/forwards.service.js';
 import { AuthModule } from '../../auth/auth.module.js';
 import { ChannelsModule } from '../channels/channels.module.js';
 import { WebsocketModule } from '../websocket/websocket.module.js';
@@ -18,7 +19,7 @@ import { StreamingController } from '../streaming/streaming.controller.js';
     forwardRef(() => WebsocketModule),
   ],
   controllers: [MessagesController, StreamingController],
-  providers: [MessagesService, ImWorkerGrpcClientService],
-  exports: [MessagesService, ImWorkerGrpcClientService],
+  providers: [MessagesService, ImWorkerGrpcClientService, ForwardsService],
+  exports: [MessagesService, ImWorkerGrpcClientService, ForwardsService],
 })
 export class MessagesModule {}

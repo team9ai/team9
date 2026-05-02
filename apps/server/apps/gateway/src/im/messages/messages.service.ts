@@ -1174,6 +1174,75 @@ export class MessagesService {
     return { ...message, content, isTruncated, fullContentLength };
   }
 
+  // ---- helpers used by ForwardsService ----
+
+  /**
+   * Bulk-load raw message rows by IDs. No joins — returns only the raw columns.
+   */
+  async findManyByIds(ids: string[]): Promise<schema.Message[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(schema.messages)
+      .where(inArray(schema.messages.id, ids));
+  }
+
+  /**
+   * Bulk-load attachments for multiple messages, grouped by messageId.
+   */
+  async getAttachmentsForMessages(
+    messageIds: string[],
+  ): Promise<Map<string, schema.MessageAttachment[]>> {
+    const result = new Map<string, schema.MessageAttachment[]>();
+    if (messageIds.length === 0) return result;
+    const rows = await this.db
+      .select()
+      .from(schema.messageAttachments)
+      .where(inArray(schema.messageAttachments.messageId, messageIds));
+    for (const row of rows) {
+      const existing = result.get(row.messageId) ?? [];
+      existing.push(row);
+      result.set(row.messageId, existing);
+    }
+    return result;
+  }
+
+  /**
+   * Bulk-load minimal user info needed by forward renderers.
+   */
+  async findUsersByIds(
+    userIds: string[],
+  ): Promise<
+    Pick<schema.User, 'id' | 'username' | 'displayName' | 'avatarUrl'>[]
+  > {
+    if (userIds.length === 0) return [];
+    return this.db
+      .select({
+        id: schema.users.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
+      })
+      .from(schema.users)
+      .where(inArray(schema.users.id, userIds));
+  }
+
+  /**
+   * Soft-delete a message without ownership checks.
+   * Used by ForwardsService rollback when forward-row insert fails.
+   */
+  async softDelete(messageId: string, userId: string): Promise<void> {
+    await this.db
+      .update(schema.messages)
+      .set({
+        isDeleted: true,
+        deletedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.messages.id, messageId));
+    void userId; // userId reserved for future audit logging
+  }
+
   async getFullContent(messageId: string): Promise<{ content: string }> {
     const [message] = await this.db
       .select({

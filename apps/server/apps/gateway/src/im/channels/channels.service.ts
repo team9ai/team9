@@ -2760,6 +2760,48 @@ export class ChannelsService {
     await this.tabsService.seedBuiltinTabs(channel.id);
     return channel;
   }
+
+  // ---- helpers used by ForwardsService ----
+
+  /**
+   * Non-throwing variant of assertReadAccess.
+   * Returns true iff the user has read access to the channel.
+   */
+  async canRead(channelId: string, userId: string): Promise<boolean> {
+    try {
+      await this.assertReadAccess(channelId, userId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Bulk-load channels by IDs. Returns only channels that exist.
+   */
+  async findManyByIds(channelIds: string[]): Promise<ChannelResponse[]> {
+    if (channelIds.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(schema.channels)
+      .where(inArray(schema.channels.id, channelIds));
+    return rows.map((row) => ({
+      id: row.id,
+      tenantId: row.tenantId,
+      name: row.name,
+      description: row.description,
+      type: row.type,
+      avatarUrl: row.avatarUrl,
+      createdBy: row.createdBy,
+      sectionId: row.sectionId,
+      order: row.order,
+      isArchived: row.isArchived,
+      isActivated: row.isActivated,
+      snapshot: row.snapshot,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+  }
 }
 
 /**

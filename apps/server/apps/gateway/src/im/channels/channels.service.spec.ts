@@ -3064,4 +3064,53 @@ describe('ChannelsService', () => {
       expect(result).toEqual(new Set(['bot-only']));
     });
   });
+
+  // ---- helpers used by ForwardsService ----
+
+  describe('canRead', () => {
+    it('returns true when assertReadAccess succeeds', async () => {
+      jest.spyOn(service, 'assertReadAccess').mockResolvedValueOnce(undefined);
+      const result = await service.canRead('ch-1', 'user-1');
+      expect(result).toBe(true);
+    });
+
+    it('returns false when assertReadAccess throws', async () => {
+      jest
+        .spyOn(service, 'assertReadAccess')
+        .mockRejectedValueOnce(new Error('denied'));
+      const result = await service.canRead('ch-1', 'user-1');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('findManyByIds', () => {
+    it('returns empty array for empty channelIds input', async () => {
+      const result = await service.findManyByIds([]);
+      expect(result).toEqual([]);
+    });
+
+    it('returns channels for provided ids', async () => {
+      const channelRow = {
+        id: 'ch-1',
+        tenantId: null,
+        name: 'general',
+        description: null,
+        type: 'public' as const,
+        avatarUrl: null,
+        createdBy: null,
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        propertySettings: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      db.where.mockResolvedValueOnce([channelRow] as any);
+      const result = await service.findManyByIds(['ch-1']);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('ch-1');
+    });
+  });
 });
