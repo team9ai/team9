@@ -1,6 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, AlertCircle, Plus, RotateCcw, Tags, X } from "lucide-react";
+import { toast } from "sonner";
+import { useForwardSelectionStore } from "@/stores/useForwardSelectionStore";
+import { isForwardable, computeForwardableRange } from "./forward/eligibility";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
@@ -86,6 +89,11 @@ export interface MessageItemProps {
    * the hover toolbar's Properties button is hidden.
    */
   supportsProperties?: boolean;
+  /**
+   * All messages visible in the current list — used for shift-click range
+   * selection. Optional: when absent the range feature is skipped.
+   */
+  visibleMessages?: Message[];
 }
 
 function getThinkingMetadata(
@@ -121,10 +129,53 @@ export function MessageItem({
   onEditSave,
   onEditCancel,
   supportsProperties = false,
+  visibleMessages,
 }: MessageItemProps) {
-  const { t } = useTranslation(["thread", "message"]);
+  const { t } = useTranslation(["thread", "message", "channel"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
   const [isHovered, setIsHovered] = useState(false);
+
+  // Selection mode (message forwarding)
+  const selectionActive = useForwardSelectionStore((s) => s.active);
+  const selectionChannelId = useForwardSelectionStore((s) => s.channelId);
+  const selectionToggle = useForwardSelectionStore((s) => s.toggle);
+  const selectionAddRange = useForwardSelectionStore((s) => s.addRange);
+  const isSelectedFn = useForwardSelectionStore((s) => s.isSelected);
+
+  const inSelectionMode =
+    selectionActive && selectionChannelId === message.channelId;
+  const isEligible = isForwardable(message);
+  const isSelected = inSelectionMode && isSelectedFn(message.id);
+  const lastAnchorRef = useRef<string | null>(null);
+
+  const toggleSelection = useCallback(
+    (shiftKey: boolean) => {
+      if (!isEligible) return;
+      if (shiftKey && lastAnchorRef.current && visibleMessages) {
+        const range = computeForwardableRange(
+          visibleMessages,
+          lastAnchorRef.current,
+          message.id,
+        );
+        const added = selectionAddRange(range);
+        if (added < range.length) {
+          toast.error(t("channel:forward.tooManySelected"));
+        }
+      } else {
+        const ok = selectionToggle(message.id);
+        if (!ok) toast.error(t("channel:forward.tooManySelected"));
+        lastAnchorRef.current = message.id;
+      }
+    },
+    [
+      isEligible,
+      visibleMessages,
+      message.id,
+      selectionAddRange,
+      selectionToggle,
+      t,
+    ],
+  );
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
@@ -267,7 +318,8 @@ export function MessageItem({
   const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
 
-  const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
+  const showToolbar =
+    isHovered && !isSending && !isFailed && !isRootMessage && !inSelectionMode;
   const hasReactions = message.reactions && message.reactions.length > 0;
   // Hover-toolbar Tags button is the entry point for creating the first
   // property too, so it must show even before any definitions exist.
@@ -341,10 +393,40 @@ export function MessageItem({
           "bg-warning/20 dark:bg-warning/30 ring-2 ring-warning dark:ring-warning",
         isSending && "opacity-70",
         isFailed && "bg-destructive/10 dark:bg-destructive/10",
+        inSelectionMode && "cursor-pointer",
+        inSelectionMode && isSelected && "bg-primary/10 dark:bg-primary/10",
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={
+        inSelectionMode
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleSelection(e.shiftKey);
+            }
+          : undefined
+      }
     >
+      {inSelectionMode && (
+        <div className="flex items-center self-start pt-1.5 shrink-0">
+          <input
+            type="checkbox"
+            aria-label={`Select message ${message.id}`}
+            checked={isSelected}
+            disabled={!isEligible}
+            title={
+              !isEligible ? t("channel:forward.error.notAllowed") : undefined
+            }
+            onChange={(e) => {
+              const native = e.nativeEvent as MouseEvent;
+              toggleSelection(native.shiftKey ?? false);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="mr-2 cursor-pointer disabled:cursor-not-allowed"
+          />
+        </div>
+      )}
       {showToolbar && onAddReaction && (
         <MessageHoverToolbar
           onReaction={handleReactionToggle}
@@ -556,6 +638,12 @@ export function MessageItem({
 
   // Root messages don't have context menu
   if (isRootMessage) {
+    return content;
+  }
+
+  // In selection mode, suppress the context menu so right-click doesn't
+  // interfere with the selection workflow.
+  if (inSelectionMode) {
     return content;
   }
 

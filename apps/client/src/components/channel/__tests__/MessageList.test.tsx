@@ -225,10 +225,49 @@ vi.mock("zustand/react/shallow", () => ({
   useShallow: <T,>(x: T) => x,
 }));
 
+// SelectionActionBar: mirrors the real component's active guard so tests can
+// assert both the "not rendered" and "rendered" states.
+vi.mock("../forward/SelectionActionBar", async () => {
+  const { useForwardSelectionStore: useStore } = await vi.importActual<
+    typeof import("@/stores/useForwardSelectionStore")
+  >("@/stores/useForwardSelectionStore");
+  return {
+    SelectionActionBar: ({ onForward }: { onForward: () => void }) => {
+      const active = useStore((s) => s.active);
+      if (!active) return null;
+      return (
+        <div data-testid="selection-action-bar">
+          <button onClick={onForward}>Forward</button>
+        </div>
+      );
+    },
+  };
+});
+
+// ForwardDialog: simple stub — just expose that it rendered.
+vi.mock("../forward/ForwardDialog", () => ({
+  ForwardDialog: ({
+    open,
+    onSuccess,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    sourceChannelId: string;
+    sourceMessages: unknown[];
+    onSuccess?: () => void;
+  }) =>
+    open ? (
+      <div data-testid="forward-dialog">
+        <button onClick={onSuccess}>Confirm Forward</button>
+      </div>
+    ) : null,
+}));
+
 // ---------------------------------------------------------------------------
 // After mocks: import the component under test.
 // ---------------------------------------------------------------------------
 import { MessageList } from "../MessageList";
+import { useForwardSelectionStore } from "@/stores/useForwardSelectionStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -340,6 +379,8 @@ function renderList(
 beforeEach(() => {
   vi.clearAllMocks();
   mockChannelStreams.current = [];
+  // Reset forward selection store state between tests
+  useForwardSelectionStore.getState().exit();
 });
 
 describe("MessageList — round auto-fold", () => {
@@ -818,5 +859,94 @@ describe("MessageList — round auto-fold", () => {
       expect(keys).toContain("a2");
       expect(keys).toContain("u1");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Selection mode tests
+// ---------------------------------------------------------------------------
+
+describe("MessageList — selection mode", () => {
+  it("SelectionActionBar is not rendered when selection mode is inactive", () => {
+    const chrono = [makeMessage("m1"), makeMessage("m2")];
+    renderList(chrono);
+
+    // Store is inactive by default — bar should not appear
+    expect(
+      screen.queryByTestId("selection-action-bar"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("SelectionActionBar renders when selection mode is active for the current channel", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+
+    const chrono = [makeMessage("m1"), makeMessage("m2")];
+    renderList(chrono);
+
+    expect(screen.getByTestId("selection-action-bar")).toBeInTheDocument();
+  });
+
+  it("Esc keypress exits selection mode", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+
+    const chrono = [makeMessage("m1")];
+    renderList(chrono);
+
+    // Confirm bar is visible first
+    expect(screen.getByTestId("selection-action-bar")).toBeInTheDocument();
+
+    // Fire Escape key on window
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(useForwardSelectionStore.getState().active).toBe(false);
+  });
+
+  it("re-rendering with a different channelId when selection was active calls exit", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+
+    const chrono = [makeMessage("m1")];
+    const { rerender } = renderList(chrono);
+
+    expect(useForwardSelectionStore.getState().active).toBe(true);
+
+    // Switch to a different channel
+    rerender(
+      <ProvidersWrapper>
+        <MessageList {...asProps(chrono)} channelId="ch-99" />
+      </ProvidersWrapper>,
+    );
+
+    expect(useForwardSelectionStore.getState().active).toBe(false);
+  });
+
+  it("clicking Forward button in SelectionActionBar opens the ForwardDialog when messages are selected", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+    // Toggle a message so selectedMessages is non-empty
+    useForwardSelectionStore.getState().toggle("m1");
+
+    const chrono = [makeMessage("m1"), makeMessage("m2")];
+    renderList(chrono);
+
+    expect(screen.queryByTestId("forward-dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Forward"));
+
+    expect(screen.getByTestId("forward-dialog")).toBeInTheDocument();
+  });
+
+  it("onSuccess callback from ForwardDialog closes the dialog and exits selection mode", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+    useForwardSelectionStore.getState().toggle("m1");
+
+    const chrono = [makeMessage("m1")];
+    renderList(chrono);
+
+    fireEvent.click(screen.getByText("Forward"));
+    expect(screen.getByTestId("forward-dialog")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Confirm Forward"));
+
+    expect(screen.queryByTestId("forward-dialog")).not.toBeInTheDocument();
+    expect(useForwardSelectionStore.getState().active).toBe(false);
   });
 });
