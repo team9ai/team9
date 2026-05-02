@@ -4,6 +4,7 @@ import { Loader2, AlertCircle, Plus, RotateCcw, Tags, X } from "lucide-react";
 import { toast } from "sonner";
 import { useForwardSelectionStore } from "@/stores/useForwardSelectionStore";
 import { isForwardable, computeForwardableRange } from "./forward/eligibility";
+import { ForwardDialog } from "./forward/ForwardDialog";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
@@ -147,6 +148,15 @@ export function MessageItem({
   const isEligible = isForwardable(message);
   const isSelected = inSelectionMode && isSelectedFn(message.id);
   const lastAnchorRef = useRef<string | null>(null);
+
+  // Forward dialog state
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const handleForward = useCallback(() => setForwardOpen(true), []);
+  const handleSelect = useCallback(() => {
+    const store = useForwardSelectionStore.getState();
+    store.enter(message.channelId);
+    store.toggle(message.id);
+  }, [message.channelId, message.id]);
 
   const toggleSelection = useCallback(
     (shiftKey: boolean) => {
@@ -432,6 +442,9 @@ export function MessageItem({
           onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
           propertiesSlot={propertiesHoverSlot}
+          forwardable={isEligible}
+          onForward={handleForward}
+          onSelect={handleSelect}
         />
       )}
       <UserHoverCard
@@ -651,18 +664,31 @@ export function MessageItem({
   const isPersisted = !isSending && !isFailed;
 
   return (
-    <MessageContextMenu
-      message={message}
-      isOwnMessage={isOwnMessage}
-      canDelete={canDelete}
-      onReplyInThread={onReplyInThread}
-      onEdit={isPersisted && isOwnMessage ? onEdit : undefined}
-      onDelete={
-        isPersisted && (isOwnMessage || canDelete) ? onDelete : undefined
-      }
-      onPin={isPersisted ? onPin : undefined}
-    >
-      {content}
-    </MessageContextMenu>
+    <>
+      <MessageContextMenu
+        message={message}
+        isOwnMessage={isOwnMessage}
+        canDelete={canDelete}
+        onReplyInThread={onReplyInThread}
+        onEdit={isPersisted && isOwnMessage ? onEdit : undefined}
+        onDelete={
+          isPersisted && (isOwnMessage || canDelete) ? onDelete : undefined
+        }
+        onPin={isPersisted ? onPin : undefined}
+        forwardable={isEligible}
+        onForward={handleForward}
+        onSelect={handleSelect}
+      >
+        {content}
+      </MessageContextMenu>
+      {forwardOpen && (
+        <ForwardDialog
+          open={forwardOpen}
+          onOpenChange={setForwardOpen}
+          sourceChannelId={message.channelId}
+          sourceMessages={[message]}
+        />
+      )}
+    </>
   );
 }
