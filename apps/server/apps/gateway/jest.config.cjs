@@ -44,6 +44,6 @@ module.exports = {
     '^@team9/posthog$': '<rootDir>/../../libs/posthog/src/index.ts',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(@team9)/)',
+    'node_modules/(?!(@team9|minimatch)/)',
   ],
 };
