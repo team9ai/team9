@@ -1813,6 +1813,32 @@ export class ChannelsService {
   }
 
   /**
+   * Asserts the user can post a new message to this channel.
+   * Throws ForbiddenException with the same human-readable strings the
+   * messages controller has been throwing inline since the project started.
+   */
+  async assertWriteAccess(channelId: string, userId: string): Promise<void> {
+    const isMember = await this.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Access denied');
+    }
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new ForbiddenException('Access denied');
+    }
+    if (!channel.isActivated) {
+      throw new ForbiddenException(
+        'Channel is deactivated — execution has completed',
+      );
+    }
+    if (channel.isArchived) {
+      throw new ForbiddenException(
+        'Channel is archived and no longer accepts new messages',
+      );
+    }
+  }
+
+  /**
    * Resolve the target of a channel-level model switch.
    *
    * A channel is eligible iff:

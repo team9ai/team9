@@ -1406,6 +1406,126 @@ describe('ChannelsService', () => {
     });
   });
 
+  // ── assertWriteAccess ─────────────────────────────────────────────
+
+  describe('assertWriteAccess', () => {
+    let redisService: { getOrSet: MockFn };
+
+    beforeEach(() => {
+      redisService = (service as any).redis;
+    });
+
+    it('passes for a member of an active, non-archived channel', async () => {
+      // isMember → getMemberRole → getOrSet returns a role (non-null → member)
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      // findById → getOrSet returns healthy channel
+      redisService.getOrSet.mockResolvedValueOnce({
+        id: 'ch-1',
+        isActivated: true,
+        isArchived: false,
+      });
+
+      await expect(
+        service.assertWriteAccess('ch-1', 'user-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws "Access denied" for a non-member', async () => {
+      // isMember → getMemberRole → getOrSet returns null (not a member)
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce(null);
+
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        'Access denied',
+      );
+    });
+
+    it('throws "Access denied" when channel not found', async () => {
+      // isMember → getMemberRole → getOrSet returns a role (member)
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      // findById → getOrSet returns null (channel not found)
+      redisService.getOrSet.mockResolvedValueOnce(null);
+
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      // Re-run to check the message
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      redisService.getOrSet.mockResolvedValueOnce(null);
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        'Access denied',
+      );
+    });
+
+    it('throws "deactivated" when channel.isActivated is false', async () => {
+      // isMember → member
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      // findById → deactivated channel
+      redisService.getOrSet.mockResolvedValueOnce({
+        id: 'ch-1',
+        isActivated: false,
+        isArchived: false,
+      });
+
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      redisService.getOrSet.mockResolvedValueOnce({
+        id: 'ch-1',
+        isActivated: false,
+        isArchived: false,
+      });
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        'Channel is deactivated — execution has completed',
+      );
+    });
+
+    it('throws "archived" when channel.isArchived is true', async () => {
+      // isMember → member
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      // findById → archived channel
+      redisService.getOrSet.mockResolvedValueOnce({
+        id: 'ch-1',
+        isActivated: true,
+        isArchived: true,
+      });
+
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      redisService.getOrSet.mockResolvedValueOnce({
+        id: 'ch-1',
+        isActivated: true,
+        isArchived: true,
+      });
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        'Channel is archived and no longer accepts new messages',
+      );
+    });
+
+    it('throws "deactivated" (not "archived") when both flags are set', async () => {
+      // isActivated check must run before isArchived — deactivated wins
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+      redisService.getOrSet.mockResolvedValueOnce({
+        id: 'ch-1',
+        isActivated: false,
+        isArchived: true,
+      });
+
+      await expect(service.assertWriteAccess('ch-1', 'user-1')).rejects.toThrow(
+        'Channel is deactivated — execution has completed',
+      );
+    });
+  });
+
   describe('getUserChannels', () => {
     it('attaches other user info for direct channels and keeps public channels unchanged', async () => {
       db.where
