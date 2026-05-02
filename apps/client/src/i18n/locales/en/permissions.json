@@ -1,0 +1,45 @@
+{
+  "inbox": {
+    "title": "Permission Requests",
+    "empty": "No pending requests",
+    "badgeAria": "{{count}} pending permission requests"
+  },
+  "request": {
+    "title": "Permission requested",
+    "spellLabel": "Spell ID",
+    "spellCopy": "Copy spell id",
+    "reasonLabel": "Reason",
+    "scopeLabel": "Scope",
+    "allowOnce": "Allow once",
+    "remember": "Allow & remember…",
+    "deny": "Deny",
+    "from": "From {{bot}}",
+    "in": "in {{channel}}"
+  },
+  "remember": {
+    "title": "Remember this permission",
+    "subjectLabel": "Apply to",
+    "subjectAgent": "This agent",
+    "subjectChannel": "This channel only",
+    "subjectExecution": "This routine run only",
+    "subjectTask": "This routine (all runs)",
+    "expiresLabel": "Expires (optional)",
+    "scopeLabel": "Scope",
+    "save": "Save grant"
+  },
+  "grants": {
+    "title": "Granted permissions",
+    "empty": "No grants for this {{subject}}",
+    "createButton": "Add grant",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke this grant?",
+    "permissionKey": "Permission",
+    "scope": "Scope",
+    "expires": "Expires",
+    "createdBy": "Granted by"
+  },
+  "errors": {
+    "requestNotFound": "This request no longer exists",
+    "alreadyDecided": "This request has already been decided"
+  }
+}
