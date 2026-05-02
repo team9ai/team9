@@ -106,6 +106,13 @@ describe('MessagesController', () => {
         publishWorkspaceEvent: MockFn;
       }
     | undefined;
+  let permissionsService: {
+    gate: MockFn;
+    createRequest: MockFn;
+  };
+  let botService: {
+    getBotByUserId: MockFn;
+  };
   let dateSpy: jest.Spied<typeof Date.now>;
 
   beforeEach(() => {
@@ -195,6 +202,18 @@ describe('MessagesController', () => {
 
     propertyDefinitionsService = {};
 
+    permissionsService = {
+      gate: jest.fn<any>().mockResolvedValue({ allowed: false }),
+      createRequest: jest.fn<any>().mockResolvedValue({
+        id: 'req-1',
+        spellId: 'alpha bravo charlie',
+      }),
+    };
+
+    botService = {
+      getBotByUserId: jest.fn<any>().mockResolvedValue(null),
+    };
+
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
 
     controller = new MessagesController(
@@ -207,6 +226,8 @@ describe('MessagesController', () => {
       propertyDefinitionsService as never,
       eventEmitter as never,
       gatewayMQService as never,
+      permissionsService as never,
+      botService as never,
     );
     (controller as any).logger = {
       debug: jest.fn(),

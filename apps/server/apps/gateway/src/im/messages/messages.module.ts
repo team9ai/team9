@@ -8,6 +8,7 @@ import { WebsocketModule } from '../websocket/websocket.module.js';
 import { PropertiesModule } from '../properties/properties.module.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { StreamingController } from '../streaming/streaming.controller.js';
+import { PermissionsModule } from '../../permissions/permissions.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { StreamingController } from '../streaming/streaming.controller.js';
     PropertiesModule,
     forwardRef(() => ChannelsModule),
     forwardRef(() => WebsocketModule),
+    forwardRef(() => PermissionsModule),
   ],
   controllers: [MessagesController, StreamingController],
   providers: [MessagesService, ImWorkerGrpcClientService],

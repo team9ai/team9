@@ -9,6 +9,8 @@ import {
   Query,
   UseGuards,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Inject,
   forwardRef,
   Optional,
@@ -46,6 +48,8 @@ import { MessagePropertiesService } from '../properties/message-properties.servi
 import { AiAutoFillService } from '../properties/ai-auto-fill.service.js';
 import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { determineMessageType } from './message-utils.js';
+import { PermissionsService } from '../../permissions/permissions.service.js';
+import { BotService } from '../../bot/bot.service.js';
 
 @Controller({
   path: 'im',
@@ -66,6 +70,8 @@ export class MessagesController {
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
+    @Optional() private readonly permissionsService?: PermissionsService,
+    @Optional() private readonly botService?: BotService,
   ) {}
 
   private shouldPublishChannelMessageTrigger(
@@ -79,6 +85,7 @@ export class MessagesController {
     userId: string,
     channelId: string,
     dto: CreateMessageDto,
+    tenantId?: string,
   ): Promise<MessageResponse> {
     const t0 = Date.now();
 
@@ -86,7 +93,53 @@ export class MessagesController {
     const t1 = Date.now();
 
     if (!isMember) {
-      throw new ForbiddenException('Access denied');
+      // Check if the sender is a bot — bots can gain access via permission grants
+      const bot = this.botService
+        ? await this.botService.getBotByUserId(userId)
+        : null;
+
+      if (!bot) {
+        // Human non-member: unchanged behavior
+        throw new ForbiddenException('Access denied');
+      }
+
+      // Bot non-member: consult the permission gate
+      const resolvedTenantId = tenantId ?? '';
+      if (this.permissionsService && resolvedTenantId) {
+        const gateResult = await this.permissionsService.gate({
+          key: 'messages:send',
+          metadata: { channelId },
+          ctx: { tenantId: resolvedTenantId, botId: bot.botId, channelId },
+        });
+
+        if (!gateResult.allowed) {
+          const reason = dto.content
+            ? `Send message in channel ${channelId}: ${dto.content.slice(0, 80)}`
+            : `Send message in channel ${channelId}`;
+          const req = await this.permissionsService.createRequest({
+            tenantId: resolvedTenantId,
+            requesterBotId: bot.botId,
+            permissionKey: 'messages:send',
+            requestedMetadata: { channelId },
+            contextChannelId: channelId,
+            reason,
+          });
+          throw new HttpException(
+            {
+              statusCode: HttpStatus.FORBIDDEN,
+              error: 'PERMISSION_REQUIRED',
+              requestId: req.id,
+              spellId: req.spellId,
+              message: 'Bot lacks messages:send permission for this channel',
+            },
+            HttpStatus.FORBIDDEN,
+          );
+        }
+        // allowed — fall through to normal message-creation logic
+      } else {
+        // No permissions service or no tenant — deny as before
+        throw new ForbiddenException('Access denied');
+      }
     }
 
     const clientMsgId = dto.clientMsgId || uuidv7();
@@ -341,8 +394,9 @@ export class MessagesController {
     @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreateMessageDto,
+    @CurrentUser('tenantId') tenantId?: string,
   ): Promise<MessageResponse> {
-    return this.createChannelMessage(userId, channelId, dto);
+    return this.createChannelMessage(userId, channelId, dto, tenantId);
   }
 
   @Get('channels/:channelId/pinned')
