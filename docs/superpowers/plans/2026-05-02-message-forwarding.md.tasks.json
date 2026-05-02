@@ -1,0 +1,101 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-02-message-forwarding.md",
+  "lastUpdated": "2026-05-02T07:14:19Z",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: i18n strings (en + zh-CN)",
+      "status": "pending",
+      "description": "**Goal:** Add forward.* keys to en + zh-CN locales.\n\n**Files:** apps/client/src/i18n/locales/{en,zh-CN}/channel.json\n\n**Verify:** node JSON.parse + pnpm --filter @team9/client lint\n\n```json:metadata\n{\"files\":[\"apps/client/src/i18n/locales/en/channel.json\",\"apps/client/src/i18n/locales/zh-CN/channel.json\"],\"verifyCommand\":\"pnpm --filter @team9/client lint\",\"acceptanceCriteria\":[\"all forward.* keys from spec §2.5 in both files\",\"JSON parses cleanly\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: DB schema — 'forward' enum + im_message_forwards table + migration",
+      "status": "pending",
+      "description": "**Goal:** Land the schema and migration for forward storage.\n\n**Files:** apps/server/libs/database/src/schemas/im/{messages.ts,message-forwards.ts,index.ts,message-forwards.spec.ts}; apps/server/libs/database/drizzle/<NNNN>_*.sql\n\n**Verify:** pnpm db:generate; pnpm db:migrate; pnpm --filter @team9/database test -- message-forwards\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/im/messages.ts\",\"apps/server/libs/database/src/schemas/im/message-forwards.ts\",\"apps/server/libs/database/src/schemas/im/index.ts\",\"apps/server/libs/database/src/schemas/im/message-forwards.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/database test -- message-forwards\",\"acceptanceCriteria\":[\"messageTypeEnum includes 'forward'\",\"messageForwards table compiles with all columns + indexes\",\"db:generate produces single migration; db:migrate applies cleanly\",\"schema spec covers position ordering + cascade + set null + NOT NULL guard\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: ChannelsService.assertWriteAccess",
+      "status": "pending",
+      "description": "**Goal:** Extract write-access checks into a reusable assertWriteAccess; refactor MessagesController to use it.\n\n**Files:** apps/server/apps/gateway/src/im/channels/channels.service.ts (+ .spec.ts); apps/server/apps/gateway/src/im/messages/messages.controller.ts\n\n**Verify:** pnpm --filter @team9/server test -- channels.service messages.controller\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/channels/channels.service.ts\",\"apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\",\"apps/server/apps/gateway/src/im/messages/messages.controller.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- channels.service messages.controller\",\"acceptanceCriteria\":[\"assertWriteAccess throws on non-member, archived, deactivated\",\"existing createChannelMessage flow regression-free\",\"unit tests cover happy + each rejection branch\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: ForwardsService — core business logic",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** Build ForwardsService.forward() + getForwardItems() + hydrate() with snapshot capture, validation, error mapping, re-forward support, and forward-row insert with rollback on failure.\n\n**Files:** apps/server/apps/gateway/src/im/messages/forwards/{types.ts,forwards.service.ts,forwards.service.spec.ts}\n\n**Verify:** pnpm --filter @team9/server test -- forwards.service --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/messages/forwards/types.ts\",\"apps/server/apps/gateway/src/im/messages/forwards/forwards.service.ts\",\"apps/server/apps/gateway/src/im/messages/forwards/forwards.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- forwards.service --coverage\",\"acceptanceCriteria\":[\"happy paths: single text/image/long_text/forward + bundle of 5\",\"rejection paths match spec §4.5 error matrix\",\"snapshot truncation at 100k\",\"forward message has zero rows in im_message_attachments\",\"failed insert triggers softDelete + 500\",\"100% coverage on forwards.service.ts and types.ts\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: ForwardsController — REST endpoints",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** POST /api/v1/im/channels/:id/forward + GET /api/v1/im/messages/:id/forward-items, registered in MessagesModule.\n\n**Files:** apps/server/apps/gateway/src/im/messages/forwards/{forwards.controller.ts,forwards.controller.spec.ts,dto/create-forward.dto.ts}; apps/server/apps/gateway/src/im/messages/messages.module.ts\n\n**Verify:** pnpm --filter @team9/server test -- forwards.controller\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/messages/forwards/forwards.controller.ts\",\"apps/server/apps/gateway/src/im/messages/forwards/forwards.controller.spec.ts\",\"apps/server/apps/gateway/src/im/messages/forwards/dto/create-forward.dto.ts\",\"apps/server/apps/gateway/src/im/messages/messages.module.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- forwards.controller\",\"acceptanceCriteria\":[\"POST validates DTO (UUID, length 1..100)\",\"GET returns full ForwardItemResponse[]\",\"both guarded by AuthGuard\",\"controller spec covers happy + delegation\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: MessagesService — hydrate forward field on reads + reject PATCH",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Attach forward payload via ForwardsService.hydratePayload on getMessageWithDetails + bulk paths; threading userId through; PATCH rejected on type=forward.\n\n**Files:** apps/server/apps/gateway/src/im/messages/messages.service.ts (+ .spec.ts), messages.controller.ts (+ .spec.ts)\n\n**Verify:** pnpm --filter @team9/server test -- messages.service messages.controller\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/messages/messages.service.ts\",\"apps/server/apps/gateway/src/im/messages/messages.service.spec.ts\",\"apps/server/apps/gateway/src/im/messages/messages.controller.ts\",\"apps/server/apps/gateway/src/im/messages/messages.controller.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- messages.service messages.controller\",\"acceptanceCriteria\":[\"MessageResponse adds optional forward field\",\"hydration runs only for type=forward\",\"bulk fetch hydrates each forward in page\",\"PATCH on forward returns 400 forward.editDisabled\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Backend e2e — forward.e2e-spec.ts",
+      "status": "pending",
+      "blockedBy": [4, 5],
+      "description": "**Goal:** End-to-end coverage per spec §9.2 (single + bundle + WS broadcast + re-forward + soft-delete + access errors).\n\n**Files:** apps/server/apps/gateway/test/forward.e2e-spec.ts\n\n**Verify:** pnpm --filter @team9/server test:e2e -- forward\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/test/forward.e2e-spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test:e2e -- forward\",\"acceptanceCriteria\":[\"happy bundle path with WS broadcast\",\"single image: 0 rows in im_message_attachments for forward msg\",\"403 on no read or no write access\",\"re-forward chain depth 1\",\"soft-deleted source still renders snapshot\",\">100 + mixed-channel rejections\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Frontend — types, API client, selection store",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** MessageType union + ForwardPayload/ForwardItem types; forwardApi.create/getItems; useForwardSelectionStore with cap enforcement.\n\n**Files:** apps/client/src/types/im.ts; apps/client/src/services/api.ts; apps/client/src/stores/useForwardSelectionStore.ts (+ __tests__)\n\n**Verify:** pnpm --filter @team9/client test -- useForwardSelectionStore\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/im.ts\",\"apps/client/src/services/api.ts\",\"apps/client/src/stores/useForwardSelectionStore.ts\",\"apps/client/src/stores/__tests__/useForwardSelectionStore.test.ts\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- useForwardSelectionStore\",\"acceptanceCriteria\":[\"MessageType includes 'forward'; Message has optional forward\",\"forwardApi.create + getItems hit right URLs\",\"selection store: enter/exit/toggle/addRange/clear, cap=100, channel-switch clears\",\"100% coverage on store\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: ForwardDialog + channel picker + preview",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Modal that lets user pick target channel, shows single-quote or bundle preview, calls forwardApi.create.\n\n**Files:** apps/client/src/components/channel/forward/{ForwardDialog,ForwardChannelList,ForwardPreview}.tsx (+ __tests__/*.test.tsx); + forward.success i18n key\n\n**Verify:** pnpm --filter @team9/client test -- forward/__tests__\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/forward/ForwardDialog.tsx\",\"apps/client/src/components/channel/forward/ForwardChannelList.tsx\",\"apps/client/src/components/channel/forward/ForwardPreview.tsx\",\"apps/client/src/components/channel/forward/__tests__/ForwardDialog.test.tsx\",\"apps/client/src/components/channel/forward/__tests__/ForwardChannelList.test.tsx\",\"apps/client/src/components/channel/forward/__tests__/ForwardPreview.test.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- forward/__tests__\",\"acceptanceCriteria\":[\"single vs bundle preview branch\",\"channel list excludes archived/deactivated/source\",\"confirm disabled until selection; spinner during request\",\"toast on success/error with mapped i18n\",\"100% coverage on three new files\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: ForwardedMessageCard + ForwardBundleViewer",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Render forward messages on receiving end — quote card single, stacked bundle card with click-to-expand modal that lazy-fetches items.\n\n**Files:** apps/client/src/components/channel/forward/{ForwardedMessageCard,ForwardBundleViewer}.tsx (+ __tests__)\n\n**Verify:** pnpm --filter @team9/client test -- ForwardedMessageCard ForwardBundleViewer\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/forward/ForwardedMessageCard.tsx\",\"apps/client/src/components/channel/forward/ForwardBundleViewer.tsx\",\"apps/client/src/components/channel/forward/__tests__/ForwardedMessageCard.test.tsx\",\"apps/client/src/components/channel/forward/__tests__/ForwardBundleViewer.test.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- ForwardedMessageCard ForwardBundleViewer\",\"acceptanceCriteria\":[\"single vs bundle branch\",\"jump-to-original respects canJumpToOriginal\",\"source-unavailable header when channelName null\",\"viewer modal lazy-fetches via forwardApi.getItems\",\"100% coverage on both files\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: SelectionActionBar + MessageList integration + MessageItem checkbox + eligibility helper",
+      "status": "pending",
+      "blockedBy": [7, 8],
+      "description": "**Goal:** Wire selection-mode UI: per-row checkboxes (with eligibility tooltip), bottom action bar, route-change exit, Esc cancel, Shift+click range, cap toast.\n\n**Files:** apps/client/src/components/channel/forward/{SelectionActionBar,eligibility}.{tsx,ts} (+ __tests__); MessageItem.tsx; MessageList.tsx\n\n**Verify:** pnpm --filter @team9/client test -- SelectionActionBar MessageList eligibility\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/forward/SelectionActionBar.tsx\",\"apps/client/src/components/channel/forward/eligibility.ts\",\"apps/client/src/components/channel/forward/__tests__/SelectionActionBar.test.tsx\",\"apps/client/src/components/channel/forward/__tests__/eligibility.test.ts\",\"apps/client/src/components/channel/MessageItem.tsx\",\"apps/client/src/components/channel/MessageList.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- SelectionActionBar MessageList eligibility\",\"acceptanceCriteria\":[\"checkboxes appear on rows in selection mode\",\"Shift+click range adds inclusive eligible slice\",\"Esc + route-change exits mode\",\"cap=100 enforced with toast\",\"action bar opens ForwardDialog with selectedMessages\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Hover toolbar + context menu wiring",
+      "status": "pending",
+      "blockedBy": [8, 10],
+      "description": "**Goal:** Add Forward + Select entry points on MessageHoverToolbar and MessageContextMenu; wire from MessageItem.\n\n**Files:** MessageHoverToolbar.tsx; MessageContextMenu.tsx; MessageItem.tsx; corresponding __tests__\n\n**Verify:** pnpm --filter @team9/client test -- MessageHoverToolbar MessageContextMenu\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/MessageHoverToolbar.tsx\",\"apps/client/src/components/channel/MessageContextMenu.tsx\",\"apps/client/src/components/channel/MessageItem.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- MessageHoverToolbar MessageContextMenu\",\"acceptanceCriteria\":[\"Forward + Select icons on hover toolbar (gated on isForwardable)\",\"Forward + Select items in context menu (with F shortcut)\",\"Forward opens ForwardDialog single; Select enters mode + toggles\",\"tests for visibility and click handlers\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: MessageContent dispatch — render forward card when type=forward",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** MessageContent short-circuits to <ForwardedMessageCard /> when type=forward.\n\n**Files:** apps/client/src/components/channel/MessageContent.tsx (+ __tests__)\n\n**Verify:** pnpm --filter @team9/client test -- MessageContent\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/channel/MessageContent.tsx\",\"apps/client/src/components/channel/__tests__/MessageContent.test.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- MessageContent\",\"acceptanceCriteria\":[\"renders ForwardedMessageCard for forward type\",\"existing branches unchanged\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: Manual smoke + final integration verification + PR",
+      "status": "pending",
+      "blockedBy": [6, 11, 12],
+      "description": "**Goal:** Boot dev stack, exercise both flows in browser, verify WS broadcast, capture regressions, run full coverage, open PR.\n\n**Files:** none (verification + PR)\n\n**Verify:** pnpm --filter @team9/server test:cov && pnpm --filter @team9/client test:cov\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"pnpm --filter @team9/server test:cov && pnpm --filter @team9/client test:cov\",\"acceptanceCriteria\":[\"single + bundle forward smoke pass\",\"jump-to-original + bundle viewer work\",\"re-forward chain depth 1\",\"403 on archived target via curl\",\"400 on >100 via curl\",\"no regressions in thread/edit/reactions\",\"100% coverage on new files\",\"PR opened against dev (per user CLAUDE.md)\"]}\n```"
+    }
+  ]
+}
