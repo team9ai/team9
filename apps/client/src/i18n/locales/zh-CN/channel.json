@@ -255,5 +255,47 @@
       "tasks": "任务",
       "messages": "消息"
     }
+  },
+  "forward": {
+    "toolbar": {
+      "forward": "转发",
+      "select": "选择"
+    },
+    "contextMenu": {
+      "forward": "转发",
+      "select": "选择"
+    },
+    "dialog": {
+      "titleSingle": "转发消息",
+      "titleBundle": "转发 {{count}} 条消息",
+      "searchPlaceholder": "搜索频道…",
+      "confirm": "发送",
+      "cancel": "取消"
+    },
+    "selection": {
+      "bar": "已选 {{count}} 条",
+      "cancel": "取消"
+    },
+    "tooManySelected": "一次最多转发 100 条消息",
+    "card": {
+      "fromChannel": "转自 #{{channelName}}"
+    },
+    "bundle": {
+      "title": "聊天记录 · {{count}} 条",
+      "viewAll": "查看全部",
+      "modalTitle": "来自 #{{channelName}} 的聊天记录"
+    },
+    "source": {
+      "unavailable": "原消息已不可访问",
+      "jumpTo": "跳转到原消息"
+    },
+    "error": {
+      "notAllowed": "此消息不可转发",
+      "noWriteAccess": "你没有该频道的发送权限",
+      "noSourceAccess": "你已无法访问原频道",
+      "mixedChannels": "多选转发的消息必须来自同一频道",
+      "empty": "请至少选择一条消息进行转发",
+      "notFound": "找不到原消息"
+    }
   }
 }

@@ -258,5 +258,47 @@
       "tasks": "Tasks",
       "messages": "Messages"
     }
+  },
+  "forward": {
+    "toolbar": {
+      "forward": "Forward",
+      "select": "Select"
+    },
+    "contextMenu": {
+      "forward": "Forward",
+      "select": "Select"
+    },
+    "dialog": {
+      "titleSingle": "Forward message",
+      "titleBundle": "Forward {{count}} messages",
+      "searchPlaceholder": "Search channels…",
+      "confirm": "Forward",
+      "cancel": "Cancel"
+    },
+    "selection": {
+      "bar": "{{count}} selected",
+      "cancel": "Cancel"
+    },
+    "tooManySelected": "You can forward up to 100 messages at once.",
+    "card": {
+      "fromChannel": "Forwarded from #{{channelName}}"
+    },
+    "bundle": {
+      "title": "Chat record · {{count}} messages",
+      "viewAll": "View all",
+      "modalTitle": "Chat record from #{{channelName}}"
+    },
+    "source": {
+      "unavailable": "Source no longer available",
+      "jumpTo": "Jump to original"
+    },
+    "error": {
+      "notAllowed": "This message can't be forwarded.",
+      "noWriteAccess": "You can't forward to this channel.",
+      "noSourceAccess": "You no longer have access to the original channel.",
+      "mixedChannels": "All selected messages must come from the same channel.",
+      "empty": "Pick at least one message to forward.",
+      "notFound": "Original message could not be found."
+    }
   }
 }
