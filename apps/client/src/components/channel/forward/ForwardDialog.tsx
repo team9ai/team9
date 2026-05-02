@@ -64,7 +64,7 @@ export function ForwardDialog({
     onError: (err: unknown) => {
       const code = extractErrorCode(err);
       const key = ERROR_TO_KEY[code] ?? "forward.error.notAllowed";
-      toast.error(t(key));
+      toast.error(t(key as never));
     },
   });
 
