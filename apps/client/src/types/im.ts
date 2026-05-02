@@ -15,7 +15,8 @@ export type MessageType =
   | "image"
   | "system"
   | "tracking"
-  | "long_text";
+  | "long_text"
+  | "forward";
 export type MemberRole = "owner" | "admin" | "member";
 export type UserStatus = "online" | "offline" | "away" | "busy";
 export type MessageSendStatus = "sending" | "sent" | "failed";
@@ -72,6 +73,49 @@ export interface AgentEventMetadata {
   durationMs?: number;
   /** ISO timestamp when thinking started (for live elapsed display) — Thinking 开始时间（ISO 格式，用于实时显示已耗时） */
   startedAt?: string;
+}
+
+export interface ForwardAttachmentSnapshot {
+  originalAttachmentId: string;
+  fileName: string;
+  fileUrl: string;
+  fileKey: string | null;
+  fileSize: number;
+  mimeType: string;
+  thumbnailUrl: string | null;
+  width: number | null;
+  height: number | null;
+}
+
+export interface ForwardItem {
+  position: number;
+  sourceMessageId: string | null;
+  sourceChannelId: string;
+  sourceChannelName: string | null;
+  sourceWorkspaceId: string | null;
+  sourceSender: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null;
+  sourceCreatedAt: string;
+  sourceSeqId: string | null;
+  sourceType: "text" | "long_text" | "file" | "image" | "forward";
+  contentSnapshot: string | null;
+  contentAstSnapshot: Record<string, unknown> | null;
+  attachmentsSnapshot: ForwardAttachmentSnapshot[];
+  canJumpToOriginal: boolean;
+  truncated: boolean;
+}
+
+export interface ForwardPayload {
+  kind: "single" | "bundle";
+  count: number;
+  sourceChannelId: string;
+  sourceChannelName: string | null;
+  truncated: boolean;
+  items: ForwardItem[];
 }
 
 export interface ChannelSnapshot {
@@ -207,6 +251,7 @@ export interface Message {
   attachments?: MessageAttachment[];
   reactions?: MessageReaction[];
   properties?: Record<string, unknown>;
+  forward?: ForwardPayload;
   isTruncated?: boolean;
   fullContentLength?: number;
   replyCount?: number;
