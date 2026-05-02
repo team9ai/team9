@@ -276,6 +276,7 @@
       "bar": "已选 {{count}} 条",
       "cancel": "取消"
     },
+    "success": "已转发",
     "tooManySelected": "一次最多转发 100 条消息",
     "card": {
       "fromChannel": "转自 #{{channelName}}"

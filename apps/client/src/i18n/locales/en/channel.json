@@ -279,6 +279,7 @@
       "bar": "{{count}} selected",
       "cancel": "Cancel"
     },
+    "success": "Forwarded.",
     "tooManySelected": "You can forward up to 100 messages at once.",
     "card": {
       "fromChannel": "Forwarded from #{{channelName}}"
