@@ -63,6 +63,7 @@ import {
   type MessageRelationChangedEvent,
   type MessageRelationsPurgedEvent,
 } from "@/types/ws-events";
+import { useAppStore } from "@/stores/useAppStore";
 
 type EventCallback<TEvent = unknown> = (event: TEvent) => void;
 
@@ -262,6 +263,29 @@ class WebSocketService {
     this.socket.on("reconnect", () => {
       // Also refresh on reconnect in case authenticated event doesn't fire
       this.refreshQueriesAfterReconnect();
+    });
+
+    // ── Permission events ────────────────────────────────────────────────────
+    this.socket.on(WS_EVENTS.PERMISSION.REQUEST_CREATED, () => {
+      queryClient.invalidateQueries({ queryKey: ["permissions", "requests"] });
+      useAppStore.getState().incrementPendingPermissions();
+    });
+
+    this.socket.on(WS_EVENTS.PERMISSION.REQUEST_DECIDED, () => {
+      queryClient.invalidateQueries({ queryKey: ["permissions", "requests"] });
+      useAppStore.getState().decrementPendingPermissions();
+    });
+
+    this.socket.on(WS_EVENTS.PERMISSION.REQUEST_CONSUMED, () => {
+      useAppStore.getState().decrementPendingPermissions();
+    });
+
+    this.socket.on(WS_EVENTS.PERMISSION.GRANT_CREATED, () => {
+      queryClient.invalidateQueries({ queryKey: ["permissions", "grants"] });
+    });
+
+    this.socket.on(WS_EVENTS.PERMISSION.GRANT_REVOKED, () => {
+      queryClient.invalidateQueries({ queryKey: ["permissions", "grants"] });
     });
   }
 
