@@ -1,7 +1,7 @@
 # Permissions and Approvals System — Design
 
 **Date:** 2026-05-02
-**Status:** Draft (pending user approval)
+**Status:** Reviewed (open questions resolved 2026-05-02)
 **Author:** Claude (auto-mode brainstorming)
 
 ## 1. Background
@@ -46,23 +46,94 @@ Out of scope for v1: claw-hive runtime tool-call hooks (will be added in a follo
 
 > **Note on terminology:** the user's request uses "session" generically; we split it into chat-session vs execution-session because they have different lifetimes and audit semantics.
 
-## 4. Permission Keys & Metadata Schema
+## 4. Permission Keys, Scope Schema & Approver Resolution
 
-Permission keys are **defined in code** (not a DB table), with each key declaring a JSONSchema for valid `scope_metadata`. v1 ships a small set; new keys are added by adding a registry entry.
+Permission keys are **defined in code** (not a DB table). Each key is registered with:
+
+- a JSONSchema for the valid `scope_metadata` shape,
+- a `resolveApprovers(ctx)` function returning the **resource holders** for a given request context (the primary approvers),
+- an optional `defaultApprovers` fallback when the resolver returns an empty set,
+- a `risk` label.
+
+This is how Q2 ("primary approver = resource holder") is encoded: the key itself owns the rule for who is allowed to grant it. Adding a new permission means writing both the scope shape and a holder-resolver in the same file, so the two can never drift.
 
 ```ts
 // apps/server/apps/gateway/src/permissions/permission-keys.ts
-export const PERMISSION_KEYS = {
-  "messages:send": { metadata: ChannelScopeSchema, risk: "low" },
-  "messages:read": { metadata: ChannelScopeSchema, risk: "low" },
-  "tools:invoke": { metadata: ToolScopeSchema, risk: "medium" },
-  "wiki:read": { metadata: WikiScopeSchema, risk: "low" },
-  "wiki:write": { metadata: WikiScopeSchema, risk: "high" },
-  "files:read": { metadata: PathScopeSchema, risk: "medium" },
-  "files:write": { metadata: PathScopeSchema, risk: "high" },
-  "routine:trigger": { metadata: RoutineScopeSchema, risk: "medium" },
+export interface PermissionKeyDef {
+  metadata: JSONSchema; // shape of scope_metadata
+  risk: "low" | "medium" | "high";
+  resolveApprovers: (
+    ctx: ApproverContext,
+    deps: ApproverDeps,
+  ) => Promise<UserId[]>;
+  defaultApprovers?: "workspace-admins" | "bot-owners" | "none";
+  describe: (metadata: object) => string; // human-readable for UI
+}
+
+export const PERMISSION_KEYS: Record<string, PermissionKeyDef> = {
+  "messages:send": {
+    metadata: ChannelScopeSchema,
+    risk: "low",
+    resolveApprovers: async ({ metadata, contextChannelId }, { db }) => {
+      const channelId = pickChannelId(metadata, contextChannelId);
+      return channelId ? db.findChannelOwnersAndAdmins(channelId) : [];
+    },
+    defaultApprovers: "workspace-admins",
+    describe: (m) =>
+      `Send messages${m.channelIds ? ` in ${m.channelIds.length} channel(s)` : ""}`,
+  },
+  "messages:read": {
+    /* similar */
+  },
+  "tools:invoke": {
+    metadata: ToolScopeSchema,
+    risk: "medium",
+    resolveApprovers: async ({ requesterBotId }, { db }) =>
+      db.findBotOwnerAndMentor(requesterBotId),
+    defaultApprovers: "workspace-admins",
+    describe: (m) =>
+      `Invoke tool${m.toolNames ? ` (${m.toolNames.join(", ")})` : ""}`,
+  },
+  "wiki:read": {
+    metadata: WikiScopeSchema,
+    risk: "low",
+    resolveApprovers: async ({ metadata }, { db }) =>
+      db.findWikiOwners(metadata.wikiId),
+    defaultApprovers: "workspace-admins",
+    describe: (m) => `Read wiki${m.wikiId ? ` ${m.wikiId}` : ""}`,
+  },
+  "wiki:write": {
+    /* same shape, risk: 'high' */
+  },
+  "files:read": {
+    /* PathScopeSchema, holder = file-keeper resource owner */
+  },
+  "files:write": {
+    /* same, high risk */
+  },
+  "routine:trigger": {
+    metadata: RoutineScopeSchema,
+    risk: "medium",
+    resolveApprovers: async ({ metadata }, { db }) =>
+      db.findRoutineCreatorAndOwner(metadata.routineId),
+    defaultApprovers: "workspace-admins",
+    describe: (m) => `Trigger routine ${m.routineId}`,
+  },
 } as const;
 ```
+
+**Approver resolution order** (used by `PermissionsService.resolveApprovers(request)`):
+
+1. Run `key.resolveApprovers(ctx)` → primary holders.
+2. Union with `request.suggestedApproverIds` (an optional array the AI can include when filing the request — see §8).
+3. If the union is empty, apply `key.defaultApprovers` (`workspace-admins` or `bot-owners`).
+4. Workspace `owner` always belongs to the approver set as a safety net (cannot be excluded).
+
+This is the **only** place that decides who can decide a request. The WS dispatcher (§9) and the controller's `canDecide(...)` check both call it.
+
+**`ApproverContext`** carries `tenantId`, `requesterBotId`, `permissionKey`, `metadata`, `contextChannelId?`, `contextExecutionId?`, `contextRoutineId?` — the same data the request row holds.
+
+**`ApproverDeps`** is a small interface (`db.findChannelOwnersAndAdmins(...)`, `db.findBotOwnerAndMentor(...)`, etc.) implemented by `PermissionsApproverRepository`. Centralizing the queries keeps key definitions declarative and makes resolvers trivially mockable in tests.
 
 Scope schemas are intersection-style: each property is optional; presence narrows scope; absence means unrestricted.
 
@@ -168,6 +239,9 @@ export const authPermissionRequests = pgTable(
     requestedMetadata: jsonb("requested_metadata")
       .$type<Record<string, unknown>>()
       .default({}),
+    suggestedApproverIds: uuid("suggested_approver_ids")
+      .array()
+      .default(sql`ARRAY[]::uuid[]`), // optional: AI-supplied extra approvers, validated server-side
     reason: text("reason"),
     status: requestStatusEnum("status").notNull().default("pending"),
     decidedByUserId: uuid("decided_by_user_id").references(() => imUsers.id),
@@ -218,11 +292,17 @@ export class SpellIdService {
 }
 ```
 
-**Word list:** ~200 lowercase blockchain/crypto-themed words (3-7 chars), kept in `spell-words.ts`. Curated for memorability and avoidance of homophones. Examples: `ledger`, `shard`, `hash`, `mint`, `forge`, `crystal`, `flame`, `raven`, `storm`, `sigil`, `oracle`, `beacon`, `zenith`, `ember`, `cipher`, `vault`, `chain`, `block`, `node`, `gas`, `key`, `seal`, `rune`, `glyph`, `prism`, `ether`, `omen`, `relic`.
+**Word list:** the **BIP-39 English mnemonic word list** (the same list used by crypto wallets for recovery phrases, also commonly called "secret words"). 2048 words, 3–8 lowercase letters each, designed so the first four letters of every word are unique → unambiguous when typed or spoken aloud.
 
-**Collision:** `generate()` calls until a unique row insert succeeds (DB unique constraint is the source of truth). Bumps `wordCount` from 3 → 4 → 5 if needed.
+Stored as a static asset at `apps/server/apps/gateway/src/permissions/spell-words.ts` (re-exported from a checked-in copy of the BIP-39 list, ~13 KB). No runtime dependency on a wallet library — the file is a `readonly string[]`.
 
-**Format:** lowercase letters + single spaces; regex `^[a-z]+( [a-z]+){2,4}$`. The Spell ID is **not** a security secret — it's a memorable handle. Authentication still goes through normal JWT.
+**Combinatorics:** with 3 words → 2048³ ≈ 8.6 billion combinations; collisions for any realistic pending-set size are negligible. 4-word fallback exists only as defense-in-depth.
+
+**Collision handling:** `generate()` retries until the DB unique constraint accepts the insert. After 3 retries at 3 words, escalates to 4 words.
+
+**Format:** lowercase letters + single spaces; regex `^[a-z]+( [a-z]+){2,4}$`. Parser normalizes (trim, lowercase, collapse runs of whitespace) so users can type it loosely.
+
+**Spell ID is not a secret.** Authentication is still JWT; the spell id is purely a memorable handle for "which request are we deciding right now," especially useful when the user reads it aloud from a notification or pastes it into chat.
 
 ## 7. Decision & Check Algorithms
 
@@ -281,15 +361,29 @@ body: {
 - `remember` → `status='approved_durable'` + creates a row in `auth_permission_grants` (atomically, in one transaction). `durable_grant_id` is set. `scopeOverride` (if any) becomes the grant's `scope_metadata`.
 - `deny` → `status='denied'`. Future calls return DENY immediately.
 
-### 7.3 Authorization for the decision
+### 7.3 Approver resolution & decision authorization
 
-A user can decide a request if:
+There is **one** function that decides who may decide a request, and it lives in `PermissionsService.resolveApprovers(request)`. The algorithm:
 
-- They are workspace `owner` or `admin` of the request's tenant, **OR**
-- They are the `ownerId` or `mentorId` of the requester bot, **OR**
-- They are an `owner`/`admin` member of the `contextChannelId` (if present).
+```
+approvers := key.resolveApprovers({
+              tenantId, requesterBotId, permissionKey,
+              metadata: request.requested_metadata,
+              contextChannelId, contextExecutionId, contextRoutineId,
+            })
+if request.suggested_approver_ids?.length:
+   approvers ∪= validate(suggested_approver_ids)   // must be in same tenant
+if approvers is empty:
+   approvers := fallback(key.defaultApprovers)     // workspace-admins / bot-owners / none
+approvers ∪= workspace_owners(tenant)              // safety-net, never excluded
+return approvers
+```
 
-This rule is encoded in `PermissionsService.canDecide(user, request)`, used by the controller and the WebSocket dispatcher.
+`PermissionsService.canDecide(user, request)` returns `true` iff `user.id ∈ resolveApprovers(request)`.
+
+Both the controller (`POST /requests/:id/decide`) and the WebSocket dispatcher (§9) ask this single function — there is no second authorization rule anywhere else.
+
+**Validation of suggested approvers:** the bot can suggest only users that exist in the same tenant. Suggestions that fail validation are dropped silently (logged), they don't reject the request — the holder set still applies.
 
 ## 8. REST API
 
@@ -300,9 +394,10 @@ GET    /grants?subjectKind=&subjectId=&permissionKey=
 POST   /grants                                # create proactive grant
 DELETE /grants/:id                            # revoke (sets revoked_at)
 
-GET    /requests?status=&scope=mine|tenant
+GET    /requests?status=&scope=mine|tenant   # 'mine' = approver list contains caller
 GET    /requests/by-spell/:spell              # case-insensitive, normalized
 POST   /requests                              # bot creates (uses bot JWT)
+                                              # body MAY include suggestedApproverIds: uuid[]
 DELETE /requests/:id                          # bot cancels (still pending)
 POST   /requests/:id/decide
 POST   /requests/by-spell/:spell/decide
@@ -314,7 +409,7 @@ Bots authenticate with the same JWT system as users (their shadow `im_users` row
 
 New domain `permissions` under `apps/server/libs/shared/src/events/domains/`.
 
-"Approvers" in the table below means **the set of users for whom `PermissionsService.canDecide(user, request)` returns true** — i.e., workspace owner/admin, bot `ownerId`/`mentorId`, and (when `contextChannelId` is set) channel `owner`/`admin` members. The exact rule is the one defined in §7.3.
+"Approvers" in the table below means the set returned by `PermissionsService.resolveApprovers(request)` (§7.3) — i.e., the per-key resource holders, plus AI-suggested approvers, plus workspace owners as a safety net.
 
 | Event                         | Payload                                                                                                  | Recipients                                  |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -431,20 +526,28 @@ v1 does **not** wire this into agent tool calls automatically — the agent code
 
 ## 15. Rollout
 
-1. Phase 1 — schema + service + REST + WS, no UI consumers, no enforcement points.
-2. Phase 2 — Frontend inbox + settings tabs.
-3. Phase 3 — Wire `gate(...)` into one high-value enforcement point (e.g., bot tool invocation in `IM` module). Validate UX end-to-end.
-4. Phase 4 — Add more enforcement points incrementally (wiki write, file ops, routine triggers).
+The first PR ships everything needed to demonstrate and test the loop end-to-end:
 
-Each phase ships behind no feature flag (greenfield, additive); reverts are pure deletions.
+1. **PR 1 (this spec)** — DB schema + `PermissionsService` (gate / grant / request / decide / consume) + per-key resolvers for `messages:send`, `tools:invoke`, `routine:trigger` + REST + WS events + frontend inbox & settings tabs + **one concrete enforcement point** (see below).
+2. **PR 2+** — Add enforcement at additional call sites (wiki write, file-keeper ops, more routine actions) and the claw-hive auto-wrapper for tool calls.
 
-## 16. Open Questions (for user review)
+**First enforcement point (PR 1):** `messages:send` for **bot cross-channel posts** — when a bot calls the message-create flow targeting a channel where it is not a member, the IM service calls `permissions.gate('messages:send', { channelId }, ctx)`. If denied, the IM service files a permission request (with the channel's owners/admins as the resolved approver set) and returns a `PERMISSION_PENDING` error to the bot containing `{ requestId, spellId }`. On approval, the bot retries.
 
-- **Q1:** Is `routine` (formerly task) really the "memo9-like entity" you meant? Or did you intend something like a _wiki page_ or _deliverable_?
-- **Q2:** Should bot owners (`im_bots.ownerId` / `mentorId`) be allowed to decide requests, or only workspace admins? (Spec assumes both.)
-- **Q3:** v1 enforcement scope — do you want me to wire `gate(...)` into a specific call site as part of the first PR, or land the framework alone first?
-- **Q4:** Do you want a hard cap on grant `expiresAt` (e.g., max 90 days), or fully unbounded?
-- **Q5:** Should the spell-id word list be exposed for branding (e.g., theme switcher: "crypto" / "fantasy" / "nature"), or fixed to crypto-themed v1?
+Why this first:
+
+- Fully server-enforced — testable from gateway integration tests without claw-hive in the loop.
+- Smallest blast radius — only fires on the rare cross-channel post path; existing in-channel sends are unaffected.
+- Demonstrates every system component: holder resolution (channel owners), spell-id propagation, in-channel approval card UX, durable-grant retry path.
+
+No feature flag — additive only. A revert is purely a deletion.
+
+## 16. Resolved Decisions (from 2026-05-02 review)
+
+- **Q1 — `task` subject:** Confirmed = `routine__routines.id` (routine-definition level). Encoded in §3.
+- **Q2 — Approvers:** The primary approver is the **resource holder**, resolved by a per-key `resolveApprovers(ctx)` function (§4). The bot may suggest extra approvers via `suggestedApproverIds` (§5.2, §8). Workspace owners are always included as a safety net. There is one canonical resolver, used by both REST and WS paths (§7.3).
+- **Q3 — First enforcement point:** Ships in PR 1. Chosen call site: bot cross-channel `messages:send` (§15).
+- **Q4 — Grant expiry:** No upper bound. `expiresAt` is `null` for indefinite, otherwise any future timestamp. The validator only rejects past timestamps.
+- **Q5 — Spell word list:** BIP-39 English mnemonic list (§6) — the same list crypto wallets use for "secret words" / recovery phrases.
 
 ## 17. Files To Be Created / Modified (sketch)
 
@@ -459,20 +562,22 @@ NEW:
   apps/server/apps/gateway/src/permissions/permissions.controller.ts
   apps/server/apps/gateway/src/permissions/permission-matcher.ts
   apps/server/apps/gateway/src/permissions/permission-keys.ts
+  apps/server/apps/gateway/src/permissions/permissions-approver.repository.ts  # holder lookups (channel/wiki/routine/bot)
   apps/server/apps/gateway/src/permissions/spell-id.service.ts
-  apps/server/apps/gateway/src/permissions/spell-words.ts
+  apps/server/apps/gateway/src/permissions/spell-words.ts                       # BIP-39 list
   apps/server/apps/gateway/src/permissions/dto/*.dto.ts
   apps/server/apps/gateway/src/permissions/__tests__/*.spec.ts
   apps/server/libs/shared/src/events/domains/permissions/index.ts
   apps/client/src/components/permissions/{PermissionInbox,PermissionRequestCard,GrantList,GrantEditor,ScopeEditor}.tsx
   apps/client/src/hooks/usePermissions.ts
   apps/client/src/i18n/locales/{en,zh-CN}/permissions.json
-  packages/claw-hive/src/runtime/permissions-client.ts          # team9-agent-pi monorepo
+  packages/claw-hive/src/runtime/permissions-client.ts          # team9-agent-pi monorepo (PR 2+ only)
 
 MODIFIED:
   apps/server/apps/gateway/src/app.module.ts                     # register PermissionsModule
   apps/server/libs/database/src/schemas/index.ts                 # re-export permissions
   apps/server/libs/shared/src/events/index.ts                    # add permissions domain
+  apps/server/apps/gateway/src/im/messages/messages.service.ts   # call gate('messages:send') for cross-channel bot posts
   apps/client/src/services/websocket.ts                          # listeners
   apps/client/src/stores/useAppStore.ts                          # pendingPermissionCount
 ```
