@@ -124,10 +124,17 @@ export class CommonStaffService {
       );
     }
 
+    const shortRoleTitle = await this.generateShortRoleTitleOrNull(
+      tenantId,
+      installedApplicationId,
+      dto.roleTitle,
+    );
+
     // 3. Create bot + register agent via StaffService
     const extra: BotExtra = {
       commonStaff: {
         roleTitle: dto.roleTitle,
+        shortRoleTitle,
         persona: dto.persona,
         jobDescription: dto.jobDescription,
         model: dto.model,
@@ -340,6 +347,14 @@ export class CommonStaffService {
     // 3. Build merged BotExtra and delegate to StaffService
     const existingExtra = (bot.extra as BotExtra) ?? {};
     const existingCommonStaff = existingExtra.commonStaff ?? {};
+    const shortRoleTitle =
+      dto.roleTitle !== undefined
+        ? await this.generateShortRoleTitleOrNull(
+            tenantId,
+            installedApplicationId,
+            dto.roleTitle,
+          )
+        : existingCommonStaff.shortRoleTitle;
 
     // dm outbound policy: partial-update semantics — undefined means no change
     const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
@@ -350,7 +365,9 @@ export class CommonStaffService {
       ...existingExtra,
       commonStaff: {
         ...existingCommonStaff,
-        ...(dto.roleTitle !== undefined ? { roleTitle: dto.roleTitle } : {}),
+        ...(dto.roleTitle !== undefined
+          ? { roleTitle: dto.roleTitle, shortRoleTitle }
+          : {}),
         ...(dto.persona !== undefined ? { persona: dto.persona } : {}),
         ...(dto.jobDescription !== undefined
           ? { jobDescription: dto.jobDescription }
@@ -391,6 +408,27 @@ export class CommonStaffService {
         to: nextPolicy,
         timestamp: new Date().toISOString(),
       });
+    }
+  }
+
+  private async generateShortRoleTitleOrNull(
+    tenantId: string,
+    installedApplicationId: string,
+    roleTitle: string | null | undefined,
+  ): Promise<string | null> {
+    if (!roleTitle?.trim()) return null;
+
+    try {
+      return await this.staffService.generateShortRoleTitle({
+        tenantId,
+        installedApplicationId,
+        roleTitle,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to generate short role title for "${roleTitle}": ${err}`,
+      );
+      return null;
     }
   }
 

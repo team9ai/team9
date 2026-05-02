@@ -211,6 +211,9 @@ describe('InstalledApplicationsController', () => {
   let redisService: {
     hgetall: MockFn;
   };
+  let staffService: {
+    generateShortRoleTitle: MockFn;
+  };
 
   beforeAll(() => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -283,6 +286,9 @@ describe('InstalledApplicationsController', () => {
     redisService = {
       hgetall: jest.fn<any>().mockResolvedValue({}),
     };
+    staffService = {
+      generateShortRoleTitle: jest.fn<any>().mockResolvedValue('Perf'),
+    };
 
     controller = new InstalledApplicationsController(
       db as never,
@@ -294,6 +300,7 @@ describe('InstalledApplicationsController', () => {
       channelsService as never,
       websocketGateway as never,
       redisService as never,
+      staffService as never,
     );
   });
 
@@ -350,6 +357,52 @@ describe('InstalledApplicationsController', () => {
         instanceStatus: null,
       },
     ]);
+  });
+
+  it('backfills missing common-staff shortRoleTitle in findAllWithBots', async () => {
+    const app = makeInstalledApp({
+      id: 'common-app',
+      applicationId: 'common-staff',
+    });
+    const bot = makeBot({
+      botId: 'common-bot',
+      userId: 'common-user',
+      username: 'common_staff',
+      displayName: 'Common Staff',
+      extra: {
+        commonStaff: {
+          roleTitle: 'Performance Tracking Analyst',
+          persona: 'Analyzes performance',
+        },
+      },
+    });
+    installedApplicationsService.findAllByTenant.mockResolvedValueOnce([app]);
+    botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([bot]);
+    db.selectedRows.current = [{ id: 'common-user', avatarUrl: null }];
+    staffService.generateShortRoleTitle.mockResolvedValueOnce('Perf');
+
+    const result = await controller.findAllWithBots(TENANT_ID, USER_ID);
+
+    expect(staffService.generateShortRoleTitle).toHaveBeenCalledWith({
+      tenantId: TENANT_ID,
+      installedApplicationId: 'common-app',
+      roleTitle: 'Performance Tracking Analyst',
+    });
+    expect(botService.updateBotExtra).toHaveBeenCalledWith(
+      'common-bot',
+      expect.objectContaining({
+        commonStaff: expect.objectContaining({
+          roleTitle: 'Performance Tracking Analyst',
+          shortRoleTitle: 'Perf',
+        }),
+      }),
+    );
+    expect(result[0].bots[0]).toEqual(
+      expect.objectContaining({
+        roleTitle: 'Performance Tracking Analyst',
+        shortRoleTitle: 'Perf',
+      }),
+    );
   });
 
   it.each([

@@ -3,7 +3,9 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -15,6 +17,7 @@ import {
   PERSONAL_STAFF_ROLE_TITLE,
   PERSONAL_STAFF_JOB_DESCRIPTION,
 } from '../../applications/personal-staff.constants.js';
+import { USER_PROFILE_EVENTS } from '../../im/users/user-profile-events.js';
 
 /**
  * ⚠️  TYPE DRIFT GUARD ⚠️
@@ -104,6 +107,7 @@ export class BotStaffProfileService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   async getSnapshot(botUserId: string): Promise<StaffProfileSnapshot> {
@@ -150,7 +154,7 @@ export class BotStaffProfileService {
         ? { identity: mergedIdentity }
         : {}),
       ...(kind === 'common' && payload.role?.title !== undefined
-        ? { roleTitle: payload.role.title }
+        ? { roleTitle: payload.role.title, shortRoleTitle: null }
         : {}),
       ...(kind === 'common' && payload.role?.description !== undefined
         ? { jobDescription: payload.role.description }
@@ -176,6 +180,10 @@ export class BotStaffProfileService {
           .set({ displayName: nextDisplayName, updatedAt: new Date() })
           .where(eq(schema.users.id, botUserId));
       }
+    });
+
+    this.eventEmitter?.emit(USER_PROFILE_EVENTS.UPDATED, {
+      userId: botUserId,
     });
 
     return this.getSnapshot(botUserId);

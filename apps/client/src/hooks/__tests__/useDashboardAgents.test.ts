@@ -117,6 +117,31 @@ describe("buildDashboardAgents", () => {
         ],
       }),
       makeInstalledApp({
+        id: "common-app",
+        applicationId: "common-staff",
+        name: "Common Staff",
+        bots: [
+          {
+            botId: "bot-common",
+            userId: "bot-user-common",
+            username: "common_staff",
+            displayName: "Common Staff",
+            roleTitle: "Performance Tracking Analyst",
+            shortRoleTitle: "Perf",
+            persona: null,
+            jobDescription: null,
+            avatarUrl: null,
+            model: null,
+            mentorId: null,
+            mentorDisplayName: null,
+            mentorAvatarUrl: null,
+            isActive: true,
+            createdAt: "2026-04-07T00:00:00.000Z",
+            managedMeta: { agentId: "common-1" },
+          },
+        ],
+      }),
+      makeInstalledApp({
         id: "inactive-app",
         applicationId: "openclaw",
         status: "inactive",
@@ -169,6 +194,7 @@ describe("buildDashboardAgents", () => {
     // Sort order: personal-staff (0) → openclaw (3) → direct-channel (4)
     expect(agents.map((agent) => agent.userId)).toEqual([
       "bot-user-mine",
+      "bot-user-common",
       "bot-user-open",
       "bot-user-existing",
     ]);
@@ -179,6 +205,11 @@ describe("buildDashboardAgents", () => {
       hasExistingChannel: false,
     });
     expect(agents[1]).toMatchObject({
+      applicationId: "common-staff",
+      roleTitle: "Performance Tracking Analyst",
+      shortRoleTitle: "Perf",
+    });
+    expect(agents[2]).toMatchObject({
       channelId: "channel-open",
       applicationId: "openclaw",
       label: "Open Agent",

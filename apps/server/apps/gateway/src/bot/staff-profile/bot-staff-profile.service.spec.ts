@@ -30,6 +30,8 @@ jest.unstable_mockModule('@team9/database/schemas', () => schemaModule);
 
 const { BotStaffProfileService } =
   await import('./bot-staff-profile.service.js');
+const { USER_PROFILE_EVENTS } =
+  await import('../../im/users/user-profile-events.js');
 
 // ── Drizzle chain mock ──────────────────────────────────────────────────────
 
@@ -150,10 +152,12 @@ function makeRow(overrides: Partial<BotRow> = {}): BotRow {
 describe('BotStaffProfileService', () => {
   let service: InstanceType<typeof BotStaffProfileService>;
   let db: ReturnType<typeof mockDb>;
+  let eventEmitter: { emit: MockFn };
 
   beforeEach(() => {
     db = mockDb();
-    service = new BotStaffProfileService(db as any);
+    eventEmitter = { emit: jest.fn<any>() };
+    service = new BotStaffProfileService(db as any, eventEmitter as any);
     jest.clearAllMocks();
   });
 
@@ -439,6 +443,10 @@ describe('BotStaffProfileService', () => {
       const usersSet = db.__queries.update[1].set.mock.calls[0][0];
       expect(usersSet.displayName).toBe('Alice');
       expect(usersSet.updatedAt).toBeInstanceOf(Date);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        USER_PROFILE_EVENTS.UPDATED,
+        { userId: BOT_USER_ID },
+      );
     });
 
     it('clears display_name to null when identityPatch.name is an empty string', async () => {
@@ -527,6 +535,7 @@ describe('BotStaffProfileService', () => {
 
       const botsSet = db.__queries.update[0].set.mock.calls[0][0];
       expect(botsSet.extra.commonStaff.roleTitle).toBe('Engineer');
+      expect(botsSet.extra.commonStaff.shortRoleTitle).toBeNull();
       expect(snap.role?.title).toBe('Engineer');
     });
 

@@ -1,8 +1,56 @@
 import { useMemo } from "react";
 import type { TopicSessionGroup } from "@/services/api/im";
+import type { AgentType } from "@/types/im";
 import { useChannelsByType } from "./useChannels";
 import { useDashboardAgents } from "./useDashboardAgents";
 import { useTopicSessionsGrouped } from "./useTopicSessions";
+
+export interface SidebarAgentMetadata {
+  label: string;
+  agentType: AgentType | null;
+  applicationId: string;
+  staffKind: "common" | "personal" | "other" | null;
+  roleTitle: string | null;
+  shortRoleTitle: string | null;
+  ownerName: string | null;
+}
+
+function cleanSubtitle(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function isSameText(
+  left: string | null | undefined,
+  right: string | null | undefined,
+) {
+  const cleanLeft = cleanSubtitle(left);
+  const cleanRight = cleanSubtitle(right);
+  if (!cleanLeft || !cleanRight) return false;
+  return (
+    cleanLeft.localeCompare(cleanRight, undefined, {
+      sensitivity: "base",
+    }) === 0
+  );
+}
+
+export function getAgentSidebarSubtitle(agent: SidebarAgentMetadata) {
+  if (agent.agentType === "base_model") return "Model";
+  if (agent.agentType === "openclaw" || agent.applicationId === "openclaw") {
+    return "OpenClaw";
+  }
+  if (agent.staffKind === "personal") {
+    const ownerName = cleanSubtitle(agent.ownerName);
+    return ownerName ? `${ownerName}助理` : null;
+  }
+  if (agent.staffKind === "common") {
+    if (isSameText(agent.label, agent.roleTitle)) return null;
+    return (
+      cleanSubtitle(agent.shortRoleTitle) ?? cleanSubtitle(agent.roleTitle)
+    );
+  }
+  return null;
+}
 
 /**
  * Sidebar view-model for the "AI Agents" section.
@@ -58,6 +106,7 @@ export function useAgentGroupsForSidebar(perAgent = 5) {
         merged.push({
           ...existing,
           agentDisplayName: agent.label,
+          agentSubtitle: getAgentSidebarSubtitle(agent),
           agentAvatarUrl: agent.avatarUrl ?? existing.agentAvatarUrl ?? null,
         });
       } else {
@@ -69,6 +118,7 @@ export function useAgentGroupsForSidebar(perAgent = 5) {
           agentUserId: agent.userId,
           agentId: agent.managedAgentId ?? "",
           agentDisplayName: agent.label,
+          agentSubtitle: getAgentSidebarSubtitle(agent),
           agentAvatarUrl: agent.avatarUrl ?? null,
           legacyDirectChannelId: agent.channelId ?? null,
           totalCount: 0,

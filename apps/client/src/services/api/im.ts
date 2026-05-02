@@ -602,6 +602,7 @@ export interface TopicSessionGroup {
   agentUserId: string;
   agentId: string;
   agentDisplayName: string;
+  agentSubtitle?: string | null;
   agentAvatarUrl: string | null;
   legacyDirectChannelId: string | null;
   totalCount: number;

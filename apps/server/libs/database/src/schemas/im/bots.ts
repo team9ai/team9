@@ -44,6 +44,7 @@ export interface BotExtra {
   };
   commonStaff?: {
     roleTitle?: string;
+    shortRoleTitle?: string | null;
     persona?: string;
     jobDescription?: string;
     model?: { provider: string; id: string };
