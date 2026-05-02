@@ -1,6 +1,7 @@
 // apps/server/apps/gateway/src/permissions/permissions.service.ts
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -14,15 +15,60 @@ import {
   DATABASE_CONNECTION,
   desc,
   eq,
+  inArray,
   isNull,
+  tenantMembers,
   type AuthPermissionGrant,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import { isPermissionKey, type PermissionKey } from './permission-keys.js';
+import {
+  PERMISSION_KEYS,
+  isPermissionKey,
+  type PermissionKey,
+} from './permission-keys.js';
 import { matchesScope } from './permission-matcher.js';
 import { SpellIdService } from './spell-id.service.js';
 import { PermissionsApproverRepository } from './permissions-approver.repository.js';
+
+export interface CreateRequestInput {
+  tenantId: string;
+  requesterBotId: string;
+  permissionKey: PermissionKey;
+  requestedMetadata: Record<string, unknown>;
+  reason?: string;
+  contextChannelId?: string;
+  contextExecutionId?: string;
+  contextRoutineId?: string;
+  suggestedApproverIds?: string[];
+  /** Default: 30 minutes */
+  ttlMs?: number;
+}
+
+export type DecideInput = {
+  requestId: string;
+  userId: string;
+} & (
+  | { decision: 'deny'; note?: string }
+  | { decision: 'once'; scopeOverride?: Record<string, unknown>; note?: string }
+  | {
+      decision: 'remember';
+      scopeOverride?: Record<string, unknown>;
+      expiresAt?: Date | null;
+      rememberSubject?:
+        | 'agent'
+        | 'channel-session'
+        | 'execution-session'
+        | 'task';
+      note?: string;
+    }
+);
+
+const DEFAULT_REQUEST_TTL_MS = 30 * 60 * 1000;
+/** Number of 3-word attempts before escalating to 4-word spell ids */
+const SPELL_3WORD_RETRY_LIMIT = 3;
+/** Total attempts before giving up */
+const SPELL_MAX_ATTEMPTS = 5;
 
 export const SUBJECT_RANK: Record<string, number> = {
   'execution-session': 4,
@@ -249,5 +295,300 @@ export class PermissionsService {
     }
 
     return { allowed: false };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Request lifecycle
+  // ---------------------------------------------------------------------------
+
+  async createRequest(input: CreateRequestInput) {
+    const ttl = input.ttlMs ?? DEFAULT_REQUEST_TTL_MS;
+    const expiresAt = new Date(Date.now() + ttl);
+
+    let attempt = 0;
+    while (true) {
+      const wordCount = attempt < SPELL_3WORD_RETRY_LIMIT ? 3 : 4;
+      const spellId = this.spell.generate({ wordCount });
+      try {
+        const [row] = await this.db
+          .insert(authPermissionRequests)
+          .values({
+            spellId,
+            tenantId: input.tenantId,
+            requesterBotId: input.requesterBotId,
+            contextChannelId: input.contextChannelId ?? null,
+            contextExecutionId: input.contextExecutionId ?? null,
+            contextRoutineId: input.contextRoutineId ?? null,
+            permissionKey: input.permissionKey,
+            requestedMetadata: input.requestedMetadata,
+            suggestedApproverIds: input.suggestedApproverIds ?? [],
+            reason: input.reason ?? null,
+            status: 'pending',
+            expiresAt,
+          })
+          .returning();
+        const approverIds = await this.resolveApprovers({
+          id: row.id,
+          tenantId: row.tenantId,
+          requesterBotId: row.requesterBotId,
+          permissionKey: input.permissionKey,
+          requestedMetadata: row.requestedMetadata,
+          suggestedApproverIds: row.suggestedApproverIds ?? [],
+          contextChannelId: row.contextChannelId,
+          contextExecutionId: row.contextExecutionId,
+          contextRoutineId: row.contextRoutineId,
+        });
+        this.events.emit('permissions.request.created', {
+          id: row.id,
+          spellId: row.spellId,
+          tenantId: row.tenantId,
+          requesterBotId: row.requesterBotId,
+          permissionKey: row.permissionKey,
+          requestedMetadata: row.requestedMetadata,
+          contextChannelId: row.contextChannelId,
+          expiresAt: row.expiresAt,
+          reason: row.reason,
+          approverIds,
+        });
+        return row;
+      } catch (err) {
+        if (this.isUniqueViolation(err) && attempt < SPELL_MAX_ATTEMPTS - 1) {
+          attempt += 1;
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
+  async cancelRequest(input: { requestId: string; requesterBotId: string }) {
+    const [row] = await this.db
+      .update(authPermissionRequests)
+      .set({ status: 'cancelled' })
+      .where(
+        and(
+          eq(authPermissionRequests.id, input.requestId),
+          eq(authPermissionRequests.requesterBotId, input.requesterBotId),
+          eq(authPermissionRequests.status, 'pending'),
+        ),
+      )
+      .returning();
+    if (!row) {
+      throw new NotFoundException('Request not found or already decided');
+    }
+    this.events.emit('permissions.request.decided', {
+      id: row.id,
+      spellId: row.spellId,
+      status: row.status,
+      decidedByUserId: null,
+    });
+    return row;
+  }
+
+  async decideRequest(input: DecideInput) {
+    const existing = await this.db.query.authPermissionRequests.findFirst({
+      where: eq(authPermissionRequests.id, input.requestId),
+    });
+    if (!existing) {
+      throw new NotFoundException(`Request ${input.requestId} not found`);
+    }
+    if (existing.status !== 'pending') {
+      throw new ConflictException(
+        `Request ${input.requestId} is already ${existing.status}`,
+      );
+    }
+
+    return this.db.transaction(async (tx) => {
+      let durableGrantId: string | null = null;
+      const newMetadata =
+        'scopeOverride' in input && input.scopeOverride
+          ? input.scopeOverride
+          : existing.requestedMetadata;
+
+      if (input.decision === 'remember') {
+        const subjectKind =
+          input.rememberSubject ?? this.defaultRememberSubject(existing);
+        const subjectId = this.subjectIdFor(subjectKind, existing);
+        const [grantRow] = await tx
+          .insert(authPermissionGrants)
+          .values({
+            tenantId: existing.tenantId,
+            grantedByUserId: input.userId,
+            subjectKind,
+            subjectId,
+            permissionKey: existing.permissionKey,
+            scopeMetadata: newMetadata,
+            source: 'request_approved',
+            requestId: existing.id,
+            expiresAt: 'expiresAt' in input ? (input.expiresAt ?? null) : null,
+            note: input.note ?? null,
+          })
+          .returning();
+        durableGrantId = grantRow.id;
+        this.events.emit('permissions.grant.created', {
+          id: grantRow.id,
+          tenantId: existing.tenantId,
+        });
+      }
+
+      const newStatus =
+        input.decision === 'deny'
+          ? 'denied'
+          : input.decision === 'once'
+            ? 'approved_once'
+            : 'approved_durable';
+
+      const [updated] = await tx
+        .update(authPermissionRequests)
+        .set({
+          status: newStatus,
+          decidedByUserId: input.userId,
+          decidedAt: new Date(),
+          decisionNote: input.note ?? null,
+          requestedMetadata: newMetadata,
+          durableGrantId,
+        })
+        .where(eq(authPermissionRequests.id, existing.id))
+        .returning();
+
+      this.events.emit('permissions.request.decided', {
+        id: updated.id,
+        spellId: updated.spellId,
+        status: updated.status,
+        decidedByUserId: input.userId,
+        durableGrantId,
+      });
+      return updated;
+    });
+  }
+
+  async resolveApprovers(req: {
+    id: string;
+    tenantId: string;
+    requesterBotId: string;
+    permissionKey: PermissionKey;
+    requestedMetadata: Record<string, unknown>;
+    suggestedApproverIds: string[];
+    contextChannelId: string | null;
+    contextExecutionId: string | null;
+    contextRoutineId: string | null;
+  }): Promise<string[]> {
+    const def = PERMISSION_KEYS[req.permissionKey];
+    const primary = await def.resolveApprovers(
+      {
+        tenantId: req.tenantId,
+        requesterBotId: req.requesterBotId,
+        permissionKey: req.permissionKey,
+        metadata: req.requestedMetadata,
+        contextChannelId: req.contextChannelId,
+        contextExecutionId: req.contextExecutionId,
+        contextRoutineId: req.contextRoutineId,
+      },
+      { repo: this.approvers },
+    );
+
+    // Validate suggested approvers belong to same tenant (drop foreign-tenant entries)
+    const suggested = req.suggestedApproverIds ?? [];
+    let validSuggested: string[] = [];
+    if (suggested.length) {
+      const rows = await this.db.query.tenantMembers.findMany({
+        where: and(
+          eq(tenantMembers.tenantId, req.tenantId),
+          inArray(tenantMembers.userId, suggested),
+        ),
+        columns: { userId: true },
+      });
+      validSuggested = rows.map((r) => r.userId);
+      const dropped = suggested.filter((id) => !validSuggested.includes(id));
+      if (dropped.length) {
+        this.logger.warn(
+          `Dropped foreign-tenant suggested approvers for request ${req.id}: ${dropped.join(', ')}`,
+        );
+      }
+    }
+
+    const union = new Set([...primary, ...validSuggested]);
+
+    // Fallback when primary union is empty
+    if (union.size === 0) {
+      if (def.defaultApprovers === 'workspace-admins') {
+        const ids = await this.approvers.findWorkspaceAdmins(req.tenantId);
+        ids.forEach((id) => union.add(id));
+      } else if (def.defaultApprovers === 'bot-owners') {
+        const ids = await this.approvers.findBotOwnerAndMentor(
+          req.requesterBotId,
+        );
+        ids.forEach((id) => union.add(id));
+      }
+    }
+
+    // Workspace owners always included as safety net
+    const wsOwners = await this.approvers.findWorkspaceOwners(req.tenantId);
+    wsOwners.forEach((id) => union.add(id));
+
+    return [...union];
+  }
+
+  async canDecide(
+    userId: string,
+    request: Parameters<this['resolveApprovers']>[0],
+  ): Promise<boolean> {
+    const ids = await this.resolveApprovers(request);
+    return ids.includes(userId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  private isUniqueViolation(err: unknown): boolean {
+    return Boolean(
+      err &&
+      typeof err === 'object' &&
+      (err as { code?: string }).code === '23505',
+    );
+  }
+
+  private defaultRememberSubject(req: {
+    contextChannelId: string | null;
+    contextRoutineId: string | null;
+  }): 'agent' | 'channel-session' | 'task' {
+    if (req.contextChannelId) return 'channel-session';
+    if (req.contextRoutineId) return 'task';
+    return 'agent';
+  }
+
+  private subjectIdFor(
+    kind: 'agent' | 'channel-session' | 'execution-session' | 'task',
+    req: {
+      requesterBotId: string;
+      contextChannelId: string | null;
+      contextExecutionId: string | null;
+      contextRoutineId: string | null;
+    },
+  ): string {
+    switch (kind) {
+      case 'agent':
+        return req.requesterBotId;
+      case 'channel-session':
+        if (!req.contextChannelId) {
+          throw new BadRequestException(
+            'No channel context for channel-session subject',
+          );
+        }
+        return req.contextChannelId;
+      case 'execution-session':
+        if (!req.contextExecutionId) {
+          throw new BadRequestException(
+            'No execution context for execution-session subject',
+          );
+        }
+        return req.contextExecutionId;
+      case 'task':
+        if (!req.contextRoutineId) {
+          throw new BadRequestException('No routine context for task subject');
+        }
+        return req.contextRoutineId;
+    }
   }
 }
