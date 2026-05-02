@@ -28,6 +28,9 @@ await jest.unstable_mockModule('@team9/database', () => ({
   authPermissionGrants: {
     /* table marker */
   },
+  authPermissionRequests: {
+    /* table marker */
+  },
   // Provide DATABASE_CONNECTION token and Drizzle helpers used by transitive imports
   DATABASE_CONNECTION: 'DATABASE_CONNECTION',
   eq: jest.fn(),
