@@ -41,6 +41,8 @@ export interface MessageItemProps {
   currentUserId?: string;
   /** Previous message in the list — used for agent event grouping */
   prevMessage?: Message;
+  /** Start timestamp for the current agent round, used to derive agent_end duration. */
+  roundStartedAt?: string;
   /** Compact mode for thread panel - smaller avatar and spacing */
   compact?: boolean;
   /** Indent for nested replies */
@@ -100,6 +102,7 @@ export function MessageItem({
   message,
   currentUserId,
   prevMessage,
+  roundStartedAt,
   compact = false,
   indent = false,
   isRootMessage = false,
@@ -196,12 +199,23 @@ export function MessageItem({
     // still emit the gray/bordered wrapper + pt/pb padding, producing an
     // empty ~4px stripe that looks like a layout bug. Keep it as a 1px
     // hidden div (react-virtuoso rejects zero-size items).
-    if (agentMeta.agentEventType === "turn_separator") {
+    if (
+      agentMeta.agentEventType === "turn_separator" ||
+      agentMeta.agentEventType === "agent_start"
+    ) {
       return <div className="min-h-px overflow-hidden" aria-hidden="true" />;
     }
 
     const prevIsAgentEvent = prevMessage ? !!getAgentMeta(prevMessage) : false;
     const isFirstInGroup = !prevIsAgentEvent;
+    const eventMetadata =
+      agentMeta.agentEventType === "agent_end" && roundStartedAt
+        ? {
+            ...agentMeta,
+            startedAt: agentMeta.startedAt ?? roundStartedAt,
+            completedAt: agentMeta.completedAt ?? message.createdAt,
+          }
+        : agentMeta;
 
     return (
       <div
@@ -218,7 +232,7 @@ export function MessageItem({
         style={{ paddingLeft: "9px" }}
       >
         <TrackingEventItem
-          metadata={agentMeta}
+          metadata={eventMetadata}
           content={message.content ?? ""}
           collapsible={
             agentMeta.agentEventType === "tool_result" ||

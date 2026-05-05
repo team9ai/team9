@@ -46,6 +46,7 @@ import { StreamingMessageParts } from "./StreamingMessageParts";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import type { BotThinkingStatus } from "./bot-thinking-state";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
 import { RoundCollapseSummary } from "./RoundCollapseSummary";
 import { UnreadDivider } from "./UnreadDivider";
@@ -74,6 +75,7 @@ interface MessageListProps {
   readOnly?: boolean;
   // Bot thinking indicator
   thinkingBotIds?: string[];
+  thinkingStatuses?: readonly BotThinkingStatus[];
   members?: ChannelMember[];
   // Last read message ID for unread divider positioning
   lastReadMessageId?: string;
@@ -86,6 +88,24 @@ type ChannelListItem =
   | { type: "message"; message: Message }
   | { type: "stream"; stream: StreamingMessage }
   | { type: "thinking"; key: string };
+
+function findRoundStartedAt(
+  items: ChannelListItem[],
+  itemIndex: number,
+): string | undefined {
+  for (let i = itemIndex - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (item?.type !== "message") return undefined;
+
+    const meta = getAgentMeta(item.message);
+    if (!meta || meta.agentEventType === "writing") return undefined;
+    if (meta.agentEventType === "agent_start") {
+      return meta.startedAt ?? item.message.createdAt;
+    }
+  }
+
+  return undefined;
+}
 
 // Per-channel scroll position snapshots for restoring on channel switch
 const scrollSnapshots = new Map<string, StateSnapshot>();
@@ -103,6 +123,7 @@ export function MessageList({
   channelType,
   readOnly = false,
   thinkingBotIds = [],
+  thinkingStatuses = [],
   members = [],
   lastReadMessageId,
 }: MessageListProps) {
@@ -466,6 +487,7 @@ export function MessageList({
         return (
           <BotThinkingIndicator
             thinkingBotIds={thinkingBotIds}
+            thinkingStatuses={thinkingStatuses}
             members={members}
           />
         );
@@ -643,6 +665,10 @@ export function MessageList({
       const prevItem = listDataRef.current[itemIndex - 1];
       const prevMessage =
         prevItem?.type === "message" ? prevItem.message : undefined;
+      const roundStartedAt =
+        agentMeta?.agentEventType === "agent_end"
+          ? findRoundStartedAt(listDataRef.current, itemIndex)
+          : undefined;
 
       const supportsProperties =
         channelType === "public" || channelType === "private";
@@ -656,6 +682,7 @@ export function MessageList({
                 key={message.id}
                 message={message}
                 prevMessage={prevMessage}
+                roundStartedAt={roundStartedAt}
                 isRootMessage={true}
                 isHighlighted={isHighlighted}
                 supportsProperties={supportsProperties}
@@ -674,6 +701,7 @@ export function MessageList({
               key={message.id}
               message={message}
               prevMessage={prevMessage}
+              roundStartedAt={roundStartedAt}
               currentUserId={currentUser?.id}
               currentUserRole={currentUserRole}
               showReplyCount={Boolean(hasReplies)}
@@ -709,6 +737,7 @@ export function MessageList({
       firstItemIndex,
       members,
       thinkingBotIds,
+      thinkingStatuses,
       toggleRoundExpanded,
       foldMaps,
       editingMessageId,
@@ -803,6 +832,7 @@ export function MessageList({
 function ChannelMessageItem({
   message,
   prevMessage,
+  roundStartedAt,
   currentUserId,
   currentUserRole,
   showReplyCount,
@@ -819,6 +849,7 @@ function ChannelMessageItem({
 }: {
   message: Message;
   prevMessage?: Message;
+  roundStartedAt?: string;
   currentUserId?: string;
   currentUserRole?: string;
   showReplyCount?: boolean;
@@ -909,6 +940,7 @@ function ChannelMessageItem({
       <MessageItem
         message={message}
         prevMessage={prevMessage}
+        roundStartedAt={roundStartedAt}
         currentUserId={currentUserId}
         showReplyCount={!isDirect && showReplyCount}
         onReplyCountClick={isDirect ? undefined : onReplyCountClick}

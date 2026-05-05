@@ -165,8 +165,18 @@ vi.mock("@/lib/agent-events", async () => {
 // MessageItem / ChannelMessageItem are swapped for a text stub so the tests
 // can assert on raw message IDs without rendering the real UI.
 vi.mock("../MessageItem", () => ({
-  MessageItem: ({ message }: { message: Message }) => (
-    <div data-testid="message-item" data-id={message.id}>
+  MessageItem: ({
+    message,
+    roundStartedAt,
+  }: {
+    message: Message;
+    roundStartedAt?: string;
+  }) => (
+    <div
+      data-testid="message-item"
+      data-id={message.id}
+      data-round-started-at={roundStartedAt ?? ""}
+    >
       {message.content}
     </div>
   ),
@@ -253,6 +263,7 @@ function makeMessage(id: string, overrides: Partial<Message> = {}): Message {
 function makeAgentEvent(
   id: string,
   agentEventType: AgentEventMetadata["agentEventType"] = "thinking",
+  overrides: Partial<Message> = {},
 ): Message {
   return makeMessage(id, {
     senderId: "bot-1",
@@ -260,7 +271,9 @@ function makeAgentEvent(
     metadata: {
       agentEventType,
       status: "running",
+      ...(overrides.metadata ?? {}),
     },
+    ...overrides,
   });
 }
 
@@ -393,27 +406,30 @@ describe("MessageList — round auto-fold", () => {
     it("expands a folded round when the summary button is clicked", () => {
       const chrono = [
         makeAgentEvent("a1", "thinking"),
-        makeAgentEvent("a2", "agent_end"),
+        makeAgentEvent("a2", "tool_call"),
+        makeAgentEvent("a3", "agent_end"),
         makeMessage("u1", { content: "bot reply" }),
       ];
 
       renderList(chrono, { channelType: "direct" });
 
       // Initially folded — thinking (a1) stays visible as the preview,
-      // but agent_end (a2) is hidden behind the summary.
+      // but later steps are hidden behind the summary.
       expect(getRenderedMessageIds()).toContain("a1");
       expect(getRenderedMessageIds()).not.toContain("a2");
+      expect(getRenderedMessageIds()).not.toContain("a3");
 
       fireEvent.click(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       );
 
-      // After expansion, both agent events are rendered
+      // After expansion, all agent events are rendered
       const renderedIds = getRenderedMessageIds();
       expect(renderedIds).toContain("a1");
       expect(renderedIds).toContain("a2");
+      expect(renderedIds).toContain("a3");
       expect(renderedIds).toContain("u1");
 
       // Summary button is gone
@@ -425,7 +441,8 @@ describe("MessageList — round auto-fold", () => {
     it("re-folds a round when the expanded summary is clicked again", () => {
       const chrono = [
         makeAgentEvent("a1", "thinking"),
-        makeAgentEvent("a2", "agent_end"),
+        makeAgentEvent("a2", "tool_call"),
+        makeAgentEvent("a3", "agent_end"),
         makeMessage("u1", { content: "done" }),
       ];
 
@@ -442,15 +459,14 @@ describe("MessageList — round auto-fold", () => {
       // simplest collapse trigger is a fresh click if we re-introduce the
       // summary via a re-render of the same data (expanded state is internal
       // to the component, so we rerender with different ids to reset).
-      // We pick `agent_start` + `agent_end` for the new round so neither is a
-      // "thinking" event — thinking rows stay visible even when folded, so
-      // using them here would muddy the fold-behaviour assertion.
+      // Keep the replacement round at 3 visible steps so it is foldable.
       rerender(
         <ProvidersWrapper>
           <MessageList
             {...asProps([
-              makeAgentEvent("b1", "agent_start"),
-              makeAgentEvent("b2", "agent_end"),
+              makeAgentEvent("b1", "tool_call"),
+              makeAgentEvent("b2", "tool_result"),
+              makeAgentEvent("b3", "agent_end"),
               makeMessage("u2"),
             ])}
             channelType="direct"
@@ -461,7 +477,7 @@ describe("MessageList — round auto-fold", () => {
       // New round b1 is now folded again (no user expansion recorded for it)
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       ).toBeInTheDocument();
       expect(getRenderedMessageIds()).not.toContain("b1");
@@ -471,7 +487,8 @@ describe("MessageList — round auto-fold", () => {
       const initialChrono = [
         makeMessage("u0", { content: "hi" }),
         makeAgentEvent("a1", "thinking"),
-        makeAgentEvent("a2", "agent_end"),
+        makeAgentEvent("a2", "tool_call"),
+        makeAgentEvent("a3", "agent_end"),
       ];
 
       const { rerender } = renderList(initialChrono, {
@@ -480,7 +497,7 @@ describe("MessageList — round auto-fold", () => {
 
       // Initially, the round is the latest → expanded
       expect(getRenderedMessageIds()).toEqual(
-        expect.arrayContaining(["u0", "a1", "a2"]),
+        expect.arrayContaining(["u0", "a1", "a2", "a3"]),
       );
       expect(
         screen.queryByRole("button", { name: /Expand execution process/i }),
@@ -500,15 +517,16 @@ describe("MessageList — round auto-fold", () => {
       );
 
       // The old round collapses but its thinking row (a1) stays as
-      // the preview; agent_end (a2) is absorbed into the summary.
+      // the preview; later steps are absorbed into the summary.
       const renderedIds = getRenderedMessageIds();
       expect(renderedIds).toContain("a1");
       expect(renderedIds).not.toContain("a2");
+      expect(renderedIds).not.toContain("a3");
       expect(renderedIds).toContain("u1");
       expect(renderedIds).toContain("b1");
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       ).toBeInTheDocument();
     });
@@ -749,6 +767,7 @@ describe("MessageList — round auto-fold", () => {
       const chrono = [
         makeAgentEvent("a1"),
         makeAgentEvent("a2"),
+        makeAgentEvent("a3"),
         makeMessage("u1"),
       ];
 
@@ -768,6 +787,7 @@ describe("MessageList — round auto-fold", () => {
       const chrono = [
         makeAgentEvent("a1"),
         makeAgentEvent("a2"),
+        makeAgentEvent("a3"),
         makeMessage("u1"),
       ];
 

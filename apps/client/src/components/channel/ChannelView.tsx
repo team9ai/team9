@@ -34,6 +34,12 @@ import type {
 import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import { useChannelModel } from "@/hooks/useChannelModel";
 import {
+  applyBotThinkingMessage,
+  getBotThinkingIds,
+  startBotThinkingStatuses,
+} from "./bot-thinking-state";
+import type { BotThinkingStatus } from "./bot-thinking-state";
+import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
 } from "@/lib/common-staff-models";
@@ -368,8 +374,14 @@ export function ChannelView({
   const threadPanelCount =
     (primaryThread.isOpen ? 1 : 0) + (secondaryThread.isOpen ? 1 : 0);
 
-  // Bot thinking indicator state (local)
-  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
+  // Bot response indicator state (local)
+  const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
+    [],
+  );
+  const thinkingBotIds = useMemo(
+    () => getBotThinkingIds(thinkingStatuses),
+    [thinkingStatuses],
+  );
 
   // Channel tabs state
   const { data: channelTabs = [] } = useChannelTabs(
@@ -417,7 +429,7 @@ export function ChannelView({
 
   // Clear thinking state when channel changes
   useEffect(() => {
-    setThinkingBotIds([]);
+    setThinkingStatuses([]);
   }, [channelId]);
 
   // Dashboard auto-send should surface the bot thinking indicator immediately,
@@ -427,40 +439,26 @@ export function ChannelView({
       return;
     }
 
-    setThinkingBotIds((prev) =>
-      prev.includes(botDmUserId) ? prev : [...prev, botDmUserId],
+    setThinkingStatuses((prev) =>
+      prev.some((status) => status.botId === botDmUserId)
+        ? prev
+        : [...prev, { botId: botDmUserId, phase: "warming" }],
     );
   }, [autoSendInitialDraft, botDmUserId, initialDraft, isBotDm]);
 
-  // Listen for bot replies or streaming start via WebSocket to dismiss thinking indicator
+  // Track bot lifecycle markers to move the response indicator through:
+  // warmup -> working -> hidden.
   useEffect(() => {
-    if (thinkingBotIds.length === 0) return;
-
-    const handleBotReply = (message: Message) => {
+    const handleBotTrackingMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
-      if (message.sender?.userType === "bot" && message.senderId) {
-        setThinkingBotIds((prev) =>
-          prev.filter((id) => id !== message.senderId),
-        );
-      }
+      setThinkingStatuses((prev) => applyBotThinkingMessage(prev, message));
     };
 
-    const handleStreamingStart = (data: {
-      channelId: string;
-      senderId: string;
-    }) => {
-      if (data.channelId !== channelId) return;
-      // Streaming started — remove bot from thinking indicators
-      setThinkingBotIds((prev) => prev.filter((id) => id !== data.senderId));
-    };
-
-    wsService.onNewMessage(handleBotReply);
-    wsService.onStreamingStart(handleStreamingStart);
+    wsService.onNewMessage(handleBotTrackingMessage);
     return () => {
-      wsService.off("new_message", handleBotReply);
-      wsService.off("streaming_start", handleStreamingStart);
+      wsService.off("new_message", handleBotTrackingMessage);
     };
-  }, [channelId, thinkingBotIds.length]);
+  }, [channelId]);
 
   // Trigger thinking indicator after sending a message
   const startBotThinking = useCallback(
@@ -479,7 +477,7 @@ export function ChannelView({
       }
 
       if (botIds.length > 0) {
-        setThinkingBotIds(botIds);
+        setThinkingStatuses(startBotThinkingStatuses(botIds));
       }
     },
     [isBotDm, botDmUserId, memberChannel?.type],
@@ -550,7 +548,7 @@ export function ChannelView({
       await sendMessage.mutateAsync({ content, contentAst, attachments });
     } catch {
       // Clear thinking indicators on send failure to avoid stale state
-      setThinkingBotIds([]);
+      setThinkingStatuses([]);
     }
   };
 
@@ -663,6 +661,7 @@ export function ChannelView({
             highlightSeq={jumpSeq}
             readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
+            thinkingStatuses={thinkingStatuses}
             members={members}
             lastReadMessageId={unreadAnchor}
             showReadOnlyBar={isPreviewMode || readOnly}

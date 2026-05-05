@@ -2,6 +2,7 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { AttachmentDto, Message, ChannelMember } from "@/types/im";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import type { BotThinkingStatus } from "./bot-thinking-state";
 
 export interface ChannelContentProps {
   // MessageList props
@@ -23,6 +24,7 @@ export interface ChannelContentProps {
   highlightSeq?: number;
   readOnly?: boolean;
   thinkingBotIds?: string[];
+  thinkingStatuses?: readonly BotThinkingStatus[];
   members?: ChannelMember[];
   lastReadMessageId?: string;
 
@@ -60,6 +62,7 @@ export function ChannelContent({
   highlightSeq,
   readOnly = false,
   thinkingBotIds,
+  thinkingStatuses,
   members,
   lastReadMessageId,
   onSend,
@@ -88,6 +91,7 @@ export function ChannelContent({
         highlightMessageId={highlightMessageId}
         readOnly={readOnly}
         thinkingBotIds={thinkingBotIds}
+        thinkingStatuses={thinkingStatuses}
         members={members}
         lastReadMessageId={lastReadMessageId}
       />

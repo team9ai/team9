@@ -133,11 +133,10 @@ describe("groupMessagesByRound", () => {
       const result = groupMessagesByRound(events);
       expect(result).toHaveLength(1);
       const round = expectRound(result[0]);
-      // stepCount counts visible rows: turn_separator renders as null so it
-      // never contributes to the displayed step count. The tool_call and
-      // tool_result here lack a matching toolCallId so they are unpaired and
-      // still render as their own rows.
-      expect(round.stepCount).toBe(types.length - 1);
+      // stepCount counts visible rows: turn_separator and agent_start are
+      // hidden lifecycle markers. The tool_call and tool_result here lack a
+      // matching toolCallId so they are unpaired and still render as rows.
+      expect(round.stepCount).toBe(types.length - 2);
       expect(round.messages).toEqual(events);
       expect(round.isLatest).toBe(true);
     });
@@ -241,8 +240,8 @@ describe("groupMessagesByRound", () => {
         makeAgentEventMessage("end", "agent_end"),
       ];
       const round = expectRound(groupMessagesByRound(events)[0]);
-      // agent_start + agent_end = 2 visible; turn_separator contributes 0.
-      expect(round.stepCount).toBe(2);
+      // agent_end = 1 visible; agent_start and turn_separator contribute 0.
+      expect(round.stepCount).toBe(1);
     });
   });
 
@@ -303,7 +302,7 @@ describe("groupMessagesByRound", () => {
       expect(lastRound.roundId).toBe("e3");
       expect(lastRound.messages).toEqual([e3, e4]);
       expect(lastRound.isLatest).toBe(true);
-      expect(lastRound.stepCount).toBe(2);
+      expect(lastRound.stepCount).toBe(1);
     });
 
     it("events + reply + events + reply has no latest round", () => {

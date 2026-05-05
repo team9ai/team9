@@ -65,6 +65,8 @@ export interface ComputeRoundFoldMapsInput {
  *     skip fold logic entirely.
  *   - The trailing round (`isLatest = true`) is never folded — the user is
  *     actively watching the agent execute.
+ *   - Rounds with fewer than 3 visible steps are left expanded; the summary
+ *     row costs almost as much attention as the content it would hide.
  *   - Rounds the user has manually expanded (`userExpandedRounds`) are also
  *     excluded from the maps, so their messages render normally.
  *   - All other rounds are emitted with `isFolded: true`.
@@ -85,6 +87,7 @@ export function computeRoundFoldMaps({
   for (const item of items) {
     if (item.type !== "round") continue;
     if (item.isLatest) continue;
+    if (item.stepCount < 3) continue;
     if (userExpandedRounds.has(item.roundId)) continue;
 
     roundStateMap.set(item.roundId, {

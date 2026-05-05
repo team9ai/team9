@@ -191,6 +191,23 @@ describe("MessageItem - agent event rendering", () => {
     expect(wrapper.getAttribute("aria-hidden")).toBe("true");
   });
 
+  it("does not emit the gray wrapper for agent_start events", () => {
+    const msg = makeMessage({
+      metadata: { agentEventType: "agent_start", status: "completed" },
+    });
+
+    const { container } = renderWithProviders(<MessageItem message={msg} />);
+
+    const wrapper = container.firstChild as HTMLElement;
+    expect(wrapper.className).not.toContain("bg-muted/30");
+    expect(wrapper.className).not.toContain("border-border");
+    expect(wrapper.className).toContain("min-h-px");
+    expect(wrapper.getAttribute("aria-hidden")).toBe("true");
+    expect(
+      screen.queryByText("tracking.eventLabels.agentStart"),
+    ).not.toBeInTheDocument();
+  });
+
   it("should render tool_result as collapsible", () => {
     const msg = makeMessage({
       metadata: { agentEventType: "tool_result", status: "completed" },
@@ -209,18 +226,32 @@ describe("MessageItem - agent event rendering", () => {
     expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
   });
 
-  it("should handle null content gracefully", () => {
+  it("derives agent_end duration from the hidden round start when metadata lacks duration", () => {
+    const msg = makeMessage({
+      metadata: { agentEventType: "agent_end", status: "completed" },
+      createdAt: "2026-03-27T12:00:45Z",
+    });
+
+    renderWithProviders(
+      <MessageItem message={msg} roundStartedAt="2026-03-27T12:00:00Z" />,
+    );
+
+    expect(screen.getByText("tracking.roundEnd.label")).toBeInTheDocument();
+    expect(screen.getByText("tracking.roundEnd.duration")).toBeInTheDocument();
+  });
+
+  it("should hide agent_start even when content is null", () => {
     const msg = makeMessage({
       metadata: { agentEventType: "agent_start", status: "completed" },
       content: null as unknown as string,
     });
 
-    renderWithProviders(<MessageItem message={msg} />);
+    const { container } = renderWithProviders(<MessageItem message={msg} />);
 
-    // Event-type labels now go through i18n. This test uses the `t: (k) => k`
-    // mock above, so the label resolves to the raw i18n key.
+    const wrapper = container.firstChild as HTMLElement;
+    expect(wrapper.className).toContain("min-h-px");
     expect(
-      screen.getByText("tracking.eventLabels.agentStart"),
-    ).toBeInTheDocument();
+      screen.queryByText("tracking.eventLabels.agentStart"),
+    ).not.toBeInTheDocument();
   });
 });
