@@ -52,7 +52,7 @@ export function ChannelDetailsModal({
   currentUserRole = "member",
   defaultTab = "about",
 }: ChannelDetailsModalProps) {
-  const { t } = useTranslation("channel");
+  const { t } = useTranslation(["channel", "permissions"]);
   const { data: channel } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const updateChannel = useUpdateChannel();
@@ -159,7 +159,9 @@ export function ChannelDetailsModal({
                   {t("properties.tab")}
                 </TabsTrigger>
                 <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
-                <TabsTrigger value="permissions">Permissions</TabsTrigger>
+                <TabsTrigger value="permissions">
+                  {t("permissions:tab")}
+                </TabsTrigger>
               </TabsList>
             </div>
 

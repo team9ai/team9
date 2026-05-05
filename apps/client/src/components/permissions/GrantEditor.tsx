@@ -57,12 +57,13 @@ export function GrantEditor({
   const [expiresAt, setExpiresAt] = useState<string>("");
 
   const handleSave = async () => {
+    const isoExpiresAt = expiresAt ? new Date(expiresAt).toISOString() : null;
     await createGrant.mutateAsync({
       subjectKind,
       subjectId,
       permissionKey,
       scopeMetadata,
-      expiresAt: expiresAt || null,
+      expiresAt: isoExpiresAt,
     });
     onOpenChange(false);
     // Reset form

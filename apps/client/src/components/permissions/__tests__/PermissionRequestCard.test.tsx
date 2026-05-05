@@ -137,4 +137,48 @@ describe("<PermissionRequestCard>", () => {
       screen.getByRole("button", { name: /allow once/i }),
     ).toBeInTheDocument();
   });
+
+  it("disables execution-session and task options when no corresponding context", () => {
+    const req = {
+      ...baseRequest,
+      contextExecutionId: undefined,
+      contextRoutineId: undefined,
+    };
+    render(<PermissionRequestCard request={req} onDecide={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /remember/i }));
+
+    const select = screen.getByLabelText(/apply to/i) as HTMLSelectElement;
+    const executionOption = Array.from(select.options).find(
+      (o) => o.value === "execution-session",
+    );
+    const taskOption = Array.from(select.options).find(
+      (o) => o.value === "task",
+    );
+
+    expect(executionOption).toBeDefined();
+    expect(executionOption?.disabled).toBe(true);
+    expect(taskOption).toBeDefined();
+    expect(taskOption?.disabled).toBe(true);
+  });
+
+  it("enables execution-session and task options when corresponding context is present", () => {
+    const req = {
+      ...baseRequest,
+      contextExecutionId: "exec-123",
+      contextRoutineId: "routine-456",
+    };
+    render(<PermissionRequestCard request={req} onDecide={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /remember/i }));
+
+    const select = screen.getByLabelText(/apply to/i) as HTMLSelectElement;
+    const executionOption = Array.from(select.options).find(
+      (o) => o.value === "execution-session",
+    );
+    const taskOption = Array.from(select.options).find(
+      (o) => o.value === "task",
+    );
+
+    expect(executionOption?.disabled).toBe(false);
+    expect(taskOption?.disabled).toBe(false);
+  });
 });

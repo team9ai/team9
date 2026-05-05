@@ -60,7 +60,7 @@ export function RoutineDetailView({
   tab,
   onTabChange,
 }: RoutineDetailViewProps) {
-  const { t } = useTranslation("routines");
+  const { t } = useTranslation(["routines", "permissions"]);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -130,9 +130,7 @@ export function RoutineDetailView({
           <TabsTrigger value="runs">
             {t("detail.tabs.runs", "Runs")}
           </TabsTrigger>
-          <TabsTrigger value="permissions">
-            {t("detail.tabs.permissions", "Permissions")}
-          </TabsTrigger>
+          <TabsTrigger value="permissions">{t("permissions:tab")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="flex-1 min-h-0 mt-0">

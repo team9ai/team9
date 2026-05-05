@@ -41,5 +41,6 @@
   "errors": {
     "requestNotFound": "该申请已不存在",
     "alreadyDecided": "该申请已被处理"
-  }
+  },
+  "tab": "权限"
 }

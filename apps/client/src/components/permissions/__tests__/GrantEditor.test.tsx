@@ -161,4 +161,32 @@ describe("<GrantEditor>", () => {
     expect(mockMutateAsync).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  // ── Test 6: submits expiresAt as ISO UTC string ───────────────────────────
+  it("submits expiresAt as ISO UTC string", async () => {
+    renderEditor();
+
+    const expiresInput = screen.getByLabelText(/expires/i);
+    fireEvent.change(expiresInput, { target: { value: "2026-05-05T14:00" } });
+
+    const saveButton = screen.getByRole("button", { name: /save grant/i });
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expiresAt: expect.stringMatching(
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+          ),
+        }),
+      );
+    });
+
+    const calledWith = mockMutateAsync.mock.calls[0][0] as {
+      expiresAt: string;
+    };
+    expect(calledWith.expiresAt.endsWith("Z")).toBe(true);
+  });
 });

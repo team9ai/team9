@@ -7,6 +7,8 @@ export interface PermissionRequest {
   requestedMetadata: Record<string, unknown>;
   reason?: string | null;
   contextChannelId?: string | null;
+  contextExecutionId?: string | null;
+  contextRoutineId?: string | null;
   expiresAt: string;
   status:
     | "pending"

@@ -10,6 +10,8 @@ export interface PermissionRequestSummary {
   requestedMetadata: Record<string, unknown>;
   reason?: string | null;
   contextChannelId?: string | null;
+  contextExecutionId?: string | null;
+  contextRoutineId?: string | null;
   requesterBotName?: string;
   expiresAt: string;
 }
@@ -118,10 +120,15 @@ export function PermissionRequestCard({
               >
                 {t("remember.subjectChannel")}
               </option>
-              <option value="execution-session">
+              <option
+                value="execution-session"
+                disabled={!request.contextExecutionId}
+              >
                 {t("remember.subjectExecution")}
               </option>
-              <option value="task">{t("remember.subjectTask")}</option>
+              <option value="task" disabled={!request.contextRoutineId}>
+                {t("remember.subjectTask")}
+              </option>
             </select>
           </label>
 
