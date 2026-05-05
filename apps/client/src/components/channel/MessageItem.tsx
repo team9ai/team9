@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, AlertCircle, Plus, RotateCcw, Tags, X } from "lucide-react";
 import { toast } from "sonner";
@@ -147,7 +147,6 @@ export function MessageItem({
     selectionActive && selectionChannelId === message.channelId;
   const isEligible = isForwardable(message);
   const isSelected = inSelectionMode && isSelectedFn(message.id);
-  const lastAnchorRef = useRef<string | null>(null);
 
   // Forward dialog state
   const [forwardOpen, setForwardOpen] = useState(false);
@@ -161,30 +160,36 @@ export function MessageItem({
   const toggleSelection = useCallback(
     (shiftKey: boolean) => {
       if (!isEligible) return;
-      if (shiftKey && lastAnchorRef.current && visibleMessages) {
+      // Anchor lives in the store so it survives across MessageItem instances —
+      // shift+click from message A to message B reads A's anchor from there
+      // (Copilot review #101 finding).
+      const storeState = useForwardSelectionStore.getState();
+      const anchorId = storeState.anchorId;
+      if (shiftKey && anchorId && visibleMessages) {
         const range = computeForwardableRange(
           visibleMessages,
-          lastAnchorRef.current,
+          anchorId,
           message.id,
         );
         // Compute how many ids the range *would* add (excluding ones already
         // selected) so we can distinguish a cap-hit from harmless dedup.
-        const beforeIds = useForwardSelectionStore.getState().selectedIds;
+        const beforeIds = storeState.selectedIds;
         const wouldAdd = range.filter((id) => !beforeIds.has(id)).length;
         const added = selectionAddRange(range);
         if (added < wouldAdd) {
           toast.error(t("channel:forward.tooManySelected"));
         }
+        // Don't update the anchor on a range-add: preserve the original
+        // anchor so the user can extend the same range further.
       } else {
         const ok = selectionToggle(message.id);
         if (!ok) {
           toast.error(t("channel:forward.tooManySelected"));
-          // Don't update the anchor when the toggle was rejected — keeping
-          // the previous anchor avoids surprising shift+click ranges that
-          // start from a message the user could not actually select.
+          // selectionToggle already left the prior anchor in place when it
+          // returned false (it didn't fire its `set` call), so nothing to do.
           return;
         }
-        lastAnchorRef.current = message.id;
+        // selectionToggle.set(...) updated anchorId to message.id for us.
       }
     },
     [

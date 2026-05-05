@@ -110,4 +110,64 @@ describe("useForwardSelectionStore", () => {
   it("FORWARD_SELECTION_MAX is 100", () => {
     expect(FORWARD_SELECTION_MAX).toBe(100);
   });
+
+  describe("anchor (shift+click anchor lives in store, not on each row)", () => {
+    it("toggle sets anchorId to the toggled message id", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().toggle("m-A");
+      expect(useForwardSelectionStore.getState().anchorId).toBe("m-A");
+    });
+
+    it("toggle (deselect) also updates anchorId", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().toggle("m-A"); // select
+      useForwardSelectionStore.getState().toggle("m-A"); // deselect
+      expect(useForwardSelectionStore.getState().anchorId).toBe("m-A");
+    });
+
+    it("toggle that hits the cap leaves anchorId unchanged", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      for (let i = 0; i < FORWARD_SELECTION_MAX; i += 1) {
+        useForwardSelectionStore.getState().toggle(`m-${i}`);
+      }
+      const lastAnchor = useForwardSelectionStore.getState().anchorId;
+      useForwardSelectionStore.getState().toggle("m-overflow");
+      expect(useForwardSelectionStore.getState().anchorId).toBe(lastAnchor);
+    });
+
+    it("addRange does NOT change anchorId — preserves the shift-extension anchor", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().toggle("m-anchor");
+      useForwardSelectionStore.getState().addRange(["m-1", "m-2", "m-3"]);
+      expect(useForwardSelectionStore.getState().anchorId).toBe("m-anchor");
+    });
+
+    it("enter() resets anchorId to null", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().toggle("m-A");
+      useForwardSelectionStore.getState().enter("ch-2");
+      expect(useForwardSelectionStore.getState().anchorId).toBeNull();
+    });
+
+    it("exit() resets anchorId to null", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().toggle("m-A");
+      useForwardSelectionStore.getState().exit();
+      expect(useForwardSelectionStore.getState().anchorId).toBeNull();
+    });
+
+    it("clear() resets anchorId to null", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().toggle("m-A");
+      useForwardSelectionStore.getState().clear();
+      expect(useForwardSelectionStore.getState().anchorId).toBeNull();
+    });
+
+    it("setAnchor explicitly sets the anchor without toggling selection", () => {
+      useForwardSelectionStore.getState().enter("ch-1");
+      useForwardSelectionStore.getState().setAnchor("m-x");
+      expect(useForwardSelectionStore.getState().anchorId).toBe("m-x");
+      expect(useForwardSelectionStore.getState().selectedIds.size).toBe(0);
+    });
+  });
 });

@@ -237,6 +237,31 @@ describe('ForwardsService', () => {
       ).rejects.toMatchObject({ message: 'forward.empty' });
     });
 
+    it('dedupes duplicate sourceMessageIds before lookup (no spurious notFound)', async () => {
+      // Copilot review #101 finding: passing duplicate ids would otherwise
+      // trigger forward.notFound because findManyByIds returns unique rows.
+      messagesService.findManyByIds.mockResolvedValueOnce([
+        makeMessage({ id: 'msg-1' }),
+      ]);
+
+      const result = await service.forward({
+        targetChannelId: 'ch-target',
+        sourceChannelId: 'ch-src',
+        sourceMessageIds: ['msg-1', 'msg-1', 'msg-1'],
+        userId: 'user-1',
+      });
+
+      expect(result.type).toBe('forward');
+      // Bundle->single because dedupe collapses to one
+      expect(grpcService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            forward: expect.objectContaining({ kind: 'single', count: 1 }),
+          }),
+        }),
+      );
+    });
+
     it('rejects sourceMessageIds.length > 100 with forward.tooManySelected', async () => {
       const ids = Array.from({ length: 101 }, (_, i) => `msg-${i}`);
       await expect(
@@ -399,6 +424,21 @@ describe('ForwardsService', () => {
   // ── single forward happy paths ────────────────────────────────────────────
 
   describe('single forward', () => {
+    it('passes userId to getMessageWithDetails so the response includes hydrated forward payload (Copilot #101)', async () => {
+      await service.forward({
+        targetChannelId: 'ch-target',
+        sourceChannelId: 'ch-src',
+        sourceMessageIds: ['msg-1'],
+        userId: 'user-1',
+      });
+      // Without userId, MessagesService.getMessageWithDetails skips
+      // hydration and the client receives a forward without its payload.
+      expect(messagesService.getMessageWithDetails).toHaveBeenCalledWith(
+        expect.any(String),
+        'user-1',
+      );
+    });
+
     it('forwards a single text message and returns forward type response', async () => {
       const result = await service.forward({
         targetChannelId: 'ch-target',

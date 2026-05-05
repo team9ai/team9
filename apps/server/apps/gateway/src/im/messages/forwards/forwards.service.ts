@@ -54,8 +54,11 @@ export class ForwardsService {
   ) {}
 
   async forward(input: ForwardInput): Promise<MessageResponse> {
-    const { targetChannelId, sourceChannelId, sourceMessageIds, userId } =
-      input;
+    const { targetChannelId, sourceChannelId, userId } = input;
+    // Dedupe IDs while preserving the first occurrence's order. `findManyByIds`
+    // returns a unique row per id, so duplicates would otherwise trigger a
+    // spurious `forward.notFound` (Copilot review #101 finding).
+    const sourceMessageIds = Array.from(new Set(input.sourceMessageIds));
 
     // --- Validation ---
     if (sourceMessageIds.length === 0) {
@@ -223,8 +226,13 @@ export class ForwardsService {
       throw new InternalServerErrorException('forward.insertFailed');
     }
 
-    const message =
-      await this.messagesService.getMessageWithDetails(forwardedMessageId);
+    // Pass userId so the forward payload is hydrated on the response —
+    // otherwise the freshly-created forward message would render blank
+    // on the client until a manual refetch (Copilot review #101 finding).
+    const message = await this.messagesService.getMessageWithDetails(
+      forwardedMessageId,
+      userId,
+    );
     return this.messagesService.truncateForPreview(message);
   }
 
