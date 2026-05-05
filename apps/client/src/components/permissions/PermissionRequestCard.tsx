@@ -33,8 +33,9 @@ export function PermissionRequestCard({
 }: PermissionRequestCardProps) {
   const { t } = useTranslation("permissions");
   const [showRemember, setShowRemember] = useState(false);
-  const [rememberSubject, setRememberSubject] =
-    useState<DecideInput["rememberSubject"]>("agent");
+  const [rememberSubject, setRememberSubject] = useState<
+    DecideInput["rememberSubject"]
+  >(request.contextChannelId ? "channel-session" : "agent");
   const [scope, setScope] = useState<Record<string, unknown>>(
     request.requestedMetadata,
   );

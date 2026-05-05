@@ -76,7 +76,9 @@ export class PermissionsApproverRepository {
       ),
       columns: { userId: true },
     });
-    return members.map((m) => m.userId);
+    // Re-sort to preserve the original [ownerId, mentorId] order
+    const memberSet = new Set(members.map((m) => m.userId));
+    return candidates.filter((id) => memberSet.has(id));
   }
 
   /**

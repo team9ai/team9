@@ -381,17 +381,9 @@ describe('PermissionsController (e2e)', () => {
   // -------------------------------------------------------------------------
 
   it('POST /permissions/requests/:id/decide returns 404 when request belongs to a different tenant', async () => {
-    svc.getRequest.mockResolvedValue({
-      id: 'r1',
-      tenantId: 'other-tenant', // caller is t1 but request is other-tenant
-      requesterBotId: 'b1',
-      permissionKey: 'tools:invoke',
-      requestedMetadata: {},
-      suggestedApproverIds: [],
-      contextChannelId: null,
-      contextExecutionId: null,
-      contextRoutineId: null,
-    });
+    // getRequest now accepts tenantId and returns null when the request belongs to a
+    // different tenant (DB-level filter). The mock simulates this by returning null.
+    svc.getRequest.mockResolvedValue(null);
     await request(app.getHttpServer())
       .post('/api/v1/permissions/requests/r1/decide')
       .send({ decision: 'once' })

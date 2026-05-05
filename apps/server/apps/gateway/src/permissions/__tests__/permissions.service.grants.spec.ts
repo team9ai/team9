@@ -38,6 +38,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   and: jest.fn(),
   isNull: jest.fn(),
   desc: jest.fn(),
+  gt: jest.fn(),
   // Table refs needed by PermissionsApproverRepository (transitive dep)
   channels: {},
   channelMembers: {},

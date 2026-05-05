@@ -187,8 +187,8 @@ export class PermissionsController {
     @Param('id') id: string,
     @Body() dto: DecideRequestDto,
   ) {
-    const req = await this.svc.getRequest(id);
-    if (!req || req.tenantId !== tenantId) throw new NotFoundException();
+    const req = await this.svc.getRequest(id, tenantId);
+    if (!req) throw new NotFoundException();
     if (
       !(await this.svc.canDecide(
         userId,
@@ -199,6 +199,7 @@ export class PermissionsController {
     return this.svc.decideRequest({
       requestId: id,
       userId,
+      tenantId,
       decision: dto.decision,
       ...(dto.scopeOverride !== undefined && {
         scopeOverride: dto.scopeOverride,
@@ -266,6 +267,7 @@ export class PermissionsController {
     return this.svc.decideRequest({
       requestId: req.id,
       userId,
+      tenantId,
       decision: dto.decision,
       ...(dto.scopeOverride !== undefined && {
         scopeOverride: dto.scopeOverride,

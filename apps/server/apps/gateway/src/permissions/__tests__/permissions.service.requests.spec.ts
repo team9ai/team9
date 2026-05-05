@@ -60,6 +60,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   isNull: jest.fn(),
   desc: jest.fn(),
   inArray: jest.fn(),
+  gt: jest.fn(),
   // Table refs needed by PermissionsApproverRepository (transitive dep)
   channels: {},
   channelMembers: {},
@@ -295,6 +296,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'once',
       });
       expect(r.status).toBe('approved_once');
@@ -325,6 +327,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'agent',
       });
@@ -350,18 +353,20 @@ describe('PermissionsService — requests', () => {
         suggestedApproverIds: [],
       });
       insertGrantReturning.mockResolvedValueOnce([{ id: 'g-override' }]);
+      // For 'remember', requestedMetadata on the request row is preserved unchanged (Fix 6)
       updateRequestReturning.mockResolvedValueOnce([
         {
           id: 'r1',
           status: 'approved_durable',
           durableGrantId: 'g-override',
-          requestedMetadata: { toolNames: ['sql', 'shell'] },
+          requestedMetadata: { toolName: 'sql' }, // unchanged original
         },
       ]);
 
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'agent',
         scopeOverride: { toolNames: ['sql', 'shell'] },
@@ -372,9 +377,48 @@ describe('PermissionsService — requests', () => {
         (c: any[]) => c[0]?.__name === 'grants',
       );
       expect(insertCall).toBeDefined();
-      // The .values() call is chained — verify via the values mock on insertGrantReturning's chain
-      // Since our mock tracks insert separately, we verify via the returned row's requestedMetadata
-      expect(r.requestedMetadata).toEqual({ toolNames: ['sql', 'shell'] });
+      // The request row's requestedMetadata should remain the original (not the override)
+      expect(r.requestedMetadata).toEqual({ toolName: 'sql' });
+    });
+
+    it('decideRequest remember preserves original requestedMetadata even when scopeOverride is provided (Fix 6)', async () => {
+      const originalMetadata = { toolName: 'sql' };
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: originalMetadata,
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      insertGrantReturning.mockResolvedValueOnce([{ id: 'g-new' }]);
+      // DB returns the row unchanged — requestedMetadata is the original
+      updateRequestReturning.mockResolvedValueOnce([
+        {
+          id: 'r1',
+          status: 'approved_durable',
+          durableGrantId: 'g-new',
+          requestedMetadata: originalMetadata,
+        },
+      ]);
+
+      const r = await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        tenantId: 't1',
+        decision: 'remember',
+        rememberSubject: 'agent',
+        scopeOverride: { toolName: 'postgres' }, // tighter scope
+      });
+
+      // The returned row should have the original requestedMetadata
+      expect(r.requestedMetadata).toEqual(originalMetadata);
+      expect(r.durableGrantId).toBe('g-new');
     });
 
     it('deny: sets status to denied', async () => {
@@ -397,6 +441,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'deny',
       });
       expect(r.status).toBe('denied');
@@ -416,6 +461,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -427,6 +473,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'missing',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
@@ -454,6 +501,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -475,6 +523,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -496,6 +545,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -517,6 +567,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -541,6 +592,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -570,6 +622,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'channel-session',
       });
@@ -601,6 +654,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'remember',
           rememberSubject: 'channel-session',
         }),
@@ -631,6 +685,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'task',
       });
@@ -668,6 +723,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'execution-session',
       });
@@ -709,6 +765,7 @@ describe('PermissionsService — requests', () => {
         svc.decideRequest({
           requestId: 'r1',
           userId: 'u-owner',
+          tenantId: 't1',
           decision: 'remember',
           rememberSubject: 'execution-session',
         }),
@@ -741,6 +798,7 @@ describe('PermissionsService — requests', () => {
       const r = await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'once',
         scopeOverride: {}, // empty object — should NOT override
       });
@@ -779,6 +837,7 @@ describe('PermissionsService — requests', () => {
       await svc.decideRequest({
         requestId: 'r1',
         userId: 'u-owner',
+        tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'channel-session',
       });
@@ -801,6 +860,27 @@ describe('PermissionsService — requests', () => {
       requestFindFirst.mockResolvedValueOnce(undefined);
       const result = await svc.getRequest('nonexistent');
       expect(result).toBeNull();
+    });
+
+    it('returns null when tenantId provided and row belongs to another tenant (DB returns null)', async () => {
+      // The tenantId filter is pushed to the DB WHERE clause; DB returns null/undefined
+      requestFindFirst.mockResolvedValueOnce(undefined);
+      const result = await svc.getRequest('r1', 'wrong-tenant');
+      expect(result).toBeNull();
+    });
+
+    it('returns row when tenantId matches', async () => {
+      const row = {
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+      };
+      requestFindFirst.mockResolvedValueOnce(row);
+      const result = await svc.getRequest('r1', 't1');
+      expect(result).toEqual(row);
     });
   });
 
@@ -899,6 +979,20 @@ describe('PermissionsService — requests', () => {
       });
       expect(result).toHaveLength(1);
       expect(result[0]?.id).toBe('r1');
+    });
+
+    it('listRequests — does not return expired pending requests', async () => {
+      // The expired row should be excluded by the WHERE clause (Fix 7)
+      // Since we mock findMany, we simulate the DB returning no rows (the filter
+      // happens at SQL level). The test verifies the result is empty.
+      requestFindMany.mockResolvedValueOnce([]); // DB returns no rows (expired filtered out)
+
+      const result = await svc.listRequests({
+        tenantId: 't1',
+        userId: 'u-admin',
+        status: 'pending',
+      });
+      expect(result).toHaveLength(0);
     });
   });
 

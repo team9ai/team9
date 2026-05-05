@@ -70,11 +70,33 @@ describe("<PermissionRequestCard>", () => {
     fireEvent.click(screen.getByRole("button", { name: /remember/i }));
     expect(screen.getByLabelText(/apply to/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /save grant/i }));
+    // baseRequest has contextChannelId so default is channel-session
     expect(onDecide).toHaveBeenCalledWith(
       expect.objectContaining({
         decision: "remember",
-        rememberSubject: "agent",
+        rememberSubject: "channel-session",
       }),
+    );
+  });
+
+  it("defaults rememberSubject to channel-session when contextChannelId is present", () => {
+    const onDecide = vi.fn();
+    render(<PermissionRequestCard request={baseRequest} onDecide={onDecide} />);
+    fireEvent.click(screen.getByRole("button", { name: /remember/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save grant/i }));
+    expect(onDecide).toHaveBeenCalledWith(
+      expect.objectContaining({ rememberSubject: "channel-session" }),
+    );
+  });
+
+  it("defaults rememberSubject to agent when contextChannelId is absent", () => {
+    const onDecide = vi.fn();
+    const req = { ...baseRequest, contextChannelId: undefined };
+    render(<PermissionRequestCard request={req} onDecide={onDecide} />);
+    fireEvent.click(screen.getByRole("button", { name: /remember/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save grant/i }));
+    expect(onDecide).toHaveBeenCalledWith(
+      expect.objectContaining({ rememberSubject: "agent" }),
     );
   });
 

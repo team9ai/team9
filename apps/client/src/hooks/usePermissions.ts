@@ -37,6 +37,7 @@ export function usePendingPermissionRequests() {
     queryKey: permissionKeys.requests({ status: "pending", scope: "mine" }),
     queryFn: () =>
       permissionsApi.listRequests({ status: "pending", scope: "mine" }),
+    staleTime: 60_000, // 1 minute — relies on WS events for real-time updates
   });
 
   useEffect(() => {

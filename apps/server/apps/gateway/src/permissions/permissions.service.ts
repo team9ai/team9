@@ -17,6 +17,7 @@ import {
   DATABASE_CONNECTION,
   desc,
   eq,
+  gt,
   inArray,
   isNull,
   routineExecutions,
@@ -52,6 +53,7 @@ export interface CreateRequestInput {
 export type DecideInput = {
   requestId: string;
   userId: string;
+  tenantId: string;
 } & (
   | { decision: 'deny'; note?: string }
   | { decision: 'once'; scopeOverride?: Record<string, unknown>; note?: string }
@@ -151,7 +153,7 @@ export class PermissionsService {
     if (!row) {
       throw new Error('insert returned empty');
     }
-    this.events.emit('permissions.grant.created', {
+    this.safeEmit('permissions.grant.created', {
       id: row.id,
       tenantId: row.tenantId,
       subjectKind: row.subjectKind,
@@ -182,7 +184,7 @@ export class PermissionsService {
       throw new NotFoundException(
         `Grant ${input.grantId} not found or already revoked`,
       );
-    this.events.emit('permissions.grant.revoked', {
+    this.safeEmit('permissions.grant.revoked', {
       id: row.id,
       tenantId: row.tenantId,
     });
@@ -312,7 +314,7 @@ export class PermissionsService {
         .returning();
 
       if (consumed) {
-        this.events.emit('permissions.request.consumed', {
+        this.safeEmit('permissions.request.consumed', {
           id: consumed.id,
           requesterBotId: input.ctx.botId,
           permissionKey: input.key,
@@ -402,7 +404,7 @@ export class PermissionsService {
           contextExecutionId: row.contextExecutionId,
           contextRoutineId: row.contextRoutineId,
         });
-        this.events.emit('permissions.request.created', {
+        this.safeEmit('permissions.request.created', {
           id: row.id,
           spellId: row.spellId,
           tenantId: row.tenantId,
@@ -445,7 +447,7 @@ export class PermissionsService {
     if (!row) {
       throw new NotFoundException('Request not found or already decided');
     }
-    this.events.emit('permissions.request.decided', {
+    this.safeEmit('permissions.request.decided', {
       id: row.id,
       spellId: row.spellId,
       status: row.status,
@@ -457,8 +459,12 @@ export class PermissionsService {
   async decideRequest(input: DecideInput) {
     const result = await this.db.transaction(async (tx) => {
       // Re-fetch inside the transaction so the status check is race-safe (C2)
+      // tenantId is ANDed in for defense-in-depth (the controller already checks it).
       const existing = await tx.query.authPermissionRequests.findFirst({
-        where: eq(authPermissionRequests.id, input.requestId),
+        where: and(
+          eq(authPermissionRequests.id, input.requestId),
+          eq(authPermissionRequests.tenantId, input.tenantId),
+        ),
       });
       if (!existing) {
         throw new NotFoundException(`Request ${input.requestId} not found`);
@@ -479,7 +485,9 @@ export class PermissionsService {
         'scopeOverride' in input &&
         input.scopeOverride &&
         Object.keys(input.scopeOverride).length > 0;
-      const newMetadata = overrideProvided
+      // For the grant's scopeMetadata, use the override if provided; otherwise use
+      // the original requested scope. This is what the approver actually approved.
+      const grantScopeMetadata = overrideProvided
         ? input.scopeOverride!
         : existing.requestedMetadata;
 
@@ -495,7 +503,7 @@ export class PermissionsService {
             subjectKind,
             subjectId,
             permissionKey: existing.permissionKey,
-            scopeMetadata: newMetadata,
+            scopeMetadata: grantScopeMetadata,
             source: 'request_approved',
             requestId: existing.id,
             expiresAt: 'expiresAt' in input ? (input.expiresAt ?? null) : null,
@@ -513,17 +521,31 @@ export class PermissionsService {
             ? 'approved_once'
             : 'approved_durable';
 
-      // Race-safe update: only update if still pending (C2)
+      // Race-safe update: only update if still pending (C2).
+      // For 'once': the gate uses requestedMetadata to verify scope, so we write
+      // the (possibly tightened) grantScopeMetadata to the row (ephemeral — consumed
+      // within seconds). For 'remember'/'deny': preserve the original requestedMetadata
+      // as an immutable audit record of what the bot originally asked.
+      const requestUpdate =
+        input.decision === 'once'
+          ? {
+              status: newStatus,
+              decidedByUserId: input.userId,
+              decidedAt: new Date(),
+              decisionNote: input.note ?? null,
+              requestedMetadata: grantScopeMetadata,
+              durableGrantId,
+            }
+          : {
+              status: newStatus,
+              decidedByUserId: input.userId,
+              decidedAt: new Date(),
+              decisionNote: input.note ?? null,
+              durableGrantId,
+            };
       const [updated] = await tx
         .update(authPermissionRequests)
-        .set({
-          status: newStatus,
-          decidedByUserId: input.userId,
-          decidedAt: new Date(),
-          decisionNote: input.note ?? null,
-          requestedMetadata: newMetadata,
-          durableGrantId,
-        })
+        .set(requestUpdate)
         .where(
           and(
             eq(authPermissionRequests.id, existing.id),
@@ -541,7 +563,7 @@ export class PermissionsService {
 
     // Emit events OUTSIDE the transaction (I4)
     if (result.grantRow) {
-      this.events.emit('permissions.grant.created', {
+      this.safeEmit('permissions.grant.created', {
         id: result.grantRow.id,
         tenantId: result.grantRow.tenantId,
         subjectKind: result.grantRow.subjectKind,
@@ -550,7 +572,7 @@ export class PermissionsService {
         scopeMetadata: result.grantRow.scopeMetadata,
       });
     }
-    this.events.emit('permissions.request.decided', {
+    this.safeEmit('permissions.request.decided', {
       id: result.updated.id,
       spellId: result.updated.spellId,
       status: result.updated.status,
@@ -671,11 +693,20 @@ export class PermissionsService {
 
   /**
    * Fetch a single permission request by its ID.
-   * Returns null when the request does not exist.
+   *
+   * Returns null when not found, belongs to a different tenant (when tenantId provided),
+   * or has been deleted. WS-bridge internal callers pass `undefined` for tenantId since the
+   * event ID is trusted. External (HTTP-layer) callers MUST pass tenantId.
    */
-  async getRequest(id: string) {
+  async getRequest(id: string, tenantId?: string) {
+    const whereClause = tenantId
+      ? and(
+          eq(authPermissionRequests.id, id),
+          eq(authPermissionRequests.tenantId, tenantId),
+        )
+      : eq(authPermissionRequests.id, id);
     const row = await this.db.query.authPermissionRequests.findFirst({
-      where: eq(authPermissionRequests.id, id),
+      where: whereClause,
     });
     return row ?? null;
   }
@@ -727,16 +758,22 @@ export class PermissionsService {
         eq(authPermissionRequests.status, input.status as RequestStatus),
       );
     }
-    const rows = await this.db.query.authPermissionRequests.findMany({
+    // Exclude expired rows when querying pending requests (Fix 7)
+    if (input.status === 'pending' || !input.status) {
+      where.push(gt(authPermissionRequests.expiresAt, new Date()));
+    }
+    // Fetch a generous DB cap (2000), then filter to caller's approver set, then slice.
+    // This ensures the 200-row limit is applied AFTER the canDecide filter (Fix 3).
+    const allRows = await this.db.query.authPermissionRequests.findMany({
       where: and(...where),
       orderBy: [desc(authPermissionRequests.createdAt)],
-      limit: 200,
+      limit: 2000,
     });
 
     // Always filter to requests where the caller is a potential approver.
     // The `scope` param is accepted for forward-compat but its value is ignored.
-    const canDecideResults = await Promise.all(
-      rows.map((r) =>
+    const matching = await Promise.all(
+      allRows.map((r) =>
         this.canDecide(input.userId, {
           id: r.id,
           tenantId: r.tenantId,
@@ -747,10 +784,12 @@ export class PermissionsService {
           contextChannelId: r.contextChannelId,
           contextExecutionId: r.contextExecutionId,
           contextRoutineId: r.contextRoutineId,
-        }),
+        }).then((ok) => (ok ? r : null)),
       ),
     );
-    return rows.filter((_, i) => canDecideResults[i]);
+    return matching
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .slice(0, 200);
   }
 
   /**
@@ -792,6 +831,14 @@ export class PermissionsService {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private safeEmit(event: string, payload: unknown) {
+    try {
+      this.events.emit(event, payload);
+    } catch (err) {
+      this.logger.warn(`Failed to emit ${event}`, err);
+    }
+  }
 
   private isUniqueViolation(err: unknown): boolean {
     return Boolean(
