@@ -159,6 +159,45 @@ describe('PermissionsController (e2e)', () => {
       .expect(404);
   });
 
+  it('POST /permissions/requests creates a request and returns 201 with the new row', async () => {
+    svc.requireBotIdForUser.mockResolvedValue('b1');
+    svc.createRequest.mockResolvedValue({
+      id: 'r-new',
+      spellId: 'raven crystal flame',
+      status: 'pending',
+      tenantId: 't1',
+      requesterBotId: 'b1',
+      permissionKey: 'tools:invoke',
+      requestedMetadata: { toolName: 'sql' },
+      suggestedApproverIds: [],
+      contextChannelId: null,
+      contextExecutionId: null,
+      contextRoutineId: null,
+      reason: 'data lookup',
+      expiresAt: null,
+    });
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/permissions/requests')
+      .send({
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { toolName: 'sql' },
+        reason: 'data lookup',
+      })
+      .expect(201);
+    expect(res.body.id).toBe('r-new');
+    expect(res.body.spellId).toBe('raven crystal flame');
+    expect(svc.requireBotIdForUser).toHaveBeenCalledWith('u1');
+    expect(svc.createRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 't1',
+        requesterBotId: 'b1',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { toolName: 'sql' },
+        reason: 'data lookup',
+      }),
+    );
+  });
+
   it('POST /permissions/requests returns 403 when user is not a bot', async () => {
     svc.requireBotIdForUser.mockRejectedValue(
       new ForbiddenException(

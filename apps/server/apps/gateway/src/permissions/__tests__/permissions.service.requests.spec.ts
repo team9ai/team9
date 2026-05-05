@@ -32,6 +32,9 @@ const tx = {
   },
 };
 
+const botsFindFirst = jest.fn();
+const grantsFindMany = jest.fn();
+
 const mockDb = {
   ...tx,
   query: {
@@ -40,6 +43,8 @@ const mockDb = {
       findMany: requestFindMany,
     },
     tenantMembers: { findMany: tenantMembersFindMany },
+    bots: { findFirst: botsFindFirst },
+    authPermissionGrants: { findMany: grantsFindMany },
   },
   transaction: jest.fn(async (fn: any) => fn(tx)),
 };
@@ -1130,6 +1135,73 @@ describe('PermissionsService — requests', () => {
         contextRoutineId: null,
       } as never);
       expect(result).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // requireBotIdForUser
+  // ---------------------------------------------------------------------------
+
+  describe('requireBotIdForUser', () => {
+    it('returns bot id when user owns a bot row', async () => {
+      botsFindFirst.mockResolvedValueOnce({ id: 'bot-abc' });
+      const result = await svc.requireBotIdForUser('user-1');
+      expect(result).toBe('bot-abc');
+    });
+
+    it('throws ForbiddenException when user has no bot row', async () => {
+      botsFindFirst.mockResolvedValueOnce(undefined);
+      const { ForbiddenException } = await import('@nestjs/common');
+      await expect(
+        svc.requireBotIdForUser('non-bot-user'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // listGrants — includeRevoked=true
+  // ---------------------------------------------------------------------------
+
+  describe('listGrants', () => {
+    it('when includeRevoked=true, returns both active and revoked grants', async () => {
+      const activeGrant = {
+        id: 'g-active',
+        tenantId: 't1',
+        revokedAt: null,
+        permissionKey: 'messages:send',
+      };
+      const revokedGrant = {
+        id: 'g-revoked',
+        tenantId: 't1',
+        revokedAt: new Date('2024-01-01'),
+        permissionKey: 'messages:send',
+      };
+      grantsFindMany.mockResolvedValueOnce([activeGrant, revokedGrant]);
+
+      const result = await svc.listGrants({
+        tenantId: 't1',
+        includeRevoked: true,
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((g: any) => g.id)).toContain('g-active');
+      expect(result.map((g: any) => g.id)).toContain('g-revoked');
+    });
+
+    it('when includeRevoked is not set, only active grants are returned', async () => {
+      const activeGrant = {
+        id: 'g-active',
+        tenantId: 't1',
+        revokedAt: null,
+        permissionKey: 'messages:send',
+      };
+      // DB enforces the filter; mock returns only the active grant
+      grantsFindMany.mockResolvedValueOnce([activeGrant]);
+
+      const result = await svc.listGrants({ tenantId: 't1' });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe('g-active');
     });
   });
 });

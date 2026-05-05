@@ -5,7 +5,7 @@
 // with the correct arguments.
 
 import { jest } from '@jest/globals';
-import { PERMISSION_KEYS } from '../permission-keys.js';
+import { PERMISSION_KEYS, isPermissionKey } from '../permission-keys.js';
 import type { ApproverContext, ApproverDeps } from '../permission-keys.js';
 
 function makeRepo() {
@@ -261,5 +261,162 @@ describe('PERMISSION_KEYS[files:write].resolveApprovers', () => {
     );
     expect(repo.findWorkspaceAdmins).toHaveBeenCalledWith('tenant-77');
     expect(result).toContain('u-ws-admin');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isPermissionKey
+// ---------------------------------------------------------------------------
+
+describe('isPermissionKey', () => {
+  it('returns true for a valid permission key', () => {
+    expect(isPermissionKey('messages:send')).toBe(true);
+  });
+
+  it('returns false for an unknown key', () => {
+    expect(isPermissionKey('bogus:key')).toBe(false);
+  });
+
+  it('returns false for an empty string', () => {
+    expect(isPermissionKey('')).toBe(false);
+  });
+
+  it('returns false for an arbitrary string that is not a key', () => {
+    expect(isPermissionKey('not:a:key')).toBe(false);
+    expect(isPermissionKey('messages')).toBe(false);
+  });
+
+  it('returns true for each of the 8 registered keys', () => {
+    const keys = [
+      'messages:send',
+      'messages:read',
+      'tools:invoke',
+      'routine:trigger',
+      'wiki:read',
+      'wiki:write',
+      'files:read',
+      'files:write',
+    ];
+    for (const key of keys) {
+      expect(isPermissionKey(key)).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// describe() for each of the 8 keys
+// ---------------------------------------------------------------------------
+
+describe('PERMISSION_KEYS[messages:send].describe', () => {
+  it('includes channel count when channelIds is provided', () => {
+    const result = PERMISSION_KEYS['messages:send'].describe({
+      channelIds: ['c1', 'c2'],
+    });
+    expect(result).toBeTruthy();
+    expect(result).toContain('2');
+  });
+
+  it('returns a non-empty string with empty metadata', () => {
+    const result = PERMISSION_KEYS['messages:send'].describe({});
+    expect(result).toBeTruthy();
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('PERMISSION_KEYS[messages:read].describe', () => {
+  it('includes channel count when channelIds is provided', () => {
+    const result = PERMISSION_KEYS['messages:read'].describe({
+      channelIds: ['c1'],
+    });
+    expect(result).toBeTruthy();
+    expect(result).toContain('1');
+  });
+
+  it('returns a non-empty string with empty metadata', () => {
+    const result = PERMISSION_KEYS['messages:read'].describe({});
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('PERMISSION_KEYS[tools:invoke].describe', () => {
+  it('includes tool names when toolNames is provided', () => {
+    const result = PERMISSION_KEYS['tools:invoke'].describe({
+      toolNames: ['sql', 'shell'],
+    });
+    expect(result).toContain('sql');
+    expect(result).toContain('shell');
+  });
+
+  it('returns a non-empty string with empty metadata', () => {
+    const result = PERMISSION_KEYS['tools:invoke'].describe({});
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('PERMISSION_KEYS[routine:trigger].describe', () => {
+  it('includes routineId when provided', () => {
+    const result = PERMISSION_KEYS['routine:trigger'].describe({
+      routineId: 'rt-abc',
+    });
+    expect(result).toContain('rt-abc');
+  });
+
+  it('mentions unspecified when routineId is missing', () => {
+    const result = PERMISSION_KEYS['routine:trigger'].describe({});
+    expect(result).toContain('unspecified');
+  });
+});
+
+describe('PERMISSION_KEYS[wiki:read].describe', () => {
+  it('includes wikiId when provided', () => {
+    const result = PERMISSION_KEYS['wiki:read'].describe({ wikiId: 'wiki-99' });
+    expect(result).toContain('wiki-99');
+  });
+
+  it('mentions unspecified when wikiId is missing', () => {
+    const result = PERMISSION_KEYS['wiki:read'].describe({});
+    expect(result).toContain('unspecified');
+  });
+});
+
+describe('PERMISSION_KEYS[wiki:write].describe', () => {
+  it('includes wikiId when provided', () => {
+    const result = PERMISSION_KEYS['wiki:write'].describe({
+      wikiId: 'wiki-77',
+    });
+    expect(result).toContain('wiki-77');
+  });
+
+  it('mentions unspecified when wikiId is missing', () => {
+    const result = PERMISSION_KEYS['wiki:write'].describe({});
+    expect(result).toContain('unspecified');
+  });
+});
+
+describe('PERMISSION_KEYS[files:read].describe', () => {
+  it('includes path count when paths is provided', () => {
+    const result = PERMISSION_KEYS['files:read'].describe({
+      paths: ['/a', '/b', '/c'],
+    });
+    expect(result).toContain('3');
+  });
+
+  it('returns a non-empty string with empty metadata', () => {
+    const result = PERMISSION_KEYS['files:read'].describe({});
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+describe('PERMISSION_KEYS[files:write].describe', () => {
+  it('includes path count when paths is provided', () => {
+    const result = PERMISSION_KEYS['files:write'].describe({
+      paths: ['/tmp/x'],
+    });
+    expect(result).toContain('1');
+  });
+
+  it('returns a non-empty string with empty metadata', () => {
+    const result = PERMISSION_KEYS['files:write'].describe({});
+    expect(result.length).toBeGreaterThan(0);
   });
 });
