@@ -901,6 +901,50 @@ describe("MessageList — selection mode", () => {
     expect(useForwardSelectionStore.getState().active).toBe(false);
   });
 
+  it("Enter keypress opens the ForwardDialog when messages are selected", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+    useForwardSelectionStore.getState().toggle("m1");
+
+    const chrono = [makeMessage("m1")];
+    renderList(chrono);
+
+    expect(screen.queryByTestId("forward-dialog")).not.toBeInTheDocument();
+
+    // Make sure focus is not in an editable element so the guard passes.
+    fireEvent.keyDown(window, { key: "Enter" });
+
+    expect(screen.getByTestId("forward-dialog")).toBeInTheDocument();
+  });
+
+  it("Enter keypress is ignored when nothing is selected (no dialog opens)", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+
+    const chrono = [makeMessage("m1")];
+    renderList(chrono);
+
+    fireEvent.keyDown(window, { key: "Enter" });
+
+    expect(screen.queryByTestId("forward-dialog")).not.toBeInTheDocument();
+  });
+
+  it("Enter keypress is ignored when focus is inside an editable element", () => {
+    useForwardSelectionStore.getState().enter("ch-1");
+    useForwardSelectionStore.getState().toggle("m1");
+
+    const chrono = [makeMessage("m1")];
+    const { container } = renderList(chrono);
+
+    // Mount a textarea inside the rendered tree and focus it.
+    const ta = document.createElement("textarea");
+    container.appendChild(ta);
+    ta.focus();
+
+    fireEvent.keyDown(ta, { key: "Enter" });
+
+    // Dialog must NOT open while the user is composing in an input.
+    expect(screen.queryByTestId("forward-dialog")).not.toBeInTheDocument();
+  });
+
   it("re-rendering with a different channelId when selection was active calls exit", () => {
     useForwardSelectionStore.getState().enter("ch-1");
 
