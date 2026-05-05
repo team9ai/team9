@@ -182,7 +182,9 @@ describe('ExecutorService', () => {
     // CAS update().returning() returns empty → task not claimed
     returningResultQueue = [[]];
 
-    await service.triggerExecution('nonexistent-task');
+    await expect(service.triggerExecution('nonexistent-task')).resolves.toBe(
+      false,
+    );
 
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
@@ -193,7 +195,7 @@ describe('ExecutorService', () => {
     // CAS returns task with no botId
     returningResultQueue = [[{ ...sampleTask, botId: null }]];
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
@@ -206,7 +208,7 @@ describe('ExecutorService', () => {
     selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(true);
 
     // insertValues: [channel, channelMember-creator, execution, channelMember-bot]
     const executionInsert = insertValues.find(
@@ -223,7 +225,7 @@ describe('ExecutorService', () => {
     returningResultQueue = [[sampleTask]];
     selectResultQueue = [[]]; // bot not found
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     // Should call update to mark status as failed
     expect(mockDb.update).toHaveBeenCalled();
@@ -240,7 +242,7 @@ describe('ExecutorService', () => {
     ];
     // No strategy registered
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     expect(mockDb.update).toHaveBeenCalled();
     const failedSet = updateSets.find((s) => s.status === 'failed');
@@ -261,7 +263,7 @@ describe('ExecutorService', () => {
     };
     service.registerStrategy('system', failingStrategy);
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     expect(failingStrategy.execute).toHaveBeenCalled();
     const failedSet = updateSets.find((s) => s.status === 'failed');
@@ -275,7 +277,7 @@ describe('ExecutorService', () => {
     selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(true);
 
     expect(mockStrategy.execute).toHaveBeenCalledWith(
       expect.objectContaining({

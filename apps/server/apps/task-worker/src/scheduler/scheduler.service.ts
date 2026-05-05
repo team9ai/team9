@@ -87,11 +87,21 @@ export class SchedulerService {
             trigger.nextRunAt?.toISOString() ?? new Date().toISOString(),
         };
 
-        await this.executor.triggerExecution(trigger.routineId, {
-          triggerId: trigger.id,
-          triggerType: trigger.type,
-          triggerContext,
-        });
+        const started = await this.executor.triggerExecution(
+          trigger.routineId,
+          {
+            triggerId: trigger.id,
+            triggerType: trigger.type,
+            triggerContext,
+          },
+        );
+
+        if (!started) {
+          this.logger.warn(
+            `Trigger ${trigger.id} did not start an execution; keeping next_run_at unchanged`,
+          );
+          continue;
+        }
 
         // Calculate and persist the next run time based on trigger type and config
         const nextRunAt = this.calculateNextRunForTrigger(trigger);
