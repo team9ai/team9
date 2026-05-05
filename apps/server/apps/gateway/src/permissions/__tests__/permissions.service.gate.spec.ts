@@ -35,6 +35,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   isNull: jest.fn(),
   desc: jest.fn(),
   // Table refs needed by PermissionsApproverRepository (transitive dep)
+  channels: {},
   channelMembers: {},
   bots: {},
   routines: {},

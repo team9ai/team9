@@ -6,11 +6,12 @@ import { jest } from '@jest/globals';
 // the plan's speculative aliases like `imChannelMembers`).
 const mockDb = {
   query: {
+    channels: { findFirst: jest.fn() },
     channelMembers: { findMany: jest.fn() },
     bots: { findFirst: jest.fn() },
     routines: { findFirst: jest.fn() },
     workspaceWikis: { findFirst: jest.fn() },
-    tenantMembers: { findMany: jest.fn() },
+    tenantMembers: { findMany: jest.fn(), findFirst: jest.fn() },
   },
 };
 
@@ -25,11 +26,15 @@ await jest.unstable_mockModule('@team9/database', () => ({
   and: jest.fn(),
   inArray: jest.fn(),
   isNull: jest.fn(),
+  channels: {},
   channelMembers: {},
   bots: {},
   routines: {},
   workspaceWikis: {},
   tenantMembers: {},
+  // Provide all table schemas exported from the repo (transitive)
+  authPermissionGrants: {},
+  authPermissionRequests: {},
 }));
 
 // Also mock @team9/database/schemas (imported as `* as schema` in the repo)
@@ -50,48 +55,74 @@ describe('PermissionsApproverRepository', () => {
 
   describe('findChannelOwnersAndAdmins', () => {
     it('returns owner+admin user ids excluding left members', async () => {
+      // First call: tenant guard succeeds — channel belongs to tenant
+      (mockDb.query.channels.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: 'c1',
+      });
       (mockDb.query.channelMembers.findMany as jest.Mock).mockResolvedValueOnce(
         [
           { userId: 'u-owner', role: 'owner', leftAt: null },
           { userId: 'u-admin', role: 'admin', leftAt: null },
         ],
       );
-      const ids = await repo.findChannelOwnersAndAdmins('c1');
+      const ids = await repo.findChannelOwnersAndAdmins('c1', 't1');
       expect(ids).toEqual(['u-owner', 'u-admin']);
       expect(mockDb.query.channelMembers.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('returns empty array when channel has no owners or admins', async () => {
+      (mockDb.query.channels.findFirst as jest.Mock).mockResolvedValueOnce({
+        id: 'c-empty',
+      });
       (mockDb.query.channelMembers.findMany as jest.Mock).mockResolvedValueOnce(
         [],
       );
-      const ids = await repo.findChannelOwnersAndAdmins('c-empty');
+      const ids = await repo.findChannelOwnersAndAdmins('c-empty', 't1');
       expect(ids).toEqual([]);
+    });
+
+    it('returns empty array when channel belongs to a different tenant', async () => {
+      // Tenant guard fails — channel not found for that tenantId
+      (mockDb.query.channels.findFirst as jest.Mock).mockResolvedValueOnce(
+        null,
+      );
+      const ids = await repo.findChannelOwnersAndAdmins('c1', 'other-tenant');
+      expect(ids).toEqual([]);
+      // Should NOT query channelMembers when tenant guard fails
+      expect(mockDb.query.channelMembers.findMany).not.toHaveBeenCalled();
     });
   });
 
   describe('findBotOwnerAndMentor', () => {
-    it('filters nulls — returns only non-null ids', async () => {
+    it('filters nulls — returns only non-null ids verified in tenant', async () => {
       (mockDb.query.bots.findFirst as jest.Mock).mockResolvedValueOnce({
         ownerId: 'u-owner',
         mentorId: null,
       });
-      const ids = await repo.findBotOwnerAndMentor('b1');
+      // Tenant verification: u-owner is a member of t1
+      (mockDb.query.tenantMembers.findMany as jest.Mock).mockResolvedValueOnce([
+        { userId: 'u-owner' },
+      ]);
+      const ids = await repo.findBotOwnerAndMentor('b1', 't1');
       expect(ids).toEqual(['u-owner']);
     });
 
-    it('returns both owner and mentor when both are set', async () => {
+    it('returns both owner and mentor when both are set and in tenant', async () => {
       (mockDb.query.bots.findFirst as jest.Mock).mockResolvedValueOnce({
         ownerId: 'u-owner',
         mentorId: 'u-mentor',
       });
-      const ids = await repo.findBotOwnerAndMentor('b2');
+      (mockDb.query.tenantMembers.findMany as jest.Mock).mockResolvedValueOnce([
+        { userId: 'u-owner' },
+        { userId: 'u-mentor' },
+      ]);
+      const ids = await repo.findBotOwnerAndMentor('b2', 't1');
       expect(ids).toEqual(['u-owner', 'u-mentor']);
     });
 
     it('returns empty when bot not found', async () => {
       (mockDb.query.bots.findFirst as jest.Mock).mockResolvedValueOnce(null);
-      const ids = await repo.findBotOwnerAndMentor('b-missing');
+      const ids = await repo.findBotOwnerAndMentor('b-missing', 't1');
       expect(ids).toEqual([]);
     });
 
@@ -100,7 +131,21 @@ describe('PermissionsApproverRepository', () => {
         ownerId: null,
         mentorId: null,
       });
-      const ids = await repo.findBotOwnerAndMentor('b-no-owner');
+      const ids = await repo.findBotOwnerAndMentor('b-no-owner', 't1');
+      expect(ids).toEqual([]);
+    });
+
+    it('filters out owner/mentor that are not members of the requested tenant', async () => {
+      // Bot's ownerId belongs to a different tenant
+      (mockDb.query.bots.findFirst as jest.Mock).mockResolvedValueOnce({
+        ownerId: 'u-foreign',
+        mentorId: null,
+      });
+      // Tenant verification returns empty — u-foreign is not in t1
+      (mockDb.query.tenantMembers.findMany as jest.Mock).mockResolvedValueOnce(
+        [],
+      );
+      const ids = await repo.findBotOwnerAndMentor('b1', 't1');
       expect(ids).toEqual([]);
     });
   });
@@ -110,7 +155,7 @@ describe('PermissionsApproverRepository', () => {
       (mockDb.query.routines.findFirst as jest.Mock).mockResolvedValueOnce({
         creatorId: 'u-creator',
       });
-      const ids = await repo.findRoutineCreatorAndOwner('r1');
+      const ids = await repo.findRoutineCreatorAndOwner('r1', 't1');
       expect(ids).toEqual(['u-creator']);
     });
 
@@ -118,7 +163,16 @@ describe('PermissionsApproverRepository', () => {
       (mockDb.query.routines.findFirst as jest.Mock).mockResolvedValueOnce(
         null,
       );
-      const ids = await repo.findRoutineCreatorAndOwner('r-missing');
+      const ids = await repo.findRoutineCreatorAndOwner('r-missing', 't1');
+      expect(ids).toEqual([]);
+    });
+
+    it('returns empty when routine belongs to a different tenant', async () => {
+      // tenantId filter causes findFirst to return null for a different tenant
+      (mockDb.query.routines.findFirst as jest.Mock).mockResolvedValueOnce(
+        null,
+      );
+      const ids = await repo.findRoutineCreatorAndOwner('r1', 'other-tenant');
       expect(ids).toEqual([]);
     });
   });
@@ -128,7 +182,7 @@ describe('PermissionsApproverRepository', () => {
       (
         mockDb.query.workspaceWikis.findFirst as jest.Mock
       ).mockResolvedValueOnce({ createdBy: 'u-wiki-creator' });
-      const ids = await repo.findWikiOwners('w1');
+      const ids = await repo.findWikiOwners('w1', 't1');
       expect(ids).toEqual(['u-wiki-creator']);
     });
 
@@ -136,7 +190,7 @@ describe('PermissionsApproverRepository', () => {
       (
         mockDb.query.workspaceWikis.findFirst as jest.Mock
       ).mockResolvedValueOnce(null);
-      const ids = await repo.findWikiOwners('w-missing');
+      const ids = await repo.findWikiOwners('w-missing', 't1');
       expect(ids).toEqual([]);
     });
 
@@ -144,7 +198,16 @@ describe('PermissionsApproverRepository', () => {
       (
         mockDb.query.workspaceWikis.findFirst as jest.Mock
       ).mockResolvedValueOnce({ createdBy: '' });
-      const ids = await repo.findWikiOwners('w-empty');
+      const ids = await repo.findWikiOwners('w-empty', 't1');
+      expect(ids).toEqual([]);
+    });
+
+    it('returns empty when wiki belongs to a different tenant (workspaceId mismatch)', async () => {
+      // workspaceId filter causes findFirst to return null for a different tenant
+      (
+        mockDb.query.workspaceWikis.findFirst as jest.Mock
+      ).mockResolvedValueOnce(null);
+      const ids = await repo.findWikiOwners('w1', 'other-tenant');
       expect(ids).toEqual([]);
     });
   });

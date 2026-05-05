@@ -278,7 +278,9 @@ class WebSocketService {
 
     this.socket.on(WS_EVENTS.PERMISSION.REQUEST_CONSUMED, () => {
       queryClient.invalidateQueries({ queryKey: ["permissions", "requests"] });
-      useAppStore.getState().decrementPendingPermissions();
+      // Do NOT decrement here — decrement only fires on REQUEST_DECIDED.
+      // Consuming a once-approval does not reduce the pending count (the request
+      // was already removed from "pending" when it was decided).
     });
 
     this.socket.on(WS_EVENTS.PERMISSION.GRANT_CREATED, () => {

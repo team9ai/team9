@@ -61,6 +61,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   desc: jest.fn(),
   inArray: jest.fn(),
   // Table refs needed by PermissionsApproverRepository (transitive dep)
+  channels: {},
   channelMembers: {},
   bots: {},
   routines: {},
@@ -238,6 +239,7 @@ describe('PermissionsService — requests', () => {
       const row = await svc.cancelRequest({
         requestId: 'r1',
         requesterBotId: 'b1',
+        tenantId: 't1',
       });
       expect(row.status).toBe('cancelled');
       expect(events.emit).toHaveBeenCalledWith(
@@ -249,8 +251,26 @@ describe('PermissionsService — requests', () => {
     it('throws NotFoundException when no matching pending request', async () => {
       updateRequestReturning.mockResolvedValueOnce([]);
       await expect(
-        svc.cancelRequest({ requestId: 'r1', requesterBotId: 'b1' }),
+        svc.cancelRequest({
+          requestId: 'r1',
+          requesterBotId: 'b1',
+          tenantId: 't1',
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('refuses to cancel a request in a different tenant', async () => {
+      // When tenantId does not match, the DB update returns 0 rows
+      updateRequestReturning.mockResolvedValueOnce([]);
+      await expect(
+        svc.cancelRequest({
+          requestId: 'r1',
+          requesterBotId: 'b1',
+          tenantId: 'other-tenant',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      // Verify the update was called (tenantId filter is passed to DB layer)
+      expect(mockDb.update).toHaveBeenCalled();
     });
   });
 
@@ -905,6 +925,25 @@ describe('PermissionsService — requests', () => {
         new Set(['u-owner', 'u-suggested-1', 'u-ws-owner']),
       );
       // u-foreign was filtered (not in tenantMembers result)
+    });
+
+    it('returns workspace owners only when permissionKey is unknown to the registry', async () => {
+      approvers.findWorkspaceOwners.mockResolvedValueOnce(['u-ws-owner']);
+
+      const ids = await svc.resolveApprovers({
+        id: 'r-unknown',
+        tenantId: 't1',
+        requesterBotId: 'b1',
+        permissionKey: 'unknown:bogus' as never,
+        requestedMetadata: {},
+        suggestedApproverIds: [],
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+      });
+      expect(ids).toEqual(['u-ws-owner']);
+      // No TypeError — def was guarded before calling def.resolveApprovers
+      expect(approvers.findBotOwnerAndMentor).not.toHaveBeenCalled();
     });
 
     it('falls back to defaultApprovers when primary set is empty', async () => {

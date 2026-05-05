@@ -39,6 +39,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   isNull: jest.fn(),
   desc: jest.fn(),
   // Table refs needed by PermissionsApproverRepository (transitive dep)
+  channels: {},
   channelMembers: {},
   bots: {},
   routines: {},
@@ -158,5 +159,38 @@ describe('PermissionsService — grants CRUD', () => {
     });
     expect(out).toHaveLength(1);
     expect(findManyMock).toHaveBeenCalledTimes(1);
+  });
+
+  describe('getGrant', () => {
+    it('returns null for already-revoked grants', async () => {
+      // findFirst returns undefined when the WHERE clause excludes revoked rows
+      (
+        mockDb.query.authPermissionGrants.findFirst as jest.Mock
+      ).mockResolvedValueOnce(undefined);
+      const result = await svc.getGrant('g-revoked', 't1');
+      expect(result).toBeNull();
+    });
+
+    it('returns the grant when it is not revoked', async () => {
+      const grantRow = {
+        id: 'g1',
+        tenantId: 't1',
+        revokedAt: null,
+        permissionKey: 'messages:send',
+      };
+      (
+        mockDb.query.authPermissionGrants.findFirst as jest.Mock
+      ).mockResolvedValueOnce(grantRow);
+      const result = await svc.getGrant('g1', 't1');
+      expect(result).toEqual(grantRow);
+    });
+
+    it('returns null when grant belongs to a different tenant', async () => {
+      (
+        mockDb.query.authPermissionGrants.findFirst as jest.Mock
+      ).mockResolvedValueOnce(undefined);
+      const result = await svc.getGrant('g1', 'other-tenant');
+      expect(result).toBeNull();
+    });
   });
 });

@@ -5,17 +5,22 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
+  Validate,
 } from 'class-validator';
+import { JsonMaxSize } from './validators.js';
 
 export class CreateRequestDto {
   @IsString()
   permissionKey!: string;
 
   @IsObject()
+  @Validate(JsonMaxSize, [4096])
   requestedMetadata!: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   reason?: string;
 
   @IsOptional()

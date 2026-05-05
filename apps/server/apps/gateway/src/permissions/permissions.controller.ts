@@ -168,11 +168,16 @@ export class PermissionsController {
   @Delete('requests/:id')
   async cancelRequest(
     @CurrentUser('sub') userId: string,
+    @CurrentUser('tenantId') tenantId: string,
     @Param('id') id: string,
   ) {
     // Only bots may cancel their own requests
     const botId = await this.svc.requireBotIdForUser(userId);
-    return this.svc.cancelRequest({ requestId: id, requesterBotId: botId });
+    return this.svc.cancelRequest({
+      requestId: id,
+      requesterBotId: botId,
+      tenantId,
+    });
   }
 
   @Post('requests/:id/decide')

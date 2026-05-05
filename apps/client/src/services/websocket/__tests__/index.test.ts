@@ -209,7 +209,7 @@ describe("permissions events", () => {
     );
   });
 
-  it("REQUEST_CONSUMED decrements badge and invalidates requests", async () => {
+  it("REQUEST_CONSUMED only invalidates queries — does NOT decrement badge", async () => {
     await import("../index");
 
     const socket = sockets[0];
@@ -218,9 +218,10 @@ describe("permissions events", () => {
 
     socket.trigger("permission_request_consumed", { id: "req-1" });
 
+    // Decrement must NOT be called for REQUEST_CONSUMED — only REQUEST_DECIDED
     expect(
       appStoreMock.getState().decrementPendingPermissions,
-    ).toHaveBeenCalled();
+    ).not.toHaveBeenCalled();
     expect(queryClientMock.invalidateQueries).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ["permissions", "requests"] }),
     );

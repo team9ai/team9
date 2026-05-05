@@ -303,7 +303,7 @@ describe('PermissionsController (e2e)', () => {
       .expect(400);
   });
 
-  it('DELETE /permissions/requests/:id cancels request', async () => {
+  it('DELETE /permissions/requests/:id cancels request and passes tenantId', async () => {
     svc.requireBotIdForUser.mockResolvedValue('b1');
     svc.cancelRequest.mockResolvedValue({ id: 'r1', status: 'cancelled' });
     const res = await request(app.getHttpServer())
@@ -311,8 +311,26 @@ describe('PermissionsController (e2e)', () => {
       .expect(200);
     expect(res.body.status).toBe('cancelled');
     expect(svc.cancelRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ requestId: 'r1', requesterBotId: 'b1' }),
+      expect.objectContaining({
+        requestId: 'r1',
+        requesterBotId: 'b1',
+        tenantId: 't1',
+      }),
     );
+  });
+
+  it('POST /permissions/requests returns 400 when requestedMetadata exceeds 4 KB', async () => {
+    svc.requireBotIdForUser.mockResolvedValue('b1');
+    // Generate a value that pushes the JSON payload beyond 4096 bytes
+    const bigValue = 'x'.repeat(5000);
+    await request(app.getHttpServer())
+      .post('/api/v1/permissions/requests')
+      .send({
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { bigKey: bigValue },
+      })
+      .expect(400);
+    expect(svc.createRequest).not.toHaveBeenCalled();
   });
 
   it('POST /permissions/requests/by-spell/:spell/decide returns 403 when canDecide=false', async () => {

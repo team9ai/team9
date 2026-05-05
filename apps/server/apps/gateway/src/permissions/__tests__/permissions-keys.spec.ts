@@ -51,7 +51,7 @@ describe('PERMISSION_KEYS[messages:send].resolveApprovers', () => {
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith('ch-1');
+    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith('ch-1', 't1');
     expect(result).toContain('u-admin');
   });
 
@@ -66,7 +66,10 @@ describe('PERMISSION_KEYS[messages:send].resolveApprovers', () => {
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith('ch-first');
+    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith(
+      'ch-first',
+      't1',
+    );
   });
 
   it('calls findChannelOwnersAndAdmins with contextChannelId when metadata has no channelId', async () => {
@@ -81,7 +84,10 @@ describe('PERMISSION_KEYS[messages:send].resolveApprovers', () => {
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith('ctx-ch');
+    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith(
+      'ctx-ch',
+      't1',
+    );
   });
 
   it('returns [] when no channelId in metadata or context', async () => {
@@ -107,26 +113,31 @@ describe('PERMISSION_KEYS[messages:read].resolveApprovers', () => {
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith('ch-2');
+    expect(repo.findChannelOwnersAndAdmins).toHaveBeenCalledWith('ch-2', 't1');
     expect(result).toContain('u-read-admin');
   });
 });
 
 describe('PERMISSION_KEYS[tools:invoke].resolveApprovers', () => {
-  it('calls findBotOwnerAndMentor with requesterBotId', async () => {
+  it('calls findBotOwnerAndMentor with requesterBotId and tenantId', async () => {
     const repo = makeRepo();
     repo.findBotOwnerAndMentor.mockResolvedValueOnce(['u-owner', 'u-mentor']);
     const result = await PERMISSION_KEYS['tools:invoke'].resolveApprovers(
-      { ...BASE_CTX, permissionKey: 'tools:invoke', requesterBotId: 'bot-42' },
+      {
+        ...BASE_CTX,
+        permissionKey: 'tools:invoke',
+        requesterBotId: 'bot-42',
+        tenantId: 't1',
+      },
       { repo } as ApproverDeps,
     );
-    expect(repo.findBotOwnerAndMentor).toHaveBeenCalledWith('bot-42');
+    expect(repo.findBotOwnerAndMentor).toHaveBeenCalledWith('bot-42', 't1');
     expect(result).toEqual(['u-owner', 'u-mentor']);
   });
 });
 
 describe('PERMISSION_KEYS[routine:trigger].resolveApprovers', () => {
-  it('calls findRoutineCreatorAndOwner with routineId from metadata', async () => {
+  it('calls findRoutineCreatorAndOwner with routineId and tenantId', async () => {
     const repo = makeRepo();
     repo.findRoutineCreatorAndOwner.mockResolvedValueOnce(['u-creator']);
     const result = await PERMISSION_KEYS['routine:trigger'].resolveApprovers(
@@ -134,10 +145,11 @@ describe('PERMISSION_KEYS[routine:trigger].resolveApprovers', () => {
         ...BASE_CTX,
         permissionKey: 'routine:trigger',
         metadata: { routineId: 'rt-1' },
+        tenantId: 't1',
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findRoutineCreatorAndOwner).toHaveBeenCalledWith('rt-1');
+    expect(repo.findRoutineCreatorAndOwner).toHaveBeenCalledWith('rt-1', 't1');
     expect(result).toContain('u-creator');
   });
 
@@ -153,7 +165,10 @@ describe('PERMISSION_KEYS[routine:trigger].resolveApprovers', () => {
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findRoutineCreatorAndOwner).toHaveBeenCalledWith('ctx-rt');
+    expect(repo.findRoutineCreatorAndOwner).toHaveBeenCalledWith(
+      'ctx-rt',
+      't1',
+    );
   });
 
   it('returns [] when no routineId in metadata or context', async () => {
@@ -168,7 +183,7 @@ describe('PERMISSION_KEYS[routine:trigger].resolveApprovers', () => {
 });
 
 describe('PERMISSION_KEYS[wiki:read].resolveApprovers', () => {
-  it('calls findWikiOwners with wikiId from metadata', async () => {
+  it('calls findWikiOwners with wikiId and tenantId', async () => {
     const repo = makeRepo();
     repo.findWikiOwners.mockResolvedValueOnce(['u-wiki-owner']);
     const result = await PERMISSION_KEYS['wiki:read'].resolveApprovers(
@@ -176,10 +191,11 @@ describe('PERMISSION_KEYS[wiki:read].resolveApprovers', () => {
         ...BASE_CTX,
         permissionKey: 'wiki:read',
         metadata: { wikiId: 'wiki-1' },
+        tenantId: 't1',
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findWikiOwners).toHaveBeenCalledWith('wiki-1');
+    expect(repo.findWikiOwners).toHaveBeenCalledWith('wiki-1', 't1');
     expect(result).toContain('u-wiki-owner');
   });
 
@@ -203,10 +219,11 @@ describe('PERMISSION_KEYS[wiki:write].resolveApprovers', () => {
         ...BASE_CTX,
         permissionKey: 'wiki:write',
         metadata: { wikiId: 'wiki-2' },
+        tenantId: 't1',
       },
       { repo } as ApproverDeps,
     );
-    expect(repo.findWikiOwners).toHaveBeenCalledWith('wiki-2');
+    expect(repo.findWikiOwners).toHaveBeenCalledWith('wiki-2', 't1');
     expect(result).toContain('u-wiki-owner');
   });
 });

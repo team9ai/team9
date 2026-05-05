@@ -18,6 +18,7 @@ const mockDecideRequest = vi.hoisted(() => vi.fn());
 const mockListGrants = vi.hoisted(() => vi.fn());
 const mockCreateGrant = vi.hoisted(() => vi.fn());
 const mockRevokeGrant = vi.hoisted(() => vi.fn());
+const mockSetPendingPermissionCount = vi.hoisted(() => vi.fn());
 
 vi.mock("@/services/api/permissions", () => ({
   default: {
@@ -26,6 +27,14 @@ vi.mock("@/services/api/permissions", () => ({
     listGrants: mockListGrants,
     createGrant: mockCreateGrant,
     revokeGrant: mockRevokeGrant,
+  },
+}));
+
+vi.mock("@/stores/useAppStore", () => ({
+  useAppStore: {
+    getState: vi.fn(() => ({
+      setPendingPermissionCount: mockSetPendingPermissionCount,
+    })),
   },
 }));
 
@@ -121,6 +130,28 @@ describe("usePermissions", () => {
 
       await waitFor(() => expect(result.current.isError).toBe(true));
       expect(result.current.error).toBeInstanceOf(Error);
+    });
+
+    it("sets pendingPermissionCount in store on data arrival", async () => {
+      mockListRequests.mockResolvedValueOnce([pendingRequest, pendingRequest]);
+      const { wrapper } = makeWrapper();
+
+      renderHook(() => usePendingPermissionRequests(), { wrapper });
+
+      await waitFor(() =>
+        expect(mockSetPendingPermissionCount).toHaveBeenCalledWith(2),
+      );
+    });
+
+    it("sets pendingPermissionCount to 0 when no pending requests", async () => {
+      mockListRequests.mockResolvedValueOnce([]);
+      const { wrapper } = makeWrapper();
+
+      renderHook(() => usePendingPermissionRequests(), { wrapper });
+
+      await waitFor(() =>
+        expect(mockSetPendingPermissionCount).toHaveBeenCalledWith(0),
+      );
     });
   });
 

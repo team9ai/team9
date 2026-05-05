@@ -80,14 +80,17 @@ export const PERMISSION_KEYS: Record<PermissionKey, PermissionKeyDef> = {
   'messages:send': {
     metadata: ChannelScopeSchema,
     risk: 'low',
-    resolveApprovers: async ({ metadata, contextChannelId }, { repo }) => {
+    resolveApprovers: async (
+      { metadata, contextChannelId, tenantId },
+      { repo },
+    ) => {
       const channelId =
         (metadata.channelId as string | undefined) ??
         pickFirst(metadata.channelIds as string[] | undefined) ??
         contextChannelId ??
         undefined;
       if (!channelId) return [];
-      return repo.findChannelOwnersAndAdmins(channelId);
+      return repo.findChannelOwnersAndAdmins(channelId, tenantId);
     },
     defaultApprovers: 'workspace-admins',
     describe: (m) =>
@@ -113,8 +116,8 @@ export const PERMISSION_KEYS: Record<PermissionKey, PermissionKeyDef> = {
   'tools:invoke': {
     metadata: ToolScopeSchema,
     risk: 'medium',
-    resolveApprovers: async ({ requesterBotId }, { repo }) =>
-      repo.findBotOwnerAndMentor(requesterBotId),
+    resolveApprovers: async ({ requesterBotId, tenantId }, { repo }) =>
+      repo.findBotOwnerAndMentor(requesterBotId, tenantId),
     defaultApprovers: 'workspace-admins',
     describe: (m) => {
       const names = m.toolNames as string[] | undefined;
@@ -124,12 +127,15 @@ export const PERMISSION_KEYS: Record<PermissionKey, PermissionKeyDef> = {
   'routine:trigger': {
     metadata: RoutineScopeSchema,
     risk: 'medium',
-    resolveApprovers: async ({ metadata, contextRoutineId }, { repo }) => {
+    resolveApprovers: async (
+      { metadata, contextRoutineId, tenantId },
+      { repo },
+    ) => {
       const id =
         (metadata.routineId as string | undefined) ??
         contextRoutineId ??
         undefined;
-      return id ? repo.findRoutineCreatorAndOwner(id) : [];
+      return id ? repo.findRoutineCreatorAndOwner(id, tenantId) : [];
     },
     defaultApprovers: 'workspace-admins',
     describe: (m) =>
@@ -138,9 +144,9 @@ export const PERMISSION_KEYS: Record<PermissionKey, PermissionKeyDef> = {
   'wiki:read': {
     metadata: WikiScopeSchema,
     risk: 'low',
-    resolveApprovers: async ({ metadata }, { repo }) => {
+    resolveApprovers: async ({ metadata, tenantId }, { repo }) => {
       const id = metadata.wikiId as string | undefined;
-      return id ? repo.findWikiOwners(id) : [];
+      return id ? repo.findWikiOwners(id, tenantId) : [];
     },
     defaultApprovers: 'workspace-admins',
     describe: (m) =>

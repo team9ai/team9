@@ -4,7 +4,10 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  MaxLength,
+  Validate,
 } from 'class-validator';
+import { JsonMaxSize } from './validators.js';
 
 export class DecideRequestDto {
   @IsEnum(['once', 'remember', 'deny'])
@@ -12,6 +15,7 @@ export class DecideRequestDto {
 
   @IsOptional()
   @IsObject()
+  @Validate(JsonMaxSize, [4096])
   scopeOverride?: Record<string, unknown>;
 
   @IsOptional()
@@ -24,5 +28,6 @@ export class DecideRequestDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   note?: string;
 }

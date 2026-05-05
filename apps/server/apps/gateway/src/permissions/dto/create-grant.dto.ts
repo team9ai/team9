@@ -5,7 +5,10 @@ import {
   IsString,
   IsUUID,
   IsDateString,
+  MaxLength,
+  Validate,
 } from 'class-validator';
+import { JsonMaxSize } from './validators.js';
 
 export class CreateGrantDto {
   @IsEnum(['agent', 'channel-session', 'execution-session', 'task'])
@@ -19,6 +22,7 @@ export class CreateGrantDto {
 
   @IsOptional()
   @IsObject()
+  @Validate(JsonMaxSize, [4096])
   scopeMetadata?: Record<string, unknown>;
 
   @IsOptional()
@@ -27,5 +31,6 @@ export class CreateGrantDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   note?: string;
 }

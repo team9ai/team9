@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import permissionsApi, {
   type DecidePermissionInput,
@@ -5,6 +6,7 @@ import permissionsApi, {
   type PermissionRequest,
   type GrantsQuery,
 } from "@/services/api/permissions";
+import { useAppStore } from "@/stores/useAppStore";
 
 export type { PermissionRequest, PermissionGrant };
 
@@ -27,13 +29,23 @@ export const permissionKeys = {
 /**
  * Fetches the caller's pending permission requests
  * (requests addressed to the current workspace owner / admin).
+ * On success, syncs the count to the app store so the badge stays accurate
+ * after page load or reconnect (even before any WebSocket events arrive).
  */
 export function usePendingPermissionRequests() {
-  return useQuery<PermissionRequest[]>({
+  const query = useQuery<PermissionRequest[]>({
     queryKey: permissionKeys.requests({ status: "pending", scope: "mine" }),
     queryFn: () =>
       permissionsApi.listRequests({ status: "pending", scope: "mine" }),
   });
+
+  useEffect(() => {
+    if (query.data) {
+      useAppStore.getState().setPendingPermissionCount(query.data.length);
+    }
+  }, [query.data]);
+
+  return query;
 }
 
 // ── Decide on a permission request ───────────────────────────────────────────

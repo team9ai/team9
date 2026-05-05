@@ -425,13 +425,18 @@ export class PermissionsService {
     }
   }
 
-  async cancelRequest(input: { requestId: string; requesterBotId: string }) {
+  async cancelRequest(input: {
+    requestId: string;
+    requesterBotId: string;
+    tenantId: string;
+  }) {
     const [row] = await this.db
       .update(authPermissionRequests)
       .set({ status: 'cancelled' })
       .where(
         and(
           eq(authPermissionRequests.id, input.requestId),
+          eq(authPermissionRequests.tenantId, input.tenantId),
           eq(authPermissionRequests.requesterBotId, input.requesterBotId),
           eq(authPermissionRequests.status, 'pending'),
         ),
@@ -567,6 +572,14 @@ export class PermissionsService {
     contextRoutineId: string | null;
   }): Promise<string[]> {
     const def = PERMISSION_KEYS[req.permissionKey];
+    if (!def) {
+      this.logger.warn(
+        `Unknown permission key on request ${req.id}: ${req.permissionKey} — returning empty approver set`,
+      );
+      // Safety net: fall through to workspace owners only
+      const wsOwners = await this.approvers.findWorkspaceOwners(req.tenantId);
+      return [...new Set(wsOwners)];
+    }
     const primary = await def.resolveApprovers(
       {
         tenantId: req.tenantId,
@@ -610,6 +623,7 @@ export class PermissionsService {
       } else if (def.defaultApprovers === 'bot-owners') {
         const ids = await this.approvers.findBotOwnerAndMentor(
           req.requesterBotId,
+          req.tenantId,
         );
         ids.forEach((id) => union.add(id));
       }
@@ -642,6 +656,7 @@ export class PermissionsService {
       where: and(
         eq(authPermissionGrants.id, grantId),
         eq(authPermissionGrants.tenantId, tenantId),
+        isNull(authPermissionGrants.revokedAt),
       ),
     });
     return row ?? null;
@@ -684,6 +699,8 @@ export class PermissionsService {
    * @param scope Reserved for future use; current behavior always filters to
    *   the caller's approver set regardless of this value. Workspace owners are
    *   always in the approver set, so admins still see all relevant requests.
+   *
+   * Returns up to 200 rows. Pagination is out-of-scope for v1.
    */
   async listRequests(input: {
     tenantId: string;
@@ -713,6 +730,7 @@ export class PermissionsService {
     const rows = await this.db.query.authPermissionRequests.findMany({
       where: and(...where),
       orderBy: [desc(authPermissionRequests.createdAt)],
+      limit: 200,
     });
 
     // Always filter to requests where the caller is a potential approver.

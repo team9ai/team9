@@ -65,9 +65,17 @@ vi.mock("@/services/api/permissions", () => ({
 }));
 
 // ── Mock useAppStore ──────────────────────────────────────────────────────────
+const mockSetPendingPermissionCount = vi.fn();
 vi.mock("@/stores/useAppStore", () => ({
-  useAppStore: (selector: (s: { pendingPermissionCount: number }) => unknown) =>
-    selector({ pendingPermissionCount: 1 }),
+  useAppStore: Object.assign(
+    (selector: (s: { pendingPermissionCount: number }) => unknown) =>
+      selector({ pendingPermissionCount: 1 }),
+    {
+      getState: () => ({
+        setPendingPermissionCount: mockSetPendingPermissionCount,
+      }),
+    },
+  ),
 }));
 
 // ── Import the component under test ──────────────────────────────────────────
