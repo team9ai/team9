@@ -245,6 +245,7 @@ import * as notificationPreferencesApi from "./notification-preferences";
 import propertiesApi from "./properties";
 import { viewsApi, tabsApi } from "./views";
 import wikisApi from "./wikis";
+import forwardApi from "./forward";
 
 export const api = {
   auth: authApi,
@@ -265,6 +266,7 @@ export const api = {
   views: viewsApi,
   tabs: tabsApi,
   wikis: wikisApi,
+  forward: forwardApi,
 };
 
 export default api;

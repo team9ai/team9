@@ -7,7 +7,16 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { MessageSquare, Link, Copy, Pin, Trash2, Pencil } from "lucide-react";
+import {
+  MessageSquare,
+  Link,
+  Copy,
+  Pin,
+  Trash2,
+  Pencil,
+  Forward,
+  CheckSquare,
+} from "lucide-react";
 import type { Message } from "@/types/im";
 
 interface MessageContextMenuProps {
@@ -21,6 +30,12 @@ interface MessageContextMenuProps {
   onPin?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  /** Called when Forward menu item is clicked. Only shown when forwardable is true. */
+  onForward?: () => void;
+  /** Called when Select menu item is clicked. Only shown when forwardable is true. */
+  onSelect?: () => void;
+  /** Controls visibility of Forward + Select menu items. */
+  forwardable?: boolean;
 }
 
 export function MessageContextMenu({
@@ -34,8 +49,12 @@ export function MessageContextMenu({
   onPin,
   onEdit,
   onDelete,
+  onForward,
+  onSelect,
+  forwardable,
 }: MessageContextMenuProps) {
   const { t } = useTranslation("message");
+  const { t: tChannel } = useTranslation("channel");
 
   const handleCopyMessage = () => {
     if (message.content) {
@@ -61,6 +80,21 @@ export function MessageContextMenu({
             <MessageSquare className="mr-2 h-4 w-4" />
             {t("replyInThread")}
             <ContextMenuShortcut>T</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
+
+        {/* Forward / Select actions */}
+        {forwardable && onForward && (
+          <ContextMenuItem onClick={onForward}>
+            <Forward className="mr-2 h-4 w-4" />
+            {tChannel("forward.contextMenu.forward")}
+            <ContextMenuShortcut>F</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
+        {forwardable && onSelect && (
+          <ContextMenuItem onClick={onSelect}>
+            <CheckSquare className="mr-2 h-4 w-4" />
+            {tChannel("forward.contextMenu.select")}
           </ContextMenuItem>
         )}
 

@@ -1813,6 +1813,32 @@ export class ChannelsService {
   }
 
   /**
+   * Asserts the user can post a new message to this channel.
+   * Throws ForbiddenException with the same human-readable strings the
+   * messages controller has been throwing inline since the project started.
+   */
+  async assertWriteAccess(channelId: string, userId: string): Promise<void> {
+    const isMember = await this.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Access denied');
+    }
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new ForbiddenException('Access denied');
+    }
+    if (!channel.isActivated) {
+      throw new ForbiddenException(
+        'Channel is deactivated — execution has completed',
+      );
+    }
+    if (channel.isArchived) {
+      throw new ForbiddenException(
+        'Channel is archived and no longer accepts new messages',
+      );
+    }
+  }
+
+  /**
    * Resolve the target of a channel-level model switch.
    *
    * A channel is eligible iff:
@@ -2733,6 +2759,48 @@ export class ChannelsService {
     // seedBuiltinTabs outside the transaction.
     await this.tabsService.seedBuiltinTabs(channel.id);
     return channel;
+  }
+
+  // ---- helpers used by ForwardsService ----
+
+  /**
+   * Non-throwing variant of assertReadAccess.
+   * Returns true iff the user has read access to the channel.
+   */
+  async canRead(channelId: string, userId: string): Promise<boolean> {
+    try {
+      await this.assertReadAccess(channelId, userId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Bulk-load channels by IDs. Returns only channels that exist.
+   */
+  async findManyByIds(channelIds: string[]): Promise<ChannelResponse[]> {
+    if (channelIds.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(schema.channels)
+      .where(inArray(schema.channels.id, channelIds));
+    return rows.map((row) => ({
+      id: row.id,
+      tenantId: row.tenantId,
+      name: row.name,
+      description: row.description,
+      type: row.type,
+      avatarUrl: row.avatarUrl,
+      createdBy: row.createdBy,
+      sectionId: row.sectionId,
+      order: row.order,
+      isArchived: row.isArchived,
+      isActivated: row.isActivated,
+      snapshot: row.snapshot,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
   }
 }
 

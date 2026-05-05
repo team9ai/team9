@@ -407,6 +407,13 @@
       "when": 1777575466136,
       "tag": "0057_yielding_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1777706743341,
+      "tag": "0058_strong_rage",
+      "breakpoints": true
     }
   ]
 }

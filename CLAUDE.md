@@ -84,7 +84,7 @@ The backend follows a modular NestJS architecture with two main applications:
 - **Auth Module** ([apps/server/apps/gateway/src/auth](apps/server/apps/gateway/src/auth)): JWT-based authentication with Passport strategy, 7-day token expiry
 - **IM Module** ([apps/server/apps/gateway/src/im](apps/server/apps/gateway/src/im)): Instant messaging functionality
   - Channels: direct, public, private types
-  - Messages: text, file, image, system, long_text types with threading support (parentId)
+  - Messages: text, file, image, system, long_text, forward types with threading support (parentId)
   - Long text: messages >=20 lines or >=2000 chars auto-classified as `long_text`, truncated at API layer, full content via `GET /messages/:id/full-content`
   - Users: profile management, status tracking
   - Properties: channel property definitions, message property values (16 types), AI auto-fill
@@ -102,7 +102,7 @@ The codebase supports Community and Enterprise editions via environment variable
 
 - Uses Drizzle ORM with PostgreSQL
 - Schemas organized by domain in [apps/server/libs/database/schemas](apps/server/libs/database/schemas):
-  - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status, channel_property_definitions, message_properties, audit_logs, channel_views, channel_tabs
+  - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status, channel_property_definitions, message_properties, audit_logs, channel_views, channel_tabs, message_forwards
   - **tenant/**: tenants, tenant_members, workspace_invitations
   - **wiki/**: workspace_wikis (Team9 pointer to folder9-backed wikis with permission + approval mode)
 - All migrations managed via `pnpm db:migrate`
@@ -186,6 +186,7 @@ Wiki System:
 - Reactions: emoji-based reactions per message
 - Properties: structured key-value data per message (16 types), displayed as chips in chat view, powering Table/Board/Calendar views
 - Read status: per-user, per-channel tracking via `user_channel_read_status` table
+- Forwarding: single-message and multi-message bundle forwarding via `POST /api/v1/im/channels/:id/forward`; original message snapshots stored in `im_message_forwards`; full items fetched via `GET /api/v1/im/messages/:id/forward-items`
 
 ### Key Development Patterns
 

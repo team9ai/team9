@@ -54,7 +54,7 @@ _Works great for solo power users too._
 
 💻 **Cross-Platform** — macOS, Windows desktop + Web
 
-💬 **Rich Messaging** — threads, @mentions, reactions, file sharing
+💬 **Rich Messaging** — threads, @mentions, reactions, file sharing, message forwarding
 
 🏢 **Multi-Workspace** — different projects, different teams, fully isolated
 

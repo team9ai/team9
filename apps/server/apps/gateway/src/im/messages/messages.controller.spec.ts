@@ -77,6 +77,7 @@ describe('MessagesController', () => {
   };
   let channelsService: {
     assertReadAccess: MockFn;
+    assertWriteAccess: MockFn;
     isMember: MockFn;
     findById: MockFn;
     findByIdOrThrow: MockFn;
@@ -147,6 +148,7 @@ describe('MessagesController', () => {
 
     channelsService = {
       assertReadAccess: jest.fn<any>().mockResolvedValue(undefined),
+      assertWriteAccess: jest.fn<any>().mockResolvedValue(undefined),
       isMember: jest.fn<any>().mockResolvedValue(true),
       findById: jest.fn<any>().mockResolvedValue(makeChannel()),
       findByIdOrThrow: jest.fn<any>().mockResolvedValue({
@@ -237,6 +239,7 @@ describe('MessagesController', () => {
         CHANNEL_ID,
         50,
         'cursor-1',
+        USER_ID,
       );
       expect(
         messagesService.getChannelMessagesPaginated,
@@ -263,30 +266,16 @@ describe('MessagesController', () => {
         CHANNEL_ID,
         25,
         { before: undefined, after: 'after-cursor', around: undefined },
+        USER_ID,
       );
       expect(messagesService.getChannelMessages).not.toHaveBeenCalled();
     });
   });
 
   describe('createMessage', () => {
-    it('rejects non-members before any message work happens', async () => {
-      channelsService.isMember.mockResolvedValueOnce(false);
-
-      await expect(
-        controller.createMessage(USER_ID, CHANNEL_ID, {
-          clientMsgId: CLIENT_MSG_ID,
-          content: 'hello',
-        } as never),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-
-      expect(channelsService.findById).not.toHaveBeenCalled();
-      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
-      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
-    });
-
-    it('rejects deactivated channels after membership is confirmed', async () => {
-      channelsService.findById.mockResolvedValueOnce(
-        makeChannel({ isActivated: false }),
+    it('rejects non-members (delegates to assertWriteAccess)', async () => {
+      channelsService.assertWriteAccess.mockRejectedValueOnce(
+        new ForbiddenException('Access denied'),
       );
 
       await expect(
@@ -296,16 +285,40 @@ describe('MessagesController', () => {
         } as never),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(channelsService.isMember).toHaveBeenCalledWith(
+      expect(channelsService.assertWriteAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+    });
+
+    it('rejects deactivated channels (delegates to assertWriteAccess)', async () => {
+      channelsService.assertWriteAccess.mockRejectedValueOnce(
+        new ForbiddenException(
+          'Channel is deactivated — execution has completed',
+        ),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(channelsService.assertWriteAccess).toHaveBeenCalledWith(
         CHANNEL_ID,
         USER_ID,
       );
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
     });
 
-    it('rejects archived channels after membership is confirmed', async () => {
-      channelsService.findById.mockResolvedValueOnce(
-        makeChannel({ isArchived: true }),
+    it('rejects archived channels (delegates to assertWriteAccess)', async () => {
+      channelsService.assertWriteAccess.mockRejectedValueOnce(
+        new ForbiddenException(
+          'Channel is archived and no longer accepts new messages',
+        ),
       );
 
       await expect(
@@ -315,7 +328,7 @@ describe('MessagesController', () => {
         } as never),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(channelsService.isMember).toHaveBeenCalledWith(
+      expect(channelsService.assertWriteAccess).toHaveBeenCalledWith(
         CHANNEL_ID,
         USER_ID,
       );
@@ -323,8 +336,10 @@ describe('MessagesController', () => {
     });
 
     it('archived-channel error message mentions "archived"', async () => {
-      channelsService.findById.mockResolvedValueOnce(
-        makeChannel({ isArchived: true }),
+      channelsService.assertWriteAccess.mockRejectedValueOnce(
+        new ForbiddenException(
+          'Channel is archived and no longer accepts new messages',
+        ),
       );
 
       await expect(
@@ -335,14 +350,14 @@ describe('MessagesController', () => {
       ).rejects.toThrow(/archived/i);
     });
 
-    it('reports deactivated (not archived) when a channel is both deactivated and archived', async () => {
-      // The controller checks isActivated before isArchived. If both flags
-      // are set, the deactivation error must win so the operational signal
-      // (the channel's execution is over) isn't masked by the archive
-      // state. This test pins the ordering so a future refactor can't
-      // silently swap the two checks.
-      channelsService.findById.mockResolvedValueOnce(
-        makeChannel({ isActivated: false, isArchived: true }),
+    it('deactivated-channel error message mentions "deactivated"', async () => {
+      // The deactivation check wins over archive — this is now enforced by
+      // assertWriteAccess in ChannelsService (tested there). The controller
+      // test verifies it surfaces the right message when the service throws.
+      channelsService.assertWriteAccess.mockRejectedValueOnce(
+        new ForbiddenException(
+          'Channel is deactivated — execution has completed',
+        ),
       );
 
       await expect(
@@ -753,6 +768,7 @@ describe('MessagesController', () => {
 
       expect(messagesService.getMessageWithDetails).toHaveBeenCalledWith(
         MESSAGE_ID,
+        USER_ID,
       );
       expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
         CHANNEL_ID,
@@ -852,6 +868,7 @@ describe('MessagesController', () => {
         MESSAGE_ID,
         12,
         'cursor-12',
+        USER_ID,
       );
     });
 
@@ -868,6 +885,7 @@ describe('MessagesController', () => {
         MESSAGE_ID,
         20,
         'cursor-2',
+        USER_ID,
       );
     });
   });
@@ -976,6 +994,25 @@ describe('MessagesController', () => {
       expect(result).toEqual(customContent);
       expect(messagesService.getFullContent).toHaveBeenCalledTimes(1);
       expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
+    });
+  });
+
+  describe('updateMessage — forward guard', () => {
+    it('propagates forward.editDisabled from service when PATCHing a forward-type message', async () => {
+      messagesService.update.mockRejectedValueOnce(
+        new BadRequestException('forward.editDisabled'),
+      );
+
+      await expect(
+        controller.updateMessage(USER_ID, MESSAGE_ID, {
+          content: 'x',
+        } as never),
+      ).rejects.toThrow('forward.editDisabled');
+
+      expect(messagesService.update).toHaveBeenCalledWith(MESSAGE_ID, USER_ID, {
+        content: 'x',
+      });
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
   });
 });

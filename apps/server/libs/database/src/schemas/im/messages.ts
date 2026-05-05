@@ -20,6 +20,7 @@ export const messageTypeEnum = pgEnum('message_type', [
   'system',
   'tracking',
   'long_text',
+  'forward',
 ]);
 
 export const messages = pgTable(

@@ -266,7 +266,7 @@ export interface CreateMessageDto {
   rootId?: string;
 
   // Message type
-  type: 'text' | 'file' | 'image' | 'long_text';
+  type: 'text' | 'file' | 'image' | 'long_text' | 'forward';
 
   // File attachments
   attachments?: CreateMessageAttachmentDto[];

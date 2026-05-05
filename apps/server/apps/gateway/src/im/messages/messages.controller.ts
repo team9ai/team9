@@ -82,12 +82,8 @@ export class MessagesController {
   ): Promise<MessageResponse> {
     const t0 = Date.now();
 
-    const isMember = await this.channelsService.isMember(channelId, userId);
+    await this.channelsService.assertWriteAccess(channelId, userId);
     const t1 = Date.now();
-
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
 
     const clientMsgId = dto.clientMsgId || uuidv7();
 
@@ -95,23 +91,6 @@ export class MessagesController {
     const channel = await this.channelsService.findById(channelId);
     const t2 = Date.now();
     const workspaceId = channel?.tenantId ?? undefined;
-
-    // Reject messages to deactivated tracking/task channels
-    if (channel && !channel.isActivated) {
-      throw new ForbiddenException(
-        'Channel is deactivated — execution has completed',
-      );
-    }
-
-    // Reject messages to archived channels (e.g. one-time routine-creation
-    // channels archived on finishRoutineCreation). Without this, agent tools
-    // like SendToChannel and Reply's non-streaming fallback appear successful
-    // but the message never reaches anyone.
-    if (channel && channel.isArchived) {
-      throw new ForbiddenException(
-        'Channel is archived and no longer accepts new messages',
-      );
-    }
 
     // Validate @mention permissions (block mentions of restricted personal staff)
     if (dto.content) {
@@ -169,6 +148,7 @@ export class MessagesController {
     // Fetch the full message details for response
     const message = await this.messagesService.getMessageWithDetails(
       result.msgId,
+      userId,
     );
     const t4 = Date.now();
 
@@ -227,7 +207,7 @@ export class MessagesController {
     }
 
     const total = Date.now() - t0;
-    const timing = `isMember=${t1 - t0}ms findById=${t2 - t1}ms gRPC=${t3 - t2}ms getDetails=${t4 - t3}ms total=${total}ms`;
+    const timing = `assertWriteAccess=${t1 - t0}ms findById=${t2 - t1}ms gRPC=${t3 - t2}ms getDetails=${t4 - t3}ms total=${total}ms`;
     if (total > 1000) {
       this.logger.warn(
         `[createMessage] SLOW channel=${channelId} msgId=${result.msgId} ${timing}`,
@@ -311,6 +291,7 @@ export class MessagesController {
         channelId,
         parsedLimit,
         { before, after, around },
+        userId,
       );
       return {
         ...paginated,
@@ -324,6 +305,7 @@ export class MessagesController {
       channelId,
       parsedLimit,
       before,
+      userId,
     );
 
     const total = Date.now() - t0;
@@ -371,7 +353,10 @@ export class MessagesController {
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<MessageResponse> {
-    const message = await this.messagesService.getMessageWithDetails(messageId);
+    const message = await this.messagesService.getMessageWithDetails(
+      messageId,
+      userId,
+    );
     await this.channelsService.assertReadAccess(message.channelId, userId);
     return this.messagesService.truncateForPreview(message);
   }
@@ -472,6 +457,7 @@ export class MessagesController {
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
+      userId,
     );
     const tp = (m: MessageResponse) =>
       this.messagesService.truncateForPreview(m);
@@ -503,6 +489,7 @@ export class MessagesController {
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
+      userId,
     );
     return {
       ...subReplies,

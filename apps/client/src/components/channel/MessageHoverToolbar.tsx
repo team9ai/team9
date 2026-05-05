@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { MessageSquare, SmilePlus } from "lucide-react";
+import { MessageSquare, SmilePlus, Forward, CheckSquare } from "lucide-react";
 import {
   Popover,
   PopoverTrigger,
@@ -24,12 +24,21 @@ interface MessageHoverToolbarProps {
    * wrapping a Tags button. When omitted, nothing is rendered for properties.
    */
   propertiesSlot?: ReactNode;
+  /** Called when Forward icon is clicked. Only rendered when forwardable is true. */
+  onForward?: () => void;
+  /** Called when Select icon is clicked. Only rendered when forwardable is true. */
+  onSelect?: () => void;
+  /** Controls visibility of Forward + Select buttons. */
+  forwardable?: boolean;
 }
 
 export function MessageHoverToolbar({
   onReaction,
   onReplyInThread,
   propertiesSlot,
+  onForward,
+  onSelect,
+  forwardable,
 }: MessageHoverToolbarProps) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
@@ -110,6 +119,44 @@ export function MessageHoverToolbar({
               </TooltipContent>
             </Tooltip>
           </>
+        )}
+
+        {forwardable && (onForward || onSelect) && (
+          <div className="w-px h-4 bg-border mx-0.5" />
+        )}
+
+        {forwardable && onForward && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onForward}
+                aria-label="Forward"
+                className="flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <Forward size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4}>
+              Forward
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {forwardable && onSelect && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onSelect}
+                aria-label="Select"
+                className="flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <CheckSquare size={16} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4}>
+              Select
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
     </TooltipProvider>

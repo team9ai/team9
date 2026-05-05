@@ -22,6 +22,7 @@ import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import { LongTextCollapse } from "./LongTextCollapse";
+import { ForwardedMessageCard } from "./forward/ForwardedMessageCard";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { SelectionCopyPopup } from "./SelectionCopyPopup";
 import { AstRenderer } from "./AstRenderer";
@@ -396,6 +397,12 @@ export function MessageContent({
   className,
   message,
 }: MessageContentProps) {
+  // Forward-type messages bypass the normal content pipeline and render
+  // a quote/bundle card driven by the hydrated `message.forward` payload.
+  if (message?.type === "forward") {
+    return <ForwardedMessageCard message={message} />;
+  }
+
   // For long_text messages, reactively subscribe to the full-content cache.
   // enabled: false means this hook never initiates a fetch — LongTextCollapse
   // handles that. But it does subscribe to cache updates, so when the full

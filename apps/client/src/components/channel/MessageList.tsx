@@ -6,6 +6,9 @@ import {
   useState,
   type ComponentProps,
 } from "react";
+import { useForwardSelectionStore } from "@/stores/useForwardSelectionStore";
+import { SelectionActionBar } from "./forward/SelectionActionBar";
+import { ForwardDialog } from "./forward/ForwardDialog";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
 import {
@@ -171,6 +174,48 @@ export function MessageList({
     setEditingMessageId(null);
   }, []);
 
+  // --- Selection mode (message forwarding) ---
+  const selectionActive = useForwardSelectionStore((s) => s.active);
+  const selectionChannelId = useForwardSelectionStore((s) => s.channelId);
+  const selectionIds = useForwardSelectionStore((s) => s.selectedIds);
+  const selectionExit = useForwardSelectionStore((s) => s.exit);
+  const [forwardOpen, setForwardOpen] = useState(false);
+
+  // Selection-mode keyboard shortcuts: Esc exits, Enter opens the forward
+  // dialog when at least one message is selected (spec §6.3).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!selectionActive) return;
+      if (e.key === "Escape") {
+        selectionExit();
+        return;
+      }
+      if (e.key === "Enter" && selectionIds.size > 0) {
+        // Don't hijack Enter while the user is typing in an input/textarea or
+        // composing — only fire when focus is outside an editable element.
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        if (
+          tag === "input" ||
+          tag === "textarea" ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+        setForwardOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectionActive, selectionIds, selectionExit]);
+
+  // Exit selection mode when switching channels
+  useEffect(() => {
+    if (selectionActive && selectionChannelId !== channelId) {
+      selectionExit();
+    }
+  }, [channelId, selectionActive, selectionChannelId, selectionExit]);
+
   const scrollStore = useChannelScrollStore();
   const scrollState = scrollStore.getChannelState(channelId);
   const showIndicator = scrollStore.shouldShowIndicator(channelId);
@@ -216,6 +261,20 @@ export function MessageList({
     [messages],
   );
   const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
+
+  // Derive selected Message objects from the current selection store
+  const messagesById = useMemo(
+    () => new Map(chronoMessages.map((m) => [m.id, m])),
+    [chronoMessages],
+  );
+  const selectedMessages = useMemo(
+    () =>
+      Array.from(selectionIds)
+        .map((id) => messagesById.get(id))
+        .filter((m): m is Message => !!m),
+    [selectionIds, messagesById],
+  );
+
   const listData = useMemo<ChannelListItem[]>(() => {
     const items: ChannelListItem[] = chronoMessages.map((message) => ({
       type: "message",
@@ -686,6 +745,7 @@ export function MessageList({
                 isRootMessage={true}
                 isHighlighted={isHighlighted}
                 supportsProperties={supportsProperties}
+                visibleMessages={chronoMessages}
               />
             </div>
             {foldedRoundSummary}
@@ -715,6 +775,7 @@ export function MessageList({
               onEditStart={handleEditStart}
               onEditSave={handleEditSave}
               onEditCancel={handleEditCancel}
+              visibleMessages={chronoMessages}
             />
           </div>
           {foldedRoundSummary}
@@ -745,6 +806,7 @@ export function MessageList({
       handleEditStart,
       handleEditSave,
       handleEditCancel,
+      chronoMessages,
     ],
   );
 
@@ -824,6 +886,20 @@ export function MessageList({
           onClick={handleJumpToLatest}
         />
       )}
+
+      <SelectionActionBar onForward={() => setForwardOpen(true)} />
+      {forwardOpen && selectedMessages.length > 0 && (
+        <ForwardDialog
+          open={forwardOpen}
+          onOpenChange={setForwardOpen}
+          sourceChannelId={channelId}
+          sourceMessages={selectedMessages}
+          onSuccess={() => {
+            setForwardOpen(false);
+            selectionExit();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -846,6 +922,7 @@ function ChannelMessageItem({
   onEditStart,
   onEditSave,
   onEditCancel,
+  visibleMessages,
 }: {
   message: Message;
   prevMessage?: Message;
@@ -866,6 +943,7 @@ function ChannelMessageItem({
     payload: { content: string; contentAst?: Record<string, unknown> },
   ) => Promise<void>;
   onEditCancel: () => void;
+  visibleMessages?: Message[];
 }) {
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
@@ -959,6 +1037,7 @@ function ChannelMessageItem({
         onEditSave={(payload) => onEditSave(message.id, payload)}
         onEditCancel={onEditCancel}
         supportsProperties={supportsProperties}
+        visibleMessages={visibleMessages}
       />
       <DeleteMessageDialog
         open={deleteDialogOpen}
