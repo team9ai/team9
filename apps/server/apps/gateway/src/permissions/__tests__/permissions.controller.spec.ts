@@ -73,6 +73,7 @@ describe('PermissionsController (e2e)', () => {
   });
 
   it('POST /permissions/grants creates a grant', async () => {
+    svc.canDecide.mockResolvedValueOnce(true); // caller is authorized
     svc.createGrant.mockResolvedValue({ id: 'g1' });
     const res = await request(app.getHttpServer())
       .post('/api/v1/permissions/grants')
@@ -108,13 +109,13 @@ describe('PermissionsController (e2e)', () => {
       .expect(400);
   });
 
-  it('DELETE /permissions/grants/:id revokes grant', async () => {
+  it('DELETE /permissions/grants/:id revokes grant with tenantId', async () => {
     svc.revokeGrant.mockResolvedValue({ id: 'g1', revokedAt: new Date() });
     await request(app.getHttpServer())
       .delete('/api/v1/permissions/grants/g1')
       .expect(200);
     expect(svc.revokeGrant).toHaveBeenCalledWith(
-      expect.objectContaining({ grantId: 'g1', userId: 'u1' }),
+      expect.objectContaining({ grantId: 'g1', userId: 'u1', tenantId: 't1' }),
     );
   });
 
@@ -135,7 +136,7 @@ describe('PermissionsController (e2e)', () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/permissions/requests/by-spell/A%20B%20C')
       .expect(200);
-    expect(svc.getRequestBySpell).toHaveBeenCalledWith('a b c');
+    expect(svc.getRequestBySpell).toHaveBeenCalledWith('a b c', 't1');
     expect(res.body.id).toBe('r1');
   });
 
@@ -246,6 +247,35 @@ describe('PermissionsController (e2e)', () => {
         subjectKind: 'agent',
         subjectId: '550e8400-e29b-41d4-a716-446655440000',
         permissionKey: 'bogus:key',
+      })
+      .expect(400);
+  });
+
+  it('POST /permissions/grants — returns 403 when caller is not in the approver set', async () => {
+    svc.canDecide.mockResolvedValueOnce(false);
+    await request(app.getHttpServer())
+      .post('/api/v1/permissions/grants')
+      .send({
+        subjectKind: 'agent',
+        subjectId: '550e8400-e29b-41d4-a716-446655440000',
+        permissionKey: 'messages:send',
+      })
+      .expect(403);
+    expect(svc.createGrant).not.toHaveBeenCalled();
+  });
+
+  it('POST /permissions/requests — returns 400 when suggestedApproverIds has more than 50 entries', async () => {
+    svc.requireBotIdForUser.mockResolvedValue('b1');
+    const tooMany = Array.from(
+      { length: 51 },
+      () => '550e8400-e29b-41d4-a716-446655440000',
+    );
+    await request(app.getHttpServer())
+      .post('/api/v1/permissions/requests')
+      .send({
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        suggestedApproverIds: tooMany,
       })
       .expect(400);
   });

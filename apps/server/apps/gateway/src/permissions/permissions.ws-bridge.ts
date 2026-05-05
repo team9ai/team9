@@ -48,13 +48,15 @@ export class PermissionsWsBridge {
   async onRequestCreated(
     payload: PermissionRequestCreatedPayload & { approverIds: string[] },
   ): Promise<void> {
-    for (const userId of payload.approverIds) {
-      await this.gateway.sendToUser(
-        userId,
-        PERMISSION_EVENTS.REQUEST_CREATED,
-        payload,
-      );
-    }
+    await Promise.all(
+      payload.approverIds.map((userId) =>
+        this.gateway.sendToUser(
+          userId,
+          PERMISSION_EVENTS.REQUEST_CREATED,
+          payload,
+        ),
+      ),
+    );
   }
 
   /**
@@ -87,13 +89,15 @@ export class PermissionsWsBridge {
       recipients.add(botUserId);
     }
 
-    for (const userId of recipients) {
-      await this.gateway.sendToUser(
-        userId,
-        PERMISSION_EVENTS.REQUEST_DECIDED,
-        payload,
-      );
-    }
+    await Promise.all(
+      [...recipients].map((userId) =>
+        this.gateway.sendToUser(
+          userId,
+          PERMISSION_EVENTS.REQUEST_DECIDED,
+          payload,
+        ),
+      ),
+    );
   }
 
   /**
@@ -118,13 +122,15 @@ export class PermissionsWsBridge {
       ...req,
       permissionKey: req.permissionKey as PermissionKey,
     });
-    for (const userId of recipients) {
-      await this.gateway.sendToUser(
-        userId,
-        PERMISSION_EVENTS.REQUEST_CONSUMED,
-        payload,
-      );
-    }
+    await Promise.all(
+      recipients.map((userId) =>
+        this.gateway.sendToUser(
+          userId,
+          PERMISSION_EVENTS.REQUEST_CONSUMED,
+          payload,
+        ),
+      ),
+    );
   }
 
   /**
@@ -136,13 +142,15 @@ export class PermissionsWsBridge {
     const userIds = await this.permissions.listAdminsForTenant(
       payload.tenantId,
     );
-    for (const userId of userIds) {
-      await this.gateway.sendToUser(
-        userId,
-        PERMISSION_EVENTS.GRANT_CREATED,
-        payload,
-      );
-    }
+    await Promise.all(
+      userIds.map((userId) =>
+        this.gateway.sendToUser(
+          userId,
+          PERMISSION_EVENTS.GRANT_CREATED,
+          payload,
+        ),
+      ),
+    );
   }
 
   /**
@@ -154,12 +162,14 @@ export class PermissionsWsBridge {
     const userIds = await this.permissions.listAdminsForTenant(
       payload.tenantId,
     );
-    for (const userId of userIds) {
-      await this.gateway.sendToUser(
-        userId,
-        PERMISSION_EVENTS.GRANT_REVOKED,
-        payload,
-      );
-    }
+    await Promise.all(
+      userIds.map((userId) =>
+        this.gateway.sendToUser(
+          userId,
+          PERMISSION_EVENTS.GRANT_REVOKED,
+          payload,
+        ),
+      ),
+    );
   }
 }

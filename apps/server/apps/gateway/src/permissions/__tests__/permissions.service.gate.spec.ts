@@ -203,6 +203,7 @@ describe('PermissionsService.gate', () => {
       requestedMetadata: {},
       contextChannelId: null,
       contextExecutionId: null,
+      contextRoutineId: null,
       expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
     });
     const r = await svc.gate({
@@ -212,6 +213,107 @@ describe('PermissionsService.gate', () => {
     });
     expect(r).toEqual({ allowed: false });
     // Must NOT have tried to consume the expired request
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('returns allowed=true when a channel-session grant matches', async () => {
+    grantsFindMany.mockResolvedValueOnce([
+      {
+        id: 'g-ch',
+        subjectKind: 'channel-session',
+        subjectId: 'ch-1',
+        permissionKey: 'messages:send',
+        scopeMetadata: {},
+        revokedAt: null,
+        expiresAt: null,
+      },
+    ]);
+    const r = await svc.gate({
+      key: 'messages:send',
+      metadata: { channelId: 'ch-1' },
+      ctx: { tenantId: 't1', botId: 'b1', channelId: 'ch-1' },
+    });
+    expect(r).toEqual({ allowed: true, via: 'grant', grantId: 'g-ch' });
+  });
+
+  it('returns allowed=true when a task grant matches', async () => {
+    grantsFindMany.mockResolvedValueOnce([
+      {
+        id: 'g-task',
+        subjectKind: 'task',
+        subjectId: 'routine-1',
+        permissionKey: 'routine:trigger',
+        scopeMetadata: {},
+        revokedAt: null,
+        expiresAt: null,
+      },
+    ]);
+    const r = await svc.gate({
+      key: 'routine:trigger',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', routineId: 'routine-1' },
+    });
+    expect(r).toEqual({ allowed: true, via: 'grant', grantId: 'g-task' });
+  });
+
+  it('denies when channel-session grant exists but channelId not in ctx', async () => {
+    grantsFindMany.mockResolvedValueOnce([
+      {
+        id: 'g-ch',
+        subjectKind: 'channel-session',
+        subjectId: 'ch-1',
+        permissionKey: 'messages:send',
+        scopeMetadata: {},
+        revokedAt: null,
+        expiresAt: null,
+      },
+    ]);
+    requestsFindFirst.mockResolvedValueOnce(null);
+    // No channelId in ctx — grant subject 'ch-1' won't match any matcher
+    const r = await svc.gate({
+      key: 'messages:send',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1' }, // no channelId
+    });
+    expect(r).toEqual({ allowed: false });
+  });
+
+  it('approved_once skipped when contextRoutineId does not match calling routineId', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    requestsFindFirst.mockResolvedValueOnce({
+      id: 'req-routine',
+      requestedMetadata: {},
+      contextChannelId: null,
+      contextExecutionId: null,
+      contextRoutineId: 'routine-OTHER', // different from ctx.routineId
+      expiresAt: null,
+    });
+    const r = await svc.gate({
+      key: 'routine:trigger',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', routineId: 'routine-MINE' },
+    });
+    // Must deny — contextRoutineId mismatch
+    expect(r).toEqual({ allowed: false });
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('approved_once skipped when contextChannelId does not match calling channelId', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    requestsFindFirst.mockResolvedValueOnce({
+      id: 'req-ch',
+      requestedMetadata: {},
+      contextChannelId: 'ch-OTHER', // different
+      contextExecutionId: null,
+      contextRoutineId: null,
+      expiresAt: null,
+    });
+    const r = await svc.gate({
+      key: 'messages:send',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', channelId: 'ch-MINE' },
+    });
+    expect(r).toEqual({ allowed: false });
     expect(updateReturning).not.toHaveBeenCalled();
   });
 });

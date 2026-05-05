@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   SUB_SIDEBAR_WIDTH_DEFAULT,
   SUB_SIDEBAR_WIDTH_MAX,
@@ -83,5 +83,41 @@ describe("useAppStore navigation helpers", () => {
 
     useAppStore.getState().setSubSidebarWidth(SUB_SIDEBAR_WIDTH_MAX + 50);
     expect(useAppStore.getState().subSidebarWidth).toBe(SUB_SIDEBAR_WIDTH_MAX);
+  });
+});
+
+describe("useAppStore permission count actions", () => {
+  beforeEach(() => {
+    useAppStore.getState().reset();
+    // Ensure pendingPermissionCount starts at 0 after reset
+    useAppStore.setState({ pendingPermissionCount: 0 });
+  });
+
+  it("setPendingPermissionCount sets to exact value when non-negative", () => {
+    useAppStore.getState().setPendingPermissionCount(5);
+    expect(useAppStore.getState().pendingPermissionCount).toBe(5);
+  });
+
+  it("setPendingPermissionCount clamps to 0 for negative values", () => {
+    useAppStore.getState().setPendingPermissionCount(-3);
+    expect(useAppStore.getState().pendingPermissionCount).toBe(0);
+  });
+
+  it("incrementPendingPermissions increases count by 1", () => {
+    useAppStore.setState({ pendingPermissionCount: 2 });
+    useAppStore.getState().incrementPendingPermissions();
+    expect(useAppStore.getState().pendingPermissionCount).toBe(3);
+  });
+
+  it("decrementPendingPermissions decreases count by 1 when count > 0", () => {
+    useAppStore.setState({ pendingPermissionCount: 3 });
+    useAppStore.getState().decrementPendingPermissions();
+    expect(useAppStore.getState().pendingPermissionCount).toBe(2);
+  });
+
+  it("decrementPendingPermissions clamps to 0 and never goes negative", () => {
+    useAppStore.setState({ pendingPermissionCount: 0 });
+    useAppStore.getState().decrementPendingPermissions();
+    expect(useAppStore.getState().pendingPermissionCount).toBe(0);
   });
 });

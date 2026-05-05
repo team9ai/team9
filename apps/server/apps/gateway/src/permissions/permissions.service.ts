@@ -164,6 +164,7 @@ export class PermissionsService {
   async revokeGrant(input: {
     grantId: string;
     userId: string;
+    tenantId: string;
   }): Promise<AuthPermissionGrant> {
     const [row] = await this.db
       .update(authPermissionGrants)
@@ -171,6 +172,7 @@ export class PermissionsService {
       .where(
         and(
           eq(authPermissionGrants.id, input.grantId),
+          eq(authPermissionGrants.tenantId, input.tenantId),
           isNull(authPermissionGrants.revokedAt),
         ),
       )
@@ -273,7 +275,9 @@ export class PermissionsService {
       (!candidate.contextChannelId ||
         candidate.contextChannelId === input.ctx.channelId) &&
       (!candidate.contextExecutionId ||
-        candidate.contextExecutionId === input.ctx.executionId)
+        candidate.contextExecutionId === input.ctx.executionId) &&
+      (!candidate.contextRoutineId ||
+        candidate.contextRoutineId === input.ctx.routineId)
     ) {
       // Race-safe consume: only one concurrent caller will win
       const [consumed] = await this.db
@@ -390,20 +394,26 @@ export class PermissionsService {
   }
 
   async decideRequest(input: DecideInput) {
-    const existing = await this.db.query.authPermissionRequests.findFirst({
-      where: eq(authPermissionRequests.id, input.requestId),
-    });
-    if (!existing) {
-      throw new NotFoundException(`Request ${input.requestId} not found`);
-    }
-    if (existing.status !== 'pending') {
-      throw new ConflictException(
-        `Request ${input.requestId} is already ${existing.status}`,
-      );
-    }
+    const result = await this.db.transaction(async (tx) => {
+      // Re-fetch inside the transaction so the status check is race-safe (C2)
+      const existing = await tx.query.authPermissionRequests.findFirst({
+        where: eq(authPermissionRequests.id, input.requestId),
+      });
+      if (!existing) {
+        throw new NotFoundException(`Request ${input.requestId} not found`);
+      }
+      if (existing.status !== 'pending') {
+        throw new ConflictException(
+          `Request ${input.requestId} is already ${existing.status}`,
+        );
+      }
+      // Check expiry inside the transaction (C3)
+      if (existing.expiresAt && existing.expiresAt.getTime() <= Date.now()) {
+        throw new ConflictException(`Request ${input.requestId} has expired`);
+      }
 
-    return this.db.transaction(async (tx) => {
       let durableGrantId: string | null = null;
+      let grantRow: { id: string; tenantId: string } | null = null;
       const newMetadata =
         'scopeOverride' in input && input.scopeOverride
           ? input.scopeOverride
@@ -413,7 +423,7 @@ export class PermissionsService {
         const subjectKind =
           input.rememberSubject ?? this.defaultRememberSubject(existing);
         const subjectId = this.subjectIdFor(subjectKind, existing);
-        const [grantRow] = await tx
+        const [insertedGrant] = await tx
           .insert(authPermissionGrants)
           .values({
             tenantId: existing.tenantId,
@@ -428,11 +438,8 @@ export class PermissionsService {
             note: input.note ?? null,
           })
           .returning();
-        durableGrantId = grantRow.id;
-        this.events.emit('permissions.grant.created', {
-          id: grantRow.id,
-          tenantId: existing.tenantId,
-        });
+        durableGrantId = insertedGrant.id;
+        grantRow = { id: insertedGrant.id, tenantId: existing.tenantId };
       }
 
       const newStatus =
@@ -442,6 +449,7 @@ export class PermissionsService {
             ? 'approved_once'
             : 'approved_durable';
 
+      // Race-safe update: only update if still pending (C2)
       const [updated] = await tx
         .update(authPermissionRequests)
         .set({
@@ -452,18 +460,36 @@ export class PermissionsService {
           requestedMetadata: newMetadata,
           durableGrantId,
         })
-        .where(eq(authPermissionRequests.id, existing.id))
+        .where(
+          and(
+            eq(authPermissionRequests.id, existing.id),
+            eq(authPermissionRequests.status, 'pending'),
+          ),
+        )
         .returning();
 
-      this.events.emit('permissions.request.decided', {
-        id: updated.id,
-        spellId: updated.spellId,
-        status: updated.status,
-        decidedByUserId: input.userId,
-        durableGrantId,
-      });
-      return updated;
+      if (!updated) {
+        throw new ConflictException('Request was decided concurrently');
+      }
+
+      return { updated, grantRow, durableGrantId };
     });
+
+    // Emit events OUTSIDE the transaction (I4)
+    if (result.grantRow) {
+      this.events.emit('permissions.grant.created', {
+        id: result.grantRow.id,
+        tenantId: result.grantRow.tenantId,
+      });
+    }
+    this.events.emit('permissions.request.decided', {
+      id: result.updated.id,
+      spellId: result.updated.spellId,
+      status: result.updated.status,
+      decidedByUserId: input.userId,
+      durableGrantId: result.durableGrantId,
+    });
+    return result.updated;
   }
 
   async resolveApprovers(req: {
@@ -546,11 +572,10 @@ export class PermissionsService {
    * Returns null when the request does not exist.
    */
   async getRequest(id: string) {
-    return (
-      this.db.query.authPermissionRequests.findFirst({
-        where: eq(authPermissionRequests.id, id),
-      }) ?? null
-    );
+    const row = await this.db.query.authPermissionRequests.findFirst({
+      where: eq(authPermissionRequests.id, id),
+    });
+    return row ?? null;
   }
 
   /**
@@ -564,8 +589,10 @@ export class PermissionsService {
   /**
    * List permission requests visible to the caller.
    *
-   * - scope 'mine': requests created by the bot whose shadow user is userId, OR
-   *   requests where the caller is a potential approver (tenantId scoped).
+   * - scope 'mine': requests where the caller is a potential approver
+   *   (resolved via resolveApprovers per row). This is O(N×K) for N rows and
+   *   K approver-resolution queries, but acceptable for v1 since pending
+   *   requests per tenant are expected to be small (< 100 at any time).
    * - scope 'tenant': all requests for the tenant (admins only in practice —
    *   authorization enforced at controller layer).
    */
@@ -575,29 +602,70 @@ export class PermissionsService {
     status?: string;
     scope?: 'mine' | 'tenant';
   }): Promise<AuthPermissionRequest[]> {
+    const VALID_STATUSES = [
+      'pending',
+      'approved_once',
+      'approved_durable',
+      'denied',
+      'expired',
+      'cancelled',
+    ] as const;
+    type RequestStatus = (typeof VALID_STATUSES)[number];
+
     const where = [eq(authPermissionRequests.tenantId, input.tenantId)];
-    if (input.status) {
-      where.push(eq(authPermissionRequests.status, input.status as never));
+    if (
+      input.status &&
+      (VALID_STATUSES as readonly string[]).includes(input.status)
+    ) {
+      where.push(
+        eq(authPermissionRequests.status, input.status as RequestStatus),
+      );
     }
-    return this.db.query.authPermissionRequests.findMany({
+    const rows = await this.db.query.authPermissionRequests.findMany({
       where: and(...where),
       orderBy: [desc(authPermissionRequests.createdAt)],
     });
+
+    if (input.scope !== 'mine') {
+      return rows;
+    }
+
+    // scope='mine': filter to requests where the caller is a potential approver
+    const canDecideResults = await Promise.all(
+      rows.map((r) =>
+        this.canDecide(input.userId, {
+          id: r.id,
+          tenantId: r.tenantId,
+          requesterBotId: r.requesterBotId,
+          permissionKey: r.permissionKey as PermissionKey,
+          requestedMetadata: r.requestedMetadata,
+          suggestedApproverIds: r.suggestedApproverIds ?? [],
+          contextChannelId: r.contextChannelId,
+          contextExecutionId: r.contextExecutionId,
+          contextRoutineId: r.contextRoutineId,
+        }),
+      ),
+    );
+    return rows.filter((_, i) => canDecideResults[i]);
   }
 
   /**
-   * Fetch a single permission request by its spell ID (case-insensitive).
+   * Fetch a single permission request by its spell ID (case-insensitive),
+   * scoped to a specific tenant to prevent cross-tenant exposure (I1).
    * Returns null when the request does not exist.
    */
   async getRequestBySpell(
     spell: string,
+    tenantId: string,
   ): Promise<AuthPermissionRequest | null> {
     const normalized = spell.toLowerCase();
-    return (
-      (await this.db.query.authPermissionRequests.findFirst({
-        where: eq(authPermissionRequests.spellId, normalized),
-      })) ?? null
-    );
+    const row = await this.db.query.authPermissionRequests.findFirst({
+      where: and(
+        eq(authPermissionRequests.spellId, normalized),
+        eq(authPermissionRequests.tenantId, tenantId),
+      ),
+    });
+    return row ?? null;
   }
 
   /**

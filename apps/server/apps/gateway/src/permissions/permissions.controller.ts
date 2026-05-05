@@ -43,7 +43,7 @@ export class PermissionsController {
   }
 
   @Post('grants')
-  createGrant(
+  async createGrant(
     @CurrentUser('sub') userId: string,
     @CurrentUser('tenantId') tenantId: string,
     @Body() dto: CreateGrantDto,
@@ -52,6 +52,23 @@ export class PermissionsController {
       throw new BadRequestException(
         `Unknown permission key: ${dto.permissionKey}`,
       );
+    }
+    // Authorization: caller must be a potential approver for this permission key + subject (I3)
+    const synthetic = {
+      id: 'pending',
+      tenantId,
+      requesterBotId: dto.subjectKind === 'agent' ? dto.subjectId : '',
+      permissionKey: dto.permissionKey,
+      requestedMetadata: dto.scopeMetadata ?? {},
+      suggestedApproverIds: [] as string[],
+      contextChannelId:
+        dto.subjectKind === 'channel-session' ? dto.subjectId : null,
+      contextExecutionId:
+        dto.subjectKind === 'execution-session' ? dto.subjectId : null,
+      contextRoutineId: dto.subjectKind === 'task' ? dto.subjectId : null,
+    };
+    if (!(await this.svc.canDecide(userId, synthetic as never))) {
+      throw new ForbiddenException('Not authorized to grant this permission');
     }
     return this.svc.createGrant({
       tenantId,
@@ -66,8 +83,12 @@ export class PermissionsController {
   }
 
   @Delete('grants/:id')
-  revokeGrant(@CurrentUser('sub') userId: string, @Param('id') id: string) {
-    return this.svc.revokeGrant({ grantId: id, userId });
+  revokeGrant(
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.svc.revokeGrant({ grantId: id, userId, tenantId });
   }
 
   // -------------------------------------------------------------------------
@@ -97,9 +118,12 @@ export class PermissionsController {
    * first within the same controller.
    */
   @Get('requests/by-spell/:spell')
-  async getRequestBySpell(@Param('spell') spell: string) {
+  async getRequestBySpell(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('spell') spell: string,
+  ) {
     const decoded = decodeURIComponent(spell).toLowerCase();
-    const req = await this.svc.getRequestBySpell(decoded);
+    const req = await this.svc.getRequestBySpell(decoded, tenantId);
     if (!req) throw new NotFoundException();
     return req;
   }
@@ -175,11 +199,12 @@ export class PermissionsController {
   @Post('requests/by-spell/:spell/decide')
   async decideRequestBySpell(
     @CurrentUser('sub') userId: string,
+    @CurrentUser('tenantId') tenantId: string,
     @Param('spell') spell: string,
     @Body() dto: DecideRequestDto,
   ) {
     const decoded = decodeURIComponent(spell).toLowerCase();
-    const req = await this.svc.getRequestBySpell(decoded);
+    const req = await this.svc.getRequestBySpell(decoded, tenantId);
     if (!req) throw new NotFoundException();
     if (
       !(await this.svc.canDecide(

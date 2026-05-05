@@ -114,7 +114,11 @@ describe('PermissionsService — grants CRUD', () => {
     updateReturning.mockResolvedValueOnce([
       { id: 'g1', tenantId: 't1', revokedAt: new Date() },
     ]);
-    const result = await svc.revokeGrant({ grantId: 'g1', userId: 'u1' });
+    const result = await svc.revokeGrant({
+      grantId: 'g1',
+      userId: 'u1',
+      tenantId: 't1',
+    });
     expect(result.revokedAt).toBeInstanceOf(Date);
     expect(emit).toHaveBeenCalledWith(
       'permissions.grant.revoked',
@@ -125,8 +129,23 @@ describe('PermissionsService — grants CRUD', () => {
   it('revokeGrant throws NotFoundException when no row updated', async () => {
     updateReturning.mockResolvedValueOnce([]);
     await expect(
-      svc.revokeGrant({ grantId: 'missing', userId: 'u1' }),
+      svc.revokeGrant({ grantId: 'missing', userId: 'u1', tenantId: 't1' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('revokeGrant — refuses to revoke a grant in a different tenant', async () => {
+    // When tenantId doesn't match the grant's tenant, the DB update returns 0 rows.
+    // The service should throw NotFoundException in this case.
+    updateReturning.mockResolvedValueOnce([]);
+    await expect(
+      svc.revokeGrant({
+        grantId: 'g1',
+        userId: 'u1',
+        tenantId: 'other-tenant',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    // Verify that update was attempted (tenantId guard was passed through to DB layer)
+    expect(mockDb.update).toHaveBeenCalled();
   });
 
   it('listGrants filters by subject and excludes revoked by default', async () => {

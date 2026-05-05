@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsObject,
   IsOptional,
@@ -31,6 +32,7 @@ export class CreateRequestDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @IsUUID(undefined, { each: true })
   suggestedApproverIds?: string[];
 }

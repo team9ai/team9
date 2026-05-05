@@ -225,4 +225,49 @@ describe("permissions events", () => {
       expect.objectContaining({ queryKey: ["permissions", "requests"] }),
     );
   });
+
+  it("REQUEST_DECIDED decrements badge and invalidates requests", async () => {
+    await import("../index");
+
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+
+    socket.trigger("permission_request_decided", { id: "req-1" });
+
+    expect(
+      appStoreMock.getState().decrementPendingPermissions,
+    ).toHaveBeenCalled();
+    expect(queryClientMock.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["permissions", "requests"] }),
+    );
+  });
+
+  it("GRANT_CREATED invalidates grants", async () => {
+    await import("../index");
+
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+
+    socket.trigger("permission_grant_created", { id: "g-1" });
+
+    expect(queryClientMock.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["permissions", "grants"] }),
+    );
+  });
+
+  it("GRANT_REVOKED invalidates grants", async () => {
+    await import("../index");
+
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+
+    socket.trigger("permission_grant_revoked", { id: "g-1" });
+
+    expect(queryClientMock.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["permissions", "grants"] }),
+    );
+  });
 });

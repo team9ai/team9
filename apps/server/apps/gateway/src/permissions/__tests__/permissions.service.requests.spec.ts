@@ -6,6 +6,7 @@ const insertGrantReturning = jest.fn();
 const insertRequestReturning = jest.fn();
 const updateRequestReturning = jest.fn();
 const requestFindFirst = jest.fn();
+const requestFindMany = jest.fn();
 const tenantMembersFindMany = jest.fn();
 
 const tx = {
@@ -23,13 +24,23 @@ const tx = {
     })),
   })),
   query: {
-    authPermissionRequests: { findFirst: requestFindFirst },
+    authPermissionRequests: {
+      findFirst: requestFindFirst,
+      findMany: requestFindMany,
+    },
     tenantMembers: { findMany: tenantMembersFindMany },
   },
 };
 
 const mockDb = {
   ...tx,
+  query: {
+    authPermissionRequests: {
+      findFirst: requestFindFirst,
+      findMany: requestFindMany,
+    },
+    tenantMembers: { findMany: tenantMembersFindMany },
+  },
   transaction: jest.fn(async (fn: any) => fn(tx)),
 };
 
@@ -365,6 +376,309 @@ describe('PermissionsService — requests', () => {
           decision: 'once',
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('race-safe: throws ConflictException when concurrent decide already changed status', async () => {
+      // findFirst returns pending but update returns [] (concurrent decide won)
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      updateRequestReturning.mockResolvedValueOnce([]); // concurrent decide won
+
+      const { ConflictException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'once',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws ConflictException for status=expired', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'expired',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      const { ConflictException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'once',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws ConflictException for status=approved_once', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'approved_once',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      const { ConflictException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'once',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws ConflictException for status=cancelled', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'cancelled',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      const { ConflictException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'once',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws ConflictException when expiresAt is in the past', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        suggestedApproverIds: [],
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() - 5000), // expired 5 seconds ago
+      });
+      const { ConflictException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'once',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('remember with rememberSubject=channel-session uses contextChannelId', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'messages:send',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: 'ch-1',
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      insertGrantReturning.mockResolvedValueOnce([
+        { id: 'g1', tenantId: 't1' },
+      ]);
+      updateRequestReturning.mockResolvedValueOnce([
+        { id: 'r1', status: 'approved_durable', durableGrantId: 'g1' },
+      ]);
+
+      const r = await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        decision: 'remember',
+        rememberSubject: 'channel-session',
+      });
+      expect(r.durableGrantId).toBe('g1');
+      // Verify the grant was created with channel-session subject
+      const insertCall = tx.insert.mock.calls.find(
+        (c: any[]) => c[0]?.__name === 'grants',
+      );
+      expect(insertCall).toBeDefined();
+    });
+
+    it('remember with rememberSubject=channel-session throws BadRequest when contextChannelId is null', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'messages:send',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: null, // missing!
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+
+      const { BadRequestException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'remember',
+          rememberSubject: 'channel-session',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('remember with rememberSubject=task uses contextRoutineId', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'routine:trigger',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: 'routine-1',
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      insertGrantReturning.mockResolvedValueOnce([
+        { id: 'g1', tenantId: 't1' },
+      ]);
+      updateRequestReturning.mockResolvedValueOnce([
+        { id: 'r1', status: 'approved_durable', durableGrantId: 'g1' },
+      ]);
+
+      const r = await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        decision: 'remember',
+        rememberSubject: 'task',
+      });
+      expect(r.durableGrantId).toBe('g1');
+    });
+  });
+
+  describe('getRequest', () => {
+    it('returns null when row not found', async () => {
+      requestFindFirst.mockResolvedValueOnce(undefined);
+      const result = await svc.getRequest('nonexistent');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('listRequests', () => {
+    it('scope=tenant returns all matching tenant requests', async () => {
+      // scope=tenant skips canDecide filtering entirely — no approver mocks needed
+      const rows = [
+        {
+          id: 'r1',
+          tenantId: 't1',
+          status: 'pending',
+          permissionKey: 'tools:invoke',
+          requestedMetadata: {},
+          requesterBotId: 'b1',
+          suggestedApproverIds: [],
+          contextChannelId: null,
+          contextExecutionId: null,
+          contextRoutineId: null,
+        },
+        {
+          id: 'r2',
+          tenantId: 't1',
+          status: 'pending',
+          permissionKey: 'tools:invoke',
+          requestedMetadata: {},
+          requesterBotId: 'b2',
+          suggestedApproverIds: [],
+          contextChannelId: null,
+          contextExecutionId: null,
+          contextRoutineId: null,
+        },
+      ];
+      requestFindMany.mockResolvedValueOnce(rows);
+
+      const result = await svc.listRequests({
+        tenantId: 't1',
+        userId: 'u1',
+        scope: 'tenant',
+      });
+      expect(result).toHaveLength(2);
+    });
+
+    it('scope=mine returns only requests where userId is an approver', async () => {
+      // Both rows use tools:invoke so resolveApprovers calls findBotOwnerAndMentor
+      // for each row, enabling predictable mock behavior.
+      const rows = [
+        {
+          id: 'r1',
+          tenantId: 't1',
+          status: 'pending',
+          permissionKey: 'tools:invoke',
+          requestedMetadata: {},
+          requesterBotId: 'b1',
+          suggestedApproverIds: [],
+          contextChannelId: null,
+          contextExecutionId: null,
+          contextRoutineId: null,
+        },
+        {
+          id: 'r2',
+          tenantId: 't1',
+          status: 'pending',
+          permissionKey: 'tools:invoke',
+          requestedMetadata: {},
+          requesterBotId: 'b2',
+          suggestedApproverIds: [],
+          contextChannelId: null,
+          contextExecutionId: null,
+          contextRoutineId: null,
+        },
+      ];
+      requestFindMany.mockResolvedValueOnce(rows);
+
+      // 'u-approver' can decide r1 (b1 → ['u-approver']) but not r2 (b2 → ['u-other'])
+      // tools:invoke.resolveApprovers calls findBotOwnerAndMentor; primary is non-empty
+      // so no fallback to findWorkspaceAdmins. findWorkspaceOwners is always called.
+      approvers.findBotOwnerAndMentor
+        .mockResolvedValueOnce(['u-approver']) // r1
+        .mockResolvedValueOnce(['u-other']); // r2
+      approvers.findWorkspaceOwners
+        .mockResolvedValueOnce([]) // r1 safety-net owners
+        .mockResolvedValueOnce([]); // r2 safety-net owners
+
+      const result = await svc.listRequests({
+        tenantId: 't1',
+        userId: 'u-approver',
+        scope: 'mine',
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe('r1');
     });
   });
 
