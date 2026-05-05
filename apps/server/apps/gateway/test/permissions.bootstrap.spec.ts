@@ -1,3 +1,7 @@
+// `WebsocketGateway` reads CORS_ORIGIN at class-definition time when
+// imported below. Provide a default for CI environments that don't set it.
+process.env.CORS_ORIGIN = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+
 /**
  * PermissionsModule DI bootstrap smoke test.
  *
