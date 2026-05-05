@@ -32,6 +32,7 @@ import {
 import { DeleteChannelDialog } from "@/components/dialog/DeleteChannelDialog";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { PropertySchemaManager } from "./properties/PropertySchemaManager";
+import { GrantList } from "@/components/permissions/GrantList";
 import { useUser } from "@/stores";
 import { formatDate } from "@/lib/date-format";
 import type { MemberRole } from "@/types/im";
@@ -41,7 +42,7 @@ interface ChannelDetailsModalProps {
   onClose: () => void;
   channelId: string;
   currentUserRole?: MemberRole;
-  defaultTab?: "about" | "members" | "properties" | "settings";
+  defaultTab?: "about" | "members" | "properties" | "settings" | "permissions";
 }
 
 export function ChannelDetailsModal({
@@ -51,7 +52,7 @@ export function ChannelDetailsModal({
   currentUserRole = "member",
   defaultTab = "about",
 }: ChannelDetailsModalProps) {
-  const { t } = useTranslation("channel");
+  const { t } = useTranslation(["channel", "permissions"]);
   const { data: channel } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const updateChannel = useUpdateChannel();
@@ -158,6 +159,9 @@ export function ChannelDetailsModal({
                   {t("properties.tab")}
                 </TabsTrigger>
                 <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
+                <TabsTrigger value="permissions">
+                  {t("permissions:tab")}
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -387,6 +391,16 @@ export function ChannelDetailsModal({
                       </Button>
                     </div>
                   )}
+                </div>
+              </TabsContent>
+
+              {/* Permissions Tab */}
+              <TabsContent value="permissions" className="px-6 pb-6 mt-0">
+                <div className="pt-4">
+                  <GrantList
+                    subjectKind="channel-session"
+                    subjectId={channelId}
+                  />
                 </div>
               </TabsContent>
             </ScrollArea>

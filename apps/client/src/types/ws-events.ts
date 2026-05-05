@@ -158,6 +158,15 @@ export const WS_EVENTS = {
     UPDATED: "tab_updated",
     DELETED: "tab_deleted",
   },
+
+  // Permission events
+  PERMISSION: {
+    REQUEST_CREATED: "permission_request_created",
+    REQUEST_DECIDED: "permission_request_decided",
+    REQUEST_CONSUMED: "permission_request_consumed",
+    GRANT_CREATED: "permission_grant_created",
+    GRANT_REVOKED: "permission_grant_revoked",
+  },
 } as const;
 
 // ==================== Authentication Event Types ====================
@@ -752,6 +761,58 @@ export interface TabDeletedEvent {
   tabId: string;
 }
 
+// ==================== Permission Event Types ====================
+
+/** A new permission request was created (addressed to the workspace owner/admin). */
+export interface PermissionRequestCreatedEvent {
+  /** Request ID */
+  id: string;
+  spellId: string;
+  tenantId: string;
+  permissionKey: string;
+  requesterBotId: string;
+  requestedMetadata: Record<string, unknown>;
+  contextChannelId: string | null;
+  expiresAt: string | Date;
+  reason: string | null;
+}
+
+/** A permission request was decided (approved or denied). */
+export interface PermissionRequestDecidedEvent {
+  /** Request ID */
+  id: string;
+  spellId: string;
+  status: "approved_once" | "approved_durable" | "denied" | "cancelled";
+  decidedByUserId: string | null;
+  durableGrantId: string | null;
+}
+
+/** A previously-approved permission was consumed (one-time grant used). */
+export interface PermissionRequestConsumedEvent {
+  /** Request ID */
+  id: string;
+  requesterBotId: string;
+  permissionKey: string;
+}
+
+/** A durable permission grant was created. */
+export interface PermissionGrantCreatedEvent {
+  /** Grant ID */
+  id: string;
+  tenantId: string;
+  subjectKind: string;
+  subjectId: string;
+  permissionKey: string;
+  scopeMetadata: Record<string, unknown>;
+}
+
+/** A permission grant was revoked. */
+export interface PermissionGrantRevokedEvent {
+  /** Grant ID */
+  id: string;
+  tenantId: string;
+}
+
 // ==================== Type Mappings ====================
 
 /** Client to server events and their payload type mappings */
@@ -830,4 +891,10 @@ export interface ServerToClientEvents {
   tab_created: TabCreatedEvent;
   tab_updated: TabUpdatedEvent;
   tab_deleted: TabDeletedEvent;
+  // Permission events
+  permission_request_created: PermissionRequestCreatedEvent;
+  permission_request_decided: PermissionRequestDecidedEvent;
+  permission_request_consumed: PermissionRequestConsumedEvent;
+  permission_grant_created: PermissionGrantCreatedEvent;
+  permission_grant_revoked: PermissionGrantRevokedEvent;
 }

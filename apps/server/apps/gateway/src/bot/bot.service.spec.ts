@@ -837,6 +837,42 @@ describe('BotService', () => {
     });
   });
 
+  // ── getBotUserIdByBotId ───────────────────────────────────────────────
+
+  describe('getBotUserIdByBotId', () => {
+    it('returns userId when bot exists', async () => {
+      // getBotById internally chains select→from→innerJoin→where→limit(1)
+      db.limit.mockResolvedValueOnce([
+        {
+          userId: 'user-42',
+          botId: 'bot-1',
+          username: 'testbot',
+          displayName: null,
+          email: 'bot@example.com',
+          type: 'custom',
+          ownerId: null,
+          mentorId: null,
+          description: null,
+          capabilities: null,
+          extra: null,
+          managedProvider: null,
+          managedMeta: null,
+          isActive: true,
+        },
+      ] as any);
+
+      const result = await service.getBotUserIdByBotId('bot-1');
+      expect(result).toBe('user-42');
+    });
+
+    it('returns null when bot not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      const result = await service.getBotUserIdByBotId('missing-bot');
+      expect(result).toBeNull();
+    });
+  });
+
   describe('revokeAccessToken', () => {
     it('invalidates the cache and clears the stored access token', async () => {
       await service.revokeAccessToken('bot-1');

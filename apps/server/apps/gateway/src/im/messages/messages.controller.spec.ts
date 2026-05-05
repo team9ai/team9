@@ -106,6 +106,13 @@ describe('MessagesController', () => {
         publishWorkspaceEvent: MockFn;
       }
     | undefined;
+  let permissionsService: {
+    gate: MockFn;
+    createRequest: MockFn;
+  };
+  let botService: {
+    getBotByUserId: MockFn;
+  };
   let dateSpy: jest.Spied<typeof Date.now>;
 
   beforeEach(() => {
@@ -195,6 +202,18 @@ describe('MessagesController', () => {
 
     propertyDefinitionsService = {};
 
+    permissionsService = {
+      gate: jest.fn<any>().mockResolvedValue({ allowed: false }),
+      createRequest: jest.fn<any>().mockResolvedValue({
+        id: 'req-1',
+        spellId: 'alpha bravo charlie',
+      }),
+    };
+
+    botService = {
+      getBotByUserId: jest.fn<any>().mockResolvedValue(null),
+    };
+
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
 
     controller = new MessagesController(
@@ -207,6 +226,8 @@ describe('MessagesController', () => {
       propertyDefinitionsService as never,
       eventEmitter as never,
       gatewayMQService as never,
+      permissionsService as never,
+      botService as never,
     );
     (controller as any).logger = {
       debug: jest.fn(),
@@ -271,6 +292,9 @@ describe('MessagesController', () => {
   describe('createMessage', () => {
     it('rejects non-members before any message work happens', async () => {
       channelsService.isMember.mockResolvedValueOnce(false);
+      // findById may be called for cross-tenant channel validation; return a channel
+      // in the same tenant so the path falls through to the standard ForbiddenException.
+      channelsService.findById.mockResolvedValueOnce(makeChannel());
 
       await expect(
         controller.createMessage(USER_ID, CHANNEL_ID, {
@@ -279,7 +303,8 @@ describe('MessagesController', () => {
         } as never),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(channelsService.findById).not.toHaveBeenCalled();
+      // The non-member path may inspect the channel for tenant validation, but
+      // must NOT persist a message or broadcast to members.
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
       expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });

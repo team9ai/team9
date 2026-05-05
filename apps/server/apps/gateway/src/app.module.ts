@@ -50,6 +50,7 @@ import { PosthogModule } from '@team9/posthog';
 import { BillingHubModule } from './billing-hub/billing-hub.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AhandModule } from './ahand/ahand.module.js';
+import { PermissionsModule } from './permissions/permissions.module.js';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { AhandModule } from './ahand/ahand.module.js';
     WikisModule,
     Folder9Module,
     AhandModule,
+    PermissionsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

@@ -164,6 +164,8 @@ interface AppState {
   sidebarCollapsed: boolean;
   fontScales: FontScales;
   subSidebarWidth: number;
+  /** Number of pending permission requests addressed to the current user. */
+  pendingPermissionCount: number;
 
   // Actions
   setUser: (user: User | null) => void;
@@ -177,6 +179,10 @@ interface AppState {
   setFontScale: (region: FontScaleRegion, value: number) => void;
   resetFontScales: () => void;
   setSubSidebarWidth: (width: number) => void;
+  /** Clamps to ≥ 0. */
+  setPendingPermissionCount: (n: number) => void;
+  incrementPendingPermissions: () => void;
+  decrementPendingPermissions: () => void;
   reset: () => void;
 }
 
@@ -190,6 +196,7 @@ const initialState = {
   sidebarCollapsed: false,
   fontScales: { ...DEFAULT_FONT_SCALES },
   subSidebarWidth: SUB_SIDEBAR_WIDTH_DEFAULT,
+  pendingPermissionCount: 0,
 };
 
 // Store
@@ -268,6 +275,34 @@ export const useAppStore = create<AppState>()(
             { subSidebarWidth: clampSubSidebarWidth(subSidebarWidth) },
             false,
             "setSubSidebarWidth",
+          ),
+
+        setPendingPermissionCount: (n) =>
+          set(
+            { pendingPermissionCount: Math.max(0, n) },
+            false,
+            "setPendingPermissionCount",
+          ),
+
+        incrementPendingPermissions: () =>
+          set(
+            (state) => ({
+              pendingPermissionCount: state.pendingPermissionCount + 1,
+            }),
+            false,
+            "incrementPendingPermissions",
+          ),
+
+        decrementPendingPermissions: () =>
+          set(
+            (state) => ({
+              pendingPermissionCount: Math.max(
+                0,
+                state.pendingPermissionCount - 1,
+              ),
+            }),
+            false,
+            "decrementPendingPermissions",
           ),
 
         reset: () => set(initialState, false, "reset"),

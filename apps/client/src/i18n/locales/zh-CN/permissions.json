@@ -1,0 +1,46 @@
+{
+  "inbox": {
+    "title": "权限申请",
+    "empty": "暂无待审批的申请",
+    "badgeAria": "{{count}} 条待审批申请"
+  },
+  "request": {
+    "title": "权限申请",
+    "spellLabel": "Spell ID",
+    "spellCopy": "复制 Spell ID",
+    "reasonLabel": "原因",
+    "scopeLabel": "范围",
+    "allowOnce": "仅本次允许",
+    "remember": "允许并记住…",
+    "deny": "拒绝",
+    "from": "来自 {{bot}}",
+    "in": "在 {{channel}}"
+  },
+  "remember": {
+    "title": "记住此次授权",
+    "subjectLabel": "适用范围",
+    "subjectAgent": "该 Agent",
+    "subjectChannel": "仅当前频道",
+    "subjectExecution": "仅本次执行",
+    "subjectTask": "整个任务（所有执行）",
+    "expiresLabel": "过期时间（可选）",
+    "scopeLabel": "范围限定",
+    "save": "保存授权"
+  },
+  "grants": {
+    "title": "已授予权限",
+    "empty": "该 {{subject}} 暂无授权",
+    "createButton": "新增授权",
+    "revoke": "撤销",
+    "revokeConfirm": "确认撤销此授权？",
+    "permissionKey": "权限",
+    "scope": "范围",
+    "expires": "过期时间",
+    "createdBy": "授予人"
+  },
+  "errors": {
+    "requestNotFound": "该申请已不存在",
+    "alreadyDecided": "该申请已被处理"
+  },
+  "tab": "权限"
+}

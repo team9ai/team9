@@ -7,3 +7,4 @@ export * from './resource/index.js';
 export * from './skill/index.js';
 export * from './wiki/index.js';
 export * from './folder9/index.js';
+export * from './permissions/index.js';

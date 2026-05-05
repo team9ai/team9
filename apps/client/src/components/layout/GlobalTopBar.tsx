@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useDebouncedQuickSearch } from "@/hooks/useSearch";
 import { QuickSearchResults } from "@/components/search/QuickSearchResults";
+import { PermissionInbox } from "@/components/permissions/PermissionInbox";
 
 export function GlobalTopBar() {
   const { t } = useTranslation("common");
@@ -295,11 +296,12 @@ export function GlobalTopBar() {
           </div>
         </div>
 
-        {/* Right section - connection status indicator */}
+        {/* Right section - connection status indicator + permission inbox */}
         <div
           data-tauri-drag-region
           className="flex shrink-0 items-center gap-1 pr-1"
         >
+          <PermissionInbox />
           <ConnectionStatus />
         </div>
       </div>

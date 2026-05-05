@@ -407,6 +407,27 @@
       "when": 1777575466136,
       "tag": "0057_yielding_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1777795200002,
+      "tag": "0058_personal_staff_default_names",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1777795200003,
+      "tag": "0059_handy_kronos",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1777708591970,
+      "tag": "0060_steady_spiral",
+      "breakpoints": true
     }
   ]
 }

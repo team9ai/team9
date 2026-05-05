@@ -1,0 +1,1 @@
+ALTER TABLE "auth_permission_requests" ADD CONSTRAINT "auth_permission_requests_durable_grant_id_auth_permission_grants_id_fk" FOREIGN KEY ("durable_grant_id") REFERENCES "public"."auth_permission_grants"("id") ON DELETE set null ON UPDATE no action;

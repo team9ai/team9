@@ -55,6 +55,7 @@ import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { CommonStaffDetailSection } from "@/components/ai-staff/CommonStaffDetailSection";
 import { PersonalStaffDetailSection } from "@/components/ai-staff/PersonalStaffDetailSection";
+import { GrantList } from "@/components/permissions/GrantList";
 import { formatDateTime } from "@/lib/date-format";
 import type {
   BaseModelStaffBotInfo,
@@ -118,7 +119,7 @@ function isPersonalStaffBot(bot: AIStaffBot): bot is PersonalStaffListBotInfo {
 export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation(["navigation", "permissions"]);
   const workspaceId = useSelectedWorkspaceId();
   const [copiedId, setCopiedId] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -628,6 +629,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                 <TabsList className="w-full justify-start">
                   <TabsTrigger value="instance">Instance</TabsTrigger>
                   <TabsTrigger value="workspace">Workspace</TabsTrigger>
+                  <TabsTrigger value="permissions">
+                    {t("permissions:tab")}
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="instance" className="mt-4">
@@ -823,6 +827,10 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                       />
                     )}
                   </div>
+                </TabsContent>
+
+                <TabsContent value="permissions" className="mt-4">
+                  <GrantList subjectKind="agent" subjectId={staffId} />
                 </TabsContent>
               </Tabs>
             </div>
