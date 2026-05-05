@@ -59,6 +59,10 @@ vi.mock("@/lib/tauri", () => ({
   isMacTauriApp: () => false,
 }));
 
+vi.mock("@/components/permissions/PermissionInbox", () => ({
+  PermissionInbox: () => null,
+}));
+
 vi.mock("@/components/ui/input", () => ({
   Input: ({ className, ...props }: React.ComponentProps<"input">) => (
     <input className={className} {...props} />
