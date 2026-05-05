@@ -447,6 +447,34 @@ describe('ExecutorService', () => {
     expect(failedSet).toBeDefined();
   });
 
+  it('records a failed execution when ensureRoutineFolder throws before strategy execution', async () => {
+    mockEnsureRoutineFolder.mockRejectedValueOnce(
+      new Error('folder9 unavailable'),
+    );
+    returningResultQueue = [[sampleTask]];
+    service.registerStrategy('system', mockStrategy);
+
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
+
+    const executionInsert = insertValues.find(
+      (v) => v.routineVersion !== undefined,
+    );
+    expect(executionInsert).toMatchObject({
+      routineId: 'task-001',
+      routineVersion: sampleTask.version,
+      status: 'failed',
+      channelId: 'mock-uuid-1',
+    });
+    expect(executionInsert.startedAt).toBeInstanceOf(Date);
+    expect(executionInsert.completedAt).toBeInstanceOf(Date);
+
+    const failedRoutineSet = updateSets.find(
+      (s) =>
+        s.status === 'failed' && s.currentExecutionId === executionInsert.id,
+    );
+    expect(failedRoutineSet).toBeDefined();
+  });
+
   // ── folder9 token mint failure marks routine as failed ────────────
 
   it('marks the routine as failed when folder9 read-token mint throws', async () => {

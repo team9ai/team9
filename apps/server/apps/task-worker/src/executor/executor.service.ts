@@ -179,13 +179,40 @@ export class ExecutorService {
       this.logger.error(
         `Failed to ensure folder / mint read token for routine ${routineId}: ${errorMessage}`,
       );
-      // Mark the routine as failed so the run isn't left in_progress
-      // forever. We don't have an executionId yet (it's minted below),
-      // so the failure is recorded by reverting the CAS-claimed routine
-      // status directly.
+      const executionId = uuidv7();
+      const failedAt = new Date();
+
+      await this.db.insert(schema.routineExecutions).values({
+        id: executionId,
+        routineId,
+        routineVersion: routine.version,
+        status: 'failed',
+        channelId,
+        triggerId: opts?.triggerId ?? null,
+        triggerType: opts?.triggerType ?? null,
+        triggerContext:
+          (opts?.triggerContext as unknown as schema.TriggerContext) ?? null,
+        documentVersionId: opts?.documentVersionId ?? null,
+        sourceExecutionId: opts?.sourceExecutionId ?? null,
+        startedAt: failedAt,
+        completedAt: failedAt,
+        duration: 0,
+        error: {
+          code: 'FOLDER9_PREFLIGHT_FAILED',
+          message: errorMessage,
+        },
+      });
+
+      // Mark the routine as failed and point it at the failed execution so
+      // clients can surface the attempted run instead of showing an
+      // unexpandable routine.
       await this.db
         .update(schema.routines)
-        .set({ status: 'failed', updatedAt: new Date() })
+        .set({
+          status: 'failed',
+          currentExecutionId: executionId,
+          updatedAt: failedAt,
+        })
         .where(eq(schema.routines.id, routineId));
       return false;
     }
