@@ -37,6 +37,7 @@ import {
   applyBotThinkingMessage,
   getBotThinkingIds,
   startBotThinkingStatuses,
+  syncBotThinkingStatusesWithMessages,
 } from "./bot-thinking-state";
 import type { BotThinkingStatus } from "./bot-thinking-state";
 import {
@@ -182,6 +183,13 @@ function extractMentionedBotIds(content: string): string[] {
     botIds.push(match[1]);
   }
   return botIds;
+}
+
+function getLatestMessageTimeMs(messages: readonly Message[]): number {
+  return messages.reduce((latest, message) => {
+    const time = new Date(message.createdAt).getTime();
+    return Number.isNaN(time) ? latest : Math.max(latest, time);
+  }, 0);
 }
 
 interface ChannelViewProps {
@@ -388,6 +396,14 @@ export function ChannelView({
   );
 
   // Channel tabs state
+  const messages = useMemo(
+    () => messagesData?.pages.flatMap((p) => p.messages) ?? [],
+    [messagesData],
+  );
+  const latestMessageTimeMs = useMemo(
+    () => getLatestMessageTimeMs(messages),
+    [messages],
+  );
   const { data: channelTabs = [] } = useChannelTabs(
     isPreviewMode ? undefined : channelId,
   );
@@ -446,9 +462,22 @@ export function ChannelView({
     setThinkingStatuses((prev) =>
       prev.some((status) => status.botId === botDmUserId)
         ? prev
-        : [...prev, { botId: botDmUserId, phase: "warming" }],
+        : [
+            ...prev,
+            {
+              botId: botDmUserId,
+              phase: "warming",
+              startedAfterMs: latestMessageTimeMs,
+            },
+          ],
     );
-  }, [autoSendInitialDraft, botDmUserId, initialDraft, isBotDm]);
+  }, [
+    autoSendInitialDraft,
+    botDmUserId,
+    initialDraft,
+    isBotDm,
+    latestMessageTimeMs,
+  ]);
 
   // Track bot lifecycle markers to move the response indicator through:
   // warmup -> working -> hidden.
@@ -463,6 +492,12 @@ export function ChannelView({
       wsService.off("new_message", handleBotTrackingMessage);
     };
   }, [channelId]);
+
+  useEffect(() => {
+    setThinkingStatuses((prev) =>
+      syncBotThinkingStatusesWithMessages(prev, messages),
+    );
+  }, [messages]);
 
   // Trigger thinking indicator after sending a message
   const startBotThinking = useCallback(
@@ -481,13 +516,13 @@ export function ChannelView({
       }
 
       if (botIds.length > 0) {
-        setThinkingStatuses(startBotThinkingStatuses(botIds));
+        setThinkingStatuses(
+          startBotThinkingStatuses(botIds, latestMessageTimeMs),
+        );
       }
     },
-    [isBotDm, botDmUserId, memberChannel?.type],
+    [isBotDm, botDmUserId, latestMessageTimeMs, memberChannel?.type],
   );
-
-  const messages = messagesData?.pages.flatMap((p) => p.messages) ?? [];
   // New messages are prepended to pages[0].messages, so messages[0] is the latest
   const latestMessageId = messages.length > 0 ? messages[0]?.id : null;
 

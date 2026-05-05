@@ -229,7 +229,6 @@ export function MessageList({
           stream,
         })),
       );
-      return items;
     }
 
     if (thinkingBotIds.length > 0) {

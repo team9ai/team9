@@ -737,6 +737,36 @@ describe("MessageList — round auto-fold", () => {
       expect(blocks[0].getAttribute("data-tool-name")).toBe("RunScript");
       expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
     });
+
+    it("keeps the bot thinking indicator visible while an active stream exists", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "RunScript",
+          },
+        },
+      ];
+
+      renderList([], {
+        channelType: "direct",
+        thinkingBotIds: ["bot-1"],
+      });
+
+      expect(screen.getByTestId("tool-call-block")).toBeInTheDocument();
+      expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
+    });
   });
 
   describe("non-DM channels", () => {

@@ -25,6 +25,7 @@ import {
   applyBotThinkingMessage,
   getBotThinkingIds,
   startBotThinkingStatuses,
+  syncBotThinkingStatusesWithMessages,
 } from "./bot-thinking-state";
 import type { BotThinkingStatus } from "./bot-thinking-state";
 import { ResizeHandle } from "./ResizeHandle";
@@ -40,6 +41,13 @@ function extractMentionedBotIds(content: string): string[] {
     botIds.push(match[1]);
   }
   return botIds;
+}
+
+function getLatestMessageTimeMs(messages: readonly Message[]): number {
+  return messages.reduce((latest, message) => {
+    const time = new Date(message.createdAt).getTime();
+    return Number.isNaN(time) ? latest : Math.max(latest, time);
+  }, 0);
 }
 
 interface ThreadPanelProps {
@@ -105,6 +113,17 @@ export function ThreadPanel({
   const thinkingBotIdsKey = thinkingStatuses
     .map((status) => `${status.botId}:${status.phase}`)
     .join("|");
+  const threadMessages = useMemo(
+    () =>
+      threadData
+        ? [threadData.rootMessage as Message, ...threadData.replies]
+        : [],
+    [threadData],
+  );
+  const latestThreadMessageTimeMs = useMemo(
+    () => getLatestMessageTimeMs(threadMessages),
+    [threadMessages],
+  );
 
   // Thread-specific streaming messages
   const threadStreams = useStreamingStore(
@@ -138,7 +157,9 @@ export function ThreadPanel({
           stream,
         })),
       );
-    } else if (thinkingBotIds.length > 0) {
+    }
+
+    if (thinkingBotIds.length > 0) {
       items.push({ type: "thinking", key: thinkingBotIdsKey });
     }
 
@@ -258,6 +279,12 @@ export function ThreadPanel({
     setThinkingStatuses([]);
   }, [rootMessageId]);
 
+  useEffect(() => {
+    setThinkingStatuses((prev) =>
+      syncBotThinkingStatusesWithMessages(prev, threadMessages),
+    );
+  }, [threadMessages]);
+
   // Keep a ref of all message IDs in this thread for sub-reply matching
   const threadMessageIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -307,7 +334,9 @@ export function ThreadPanel({
     );
 
     if (botIds.length > 0) {
-      setThinkingStatuses(startBotThinkingStatuses(botIds));
+      setThinkingStatuses(
+        startBotThinkingStatuses(botIds, latestThreadMessageTimeMs),
+      );
     }
 
     await sendReply.mutateAsync({ content, contentAst, attachments });

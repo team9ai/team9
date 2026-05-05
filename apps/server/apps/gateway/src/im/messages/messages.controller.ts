@@ -75,6 +75,13 @@ export class MessagesController {
     return sender?.userType === 'human' && sender.agentType === null;
   }
 
+  private shouldForceBroadcastForAgentEvent(
+    metadata: Record<string, unknown> | undefined,
+  ): boolean {
+    const agentEventType = metadata?.agentEventType;
+    return typeof agentEventType === 'string' && agentEventType !== 'writing';
+  }
+
   private async createChannelMessage(
     userId: string,
     channelId: string,
@@ -191,7 +198,10 @@ export class MessagesController {
     // Immediately broadcast to online users via Socket.io Redis Adapter
     // Skip broadcast when the message is part of a streaming session (bot will
     // emit streaming_end with the persisted message, which handles the broadcast)
-    if (!dto.skipBroadcast) {
+    if (
+      !dto.skipBroadcast ||
+      this.shouldForceBroadcastForAgentEvent(metadata)
+    ) {
       // No excludeUserId — sender's other devices need this
       await this.websocketGateway.sendToChannelMembers(
         channelId,
