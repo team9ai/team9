@@ -758,8 +758,11 @@ export class PermissionsService {
         eq(authPermissionRequests.status, input.status as RequestStatus),
       );
     }
-    // Exclude expired rows when querying pending requests (Fix 7)
-    if (input.status === 'pending' || !input.status) {
+    // Exclude expired rows ONLY when explicitly querying pending requests.
+    // For no-status queries, return all matching rows regardless of expiresAt
+    // (resolved rows like denied/approved_durable still carry their original
+    // expiresAt and must remain visible).
+    if (input.status === 'pending') {
       where.push(gt(authPermissionRequests.expiresAt, new Date()));
     }
     // Fetch a generous DB cap (2000), then filter to caller's approver set, then slice.

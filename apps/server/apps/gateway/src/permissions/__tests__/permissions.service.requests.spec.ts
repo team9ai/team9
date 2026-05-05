@@ -994,6 +994,36 @@ describe('PermissionsService — requests', () => {
       });
       expect(result).toHaveLength(0);
     });
+
+    it('listRequests — without status filter, does NOT exclude expired resolved rows', async () => {
+      // Regression guard: the expiry filter must only apply when status='pending'.
+      // For no-status queries, decided/cancelled rows whose original 30-min expiresAt
+      // has passed must remain visible.
+      const denied = {
+        id: 'r-denied',
+        tenantId: 't1',
+        requesterBotId: 'b1',
+        permissionKey: 'tools:invoke',
+        status: 'denied',
+        requestedMetadata: {},
+        suggestedApproverIds: [],
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() - 60_000), // expired (past), but row is denied
+      };
+      requestFindMany.mockResolvedValueOnce([denied]);
+      approvers.findBotOwnerAndMentor.mockResolvedValue(['u-admin']);
+      approvers.findWorkspaceOwners.mockResolvedValue([]);
+
+      const result = await svc.listRequests({
+        tenantId: 't1',
+        userId: 'u-admin',
+        // no status filter
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0]?.id).toBe('r-denied');
+    });
   });
 
   describe('resolveApprovers', () => {
