@@ -250,7 +250,11 @@ describe('PermissionsService — requests', () => {
       expect(row.status).toBe('cancelled');
       expect(events.emit).toHaveBeenCalledWith(
         'permissions.request.decided',
-        expect.objectContaining({ id: 'r1', status: 'cancelled' }),
+        expect.objectContaining({
+          id: 'r1',
+          status: 'cancelled',
+          durableGrantId: null,
+        }),
       );
     });
 

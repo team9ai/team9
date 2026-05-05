@@ -458,6 +458,7 @@ export class PermissionsService {
       spellId: row.spellId,
       status: row.status,
       decidedByUserId: null,
+      durableGrantId: null,
     });
     return row;
   }
@@ -641,6 +642,7 @@ export class PermissionsService {
         where: and(
           eq(tenantMembers.tenantId, req.tenantId),
           inArray(tenantMembers.userId, suggested),
+          isNull(tenantMembers.leftAt),
         ),
         columns: { userId: true },
       });

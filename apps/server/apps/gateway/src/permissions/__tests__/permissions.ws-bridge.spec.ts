@@ -110,7 +110,7 @@ function makeBotService(): BotServiceStub {
 describe('PermissionsWsBridge', () => {
   // ── request_created ──────────────────────────────────────────────────────
 
-  it('broadcasts request_created to each approver in approverIds', async () => {
+  it('broadcasts request_created to each approver in approverIds WITHOUT approverIds in the payload', async () => {
     const gateway = makeGateway();
     const service = makePermissionsService();
     const botService = makeBotService();
@@ -135,19 +135,24 @@ describe('PermissionsWsBridge', () => {
     } as never);
 
     expect(gateway.sendToUser).toHaveBeenCalledTimes(2);
-    expect(gateway.sendToUser).toHaveBeenCalledWith(
-      'u1',
-      'permission_request_created',
-      expect.objectContaining({ id: 'r1' }),
-    );
+    // Payload sent to each user must NOT include approverIds
+    const [, , payloadU1] = (
+      gateway.sendToUser.mock.calls as [
+        string,
+        string,
+        Record<string, unknown>,
+      ][]
+    ).find(([u]) => u === 'u1')!;
+    expect(payloadU1).not.toHaveProperty('approverIds');
+    expect(payloadU1).toMatchObject({ id: 'r1' });
     expect(gateway.sendToUser).toHaveBeenCalledWith(
       'u2',
       'permission_request_created',
-      expect.any(Object),
+      expect.not.objectContaining({ approverIds: expect.anything() }),
     );
   });
 
-  it('does NOT call resolveApprovers for request_created (uses approverIds from payload)', async () => {
+  it('does NOT call resolveApprovers for request_created (uses approverIds from payload) and strips approverIds from broadcast', async () => {
     const gateway = makeGateway();
     const service = makePermissionsService();
     const botService = makeBotService();
@@ -172,6 +177,15 @@ describe('PermissionsWsBridge', () => {
     } as never);
 
     expect(service.resolveApprovers).not.toHaveBeenCalled();
+    // approverIds must not be forwarded to the client
+    const [, , broadcastPayload] = (
+      gateway.sendToUser.mock.calls as [
+        string,
+        string,
+        Record<string, unknown>,
+      ][]
+    )[0];
+    expect(broadcastPayload).not.toHaveProperty('approverIds');
   });
 
   it('broadcasts to no one when approverIds is empty', async () => {

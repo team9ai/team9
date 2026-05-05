@@ -48,12 +48,13 @@ export class PermissionsWsBridge {
   async onRequestCreated(
     payload: PermissionRequestCreatedPayload & { approverIds: string[] },
   ): Promise<void> {
+    const { approverIds, ...broadcastPayload } = payload;
     await Promise.all(
-      payload.approverIds.map((userId) =>
+      approverIds.map((userId) =>
         this.gateway.sendToUser(
           userId,
           PERMISSION_EVENTS.REQUEST_CREATED,
-          payload,
+          broadcastPayload,
         ),
       ),
     );

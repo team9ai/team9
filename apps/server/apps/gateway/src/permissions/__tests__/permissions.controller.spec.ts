@@ -25,10 +25,22 @@ const svc = {
   canDecide: jest.fn(),
   requireBotIdForUser: jest.fn(),
   getWorkspaceAdmins: jest.fn(),
+  listAdminsForTenant: jest.fn(),
+};
+
+const spellIdSvc = {
+  generate: jest.fn(),
+  parse: jest.fn((s: string) => {
+    // Replicate SpellIdService.parse logic for tests
+    const normalized = s.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!/^[a-z]+( [a-z]+){2,3}$/.test(normalized)) return null;
+    return normalized;
+  }),
 };
 
 const { PermissionsController } = await import('../permissions.controller.js');
 const { PermissionsService } = await import('../permissions.service.js');
+const { SpellIdService } = await import('../spell-id.service.js');
 
 class FakeAuthGuard {
   canActivate(ctx: ExecutionContext) {
@@ -45,7 +57,10 @@ describe('PermissionsController (e2e)', () => {
     jest.clearAllMocks();
     const moduleRef = await Test.createTestingModule({
       controllers: [PermissionsController],
-      providers: [{ provide: PermissionsService, useValue: svc }],
+      providers: [
+        { provide: PermissionsService, useValue: svc },
+        { provide: SpellIdService, useValue: spellIdSvc },
+      ],
     })
       .overrideGuard(AuthGuard)
       .useClass(FakeAuthGuard)
@@ -64,7 +79,7 @@ describe('PermissionsController (e2e)', () => {
   // -------------------------------------------------------------------------
 
   it('GET /permissions/grants lists grants (admin caller)', async () => {
-    svc.getWorkspaceAdmins.mockResolvedValue(['u1']); // u1 is workspace admin
+    svc.listAdminsForTenant.mockResolvedValue(['u1']); // u1 is workspace admin
     svc.listGrants.mockResolvedValue([{ id: 'g1' }]);
     const res = await request(app.getHttpServer())
       .get('/api/v1/permissions/grants')
@@ -155,8 +170,16 @@ describe('PermissionsController (e2e)', () => {
   it('GET /permissions/requests/by-spell/:spell returns 404 when not found', async () => {
     svc.getRequestBySpell.mockResolvedValue(null);
     await request(app.getHttpServer())
-      .get('/api/v1/permissions/requests/by-spell/no-match')
+      .get('/api/v1/permissions/requests/by-spell/valid%20three%20words')
       .expect(404);
+  });
+
+  it('GET /permissions/requests/by-spell/:spell returns 400 for malformed spell id', async () => {
+    // A single word or non-alpha string fails parse()
+    await request(app.getHttpServer())
+      .get('/api/v1/permissions/requests/by-spell/not-valid-spell')
+      .expect(400);
+    expect(svc.getRequestBySpell).not.toHaveBeenCalled();
   });
 
   it('POST /permissions/requests creates a request and returns 201 with the new row', async () => {
@@ -386,7 +409,9 @@ describe('PermissionsController (e2e)', () => {
     });
     svc.canDecide.mockResolvedValue(false);
     await request(app.getHttpServer())
-      .post('/api/v1/permissions/requests/by-spell/raven-crystal/decide')
+      .post(
+        '/api/v1/permissions/requests/by-spell/raven%20crystal%20flame/decide',
+      )
       .send({ decision: 'deny' })
       .expect(403);
   });
@@ -406,7 +431,9 @@ describe('PermissionsController (e2e)', () => {
     svc.canDecide.mockResolvedValue(true);
     svc.decideRequest.mockResolvedValue({ id: 'r2', status: 'denied' });
     const res = await request(app.getHttpServer())
-      .post('/api/v1/permissions/requests/by-spell/raven-crystal/decide')
+      .post(
+        '/api/v1/permissions/requests/by-spell/raven%20crystal%20flame/decide',
+      )
       .send({ decision: 'deny' })
       .expect(201);
     expect(res.body.status).toBe('denied');
@@ -482,7 +509,7 @@ describe('PermissionsController (e2e)', () => {
   // -------------------------------------------------------------------------
 
   it('GET /permissions/grants without subjectKind+subjectId returns 403 for non-admin', async () => {
-    svc.getWorkspaceAdmins.mockResolvedValue(['admin-user']); // u1 is not in list
+    svc.listAdminsForTenant.mockResolvedValue(['admin-user']); // u1 is not in list
     await request(app.getHttpServer())
       .get('/api/v1/permissions/grants')
       .expect(403);
@@ -490,7 +517,7 @@ describe('PermissionsController (e2e)', () => {
   });
 
   it('GET /permissions/grants without subjectKind+subjectId returns 200 for workspace admin', async () => {
-    svc.getWorkspaceAdmins.mockResolvedValue(['u1']); // u1 is admin
+    svc.listAdminsForTenant.mockResolvedValue(['u1']); // u1 is admin
     svc.listGrants.mockResolvedValue([]);
     await request(app.getHttpServer())
       .get('/api/v1/permissions/grants')
@@ -498,8 +525,9 @@ describe('PermissionsController (e2e)', () => {
     expect(svc.listGrants).toHaveBeenCalled();
   });
 
-  it('GET /permissions/grants with subjectKind+subjectId is allowed for non-admin', async () => {
-    svc.getWorkspaceAdmins.mockResolvedValue(['admin-user']); // u1 is not admin
+  it('GET /permissions/grants with subjectKind+subjectId is allowed for non-admin who is an approver', async () => {
+    svc.listAdminsForTenant.mockResolvedValue(['admin-user']); // u1 is not admin
+    svc.canDecide.mockResolvedValueOnce(true); // u1 is in approver set
     svc.listGrants.mockResolvedValue([{ id: 'g1' }]);
     const res = await request(app.getHttpServer())
       .get(
@@ -507,5 +535,17 @@ describe('PermissionsController (e2e)', () => {
       )
       .expect(200);
     expect(res.body).toEqual([{ id: 'g1' }]);
+    expect(svc.canDecide).toHaveBeenCalled();
+  });
+
+  it('GET /permissions/grants returns 403 for non-admin user requesting a subject they do not administer', async () => {
+    svc.listAdminsForTenant.mockResolvedValue(['admin-user']); // u1 is not admin
+    svc.canDecide.mockResolvedValueOnce(false); // u1 is NOT in approver set
+    await request(app.getHttpServer())
+      .get(
+        '/api/v1/permissions/grants?subjectKind=agent&subjectId=550e8400-e29b-41d4-a716-446655440000',
+      )
+      .expect(403);
+    expect(svc.listGrants).not.toHaveBeenCalled();
   });
 });

@@ -18,11 +18,15 @@ import { ListGrantsQueryDto } from './dto/list-grants.dto.js';
 import { CreateRequestDto } from './dto/create-request.dto.js';
 import { DecideRequestDto } from './dto/decide-request.dto.js';
 import { isPermissionKey, type PermissionKey } from './permission-keys.js';
+import { SpellIdService } from './spell-id.service.js';
 
 @Controller({ path: 'permissions', version: '1' })
 @UseGuards(AuthGuard)
 export class PermissionsController {
-  constructor(private readonly svc: PermissionsService) {}
+  constructor(
+    private readonly svc: PermissionsService,
+    private readonly spellIdService: SpellIdService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Grants
@@ -35,13 +39,26 @@ export class PermissionsController {
     @Query() q: ListGrantsQueryDto,
   ) {
     // Require either workspace admin OR a subject filter (data scoping)
-    const isAdmin = (await this.svc.getWorkspaceAdmins(tenantId)).includes(
-      userId,
-    );
-    if (!isAdmin && (!q.subjectKind || !q.subjectId)) {
-      throw new ForbiddenException(
-        'Specify subjectKind+subjectId or be a workspace admin',
-      );
+    const tenantAdmins = await this.svc.listAdminsForTenant(tenantId);
+    const isAdmin = tenantAdmins.includes(userId);
+    if (!isAdmin) {
+      if (!q.subjectKind || !q.subjectId) {
+        throw new ForbiddenException(
+          'Specify subjectKind+subjectId or be a workspace admin',
+        );
+      }
+      // Verify the caller is in the approver set for this subject.
+      const synthetic = this.buildSyntheticForCanDecide(tenantId, {
+        subjectKind: q.subjectKind,
+        subjectId: q.subjectId,
+        permissionKey: (q.permissionKey ?? 'messages:send') as never,
+        scopeMetadata: {},
+      });
+      if (!(await this.svc.canDecide(userId, synthetic))) {
+        throw new ForbiddenException(
+          'Not authorized to administer this subject',
+        );
+      }
     }
     return this.svc.listGrants({
       tenantId,
@@ -111,14 +128,8 @@ export class PermissionsController {
     @CurrentUser('sub') userId: string,
     @CurrentUser('tenantId') tenantId: string,
     @Query('status') status?: string,
-    @Query('scope') scope?: 'mine' | 'tenant',
   ) {
-    return this.svc.listRequests({
-      tenantId,
-      userId,
-      status,
-      scope: scope ?? 'mine',
-    });
+    return this.svc.listRequests({ tenantId, userId, status });
   }
 
   /**
@@ -133,8 +144,10 @@ export class PermissionsController {
     @CurrentUser('tenantId') tenantId: string,
     @Param('spell') spell: string,
   ) {
-    const decoded = decodeURIComponent(spell).toLowerCase();
-    const req = await this.svc.getRequestBySpell(decoded, tenantId);
+    const decoded = decodeURIComponent(spell);
+    const normalized = this.spellIdService.parse(decoded);
+    if (!normalized) throw new BadRequestException('Invalid spell id format');
+    const req = await this.svc.getRequestBySpell(normalized, tenantId);
     if (!req) throw new NotFoundException();
     return req;
   }
@@ -254,8 +267,10 @@ export class PermissionsController {
     @Param('spell') spell: string,
     @Body() dto: DecideRequestDto,
   ) {
-    const decoded = decodeURIComponent(spell).toLowerCase();
-    const req = await this.svc.getRequestBySpell(decoded, tenantId);
+    const decoded = decodeURIComponent(spell);
+    const normalized = this.spellIdService.parse(decoded);
+    if (!normalized) throw new BadRequestException('Invalid spell id format');
+    const req = await this.svc.getRequestBySpell(normalized, tenantId);
     if (!req) throw new NotFoundException();
     if (
       !(await this.svc.canDecide(
