@@ -292,6 +292,9 @@ describe('MessagesController', () => {
   describe('createMessage', () => {
     it('rejects non-members before any message work happens', async () => {
       channelsService.isMember.mockResolvedValueOnce(false);
+      // findById may be called for cross-tenant channel validation; return a channel
+      // in the same tenant so the path falls through to the standard ForbiddenException.
+      channelsService.findById.mockResolvedValueOnce(makeChannel());
 
       await expect(
         controller.createMessage(USER_ID, CHANNEL_ID, {
@@ -300,7 +303,8 @@ describe('MessagesController', () => {
         } as never),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(channelsService.findById).not.toHaveBeenCalled();
+      // The non-member path may inspect the channel for tenant validation, but
+      // must NOT persist a message or broadcast to members.
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
       expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
