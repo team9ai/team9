@@ -1,4 +1,5 @@
-const { matchesScope } = await import('../permission-matcher.js');
+const { matchesScope, isScopeNarrowing } =
+  await import('../permission-matcher.js');
 
 describe('matchesScope', () => {
   it('returns true when scope is empty', () => {
@@ -48,5 +49,61 @@ describe('matchesScope', () => {
     expect(matchesScope({ channelId: 'c2', env: 'staging' }, scope)).toBe(
       false,
     );
+  });
+});
+
+describe('isScopeNarrowing', () => {
+  it('rejects override that is missing a key the original constrained (broader)', () => {
+    // original constrains toolNames; override omits it → broadens
+    expect(
+      isScopeNarrowing(
+        { env: 'staging' },
+        { toolNames: ['sql'], env: 'staging' },
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects override whose array contains a value outside the original array (broader)', () => {
+    // original: ['sql']; override adds 'shell' → broadens
+    expect(
+      isScopeNarrowing({ toolNames: ['sql', 'shell'] }, { toolNames: ['sql'] }),
+    ).toBe(false);
+  });
+
+  it('accepts override that is equal to the original (not a broadening)', () => {
+    expect(
+      isScopeNarrowing(
+        { toolNames: ['sql'], env: 'staging' },
+        { toolNames: ['sql'], env: 'staging' },
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts override whose array is a strict subset of the original array (narrowing)', () => {
+    // original: ['sql', 'shell']; override: ['sql'] → narrower
+    expect(
+      isScopeNarrowing({ toolNames: ['sql'] }, { toolNames: ['sql', 'shell'] }),
+    ).toBe(true);
+  });
+
+  it('accepts override with a single string value that is in the original array (narrowing)', () => {
+    // original array contains 'sql'; override is a single string 'sql' → narrowing
+    expect(
+      isScopeNarrowing({ toolName: 'sql' }, { toolNames: ['sql', 'shell'] }),
+    ).toBe(false); // key mismatch (toolName vs toolNames) → treated as missing key
+  });
+
+  it('accepts override with extra keys beyond the original (additional constraints = narrowing)', () => {
+    // override adds 'region' which original did not constrain → still narrowing
+    expect(
+      isScopeNarrowing(
+        { toolNames: ['sql'], region: 'us-east-1' },
+        { toolNames: ['sql'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects when override string value differs from original string (broader for that key)', () => {
+    expect(isScopeNarrowing({ env: 'prod' }, { env: 'staging' })).toBe(false);
   });
 });

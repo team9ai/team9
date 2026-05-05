@@ -93,6 +93,17 @@ export class MessagesController {
     const t1 = Date.now();
 
     if (!isMember) {
+      // Verify the channel actually belongs to the caller's tenant.
+      // Without this, a bot could target a foreign-tenant channel UUID.
+      const channelForTenantCheck =
+        await this.channelsService.findById(channelId);
+      if (
+        !channelForTenantCheck ||
+        channelForTenantCheck.tenantId !== tenantId
+      ) {
+        throw new ForbiddenException('Not a channel member');
+      }
+
       // Check if the sender is a bot — bots can gain access via permission grants
       const bot = this.botService
         ? await this.botService.getBotByUserId(userId)

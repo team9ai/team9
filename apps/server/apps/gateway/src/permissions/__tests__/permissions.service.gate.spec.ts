@@ -2,7 +2,7 @@
 import { jest } from '@jest/globals';
 
 const grantsFindMany = jest.fn();
-const requestsFindFirst = jest.fn();
+const requestsFindMany = jest.fn();
 const executionsFindFirst = jest.fn();
 const updateReturning = jest.fn();
 
@@ -15,7 +15,7 @@ const mockDb = {
   })),
   query: {
     authPermissionGrants: { findMany: grantsFindMany },
-    authPermissionRequests: { findFirst: requestsFindFirst },
+    authPermissionRequests: { findMany: requestsFindMany },
     routineExecutions: { findFirst: executionsFindFirst },
   },
 };
@@ -127,7 +127,7 @@ describe('PermissionsService.gate', () => {
         expiresAt: null,
       },
     ]);
-    requestsFindFirst.mockResolvedValueOnce(null);
+    requestsFindMany.mockResolvedValueOnce([]);
     const r = await svc.gate({
       key: 'tools:invoke',
       metadata: { toolName: 'shell' },
@@ -138,12 +138,16 @@ describe('PermissionsService.gate', () => {
 
   it('falls through to approved_once and consumes it', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req1',
-      requestedMetadata: { channelId: 'c1' },
-      contextChannelId: 'c1',
-      contextExecutionId: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req1',
+        requestedMetadata: { channelId: 'c1' },
+        contextChannelId: 'c1',
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     updateReturning.mockResolvedValueOnce([
       { id: 'req1', consumedAt: new Date() },
     ]);
@@ -165,12 +169,16 @@ describe('PermissionsService.gate', () => {
 
   it('once-approval lost race -> denies', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req1',
-      requestedMetadata: { channelId: 'c1' },
-      contextChannelId: 'c1',
-      contextExecutionId: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req1',
+        requestedMetadata: { channelId: 'c1' },
+        contextChannelId: 'c1',
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     updateReturning.mockResolvedValueOnce([]); // another caller already consumed
     const r = await svc.gate({
       key: 'messages:send',
@@ -192,7 +200,7 @@ describe('PermissionsService.gate', () => {
         expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
       },
     ]);
-    requestsFindFirst.mockResolvedValueOnce(null);
+    requestsFindMany.mockResolvedValueOnce([]);
     const r = await svc.gate({
       key: 'messages:send',
       metadata: {},
@@ -201,23 +209,18 @@ describe('PermissionsService.gate', () => {
     expect(r).toEqual({ allowed: false });
   });
 
-  it('skips an expired approved_once request', async () => {
+  it('skips an expired approved_once request (filtered at DB level)', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req-expired',
-      requestedMetadata: {},
-      contextChannelId: null,
-      contextExecutionId: null,
-      contextRoutineId: null,
-      expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
-    });
+    // With findMany + gt(expiresAt, now) in the WHERE clause, expired rows are
+    // excluded at the DB level. Mock returns empty array (DB filters them out).
+    requestsFindMany.mockResolvedValueOnce([]);
     const r = await svc.gate({
       key: 'messages:send',
       metadata: {},
       ctx: { tenantId: 't1', botId: 'b1' },
     });
     expect(r).toEqual({ allowed: false });
-    // Must NOT have tried to consume the expired request
+    // Must NOT have tried to consume any request
     expect(updateReturning).not.toHaveBeenCalled();
   });
 
@@ -273,7 +276,7 @@ describe('PermissionsService.gate', () => {
         expiresAt: null,
       },
     ]);
-    requestsFindFirst.mockResolvedValueOnce(null);
+    requestsFindMany.mockResolvedValueOnce([]);
     // No channelId in ctx — grant subject 'ch-1' won't match any matcher
     const r = await svc.gate({
       key: 'messages:send',
@@ -285,14 +288,16 @@ describe('PermissionsService.gate', () => {
 
   it('approved_once skipped when contextRoutineId does not match calling routineId', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req-routine',
-      requestedMetadata: {},
-      contextChannelId: null,
-      contextExecutionId: null,
-      contextRoutineId: 'routine-OTHER', // different from ctx.routineId
-      expiresAt: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req-routine',
+        requestedMetadata: {},
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: 'routine-OTHER', // different from ctx.routineId
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     const r = await svc.gate({
       key: 'routine:trigger',
       metadata: {},
@@ -305,14 +310,16 @@ describe('PermissionsService.gate', () => {
 
   it('approved_once skipped when contextChannelId does not match calling channelId', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req-ch',
-      requestedMetadata: {},
-      contextChannelId: 'ch-OTHER', // different
-      contextExecutionId: null,
-      contextRoutineId: null,
-      expiresAt: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req-ch',
+        requestedMetadata: {},
+        contextChannelId: 'ch-OTHER', // different
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     const r = await svc.gate({
       key: 'messages:send',
       metadata: {},
@@ -324,14 +331,16 @@ describe('PermissionsService.gate', () => {
 
   it('gate — skips approved_once when bound execution has completedAt (Fix 10)', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req-exec',
-      requestedMetadata: {},
-      contextChannelId: null,
-      contextExecutionId: 'exec-done',
-      contextRoutineId: null,
-      expiresAt: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req-exec',
+        requestedMetadata: {},
+        contextChannelId: null,
+        contextExecutionId: 'exec-done',
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     // Execution is completed
     executionsFindFirst.mockResolvedValueOnce({ completedAt: new Date() });
     const r = await svc.gate({
@@ -345,14 +354,16 @@ describe('PermissionsService.gate', () => {
 
   it('gate — allows approved_once when bound execution has no completedAt (Fix 10)', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req-exec',
-      requestedMetadata: {},
-      contextChannelId: null,
-      contextExecutionId: 'exec-running',
-      contextRoutineId: null,
-      expiresAt: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req-exec',
+        requestedMetadata: {},
+        contextChannelId: null,
+        contextExecutionId: 'exec-running',
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     // Execution is still running
     executionsFindFirst.mockResolvedValueOnce({ completedAt: null });
     updateReturning.mockResolvedValueOnce([
@@ -384,7 +395,7 @@ describe('PermissionsService.gate', () => {
     ]);
     // Execution is completed — grant should be skipped
     executionsFindFirst.mockResolvedValueOnce({ completedAt: new Date() });
-    requestsFindFirst.mockResolvedValueOnce(null);
+    requestsFindMany.mockResolvedValueOnce([]);
     const r = await svc.gate({
       key: 'tools:invoke',
       metadata: {},
@@ -395,14 +406,16 @@ describe('PermissionsService.gate', () => {
 
   it('gate — denies approved_once when contextExecutionId set on request but ctx has no executionId (Fix 12)', async () => {
     grantsFindMany.mockResolvedValueOnce([]);
-    requestsFindFirst.mockResolvedValueOnce({
-      id: 'req-exec',
-      requestedMetadata: {},
-      contextChannelId: null,
-      contextExecutionId: 'exec-1', // request bound to an execution
-      contextRoutineId: null,
-      expiresAt: null,
-    });
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req-exec',
+        requestedMetadata: {},
+        contextChannelId: null,
+        contextExecutionId: 'exec-1', // request bound to an execution
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
     // ctx has no executionId — contextExecutionId mismatch
     const r = await svc.gate({
       key: 'tools:invoke',
@@ -411,5 +424,45 @@ describe('PermissionsService.gate', () => {
     });
     expect(r).toEqual({ allowed: false });
     expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('gate — falls through to an older approved_once when the newer one context does not match (I1)', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    // findMany returns two candidates: newer has wrong context, older has right context
+    requestsFindMany.mockResolvedValueOnce([
+      {
+        id: 'req-newer',
+        requestedMetadata: {},
+        contextChannelId: 'ch-OTHER', // wrong channel — mismatch
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      {
+        id: 'req-older',
+        requestedMetadata: {},
+        contextChannelId: 'ch-MINE', // right channel
+        contextExecutionId: null,
+        contextRoutineId: null,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    ]);
+    updateReturning.mockResolvedValueOnce([
+      { id: 'req-older', consumedAt: new Date() },
+    ]);
+    const r = await svc.gate({
+      key: 'messages:send',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', channelId: 'ch-MINE' },
+    });
+    expect(r).toEqual({
+      allowed: true,
+      via: 'approved_once',
+      requestId: 'req-older',
+    });
+    expect(events.emit).toHaveBeenCalledWith(
+      'permissions.request.consumed',
+      expect.objectContaining({ id: 'req-older' }),
+    );
   });
 });

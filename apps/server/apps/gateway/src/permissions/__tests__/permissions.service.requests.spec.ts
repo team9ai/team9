@@ -345,17 +345,19 @@ describe('PermissionsService — requests', () => {
     });
 
     it('remember with scopeOverride creates grant with overridden scope', async () => {
+      // Original requests toolNames: ['sql', 'shell']; override narrows to ['sql'] only
       requestFindFirst.mockResolvedValueOnce({
         id: 'r1',
         tenantId: 't1',
         status: 'pending',
         permissionKey: 'tools:invoke',
-        requestedMetadata: { toolName: 'sql' },
+        requestedMetadata: { toolNames: ['sql', 'shell'] },
         requesterBotId: 'b1',
         contextChannelId: null,
         contextExecutionId: null,
         contextRoutineId: null,
         suggestedApproverIds: [],
+        expiresAt: null,
       });
       insertGrantReturning.mockResolvedValueOnce([{ id: 'g-override' }]);
       // For 'remember', requestedMetadata on the request row is preserved unchanged (Fix 6)
@@ -364,7 +366,7 @@ describe('PermissionsService — requests', () => {
           id: 'r1',
           status: 'approved_durable',
           durableGrantId: 'g-override',
-          requestedMetadata: { toolName: 'sql' }, // unchanged original
+          requestedMetadata: { toolNames: ['sql', 'shell'] }, // unchanged original
         },
       ]);
 
@@ -374,7 +376,7 @@ describe('PermissionsService — requests', () => {
         tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'agent',
-        scopeOverride: { toolNames: ['sql', 'shell'] },
+        scopeOverride: { toolNames: ['sql'] }, // valid narrowing: subset of original array
       });
       expect(r.durableGrantId).toBe('g-override');
       // Grant insert should have received the overridden scope, not the original
@@ -383,10 +385,11 @@ describe('PermissionsService — requests', () => {
       );
       expect(insertCall).toBeDefined();
       // The request row's requestedMetadata should remain the original (not the override)
-      expect(r.requestedMetadata).toEqual({ toolName: 'sql' });
+      expect(r.requestedMetadata).toEqual({ toolNames: ['sql', 'shell'] });
     });
 
     it('decideRequest remember preserves original requestedMetadata even when scopeOverride is provided (Fix 6)', async () => {
+      // Override narrows by adding an extra constraint key (still a valid narrowing)
       const originalMetadata = { toolName: 'sql' };
       requestFindFirst.mockResolvedValueOnce({
         id: 'r1',
@@ -418,12 +421,44 @@ describe('PermissionsService — requests', () => {
         tenantId: 't1',
         decision: 'remember',
         rememberSubject: 'agent',
-        scopeOverride: { toolName: 'postgres' }, // tighter scope
+        // Override keeps original key matching + adds extra constraint → valid narrowing
+        scopeOverride: { toolName: 'sql', region: 'us-east-1' },
       });
 
       // The returned row should have the original requestedMetadata
       expect(r.requestedMetadata).toEqual(originalMetadata);
       expect(r.durableGrantId).toBe('g-new');
+    });
+
+    it('decideRequest rejects scopeOverride that broadens the original scope (C2)', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { toolNames: ['sql'] },
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+
+      const { BadRequestException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          tenantId: 't1',
+          decision: 'once',
+          // override adds 'shell' which is outside the original ['sql'] → broadens
+          scopeOverride: { toolNames: ['sql', 'shell'] },
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      // No DB update should have been attempted
+      expect(updateRequestReturning).not.toHaveBeenCalled();
     });
 
     it('deny: sets status to denied', async () => {

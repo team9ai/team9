@@ -286,6 +286,34 @@ describe('MessagesController — bot permission gate', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Case C1: Bot targets a channel from a different tenant → plain ForbiddenException
+  // -------------------------------------------------------------------------
+
+  it('returns plain ForbiddenException (not PERMISSION_REQUIRED) when bot targets a foreign-tenant channel (C1)', async () => {
+    // isMember is false (bot not in this channel)
+    channelsService.isMember.mockResolvedValueOnce(false);
+    // findById returns a channel belonging to a DIFFERENT tenant
+    channelsService.findById.mockResolvedValueOnce(
+      makeChannel({ tenantId: 'other-tenant' }),
+    );
+
+    await expect(
+      controller.createMessage(
+        BOT_USER_ID,
+        CHANNEL_ID,
+        { content: 'cross-tenant attack' } as never,
+        TENANT_ID, // caller's tenant is 't1' but channel belongs to 'other-tenant'
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    // Gate and permission request must NOT be consulted
+    expect(permissions.gate).not.toHaveBeenCalled();
+    expect(permissions.createRequest).not.toHaveBeenCalled();
+    // getBotByUserId must NOT be called either (check happens before bot lookup)
+    expect(bots.getBotByUserId).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
   // Case 4: Bot with no tenantId → plain ForbiddenException (no PERMISSION_REQUIRED)
   // -------------------------------------------------------------------------
 

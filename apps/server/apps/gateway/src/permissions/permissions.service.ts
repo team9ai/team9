@@ -32,7 +32,7 @@ import {
   isPermissionKey,
   type PermissionKey,
 } from './permission-keys.js';
-import { matchesScope } from './permission-matcher.js';
+import { isScopeNarrowing, matchesScope } from './permission-matcher.js';
 import { SpellIdService } from './spell-id.service.js';
 import { PermissionsApproverRepository } from './permissions-approver.repository.js';
 
@@ -267,61 +267,67 @@ export class PermissionsService {
       }
     }
 
-    // 2. Fall through to once-approvals
-    const candidate = await this.db.query.authPermissionRequests.findFirst({
+    // 2. Fall through to once-approvals — iterate up to 20 candidates in
+    // recency order so a context-mismatch on the newest doesn't block an older
+    // valid approval (I1: gate iterate all approved_once candidates).
+    const candidates = await this.db.query.authPermissionRequests.findMany({
       where: and(
         eq(authPermissionRequests.tenantId, input.ctx.tenantId),
         eq(authPermissionRequests.requesterBotId, input.ctx.botId),
         eq(authPermissionRequests.permissionKey, input.key),
         eq(authPermissionRequests.status, 'approved_once'),
         isNull(authPermissionRequests.consumedAt),
+        gt(authPermissionRequests.expiresAt, new Date()),
       ),
       orderBy: [desc(authPermissionRequests.decidedAt)],
+      limit: 20,
     });
 
-    // Check if the candidate's bound execution has completed (spec §13)
-    let executionCompleted = false;
-    if (candidate?.contextExecutionId) {
-      const exec = await this.db.query.routineExecutions.findFirst({
-        where: eq(routineExecutions.id, candidate.contextExecutionId),
-        columns: { completedAt: true },
-      });
-      if (exec?.completedAt) executionCompleted = true;
-    }
-
-    if (
-      candidate &&
-      !executionCompleted &&
-      (!candidate.expiresAt || candidate.expiresAt.getTime() > Date.now()) &&
-      matchesScope(input.metadata, candidate.requestedMetadata ?? {}) &&
-      (!candidate.contextChannelId ||
-        candidate.contextChannelId === input.ctx.channelId) &&
-      (!candidate.contextExecutionId ||
-        candidate.contextExecutionId === input.ctx.executionId) &&
-      (!candidate.contextRoutineId ||
-        candidate.contextRoutineId === input.ctx.routineId)
-    ) {
-      // Race-safe consume: only one concurrent caller will win
-      const [consumed] = await this.db
-        .update(authPermissionRequests)
-        .set({ consumedAt: new Date() })
-        .where(
-          and(
-            eq(authPermissionRequests.id, candidate.id),
-            isNull(authPermissionRequests.consumedAt),
-          ),
-        )
-        .returning();
-
-      if (consumed) {
-        this.safeEmit('permissions.request.consumed', {
-          id: consumed.id,
-          requesterBotId: input.ctx.botId,
-          permissionKey: input.key,
+    for (const candidate of candidates) {
+      // Check if the candidate's bound execution has completed (spec §13)
+      if (candidate.contextExecutionId) {
+        const exec = await this.db.query.routineExecutions.findFirst({
+          where: eq(routineExecutions.id, candidate.contextExecutionId),
+          columns: { completedAt: true },
         });
-        return { allowed: true, via: 'approved_once', requestId: consumed.id };
+        if (exec?.completedAt) continue;
       }
-      // Race lost — fall through to DENY
+
+      if (
+        matchesScope(input.metadata, candidate.requestedMetadata ?? {}) &&
+        (!candidate.contextChannelId ||
+          candidate.contextChannelId === input.ctx.channelId) &&
+        (!candidate.contextExecutionId ||
+          candidate.contextExecutionId === input.ctx.executionId) &&
+        (!candidate.contextRoutineId ||
+          candidate.contextRoutineId === input.ctx.routineId)
+      ) {
+        // Race-safe consume: only one concurrent caller will win
+        const [consumed] = await this.db
+          .update(authPermissionRequests)
+          .set({ consumedAt: new Date() })
+          .where(
+            and(
+              eq(authPermissionRequests.id, candidate.id),
+              isNull(authPermissionRequests.consumedAt),
+            ),
+          )
+          .returning();
+
+        if (consumed) {
+          this.safeEmit('permissions.request.consumed', {
+            id: consumed.id,
+            requesterBotId: input.ctx.botId,
+            permissionKey: input.key,
+          });
+          return {
+            allowed: true,
+            via: 'approved_once',
+            requestId: consumed.id,
+          };
+        }
+        // Race lost on this candidate — try next
+      }
     }
 
     return { allowed: false };
@@ -485,6 +491,18 @@ export class PermissionsService {
         'scopeOverride' in input &&
         input.scopeOverride &&
         Object.keys(input.scopeOverride).length > 0;
+
+      // Validate that a provided scopeOverride only narrows (tightens) the
+      // original requested scope — broadening is rejected (C2).
+      if (
+        overrideProvided &&
+        !isScopeNarrowing(input.scopeOverride!, existing.requestedMetadata)
+      ) {
+        throw new BadRequestException(
+          'scopeOverride may only narrow the requested scope, not broaden it',
+        );
+      }
+
       // For the grant's scopeMetadata, use the override if provided; otherwise use
       // the original requested scope. This is what the approver actually approved.
       const grantScopeMetadata = overrideProvided

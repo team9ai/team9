@@ -39,6 +39,41 @@ function matchesField(reqValue: unknown, scopeValue: unknown): boolean {
   return reqValue === scopeValue;
 }
 
+/**
+ * Returns true if `override` is a tightening (subset) of `original`.
+ * Tightening rules:
+ * - Override missing a key that the original constrained → broadens → false
+ * - Override array must be a subset of original array (or single value in array)
+ * - Override string must equal original string
+ * - Override may add NEW keys (extra constraints) → narrowing → true
+ */
+export function isScopeNarrowing(
+  override: Record<string, unknown>,
+  original: Record<string, unknown>,
+): boolean {
+  for (const [key, originalValue] of Object.entries(original)) {
+    if (!(key in override)) return false;
+    const overrideValue = override[key];
+    if (Array.isArray(originalValue)) {
+      if (Array.isArray(overrideValue)) {
+        for (const v of overrideValue) {
+          if (!originalValue.includes(v as never)) return false;
+        }
+      } else if (typeof overrideValue === 'string') {
+        if (!originalValue.includes(overrideValue as never)) return false;
+      } else {
+        return false;
+      }
+    } else if (typeof originalValue === 'string') {
+      if (overrideValue !== originalValue) return false;
+    } else {
+      // For other primitives, require strict equality
+      if (overrideValue !== originalValue) return false;
+    }
+  }
+  return true;
+}
+
 export function matchesScope(requested: Metadata, scope: Metadata): boolean {
   for (const [key, scopeValue] of Object.entries(scope)) {
     const reqValue = pluralLookup(requested, key);
