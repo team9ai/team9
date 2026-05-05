@@ -227,21 +227,39 @@ describe('FolderMapBuilder', () => {
     ]);
   });
 
-  it('throws BadRequestException when routineId is provided but sessionId scope is not routine', async () => {
-    // This is the safety net for the controller layer: callers must
-    // not silently get a routine.* mount tied to an unrelated DM session.
+  it('emits routine.* for a DM-backed routine creation session when routineId is provided', async () => {
     const { builder, provisionFolderForMount } = buildHarness();
 
-    await expect(
-      builder.buildFolderMap({
-        sessionId: DM_SESSION,
-        agentId: 'agent-x',
-        routineId: 'r-7',
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    const { folderMap } = await builder.buildFolderMap({
+      sessionId: DM_SESSION,
+      agentId: 'agent-x',
+      routineId: 'r-7',
+      userId: 'user-7',
+    });
 
-    // No resolver calls happened — we reject before any I/O.
-    expect(provisionFolderForMount).not.toHaveBeenCalled();
+    expect(Object.keys(folderMap).sort()).toEqual([
+      'agent.home',
+      'agent.tmp',
+      'routine.home',
+      'routine.tmp',
+      'session.home',
+      'session.tmp',
+      'user.home',
+      'user.tmp',
+    ]);
+
+    const routineCalls = provisionFolderForMount.mock.calls.filter(
+      ([args]) => args.scope === 'routine',
+    );
+    expect(routineCalls).toHaveLength(2);
+    expect(
+      routineCalls.every(
+        ([args]) =>
+          args.scopeId === 'r-7' &&
+          args.ownerType === 'agent' &&
+          args.ownerId === 'agent-x',
+      ),
+    ).toBe(true);
   });
 
   it('throws BadRequestException when agentId does not match sessionId agent segment', async () => {
