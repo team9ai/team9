@@ -3206,6 +3206,27 @@ describe('RoutinesService — TaskCast integration', () => {
       startSpy.mockRestore();
     });
 
+    it('returns finalized routine without waiting for autoRunFirst dispatch to settle', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockReturnValue(new Promise(() => {}) as any);
+
+      const result = await Promise.race([
+        service.completeCreation(
+          'routine-1',
+          { autoRunFirst: true },
+          'user-1',
+          'tenant-1',
+        ),
+        new Promise((resolve) => setTimeout(() => resolve('timed-out'), 25)),
+      ]);
+
+      expect(result).toEqual(UPDATED_ROUTINE);
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      startSpy.mockRestore();
+    });
+
     it('does NOT dispatch when autoRunFirst is omitted', async () => {
       setupDraftFixture();
       const startSpy = jest
@@ -3250,6 +3271,7 @@ describe('RoutinesService — TaskCast integration', () => {
       );
 
       expect(result).toBeDefined(); // Did NOT throw
+      await Promise.resolve();
       expect(loggerWarn).toHaveBeenCalledWith(
         expect.stringContaining('autoRunFirst dispatch failed'),
       );

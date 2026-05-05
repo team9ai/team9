@@ -1213,18 +1213,18 @@ export class RoutinesService {
     );
 
     // Step 8: optionally dispatch one manual execution if the agent
-    // requested it. Best-effort — failure is logged but does not roll back
-    // the finalize (the user can still trigger from the dashboard).
+    // requested it. Best-effort and intentionally fire-and-forget: the
+    // finalize response must not wait on RabbitMQ publish / task-worker
+    // availability, otherwise finishRoutineCreation can hang after the
+    // routine is already finalized.
     if (dto.autoRunFirst === true) {
-      try {
-        await this.start(routineId, userId, tenantId, {
-          message: 'Auto-run after routine creation',
-        } as StartRoutineDto);
-      } catch (e) {
+      void this.start(routineId, userId, tenantId, {
+        message: 'Auto-run after routine creation',
+      } as StartRoutineDto).catch((e) => {
         this.logger.warn(
           `completeCreation: autoRunFirst dispatch failed for routine ${routineId}: ${e}`,
         );
-      }
+      });
     }
 
     return updated;
