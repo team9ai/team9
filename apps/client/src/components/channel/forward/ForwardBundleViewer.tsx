@@ -41,7 +41,7 @@ export function ForwardBundleViewer({
         </DialogHeader>
         {isLoading && (
           <div className="p-4 text-sm text-muted-foreground">
-            {t("forward.source.unavailable")}
+            {t("forward.bundle.loading")}
           </div>
         )}
         {isError && (
@@ -51,11 +51,13 @@ export function ForwardBundleViewer({
         )}
         {data && (
           <ul className="max-h-[60vh] space-y-3 overflow-y-auto">
-            {data.map((item) => (
-              <li key={item.position} className="rounded border p-3">
-                <ForwardItemBody item={item} showJumpLink onJump={onJump} />
-              </li>
-            ))}
+            {[...data]
+              .sort((a, b) => a.position - b.position)
+              .map((item) => (
+                <li key={item.position} className="rounded border p-3">
+                  <ForwardItemBody item={item} showJumpLink onJump={onJump} />
+                </li>
+              ))}
           </ul>
         )}
       </DialogContent>

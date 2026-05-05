@@ -413,6 +413,77 @@ describe('ForwardsService', () => {
       );
     });
 
+    it('embeds the resolved sender name in the single-forward digest (spec §3.3)', async () => {
+      messagesService.findManyByIds.mockResolvedValue([
+        makeMessage({ id: 'msg-1', senderId: 'user-author', content: 'hello' }),
+      ]);
+      messagesService.findUsersByIds.mockResolvedValue([
+        {
+          id: 'user-author',
+          username: 'alice',
+          displayName: 'Alice',
+          avatarUrl: null,
+        },
+      ]);
+
+      await service.forward({
+        targetChannelId: 'ch-target',
+        sourceChannelId: 'ch-src',
+        sourceMessageIds: ['msg-1'],
+        userId: 'user-1',
+      });
+
+      const call = grpcService.createMessage.mock.calls[0][0] as {
+        content: string;
+      };
+      expect(call.content).toBe('[Forwarded] Alice: hello');
+    });
+
+    it('falls back to "unknown" when sender record is unavailable', async () => {
+      messagesService.findManyByIds.mockResolvedValue([
+        makeMessage({ id: 'msg-1', senderId: 'user-deleted', content: 'hi' }),
+      ]);
+      messagesService.findUsersByIds.mockResolvedValue([]);
+
+      await service.forward({
+        targetChannelId: 'ch-target',
+        sourceChannelId: 'ch-src',
+        sourceMessageIds: ['msg-1'],
+        userId: 'user-1',
+      });
+
+      const call = grpcService.createMessage.mock.calls[0][0] as {
+        content: string;
+      };
+      expect(call.content).toBe('[Forwarded] unknown: hi');
+    });
+
+    it('uses username when displayName is null', async () => {
+      messagesService.findManyByIds.mockResolvedValue([
+        makeMessage({ id: 'msg-1', senderId: 'user-bob', content: 'yo' }),
+      ]);
+      messagesService.findUsersByIds.mockResolvedValue([
+        {
+          id: 'user-bob',
+          username: 'bob',
+          displayName: null,
+          avatarUrl: null,
+        },
+      ]);
+
+      await service.forward({
+        targetChannelId: 'ch-target',
+        sourceChannelId: 'ch-src',
+        sourceMessageIds: ['msg-1'],
+        userId: 'user-1',
+      });
+
+      const call = grpcService.createMessage.mock.calls[0][0] as {
+        content: string;
+      };
+      expect(call.content).toBe('[Forwarded] bob: yo');
+    });
+
     it('forwards a single image message with attachment snapshot', async () => {
       messagesService.findManyByIds.mockResolvedValue([
         makeMessage({ type: 'image', content: null }),

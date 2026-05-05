@@ -167,13 +167,23 @@ export function MessageItem({
           lastAnchorRef.current,
           message.id,
         );
+        // Compute how many ids the range *would* add (excluding ones already
+        // selected) so we can distinguish a cap-hit from harmless dedup.
+        const beforeIds = useForwardSelectionStore.getState().selectedIds;
+        const wouldAdd = range.filter((id) => !beforeIds.has(id)).length;
         const added = selectionAddRange(range);
-        if (added < range.length) {
+        if (added < wouldAdd) {
           toast.error(t("channel:forward.tooManySelected"));
         }
       } else {
         const ok = selectionToggle(message.id);
-        if (!ok) toast.error(t("channel:forward.tooManySelected"));
+        if (!ok) {
+          toast.error(t("channel:forward.tooManySelected"));
+          // Don't update the anchor when the toggle was rejected — keeping
+          // the previous anchor avoids surprising shift+click ranges that
+          // start from a message the user could not actually select.
+          return;
+        }
         lastAnchorRef.current = message.id;
       }
     },

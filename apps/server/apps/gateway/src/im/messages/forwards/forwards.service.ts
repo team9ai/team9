@@ -117,6 +117,19 @@ export class ForwardsService {
     const sourceChannel = await this.channelsService.findById(sourceChannelId);
     const sourceChannelName = sourceChannel?.name ?? null;
 
+    // --- Resolve sender display names so the digest carries attribution
+    // (spec §3.3 — single: "[Forwarded] {sender}: {content}", bundle: per-row
+    // sender preview). Senders may be null if the user was deleted.
+    const distinctSenderIds = Array.from(
+      new Set(ordered.map((m) => m.senderId).filter((x): x is string => !!x)),
+    );
+    const senderRecords = distinctSenderIds.length
+      ? await this.messagesService.findUsersByIds(distinctSenderIds)
+      : [];
+    const senderNameById = new Map<string, string>(
+      senderRecords.map((u) => [u.id, u.displayName ?? u.username]),
+    );
+
     const kind: ForwardKind = ordered.length === 1 ? 'single' : 'bundle';
 
     // --- Build forward rows ---
@@ -168,7 +181,12 @@ export class ForwardsService {
     });
 
     const anyTruncated = items.some((i) => i.truncated);
-    const digest = this.buildDigest(kind, ordered, sourceChannelName);
+    const digest = this.buildDigest(
+      kind,
+      ordered,
+      sourceChannelName,
+      senderNameById,
+    );
     const metadataForward: ForwardMetadata = {
       kind,
       count: ordered.length,
@@ -335,15 +353,20 @@ export class ForwardsService {
     kind: ForwardKind,
     sources: { content: string | null; senderId: string | null }[],
     channelName: string | null,
+    senderNameById: Map<string, string>,
   ): string {
+    const nameOf = (senderId: string | null): string => {
+      if (!senderId) return 'unknown';
+      return senderNameById.get(senderId) ?? 'unknown';
+    };
     if (kind === 'single') {
       const m = sources[0];
       const head = (m.content ?? '').slice(0, 200);
-      return `[Forwarded] ${head}`;
+      return `[Forwarded] ${nameOf(m.senderId)}: ${head}`;
     }
     const previews = sources
       .slice(0, 3)
-      .map((m) => (m.content ?? '').slice(0, 80))
+      .map((m) => `${nameOf(m.senderId)}: ${(m.content ?? '').slice(0, 80)}`)
       .join('; ');
     return `[Forwarded chat record · ${sources.length} messages from #${channelName ?? 'channel'}] ${previews}`;
   }

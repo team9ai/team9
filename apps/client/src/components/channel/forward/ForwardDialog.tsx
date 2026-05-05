@@ -55,7 +55,7 @@ export function ForwardDialog({
     onSuccess: (_data, channelId) => {
       toast(t("forward.success"));
       queryClient.invalidateQueries({
-        queryKey: ["channelMessages", channelId],
+        queryKey: ["messages", channelId],
       });
       setTargetChannelId(null);
       onOpenChange(false);

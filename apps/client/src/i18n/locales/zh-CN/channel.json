@@ -284,7 +284,8 @@
     "bundle": {
       "title": "聊天记录 · {{count}} 条",
       "viewAll": "查看全部",
-      "modalTitle": "来自 #{{channelName}} 的聊天记录"
+      "modalTitle": "来自 #{{channelName}} 的聊天记录",
+      "loading": "正在加载聊天记录…"
     },
     "source": {
       "unavailable": "原消息已不可访问",

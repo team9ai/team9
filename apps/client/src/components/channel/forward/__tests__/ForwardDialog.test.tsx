@@ -571,7 +571,7 @@ describe("ForwardDialog", () => {
   });
 
   describe("query invalidation on success", () => {
-    it("invalidates channelMessages query for target channel", async () => {
+    it("invalidates messages query for target channel", async () => {
       const qc = makeQueryClient();
       const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 
@@ -591,7 +591,7 @@ describe("ForwardDialog", () => {
 
       await waitFor(() => {
         expect(invalidateSpy).toHaveBeenCalledWith({
-          queryKey: ["channelMessages", "ch1"],
+          queryKey: ["messages", "ch1"],
         });
       });
     });

@@ -134,10 +134,8 @@ describe("ForwardBundleViewer", () => {
         { wrapper },
       );
 
-      // Loading state renders the unavailable text as a placeholder
-      expect(
-        screen.getByText("forward.source.unavailable"),
-      ).toBeInTheDocument();
+      // Loading state renders the dedicated bundle-loading text
+      expect(screen.getByText("forward.bundle.loading")).toBeInTheDocument();
     });
   });
 

@@ -160,14 +160,33 @@ export function MessageList({
   const selectionExit = useForwardSelectionStore((s) => s.exit);
   const [forwardOpen, setForwardOpen] = useState(false);
 
-  // Esc key exits selection mode
+  // Selection-mode keyboard shortcuts: Esc exits, Enter opens the forward
+  // dialog when at least one message is selected (spec §6.3).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && selectionActive) selectionExit();
+      if (!selectionActive) return;
+      if (e.key === "Escape") {
+        selectionExit();
+        return;
+      }
+      if (e.key === "Enter" && selectionIds.size > 0) {
+        // Don't hijack Enter while the user is typing in an input/textarea or
+        // composing — only fire when focus is outside an editable element.
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        if (
+          tag === "input" ||
+          tag === "textarea" ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+        setForwardOpen(true);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectionActive, selectionExit]);
+  }, [selectionActive, selectionIds, selectionExit]);
 
   // Exit selection mode when switching channels
   useEffect(() => {

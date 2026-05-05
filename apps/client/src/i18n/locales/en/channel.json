@@ -287,7 +287,8 @@
     "bundle": {
       "title": "Chat record · {{count}} messages",
       "viewAll": "View all",
-      "modalTitle": "Chat record from #{{channelName}}"
+      "modalTitle": "Chat record from #{{channelName}}",
+      "loading": "Loading chat record…"
     },
     "source": {
       "unavailable": "Source no longer available",
