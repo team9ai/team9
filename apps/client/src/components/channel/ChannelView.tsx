@@ -231,6 +231,10 @@ export function ChannelView({
 
   // Use preview channel data or fetched channel data
   const channel = previewChannel || memberChannel;
+  const isArchivedChannel = !isPreviewMode && Boolean(channel?.isArchived);
+  const showComposerReadOnlyBar =
+    isPreviewMode || Boolean(readOnly) || isArchivedChannel;
+  const readOnlyLabel = isArchivedChannel ? t("archivedReadOnly") : undefined;
 
   // Sync missed messages when opening channel (lazy loading)
   useSyncChannel(channelId);
@@ -659,13 +663,14 @@ export function ChannelView({
             isLoadingNewer={isFetchingPreviousPage}
             highlightMessageId={jumpHighlightId ?? initialMessageId}
             highlightSeq={jumpSeq}
-            readOnly={isPreviewMode}
+            readOnly={isPreviewMode || isArchivedChannel}
             thinkingBotIds={thinkingBotIds}
             thinkingStatuses={thinkingStatuses}
             members={members}
             lastReadMessageId={unreadAnchor}
-            showReadOnlyBar={isPreviewMode || readOnly}
-            onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
+            showReadOnlyBar={showComposerReadOnlyBar}
+            readOnlyLabel={readOnlyLabel}
+            onSend={showComposerReadOnlyBar ? undefined : handleSendMessage}
             isSendDisabled={showOverlay}
             initialDraft={initialDraft}
             autoSendInitialDraft={autoSendInitialDraft}

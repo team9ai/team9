@@ -36,6 +36,7 @@ import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
 import { useChannelScrollStore } from "./useChannelScrollState";
 import { upsertIncomingMessageInData } from "@/lib/message-query-cache";
+import { getHttpErrorMessage } from "@/lib/http-error";
 
 // --- Temp message coordination ---
 // Coordinates between HTTP onSuccess and WebSocket handleNewMessage
@@ -1543,6 +1544,7 @@ export function useSendMessage(channelId: string) {
                 newMsgs[tempIndex] = {
                   ...serverMessage,
                   sendStatus: undefined,
+                  sendError: undefined,
                   _retryData: undefined,
                 };
                 return setMessages(page, newMsgs);
@@ -1566,11 +1568,12 @@ export function useSendMessage(channelId: string) {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
-    onError: (_err, variables, context) => {
+    onError: (err, variables, context) => {
       if (variables.clientMsgId) {
         // Clean up pending tracking
         pendingByClientMsgId.delete(variables.clientMsgId);
       }
+      const sendError = getHttpErrorMessage(err);
       // Mark the optimistic message as failed instead of rolling back
       if (context?.tempId) {
         queryClient.setQueriesData(
@@ -1587,6 +1590,7 @@ export function useSendMessage(channelId: string) {
                       ? {
                           ...msg,
                           sendStatus: "failed" as MessageSendStatus,
+                          sendError,
                           _retryData: variables,
                         }
                       : msg,
@@ -1639,6 +1643,7 @@ export function useRetryMessage(channelId: string) {
                         ...msg,
                         clientMsgId,
                         sendStatus: "sending" as MessageSendStatus,
+                        sendError: undefined,
                       }
                     : msg,
                 ),
@@ -1712,6 +1717,7 @@ export function useRetryMessage(channelId: string) {
                 newMsgs[tempIndex] = {
                   ...serverMessage,
                   sendStatus: undefined,
+                  sendError: undefined,
                   _retryData: undefined,
                 };
                 return setMessages(page, newMsgs);
@@ -1734,10 +1740,11 @@ export function useRetryMessage(channelId: string) {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
-    onError: (_err, { tempId, retryData }) => {
+    onError: (err, { tempId, retryData }) => {
       if (retryData.clientMsgId) {
         pendingByClientMsgId.delete(retryData.clientMsgId);
       }
+      const sendError = getHttpErrorMessage(err);
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
         (old: MessagesQueryData | undefined) => {
@@ -1752,6 +1759,7 @@ export function useRetryMessage(channelId: string) {
                     ? {
                         ...msg,
                         sendStatus: "failed" as MessageSendStatus,
+                        sendError,
                         _retryData: retryData,
                       }
                     : msg,

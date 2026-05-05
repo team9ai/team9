@@ -72,6 +72,7 @@
   "permanentDelete": "永久删除（不可恢复）",
   "deleting": "删除中...",
   "channelNotFound": "找不到频道",
+  "archivedReadOnly": "此会话已结束，不能再发送消息。",
   "loadingChannel": "加载频道中...",
   "loadingMessages": "加载消息中...",
   "loadingMoreMessages": "加载更多消息...",

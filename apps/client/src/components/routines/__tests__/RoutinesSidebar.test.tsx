@@ -360,7 +360,7 @@ describe("RoutinesSidebar", () => {
     });
   });
 
-  it("expanded card filters to active runs only and hides terminal runs", async () => {
+  it("expanded card shows active and terminal runs", async () => {
     mockList.mockResolvedValue([
       {
         id: "r-mix",
@@ -399,19 +399,14 @@ describe("RoutinesSidebar", () => {
     expect(screen.getByTestId("run-item-exec-paused")).toBeInTheDocument();
     expect(screen.getByTestId("run-item-exec-pending")).toBeInTheDocument();
 
-    // Terminal runs hidden — they live on the detail page's Runs tab.
-    expect(
-      screen.queryByTestId("run-item-exec-completed"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("run-item-exec-failed"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("run-item-exec-stopped"),
-    ).not.toBeInTheDocument();
+    // Terminal runs are visible too, so a failed auto-run does not look like
+    // an unexpandable routine.
+    expect(screen.getByTestId("run-item-exec-completed")).toBeInTheDocument();
+    expect(screen.getByTestId("run-item-exec-failed")).toBeInTheDocument();
+    expect(screen.getByTestId("run-item-exec-stopped")).toBeInTheDocument();
   });
 
-  it("expanded card with no active runs and not a draft renders no placeholder", async () => {
+  it("expanded card with only terminal runs shows those runs", async () => {
     mockList.mockResolvedValue([
       {
         id: "r-done",
@@ -438,14 +433,14 @@ describe("RoutinesSidebar", () => {
       expect(mockGetExecutions).toHaveBeenCalledWith("r-done"),
     );
 
-    // No "no runs yet" placeholder, no terminal runs in the sidebar.
+    // No "no runs yet" placeholder, terminal runs are visible in the sidebar.
     expect(screen.queryByText("No runs yet")).not.toBeInTheDocument();
     expect(screen.queryByText("historyTab.empty")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("run-item-exec-1")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("run-item-exec-2")).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-item-exec-1")).toBeInTheDocument();
+    expect(screen.getByTestId("run-item-exec-2")).toBeInTheDocument();
   });
 
-  it("Show more button is gone — terminal runs never offer pagination", async () => {
+  it("Show more button is gone — all fetched runs render directly", async () => {
     mockList.mockResolvedValue([
       {
         id: "r-many",
@@ -458,8 +453,8 @@ describe("RoutinesSidebar", () => {
       },
     ]);
     // Six terminal runs would have triggered the legacy "Show 3 more" button
-    // (DEFAULT_VISIBLE_RUNS = 3). With active-only filtering they are all
-    // hidden and pagination is moot.
+    // (DEFAULT_VISIBLE_RUNS = 3). The sidebar now renders the fetched runs
+    // directly instead.
     mockGetExecutions.mockResolvedValue([
       { id: "e1", status: "completed" },
       { id: "e2", status: "completed" },
@@ -479,6 +474,8 @@ describe("RoutinesSidebar", () => {
       expect(mockGetExecutions).toHaveBeenCalledWith("r-many"),
     );
 
+    expect(screen.getByTestId("run-item-e1")).toBeInTheDocument();
+    expect(screen.getByTestId("run-item-e6")).toBeInTheDocument();
     // Neither the i18n key nor any fallback rendering of "Show more" should
     // appear — the button is removed entirely.
     expect(
@@ -550,7 +547,7 @@ describe("RoutinesSidebar", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("expanded card with no active runs and not a draft keeps ChevronRight glyph", async () => {
+  it("expanded card with terminal runs shows ChevronDown glyph", async () => {
     mockList.mockResolvedValue([
       {
         id: "r-done",
@@ -562,8 +559,7 @@ describe("RoutinesSidebar", () => {
         creationChannelId: null,
       },
     ]);
-    // Only terminal-state executions — they're filtered out of the sidebar's
-    // active-only list, so hasExpandableContent is false.
+    // Only terminal-state executions — they still count as expandable content.
     mockGetExecutions.mockResolvedValue([
       { id: "exec-1", status: "completed" },
       { id: "exec-2", status: "failed" },
@@ -584,13 +580,11 @@ describe("RoutinesSidebar", () => {
       '[aria-label="detail.toggleExpand"]',
     ) as HTMLButtonElement;
     // lucide-react renders icons as SVGs with a class containing the icon
-    // name, e.g. `lucide-chevron-right` / `lucide-chevron-down`. The chevron
-    // must remain Right when there is no content to reveal — flipping to Down
-    // with an empty body would be visually incoherent.
+    // name, e.g. `lucide-chevron-right` / `lucide-chevron-down`.
     const svg = chevron.querySelector("svg");
     expect(svg).not.toBeNull();
-    expect(svg!.getAttribute("class")).toMatch(/chevron-right/);
-    expect(svg!.getAttribute("class")).not.toMatch(/chevron-down/);
+    expect(svg!.getAttribute("class")).toMatch(/chevron-down/);
+    expect(svg!.getAttribute("class")).not.toMatch(/chevron-right/);
   });
 
   it("shows loading spinner while routines query is pending", () => {

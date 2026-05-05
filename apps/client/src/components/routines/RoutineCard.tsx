@@ -27,14 +27,6 @@ const SHOW_TOKEN_STATUSES: RoutineStatus[] = [
   "timeout",
 ];
 
-// Sidebar expansion only surfaces runs that the user can still influence.
-// Terminal-state runs live on the detail page's Runs tab, not in the sidebar.
-const ACTIVE_STATUSES: RoutineStatus[] = [
-  "in_progress",
-  "paused",
-  "pending_action",
-];
-
 interface RoutineCardProps {
   routine: Routine;
   isExpanded: boolean;
@@ -108,15 +100,11 @@ export function RoutineCard({
 
   // Pre-compute whether the expanded body would render anything, so the
   // chevron icon only flips to the open glyph when there is actual content
-  // to reveal. Routines with no active runs and no creation row keep the
-  // closed glyph even after the user clicks the chevron — otherwise the
-  // visual state contradicts the empty body that follows.
-  const activeRuns = executions.filter((e) =>
-    ACTIVE_STATUSES.includes(e.status),
-  );
+  // to reveal. Failed/completed runs are included here: they are often the
+  // only clue that an auto-run started and immediately failed.
   const showCreationRow =
     routine.status === "draft" && !!routine.creationChannelId;
-  const hasExpandableContent = activeRuns.length > 0 || showCreationRow;
+  const hasExpandableContent = executions.length > 0 || showCreationRow;
 
   return (
     <div
@@ -205,14 +193,12 @@ export function RoutineCard({
         onClose={() => setShowStartDialog(false)}
       />
 
-      {/* Expanded: active-only run list (terminal runs live on the detail
-          page's Runs tab; the sidebar surface is reserved for runs the user
-          can act on). Empty active list collapses to header only — no
+      {/* Expanded run list. Empty list collapses to header only — no
           "no runs yet" placeholder. */}
       {isExpanded && hasExpandableContent && (
         <div className="px-3 pb-3" onClick={(event) => event.stopPropagation()}>
           <div className="ml-3 pl-2 border-l-2 border-border space-y-0.5">
-            {activeRuns.map((exec) => (
+            {executions.map((exec) => (
               <RunItem
                 key={exec.id}
                 execution={exec}

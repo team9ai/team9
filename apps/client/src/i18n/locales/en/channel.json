@@ -72,6 +72,7 @@
   "permanentDelete": "Permanently delete (cannot be recovered)",
   "deleting": "Deleting...",
   "channelNotFound": "Channel not found",
+  "archivedReadOnly": "This conversation has ended. New messages cannot be sent.",
   "loadingChannel": "Loading channel...",
   "loadingMessages": "Loading messages...",
   "loadingMoreMessages": "Loading more messages...",

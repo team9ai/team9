@@ -46,6 +46,8 @@ export interface ChannelContentProps {
   // Optional UI controls
   /** Show read-only bar at bottom (independent of readOnly which controls MessageList) */
   showReadOnlyBar?: boolean;
+  /** Optional reason shown in the read-only bar */
+  readOnlyLabel?: string;
 }
 
 export function ChannelContent({
@@ -72,6 +74,7 @@ export function ChannelContent({
   autoSendInitialDraft,
   onInitialDraftAutoSent,
   showReadOnlyBar,
+  readOnlyLabel,
   isBotDm,
   botModelSwitch,
 }: ChannelContentProps) {
@@ -98,7 +101,9 @@ export function ChannelContent({
 
       {showReadOnlyBar ? (
         <div className="px-4 py-3 border-t border-border bg-muted/30 text-center">
-          <span className="text-sm text-muted-foreground">Read-only</span>
+          <span className="text-sm text-muted-foreground">
+            {readOnlyLabel ?? "Read-only"}
+          </span>
         </div>
       ) : onSend ? (
         <MessageInput

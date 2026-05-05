@@ -109,6 +109,21 @@ describe("ChannelContent", () => {
     expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
   });
 
+  it("renders a specific read-only reason when provided", () => {
+    render(
+      <ChannelContent
+        {...BASE_PROPS}
+        showReadOnlyBar
+        readOnlyLabel="This conversation has ended."
+      />,
+    );
+
+    expect(
+      screen.getByText("This conversation has ended."),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
+  });
+
   it("renders read-only bar even when onSend is provided if showReadOnlyBar=true", () => {
     const onSend = makeOnSendMock();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} showReadOnlyBar />);

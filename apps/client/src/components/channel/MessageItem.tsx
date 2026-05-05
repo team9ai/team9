@@ -132,6 +132,7 @@ export function MessageItem({
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
   const isFailed = message.sendStatus === "failed";
+  const sendFailureReason = message.sendError?.trim();
   const { data: propertyDefinitions } = usePropertyDefinitions(
     message.channelId,
   );
@@ -434,9 +435,14 @@ export function MessageItem({
             </span>
           )}
           {isFailed && (
-            <span className="flex items-center gap-1 text-xs text-destructive">
+            <span
+              className="flex items-center gap-1 text-xs text-destructive"
+              title={sendFailureReason}
+            >
               <AlertCircle size={12} />
-              {t("message:sendFailed")}
+              {sendFailureReason
+                ? `${t("message:sendFailed")}: ${sendFailureReason}`
+                : t("message:sendFailed")}
             </span>
           )}
         </div>

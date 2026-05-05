@@ -225,6 +225,8 @@ export interface Message {
   lastReplyAt?: string;
   // Client-side only fields for optimistic updates
   sendStatus?: MessageSendStatus;
+  // Specific client-visible failure reason for optimistic sends
+  sendError?: string;
   // Original request data for retry (only present when sendStatus is 'failed')
   _retryData?: CreateMessageDto;
 }
