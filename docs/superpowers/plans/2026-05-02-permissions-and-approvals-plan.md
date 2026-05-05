@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:subagent-driven-development (recommended) or superpowers-extended-cc:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** Implemented — branch `feat/permissions-and-approvals`, HEAD `e487381f`, 2026-05-02. See spec for implementation notes on deviations.
+
 **Goal:** Ship the permissions & approvals system described in [2026-05-02-permissions-and-approvals-design.md](../specs/2026-05-02-permissions-and-approvals-design.md), including the framework (DB / service / API / WS / frontend) plus the first enforcement point (bot cross-channel `messages:send`).
 
 **Architecture:** Two new tables (`auth_permission_grants`, `auth_permission_requests`); a single `PermissionsService.gate(...)` entry point used at every enforcement site; per-key `resolveApprovers(ctx)` registry that maps a permission to its resource holders; one-time approvals identified by a memorable BIP-39 spell id.

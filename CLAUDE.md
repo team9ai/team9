@@ -93,6 +93,7 @@ The backend follows a modular NestJS architecture with two main applications:
   - WebSocket: Socket.io gateway for real-time events
 - **Workspace Module** ([apps/server/apps/gateway/src/workspace](apps/server/apps/gateway/src/workspace)): Multi-tenant workspace management
 - **Wikis Module** ([apps/server/apps/gateway/src/wikis](apps/server/apps/gateway/src/wikis)): folder9-backed knowledge base. `workspace_wikis` table tracks the per-workspace wiki catalog with per-role permissions (human/agent × read/propose/write) and `auto`/`review` approval modes. Reviewable commits flow through folder9 proposals; webhook ingress (`/api/folder9/webhook`) rebroadcasts events to the workspace room.
+- **Permissions Module** ([apps/server/apps/gateway/src/permissions](apps/server/apps/gateway/src/permissions)): Capability-level authorization layer. Agents request permissions via a memorable **spell id** (BIP-39 words); users approve once or durably. A central `PermissionsService.gate(key, metadata, ctx)` is called at every enforcement site. REST + WS APIs let the frontend inbox and settings UI update in real time.
 - **Edition Module** ([apps/server/apps/gateway/src/edition](apps/server/apps/gateway/src/edition)): Dynamic feature loading for Community vs Enterprise editions
 
 **Edition System:**
@@ -105,6 +106,7 @@ The codebase supports Community and Enterprise editions via environment variable
   - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status, channel_property_definitions, message_properties, audit_logs, channel_views, channel_tabs
   - **tenant/**: tenants, tenant_members, workspace_invitations
   - **wiki/**: workspace_wikis (Team9 pointer to folder9-backed wikis with permission + approval mode)
+  - **permissions/**: auth_permission_grants (durable capability grants), auth_permission_requests (agent-initiated requests with BIP-39 spell id, pending → decided lifecycle)
 - All migrations managed via `pnpm db:migrate`
 - Schema changes pushed via `pnpm db:push` (dev) or `pnpm db:generate` + `pnpm db:migrate` (prod)
 

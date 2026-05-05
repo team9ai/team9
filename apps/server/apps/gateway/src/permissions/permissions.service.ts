@@ -164,6 +164,12 @@ export class PermissionsService {
     return row;
   }
 
+  /**
+   * Revoke an active grant by setting `revokedAt` to now.
+   * Throws NotFoundException if the grant does not exist, belongs to another
+   * tenant, or was already revoked.
+   * Emits `permissions.grant.revoked` after a successful update.
+   */
   async revokeGrant(input: {
     grantId: string;
     userId: string;
@@ -207,6 +213,15 @@ export class PermissionsService {
     });
   }
 
+  /**
+   * Central authorization check. Returns `{ allowed: true, via, grantId? }` if
+   * any active grant or unconsumed `approved_once` request covers the requested
+   * `key` + `metadata` for the given context (bot/channel/execution/routine).
+   *
+   * Subject specificity order: execution-session > channel-session > task > agent.
+   * An `approved_once` match atomically sets `consumedAt` to prevent double-use.
+   * Returns `{ allowed: false }` when no matching grant or approval is found.
+   */
   async gate(input: {
     key: PermissionKey;
     metadata: Record<string, unknown>;
@@ -463,6 +478,21 @@ export class PermissionsService {
     return row;
   }
 
+  /**
+   * Decide a pending permission request.
+   *
+   * - `once`: marks status `approved_once`; the first matching `gate()` call
+   *   will consume it (sets `consumedAt`).
+   * - `remember`: marks status `approved_durable` and atomically creates a row
+   *   in `auth_permission_grants` (sets `durableGrantId`). An optional
+   *   `scopeOverride` narrows the grant's `scope_metadata`.
+   * - `deny`: marks status `denied`; `gate()` returns DENY immediately
+   *   on future calls.
+   *
+   * Throws NotFoundException if the request does not exist, ConflictException
+   * if it is no longer pending, and ForbiddenException if the caller is not
+   * in the resolved approver set.
+   */
   async decideRequest(input: DecideInput) {
     const result = await this.db.transaction(async (tx) => {
       // Re-fetch inside the transaction so the status check is race-safe (C2)

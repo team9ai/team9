@@ -1,8 +1,18 @@
 # Permissions and Approvals System — Design
 
 **Date:** 2026-05-02
-**Status:** Reviewed (open questions resolved 2026-05-02)
+**Status:** Implemented (branch `feat/permissions-and-approvals`, HEAD `e487381f`, 2026-05-02)
 **Author:** Claude (auto-mode brainstorming)
+
+## Implementation Notes (deviations from spec)
+
+The following items deviated from the original sketch in §17 — everything else matched.
+
+1. **`permissions.ws-bridge.ts` (new file, not in §17 sketch):** The WS emission is split into a dedicated `@Injectable()` `PermissionsWsBridge` class that listens for internal NestJS `EventEmitter2` events (`permissions.grant.*`, `permissions.request.*`) and calls `WebsocketGateway.broadcastToApprovers()`. The spec's §9 described the service emitting directly; in practice a bridge keeps the service free of the WS dependency.
+
+2. **Enforcement point in `messages.controller.ts` (not `messages.service.ts`):** §17 listed the enforcement modification as `messages.service.ts`. The implementation placed the `gate()` call in `messages.controller.ts` at the bot non-member path, which is equally correct — controllers are the natural enforcement boundary in NestJS.
+
+3. **Migration naming:** Spec §5.3 used the placeholder `00XX_permissions_init.sql`. The actual generated migrations are `0059_handy_kronos.sql` and `0060_steady_spiral.sql` (Drizzle's default naming).
 
 ## 1. Background
 
