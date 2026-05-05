@@ -54,6 +54,23 @@ vi.mock("@/services/api/permissions", () => ({
   },
 }));
 
+// ── Mock useCreateGrant so we can spy on mutateAsync ─────────────────────────
+const mockMutateAsync = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ id: "g-new" }),
+);
+
+vi.mock("@/hooks/usePermissions", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/hooks/usePermissions")>();
+  return {
+    ...actual,
+    useCreateGrant: () => ({
+      mutateAsync: mockMutateAsync,
+      isPending: false,
+    }),
+  };
+});
+
 // ── Import under test (after mocks) ──────────────────────────────────────────
 import { GrantList } from "../GrantList";
 
@@ -163,5 +180,57 @@ describe("<GrantList>", () => {
     await screen.findByText("messages:send");
     // scope summary for g1 should mention the channelIds
     expect(screen.getByText(/c1/)).toBeInTheDocument();
+  });
+
+  // ── GrantEditor dialog tests ─────────────────────────────────────────────
+
+  it('opens GrantEditor dialog when "Add grant" is clicked', async () => {
+    mockListGrants.mockResolvedValueOnce([]);
+    render(wrap(<GrantList subjectKind="agent" subjectId="bot-1" />));
+    await screen.findByText(/no grants for this/i);
+
+    const addButton = screen.getByRole("button", { name: /add grant/i });
+    await act(async () => {
+      fireEvent.click(addButton);
+    });
+
+    // The GrantEditor dialog should now be open (role=dialog)
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+  });
+
+  it("submits create grant on save with the correct body", async () => {
+    mockListGrants.mockResolvedValueOnce([]);
+    mockMutateAsync.mockClear();
+
+    render(wrap(<GrantList subjectKind="agent" subjectId="bot-1" />));
+    await screen.findByText(/no grants for this/i);
+
+    // Open the dialog
+    const addButton = screen.getByRole("button", { name: /add grant/i });
+    await act(async () => {
+      fireEvent.click(addButton);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    // Click Save grant (default permissionKey is first in PERMISSION_KEYS)
+    const saveButton = screen.getByRole("button", { name: /save grant/i });
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subjectKind: "agent",
+          subjectId: "bot-1",
+          permissionKey: "messages:send",
+        }),
+      );
+    });
   });
 });

@@ -268,6 +268,7 @@ export class PermissionsService {
 
     if (
       candidate &&
+      (!candidate.expiresAt || candidate.expiresAt.getTime() > Date.now()) &&
       matchesScope(input.metadata, candidate.requestedMetadata ?? {}) &&
       (!candidate.contextChannelId ||
         candidate.contextChannelId === input.ctx.channelId) &&

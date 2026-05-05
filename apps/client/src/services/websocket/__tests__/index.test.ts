@@ -9,48 +9,60 @@ type MockSocket = {
   trigger: (event: string, ...args: unknown[]) => void;
 };
 
-const { ioMock, sockets, sentryMock, queryClientMock } = vi.hoisted(() => {
-  const sockets: MockSocket[] = [];
+const { ioMock, sockets, sentryMock, queryClientMock, appStoreMock } =
+  vi.hoisted(() => {
+    const sockets: MockSocket[] = [];
 
-  // Typed as `(...args: unknown[]) => MockSocket` so `mock.calls[i][1]`
-  // (the options arg the production code passes) is reachable.
-  const ioMock = vi.fn((..._args: unknown[]): MockSocket => {
-    const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
-    const socket: MockSocket = {
-      connected: false,
-      disconnect: vi.fn(),
-      off: vi.fn(),
-      on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
-        const current = handlers.get(event) ?? [];
-        current.push(callback);
-        handlers.set(event, current);
-      }),
-      removeAllListeners: vi.fn(() => {
-        handlers.clear();
-      }),
-      trigger: (event: string, ...args: unknown[]) => {
-        for (const callback of handlers.get(event) ?? []) {
-          callback(...args);
-        }
+    // Typed as `(...args: unknown[]) => MockSocket` so `mock.calls[i][1]`
+    // (the options arg the production code passes) is reachable.
+    const ioMock = vi.fn((..._args: unknown[]): MockSocket => {
+      const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
+      const socket: MockSocket = {
+        connected: false,
+        disconnect: vi.fn(),
+        off: vi.fn(),
+        on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
+          const current = handlers.get(event) ?? [];
+          current.push(callback);
+          handlers.set(event, current);
+        }),
+        removeAllListeners: vi.fn(() => {
+          handlers.clear();
+        }),
+        trigger: (event: string, ...args: unknown[]) => {
+          for (const callback of handlers.get(event) ?? []) {
+            callback(...args);
+          }
+        },
+      };
+
+      sockets.push(socket);
+      return socket;
+    });
+
+    const incrementPendingPermissions = vi.fn();
+    const decrementPendingPermissions = vi.fn();
+
+    return {
+      ioMock,
+      queryClientMock: {
+        invalidateQueries: vi.fn(),
+      },
+      sentryMock: {
+        addBreadcrumb: vi.fn(),
+        captureException: vi.fn(),
+      },
+      sockets,
+      appStoreMock: {
+        getState: vi.fn(() => ({
+          incrementPendingPermissions,
+          decrementPendingPermissions,
+        })),
+        incrementPendingPermissions,
+        decrementPendingPermissions,
       },
     };
-
-    sockets.push(socket);
-    return socket;
   });
-
-  return {
-    ioMock,
-    queryClientMock: {
-      invalidateQueries: vi.fn(),
-    },
-    sentryMock: {
-      addBreadcrumb: vi.fn(),
-      captureException: vi.fn(),
-    },
-    sockets,
-  };
-});
 
 vi.mock("socket.io-client", () => ({
   io: ioMock,
@@ -68,6 +80,10 @@ vi.mock("@sentry/react", () => sentryMock);
 
 vi.mock("@/lib/query-client", () => ({
   queryClient: queryClientMock,
+}));
+
+vi.mock("@/stores/useAppStore", () => ({
+  useAppStore: appStoreMock,
 }));
 
 describe("WebSocketService transport fallback", () => {
@@ -159,5 +175,54 @@ describe("WebSocketService routine/user updated helpers", () => {
 
     expect(routineCb).toHaveBeenCalledWith({ routineId: "r-1" });
     expect(userCb).toHaveBeenCalledWith({ userId: "u-1" });
+  });
+});
+
+describe("permissions events", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    ioMock.mockClear();
+    sentryMock.addBreadcrumb.mockClear();
+    sentryMock.captureException.mockClear();
+    queryClientMock.invalidateQueries.mockClear();
+    appStoreMock.incrementPendingPermissions.mockClear();
+    appStoreMock.decrementPendingPermissions.mockClear();
+    appStoreMock.getState.mockClear();
+    sockets.length = 0;
+    localStorage.clear();
+  });
+
+  it("REQUEST_CREATED increments badge and invalidates requests", async () => {
+    await import("../index");
+
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+
+    socket.trigger("permission_request_created", { id: "req-1" });
+
+    expect(
+      appStoreMock.getState().incrementPendingPermissions,
+    ).toHaveBeenCalled();
+    expect(queryClientMock.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["permissions", "requests"] }),
+    );
+  });
+
+  it("REQUEST_CONSUMED decrements badge and invalidates requests", async () => {
+    await import("../index");
+
+    const socket = sockets[0];
+    expect(socket).toBeDefined();
+    if (!socket) return;
+
+    socket.trigger("permission_request_consumed", { id: "req-1" });
+
+    expect(
+      appStoreMock.getState().decrementPendingPermissions,
+    ).toHaveBeenCalled();
+    expect(queryClientMock.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["permissions", "requests"] }),
+    );
   });
 });

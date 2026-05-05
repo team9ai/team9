@@ -219,9 +219,11 @@ describe('MessagesController — bot permission gate', () => {
 
     const body = thrown!.getResponse() as Record<string, unknown>;
     expect(body).toMatchObject({
+      statusCode: 403,
       error: 'PERMISSION_REQUIRED',
       requestId: 'req-123',
       spellId: 'alpha bravo charlie',
+      message: expect.any(String),
     });
 
     expect(permissions.gate).toHaveBeenCalledWith({
@@ -269,6 +271,43 @@ describe('MessagesController — bot permission gate', () => {
     ).resolves.toBeDefined();
 
     expect(imWorkerGrpc.createMessage).toHaveBeenCalled();
+    expect(permissions.createRequest).not.toHaveBeenCalled();
+    expect(permissions.gate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'messages:send',
+        metadata: { channelId: CHANNEL_ID },
+        ctx: expect.objectContaining({
+          botId: BOT_ID,
+          channelId: CHANNEL_ID,
+          tenantId: TENANT_ID,
+        }),
+      }),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 4: Bot with no tenantId → plain ForbiddenException (no PERMISSION_REQUIRED)
+  // -------------------------------------------------------------------------
+
+  it('falls back to plain ForbiddenException when bot has no tenantId', async () => {
+    channelsService.isMember.mockResolvedValueOnce(false);
+    bots.getBotByUserId.mockResolvedValueOnce({
+      botId: BOT_ID,
+      userId: BOT_USER_ID,
+    });
+
+    // Pass undefined tenantId — controller guards this as "no tenant, deny"
+    await expect(
+      controller.createMessage(
+        BOT_USER_ID,
+        CHANNEL_ID,
+        { content: 'hello from bot' } as never,
+        undefined, // no tenantId
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    // Gate must NOT be consulted when tenantId is missing
+    expect(permissions.gate).not.toHaveBeenCalled();
     expect(permissions.createRequest).not.toHaveBeenCalled();
   });
 });

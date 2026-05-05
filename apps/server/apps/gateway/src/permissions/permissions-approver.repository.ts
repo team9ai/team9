@@ -86,6 +86,7 @@ export class PermissionsApproverRepository {
       where: and(
         eq(tenantMembers.tenantId, tenantId),
         eq(tenantMembers.role, 'owner'),
+        isNull(tenantMembers.leftAt),
       ),
       columns: { userId: true },
     });
@@ -97,6 +98,7 @@ export class PermissionsApproverRepository {
       where: and(
         eq(tenantMembers.tenantId, tenantId),
         inArray(tenantMembers.role, ['owner', 'admin']),
+        isNull(tenantMembers.leftAt),
       ),
       columns: { userId: true },
     });

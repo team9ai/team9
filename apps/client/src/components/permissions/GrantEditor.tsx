@@ -108,6 +108,7 @@ export function GrantEditor({
           <div className="space-y-1.5">
             <Label>{t("remember.scopeLabel")}</Label>
             <ScopeEditor
+              key={permissionKey}
               permissionKey={permissionKey}
               value={scopeMetadata}
               onChange={setScopeMetadata}

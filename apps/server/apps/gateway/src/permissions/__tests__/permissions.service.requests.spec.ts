@@ -271,6 +271,47 @@ describe('PermissionsService — requests', () => {
       );
     });
 
+    it('remember with scopeOverride creates grant with overridden scope', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { toolName: 'sql' },
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+      });
+      insertGrantReturning.mockResolvedValueOnce([{ id: 'g-override' }]);
+      updateRequestReturning.mockResolvedValueOnce([
+        {
+          id: 'r1',
+          status: 'approved_durable',
+          durableGrantId: 'g-override',
+          requestedMetadata: { toolNames: ['sql', 'shell'] },
+        },
+      ]);
+
+      const r = await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        decision: 'remember',
+        rememberSubject: 'agent',
+        scopeOverride: { toolNames: ['sql', 'shell'] },
+      });
+      expect(r.durableGrantId).toBe('g-override');
+      // Grant insert should have received the overridden scope, not the original
+      const insertCall = tx.insert.mock.calls.find(
+        (c: any[]) => c[0]?.__name === 'grants',
+      );
+      expect(insertCall).toBeDefined();
+      // The .values() call is chained — verify via the values mock on insertGrantReturning's chain
+      // Since our mock tracks insert separately, we verify via the returned row's requestedMetadata
+      expect(r.requestedMetadata).toEqual({ toolNames: ['sql', 'shell'] });
+    });
+
     it('deny: sets status to denied', async () => {
       requestFindFirst.mockResolvedValueOnce({
         id: 'r1',

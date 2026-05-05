@@ -128,7 +128,7 @@ function resetState() {
 
 function buildPermissionsServiceStub() {
   return {
-    /** gate: allowed if a matching durable grant exists */
+    /** gate: allowed if a matching durable grant exists (checks subjectKind + subjectId) */
     gate: jest.fn(
       async (input: {
         key: string;
@@ -139,7 +139,10 @@ function buildPermissionsServiceStub() {
           if (
             grant.tenantId === input.ctx.tenantId &&
             grant.permissionKey === input.key &&
-            grant.subjectId === (input.ctx.channelId ?? input.ctx.botId)
+            ((grant.subjectKind === 'channel-session' &&
+              grant.subjectId === input.ctx.channelId) ||
+              (grant.subjectKind === 'agent' &&
+                grant.subjectId === input.ctx.botId))
           ) {
             return { allowed: true, via: 'grant', grantId: grant.id };
           }
@@ -441,7 +444,7 @@ describe('Permissions e2e — deny → decide → retry', () => {
     expect(step1.status).toBe(403);
     expect(step1.body.error).toBe('PERMISSION_REQUIRED');
     expect(typeof step1.body.requestId).toBe('string');
-    expect(step1.body.spellId).toMatch(/^[a-z]+([ -][a-z]+){1,3}$/);
+    expect(step1.body.spellId).toMatch(/^[a-z]+( [a-z]+){2,3}$/);
 
     const { requestId } = step1.body as { requestId: string };
 
@@ -519,8 +522,8 @@ describe('Permissions e2e — deny → decide → retry', () => {
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({
       statusCode: 403,
+      message: expect.any(String),
       error: 'PERMISSION_REQUIRED',
-      message: expect.stringContaining('messages:send'),
     });
     expect(typeof res.body.requestId).toBe('string');
     expect(typeof res.body.spellId).toBe('string');

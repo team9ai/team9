@@ -174,4 +174,44 @@ describe('PermissionsService.gate', () => {
     });
     expect(r).toEqual({ allowed: false });
   });
+
+  it('skips a grant whose expiresAt is in the past', async () => {
+    grantsFindMany.mockResolvedValueOnce([
+      {
+        id: 'g-expired',
+        subjectKind: 'agent',
+        subjectId: 'b1',
+        permissionKey: 'messages:send',
+        scopeMetadata: {},
+        revokedAt: null,
+        expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
+      },
+    ]);
+    requestsFindFirst.mockResolvedValueOnce(null);
+    const r = await svc.gate({
+      key: 'messages:send',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1' },
+    });
+    expect(r).toEqual({ allowed: false });
+  });
+
+  it('skips an expired approved_once request', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    requestsFindFirst.mockResolvedValueOnce({
+      id: 'req-expired',
+      requestedMetadata: {},
+      contextChannelId: null,
+      contextExecutionId: null,
+      expiresAt: new Date(Date.now() - 1000), // expired 1 second ago
+    });
+    const r = await svc.gate({
+      key: 'messages:send',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1' },
+    });
+    expect(r).toEqual({ allowed: false });
+    // Must NOT have tried to consume the expired request
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
 });

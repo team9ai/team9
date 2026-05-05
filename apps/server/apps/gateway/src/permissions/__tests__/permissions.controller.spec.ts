@@ -228,6 +228,39 @@ describe('PermissionsController (e2e)', () => {
       .expect(404);
   });
 
+  it('DELETE /permissions/requests/:id returns 403 when user is not a bot', async () => {
+    svc.requireBotIdForUser.mockRejectedValue(
+      new ForbiddenException(
+        'Only bot accounts may cancel permission requests',
+      ),
+    );
+    await request(app.getHttpServer())
+      .delete('/api/v1/permissions/requests/r1')
+      .expect(403);
+  });
+
+  it('POST /permissions/grants returns 400 for unknown permissionKey', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/permissions/grants')
+      .send({
+        subjectKind: 'agent',
+        subjectId: '550e8400-e29b-41d4-a716-446655440000',
+        permissionKey: 'bogus:key',
+      })
+      .expect(400);
+  });
+
+  it('POST /permissions/requests returns 400 for unknown permissionKey', async () => {
+    svc.requireBotIdForUser.mockResolvedValue('b1');
+    await request(app.getHttpServer())
+      .post('/api/v1/permissions/requests')
+      .send({
+        permissionKey: 'bogus:key',
+        requestedMetadata: {},
+      })
+      .expect(400);
+  });
+
   it('DELETE /permissions/requests/:id cancels request', async () => {
     svc.requireBotIdForUser.mockResolvedValue('b1');
     svc.cancelRequest.mockResolvedValue({ id: 'r1', status: 'cancelled' });

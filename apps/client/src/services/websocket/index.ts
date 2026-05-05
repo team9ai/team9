@@ -277,6 +277,7 @@ class WebSocketService {
     });
 
     this.socket.on(WS_EVENTS.PERMISSION.REQUEST_CONSUMED, () => {
+      queryClient.invalidateQueries({ queryKey: ["permissions", "requests"] });
       useAppStore.getState().decrementPendingPermissions();
     });
 
