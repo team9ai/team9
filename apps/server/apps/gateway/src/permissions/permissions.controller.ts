@@ -29,10 +29,20 @@ export class PermissionsController {
   // -------------------------------------------------------------------------
 
   @Get('grants')
-  listGrants(
+  async listGrants(
+    @CurrentUser('sub') userId: string,
     @CurrentUser('tenantId') tenantId: string,
     @Query() q: ListGrantsQueryDto,
   ) {
+    // Require either workspace admin OR a subject filter (data scoping)
+    const isAdmin = (await this.svc.getWorkspaceAdmins(tenantId)).includes(
+      userId,
+    );
+    if (!isAdmin && (!q.subjectKind || !q.subjectId)) {
+      throw new ForbiddenException(
+        'Specify subjectKind+subjectId or be a workspace admin',
+      );
+    }
     return this.svc.listGrants({
       tenantId,
       subjectKind: q.subjectKind,
@@ -54,20 +64,8 @@ export class PermissionsController {
       );
     }
     // Authorization: caller must be a potential approver for this permission key + subject (I3)
-    const synthetic = {
-      id: 'pending',
-      tenantId,
-      requesterBotId: dto.subjectKind === 'agent' ? dto.subjectId : '',
-      permissionKey: dto.permissionKey,
-      requestedMetadata: dto.scopeMetadata ?? {},
-      suggestedApproverIds: [] as string[],
-      contextChannelId:
-        dto.subjectKind === 'channel-session' ? dto.subjectId : null,
-      contextExecutionId:
-        dto.subjectKind === 'execution-session' ? dto.subjectId : null,
-      contextRoutineId: dto.subjectKind === 'task' ? dto.subjectId : null,
-    };
-    if (!(await this.svc.canDecide(userId, synthetic as never))) {
+    const synthetic = this.buildSyntheticForCanDecide(tenantId, dto);
+    if (!(await this.svc.canDecide(userId, synthetic))) {
       throw new ForbiddenException('Not authorized to grant this permission');
     }
     return this.svc.createGrant({
@@ -83,11 +81,24 @@ export class PermissionsController {
   }
 
   @Delete('grants/:id')
-  revokeGrant(
+  async revokeGrant(
     @CurrentUser('sub') userId: string,
     @CurrentUser('tenantId') tenantId: string,
     @Param('id') id: string,
   ) {
+    // Authorization: caller must be able to administer grants for this subject
+    const grant = await this.svc.getGrant(id, tenantId);
+    if (!grant) throw new NotFoundException();
+    // Build synthetic request to check canDecide for this grant's subject
+    const synthetic = this.buildSyntheticForCanDecide(tenantId, {
+      subjectKind: grant.subjectKind,
+      subjectId: grant.subjectId,
+      permissionKey: grant.permissionKey,
+      scopeMetadata: grant.scopeMetadata as Record<string, unknown> | undefined,
+    });
+    if (!(await this.svc.canDecide(userId, synthetic))) {
+      throw new ForbiddenException('Not authorized to revoke this grant');
+    }
     return this.svc.revokeGrant({ grantId: id, userId, tenantId });
   }
 
@@ -167,11 +178,12 @@ export class PermissionsController {
   @Post('requests/:id/decide')
   async decideRequest(
     @CurrentUser('sub') userId: string,
+    @CurrentUser('tenantId') tenantId: string,
     @Param('id') id: string,
     @Body() dto: DecideRequestDto,
   ) {
     const req = await this.svc.getRequest(id);
-    if (!req) throw new NotFoundException();
+    if (!req || req.tenantId !== tenantId) throw new NotFoundException();
     if (
       !(await this.svc.canDecide(
         userId,
@@ -194,6 +206,39 @@ export class PermissionsController {
       }),
       ...(dto.note !== undefined && { note: dto.note }),
     } as Parameters<PermissionsService['decideRequest']>[0]);
+  }
+
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Builds a synthetic request object shaped to match what canDecide expects,
+   * based on a grant/dto's subject kind and id.
+   */
+  private buildSyntheticForCanDecide(
+    tenantId: string,
+    subject: {
+      subjectKind: 'agent' | 'channel-session' | 'execution-session' | 'task';
+      subjectId: string;
+      permissionKey: string;
+      scopeMetadata?: Record<string, unknown>;
+    },
+  ): Parameters<PermissionsService['canDecide']>[1] {
+    return {
+      id: 'synthetic',
+      tenantId,
+      requesterBotId: subject.subjectKind === 'agent' ? subject.subjectId : '',
+      permissionKey: subject.permissionKey as PermissionKey,
+      requestedMetadata: subject.scopeMetadata ?? {},
+      suggestedApproverIds: [],
+      contextChannelId:
+        subject.subjectKind === 'channel-session' ? subject.subjectId : null,
+      contextExecutionId:
+        subject.subjectKind === 'execution-session' ? subject.subjectId : null,
+      contextRoutineId:
+        subject.subjectKind === 'task' ? subject.subjectId : null,
+    };
   }
 
   @Post('requests/by-spell/:spell/decide')

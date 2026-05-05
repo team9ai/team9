@@ -51,6 +51,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   },
   authPermissionGrants: { __name: 'grants' },
   authPermissionRequests: { __name: 'requests' },
+  routineExecutions: {},
   tenantMembers: {},
   // Provide DATABASE_CONNECTION token and Drizzle helpers used by transitive imports
   DATABASE_CONNECTION: 'DATABASE_CONNECTION',
@@ -192,6 +193,39 @@ describe('PermissionsService — requests', () => {
         }),
       ).rejects.toMatchObject({ code: '23505' });
       expect(spell.generate).toHaveBeenCalledTimes(5);
+    });
+
+    it('returns existing pending request when called twice with same context (Fix 8 dedup)', async () => {
+      const existingRow = {
+        id: 'r-existing',
+        spellId: 'old spell id',
+        status: 'pending',
+        tenantId: 't1',
+        requesterBotId: 'b1',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { toolName: 'sql' },
+        suggestedApproverIds: [],
+        contextChannelId: 'ch-1',
+        contextExecutionId: null,
+        contextRoutineId: null,
+        reason: null,
+        expiresAt: new Date(Date.now() + 60_000), // expires in 1 minute
+      };
+      // requestFindFirst is used by dedup check before insert
+      requestFindFirst.mockResolvedValueOnce(existingRow);
+
+      const r = await svc.createRequest({
+        tenantId: 't1',
+        requesterBotId: 'b1',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: { toolName: 'sql' },
+        contextChannelId: 'ch-1',
+      });
+      expect(r.id).toBe('r-existing');
+      // No insert should have been called
+      expect(spell.generate).not.toHaveBeenCalled();
+      // No event emitted for existing request
+      expect(events.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -582,6 +616,164 @@ describe('PermissionsService — requests', () => {
       });
       expect(r.durableGrantId).toBe('g1');
     });
+
+    it('remember with rememberSubject=execution-session uses contextExecutionId (Fix 12)', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: 'exec-1',
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      insertGrantReturning.mockResolvedValueOnce([
+        {
+          id: 'g1',
+          tenantId: 't1',
+          subjectKind: 'execution-session',
+          subjectId: 'exec-1',
+          permissionKey: 'tools:invoke',
+          scopeMetadata: {},
+        },
+      ]);
+      updateRequestReturning.mockResolvedValueOnce([
+        { id: 'r1', status: 'approved_durable', durableGrantId: 'g1' },
+      ]);
+
+      const r = await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        decision: 'remember',
+        rememberSubject: 'execution-session',
+      });
+      expect(r.durableGrantId).toBe('g1');
+      // Verify grant emit includes full payload (Fix 7)
+      expect(events.emit).toHaveBeenCalledWith(
+        'permissions.grant.created',
+        expect.objectContaining({
+          id: 'g1',
+          subjectKind: 'execution-session',
+          subjectId: 'exec-1',
+          permissionKey: 'tools:invoke',
+        }),
+      );
+      // Verify insert was called with execution-session subject (Fix 12 - TX insert check)
+      const insertCall = tx.insert.mock.calls.find(
+        (c: any[]) => c[0]?.__name === 'grants',
+      );
+      expect(insertCall).toBeDefined();
+    });
+
+    it('remember with rememberSubject=execution-session throws BadRequest when contextExecutionId is null (Fix 12)', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null, // missing!
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+
+      const { BadRequestException } = await import('@nestjs/common');
+      await expect(
+        svc.decideRequest({
+          requestId: 'r1',
+          userId: 'u-owner',
+          decision: 'remember',
+          rememberSubject: 'execution-session',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('decideRequest with scopeOverride: {} preserves the original requestedMetadata (Fix 9)', async () => {
+      const originalMetadata = { toolName: 'sql', region: 'us-east-1' };
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'tools:invoke',
+        requestedMetadata: originalMetadata,
+        requesterBotId: 'b1',
+        contextChannelId: null,
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      updateRequestReturning.mockResolvedValueOnce([
+        {
+          id: 'r1',
+          status: 'approved_once',
+          requestedMetadata: originalMetadata,
+        },
+      ]);
+
+      const r = await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        decision: 'once',
+        scopeOverride: {}, // empty object — should NOT override
+      });
+      // The requestedMetadata in the result should be the original, not overridden
+      expect(r.requestedMetadata).toEqual(originalMetadata);
+    });
+
+    it('decideRequest — TX insert receives correct subjectKind/subjectId for channel-session subject (Fix 12)', async () => {
+      requestFindFirst.mockResolvedValueOnce({
+        id: 'r1',
+        tenantId: 't1',
+        status: 'pending',
+        permissionKey: 'messages:send',
+        requestedMetadata: {},
+        requesterBotId: 'b1',
+        contextChannelId: 'ch-99',
+        contextExecutionId: null,
+        contextRoutineId: null,
+        suggestedApproverIds: [],
+        expiresAt: null,
+      });
+      insertGrantReturning.mockResolvedValueOnce([
+        {
+          id: 'g1',
+          tenantId: 't1',
+          subjectKind: 'channel-session',
+          subjectId: 'ch-99',
+          permissionKey: 'messages:send',
+          scopeMetadata: {},
+        },
+      ]);
+      updateRequestReturning.mockResolvedValueOnce([
+        { id: 'r1', status: 'approved_durable', durableGrantId: 'g1' },
+      ]);
+
+      await svc.decideRequest({
+        requestId: 'r1',
+        userId: 'u-owner',
+        decision: 'remember',
+        rememberSubject: 'channel-session',
+      });
+
+      // Verify grant.created event carries full payload (Fix 7)
+      expect(events.emit).toHaveBeenCalledWith(
+        'permissions.grant.created',
+        expect.objectContaining({
+          id: 'g1',
+          subjectKind: 'channel-session',
+          subjectId: 'ch-99',
+          permissionKey: 'messages:send',
+        }),
+      );
+    });
   });
 
   describe('getRequest', () => {
@@ -593,8 +785,9 @@ describe('PermissionsService — requests', () => {
   });
 
   describe('listRequests', () => {
-    it('scope=tenant returns all matching tenant requests', async () => {
-      // scope=tenant skips canDecide filtering entirely — no approver mocks needed
+    it('returns only requests where caller is an approver (scope param is ignored)', async () => {
+      // Previously scope=tenant skipped canDecide — now it always filters.
+      // Even with scope='tenant', only requests where the caller is an approver are returned.
       const rows = [
         {
           id: 'r1',
@@ -622,11 +815,18 @@ describe('PermissionsService — requests', () => {
         },
       ];
       requestFindMany.mockResolvedValueOnce(rows);
+      // u-admin can decide both (workspace admin is always in the approver set)
+      approvers.findBotOwnerAndMentor
+        .mockResolvedValueOnce(['u-admin'])
+        .mockResolvedValueOnce(['u-admin']);
+      approvers.findWorkspaceOwners
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
 
       const result = await svc.listRequests({
         tenantId: 't1',
-        userId: 'u1',
-        scope: 'tenant',
+        userId: 'u-admin',
+        scope: 'tenant', // value is ignored — still filters by approver
       });
       expect(result).toHaveLength(2);
     });

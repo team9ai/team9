@@ -15,6 +15,7 @@ const svc = {
   createGrant: jest.fn(),
   listGrants: jest.fn(),
   revokeGrant: jest.fn(),
+  getGrant: jest.fn(),
   createRequest: jest.fn(),
   cancelRequest: jest.fn(),
   decideRequest: jest.fn(),
@@ -23,6 +24,7 @@ const svc = {
   listRequests: jest.fn(),
   canDecide: jest.fn(),
   requireBotIdForUser: jest.fn(),
+  getWorkspaceAdmins: jest.fn(),
 };
 
 const { PermissionsController } = await import('../permissions.controller.js');
@@ -61,7 +63,8 @@ describe('PermissionsController (e2e)', () => {
   // Grants
   // -------------------------------------------------------------------------
 
-  it('GET /permissions/grants lists grants', async () => {
+  it('GET /permissions/grants lists grants (admin caller)', async () => {
+    svc.getWorkspaceAdmins.mockResolvedValue(['u1']); // u1 is workspace admin
     svc.listGrants.mockResolvedValue([{ id: 'g1' }]);
     const res = await request(app.getHttpServer())
       .get('/api/v1/permissions/grants')
@@ -110,6 +113,15 @@ describe('PermissionsController (e2e)', () => {
   });
 
   it('DELETE /permissions/grants/:id revokes grant with tenantId', async () => {
+    svc.getGrant.mockResolvedValue({
+      id: 'g1',
+      tenantId: 't1',
+      subjectKind: 'agent',
+      subjectId: '550e8400-e29b-41d4-a716-446655440000',
+      permissionKey: 'messages:send',
+      scopeMetadata: {},
+    });
+    svc.canDecide.mockResolvedValue(true);
     svc.revokeGrant.mockResolvedValue({ id: 'g1', revokedAt: new Date() });
     await request(app.getHttpServer())
       .delete('/api/v1/permissions/grants/g1')
@@ -344,5 +356,107 @@ describe('PermissionsController (e2e)', () => {
     expect(svc.decideRequest).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'r2' }),
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Fix 1: tenant cross-check on decide
+  // -------------------------------------------------------------------------
+
+  it('POST /permissions/requests/:id/decide returns 404 when request belongs to a different tenant', async () => {
+    svc.getRequest.mockResolvedValue({
+      id: 'r1',
+      tenantId: 'other-tenant', // caller is t1 but request is other-tenant
+      requesterBotId: 'b1',
+      permissionKey: 'tools:invoke',
+      requestedMetadata: {},
+      suggestedApproverIds: [],
+      contextChannelId: null,
+      contextExecutionId: null,
+      contextRoutineId: null,
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/permissions/requests/r1/decide')
+      .send({ decision: 'once' })
+      .expect(404);
+    expect(svc.canDecide).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Fix 3: revokeGrant authorization check
+  // -------------------------------------------------------------------------
+
+  it('DELETE /permissions/grants/:id returns 404 when grant not found', async () => {
+    svc.getGrant.mockResolvedValue(null);
+    await request(app.getHttpServer())
+      .delete('/api/v1/permissions/grants/unknown-grant')
+      .expect(404);
+    expect(svc.revokeGrant).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /permissions/grants/:id returns 403 when caller is not authorized to administer this grant', async () => {
+    svc.getGrant.mockResolvedValue({
+      id: 'g1',
+      tenantId: 't1',
+      subjectKind: 'agent',
+      subjectId: '550e8400-e29b-41d4-a716-446655440000',
+      permissionKey: 'messages:send',
+      scopeMetadata: {},
+    });
+    svc.canDecide.mockResolvedValue(false);
+    await request(app.getHttpServer())
+      .delete('/api/v1/permissions/grants/g1')
+      .expect(403);
+    expect(svc.revokeGrant).not.toHaveBeenCalled();
+  });
+
+  it('DELETE /permissions/grants/:id succeeds when caller is authorized', async () => {
+    svc.getGrant.mockResolvedValue({
+      id: 'g1',
+      tenantId: 't1',
+      subjectKind: 'agent',
+      subjectId: '550e8400-e29b-41d4-a716-446655440000',
+      permissionKey: 'messages:send',
+      scopeMetadata: {},
+    });
+    svc.canDecide.mockResolvedValue(true);
+    svc.revokeGrant.mockResolvedValue({ id: 'g1', revokedAt: new Date() });
+    await request(app.getHttpServer())
+      .delete('/api/v1/permissions/grants/g1')
+      .expect(200);
+    expect(svc.revokeGrant).toHaveBeenCalledWith(
+      expect.objectContaining({ grantId: 'g1', userId: 'u1', tenantId: 't1' }),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Fix 4: listGrants visibility check
+  // -------------------------------------------------------------------------
+
+  it('GET /permissions/grants without subjectKind+subjectId returns 403 for non-admin', async () => {
+    svc.getWorkspaceAdmins.mockResolvedValue(['admin-user']); // u1 is not in list
+    await request(app.getHttpServer())
+      .get('/api/v1/permissions/grants')
+      .expect(403);
+    expect(svc.listGrants).not.toHaveBeenCalled();
+  });
+
+  it('GET /permissions/grants without subjectKind+subjectId returns 200 for workspace admin', async () => {
+    svc.getWorkspaceAdmins.mockResolvedValue(['u1']); // u1 is admin
+    svc.listGrants.mockResolvedValue([]);
+    await request(app.getHttpServer())
+      .get('/api/v1/permissions/grants')
+      .expect(200);
+    expect(svc.listGrants).toHaveBeenCalled();
+  });
+
+  it('GET /permissions/grants with subjectKind+subjectId is allowed for non-admin', async () => {
+    svc.getWorkspaceAdmins.mockResolvedValue(['admin-user']); // u1 is not admin
+    svc.listGrants.mockResolvedValue([{ id: 'g1' }]);
+    const res = await request(app.getHttpServer())
+      .get(
+        '/api/v1/permissions/grants?subjectKind=agent&subjectId=550e8400-e29b-41d4-a716-446655440000',
+      )
+      .expect(200);
+    expect(res.body).toEqual([{ id: 'g1' }]);
   });
 });

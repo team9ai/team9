@@ -19,6 +19,7 @@ import {
   eq,
   inArray,
   isNull,
+  routineExecutions,
   tenantMembers,
   type AuthPermissionGrant,
   type AuthPermissionRequest,
@@ -251,6 +252,14 @@ export class PermissionsService {
       );
 
     for (const g of filtered) {
+      // For execution-session grants, skip if the execution has already completed (spec §13)
+      if (g.subjectKind === 'execution-session') {
+        const exec = await this.db.query.routineExecutions.findFirst({
+          where: eq(routineExecutions.id, g.subjectId),
+          columns: { completedAt: true },
+        });
+        if (exec?.completedAt) continue;
+      }
       if (matchesScope(input.metadata, g.scopeMetadata ?? {})) {
         return { allowed: true, via: 'grant', grantId: g.id };
       }
@@ -268,8 +277,19 @@ export class PermissionsService {
       orderBy: [desc(authPermissionRequests.decidedAt)],
     });
 
+    // Check if the candidate's bound execution has completed (spec §13)
+    let executionCompleted = false;
+    if (candidate?.contextExecutionId) {
+      const exec = await this.db.query.routineExecutions.findFirst({
+        where: eq(routineExecutions.id, candidate.contextExecutionId),
+        columns: { completedAt: true },
+      });
+      if (exec?.completedAt) executionCompleted = true;
+    }
+
     if (
       candidate &&
+      !executionCompleted &&
       (!candidate.expiresAt || candidate.expiresAt.getTime() > Date.now()) &&
       matchesScope(input.metadata, candidate.requestedMetadata ?? {}) &&
       (!candidate.contextChannelId ||
@@ -313,6 +333,41 @@ export class PermissionsService {
     const ttl = input.ttlMs ?? DEFAULT_REQUEST_TTL_MS;
     const expiresAt = new Date(Date.now() + ttl);
 
+    // Dedup: return existing pending request for the same bot+key+context tuple (Fix 8).
+    // Note: we match on context fields only, not requestedMetadata, as comparing
+    // jsonb content for "same scope" is complex. Two requests with different toolNames
+    // in the same channel will share one open request per (key, channel) — acceptable for v1.
+    const existingPending =
+      await this.db.query.authPermissionRequests.findFirst({
+        where: and(
+          eq(authPermissionRequests.tenantId, input.tenantId),
+          eq(authPermissionRequests.requesterBotId, input.requesterBotId),
+          eq(authPermissionRequests.permissionKey, input.permissionKey),
+          eq(authPermissionRequests.status, 'pending'),
+          input.contextChannelId
+            ? eq(
+                authPermissionRequests.contextChannelId,
+                input.contextChannelId,
+              )
+            : isNull(authPermissionRequests.contextChannelId),
+          input.contextExecutionId
+            ? eq(
+                authPermissionRequests.contextExecutionId,
+                input.contextExecutionId,
+              )
+            : isNull(authPermissionRequests.contextExecutionId),
+          input.contextRoutineId
+            ? eq(
+                authPermissionRequests.contextRoutineId,
+                input.contextRoutineId,
+              )
+            : isNull(authPermissionRequests.contextRoutineId),
+        ),
+      });
+    if (existingPending && existingPending.expiresAt > new Date()) {
+      return existingPending;
+    }
+
     let attempt = 0;
     while (true) {
       const wordCount = attempt < SPELL_3WORD_RETRY_LIMIT ? 3 : 4;
@@ -335,6 +390,7 @@ export class PermissionsService {
             expiresAt,
           })
           .returning();
+        if (!row) throw new Error('insert returned empty');
         const approverIds = await this.resolveApprovers({
           id: row.id,
           tenantId: row.tenantId,
@@ -413,11 +469,14 @@ export class PermissionsService {
       }
 
       let durableGrantId: string | null = null;
-      let grantRow: { id: string; tenantId: string } | null = null;
-      const newMetadata =
-        'scopeOverride' in input && input.scopeOverride
-          ? input.scopeOverride
-          : existing.requestedMetadata;
+      let grantRow: AuthPermissionGrant | null = null;
+      const overrideProvided =
+        'scopeOverride' in input &&
+        input.scopeOverride &&
+        Object.keys(input.scopeOverride).length > 0;
+      const newMetadata = overrideProvided
+        ? input.scopeOverride!
+        : existing.requestedMetadata;
 
       if (input.decision === 'remember') {
         const subjectKind =
@@ -439,7 +498,7 @@ export class PermissionsService {
           })
           .returning();
         durableGrantId = insertedGrant.id;
-        grantRow = { id: insertedGrant.id, tenantId: existing.tenantId };
+        grantRow = insertedGrant;
       }
 
       const newStatus =
@@ -480,6 +539,10 @@ export class PermissionsService {
       this.events.emit('permissions.grant.created', {
         id: result.grantRow.id,
         tenantId: result.grantRow.tenantId,
+        subjectKind: result.grantRow.subjectKind,
+        subjectId: result.grantRow.subjectId,
+        permissionKey: result.grantRow.permissionKey,
+        scopeMetadata: result.grantRow.scopeMetadata,
       });
     }
     this.events.emit('permissions.request.decided', {
@@ -568,6 +631,30 @@ export class PermissionsService {
   }
 
   /**
+   * Fetch a single grant by ID, scoped to the tenant.
+   * Returns null when not found or belongs to another tenant.
+   */
+  async getGrant(
+    grantId: string,
+    tenantId: string,
+  ): Promise<AuthPermissionGrant | null> {
+    const row = await this.db.query.authPermissionGrants.findFirst({
+      where: and(
+        eq(authPermissionGrants.id, grantId),
+        eq(authPermissionGrants.tenantId, tenantId),
+      ),
+    });
+    return row ?? null;
+  }
+
+  /**
+   * Returns user IDs of all workspace admins (owners + admins) for the tenant.
+   */
+  async getWorkspaceAdmins(tenantId: string): Promise<string[]> {
+    return this.approvers.findWorkspaceAdmins(tenantId);
+  }
+
+  /**
    * Fetch a single permission request by its ID.
    * Returns null when the request does not exist.
    */
@@ -589,12 +676,14 @@ export class PermissionsService {
   /**
    * List permission requests visible to the caller.
    *
-   * - scope 'mine': requests where the caller is a potential approver
-   *   (resolved via resolveApprovers per row). This is O(N×K) for N rows and
-   *   K approver-resolution queries, but acceptable for v1 since pending
-   *   requests per tenant are expected to be small (< 100 at any time).
-   * - scope 'tenant': all requests for the tenant (admins only in practice —
-   *   authorization enforced at controller layer).
+   * Always filters to requests where the caller is a potential approver
+   * (resolved via resolveApprovers per row). This is O(N×K) for N rows and
+   * K approver-resolution queries, but acceptable for v1 since pending
+   * requests per tenant are expected to be small (< 100 at any time).
+   *
+   * @param scope Reserved for future use; current behavior always filters to
+   *   the caller's approver set regardless of this value. Workspace owners are
+   *   always in the approver set, so admins still see all relevant requests.
    */
   async listRequests(input: {
     tenantId: string;
@@ -626,11 +715,8 @@ export class PermissionsService {
       orderBy: [desc(authPermissionRequests.createdAt)],
     });
 
-    if (input.scope !== 'mine') {
-      return rows;
-    }
-
-    // scope='mine': filter to requests where the caller is a potential approver
+    // Always filter to requests where the caller is a potential approver.
+    // The `scope` param is accepted for forward-compat but its value is ignored.
     const canDecideResults = await Promise.all(
       rows.map((r) =>
         this.canDecide(input.userId, {

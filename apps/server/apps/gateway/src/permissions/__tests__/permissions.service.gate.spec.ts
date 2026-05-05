@@ -3,6 +3,7 @@ import { jest } from '@jest/globals';
 
 const grantsFindMany = jest.fn();
 const requestsFindFirst = jest.fn();
+const executionsFindFirst = jest.fn();
 const updateReturning = jest.fn();
 
 const mockDb = {
@@ -15,6 +16,7 @@ const mockDb = {
   query: {
     authPermissionGrants: { findMany: grantsFindMany },
     authPermissionRequests: { findFirst: requestsFindFirst },
+    routineExecutions: { findFirst: executionsFindFirst },
   },
 };
 
@@ -25,6 +27,7 @@ await jest.unstable_mockModule('@team9/database', () => ({
   },
   authPermissionGrants: {},
   authPermissionRequests: {},
+  routineExecutions: {},
   // Provide DATABASE_CONNECTION token and Drizzle helpers used by transitive imports
   DATABASE_CONNECTION: 'DATABASE_CONNECTION',
   eq: jest.fn(),
@@ -312,6 +315,97 @@ describe('PermissionsService.gate', () => {
       key: 'messages:send',
       metadata: {},
       ctx: { tenantId: 't1', botId: 'b1', channelId: 'ch-MINE' },
+    });
+    expect(r).toEqual({ allowed: false });
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('gate — skips approved_once when bound execution has completedAt (Fix 10)', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    requestsFindFirst.mockResolvedValueOnce({
+      id: 'req-exec',
+      requestedMetadata: {},
+      contextChannelId: null,
+      contextExecutionId: 'exec-done',
+      contextRoutineId: null,
+      expiresAt: null,
+    });
+    // Execution is completed
+    executionsFindFirst.mockResolvedValueOnce({ completedAt: new Date() });
+    const r = await svc.gate({
+      key: 'tools:invoke',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', executionId: 'exec-done' },
+    });
+    expect(r).toEqual({ allowed: false });
+    expect(updateReturning).not.toHaveBeenCalled();
+  });
+
+  it('gate — allows approved_once when bound execution has no completedAt (Fix 10)', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    requestsFindFirst.mockResolvedValueOnce({
+      id: 'req-exec',
+      requestedMetadata: {},
+      contextChannelId: null,
+      contextExecutionId: 'exec-running',
+      contextRoutineId: null,
+      expiresAt: null,
+    });
+    // Execution is still running
+    executionsFindFirst.mockResolvedValueOnce({ completedAt: null });
+    updateReturning.mockResolvedValueOnce([
+      { id: 'req-exec', consumedAt: new Date() },
+    ]);
+    const r = await svc.gate({
+      key: 'tools:invoke',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', executionId: 'exec-running' },
+    });
+    expect(r).toEqual({
+      allowed: true,
+      via: 'approved_once',
+      requestId: 'req-exec',
+    });
+  });
+
+  it('gate — skips execution-session grant when execution has completedAt (Fix 10)', async () => {
+    grantsFindMany.mockResolvedValueOnce([
+      {
+        id: 'g-exec',
+        subjectKind: 'execution-session',
+        subjectId: 'exec-done',
+        permissionKey: 'tools:invoke',
+        scopeMetadata: {},
+        revokedAt: null,
+        expiresAt: null,
+      },
+    ]);
+    // Execution is completed — grant should be skipped
+    executionsFindFirst.mockResolvedValueOnce({ completedAt: new Date() });
+    requestsFindFirst.mockResolvedValueOnce(null);
+    const r = await svc.gate({
+      key: 'tools:invoke',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1', executionId: 'exec-done' },
+    });
+    expect(r).toEqual({ allowed: false });
+  });
+
+  it('gate — denies approved_once when contextExecutionId set on request but ctx has no executionId (Fix 12)', async () => {
+    grantsFindMany.mockResolvedValueOnce([]);
+    requestsFindFirst.mockResolvedValueOnce({
+      id: 'req-exec',
+      requestedMetadata: {},
+      contextChannelId: null,
+      contextExecutionId: 'exec-1', // request bound to an execution
+      contextRoutineId: null,
+      expiresAt: null,
+    });
+    // ctx has no executionId — contextExecutionId mismatch
+    const r = await svc.gate({
+      key: 'tools:invoke',
+      metadata: {},
+      ctx: { tenantId: 't1', botId: 'b1' }, // no executionId
     });
     expect(r).toEqual({ allowed: false });
     expect(updateReturning).not.toHaveBeenCalled();

@@ -765,35 +765,52 @@ export interface TabDeletedEvent {
 
 /** A new permission request was created (addressed to the workspace owner/admin). */
 export interface PermissionRequestCreatedEvent {
-  requestId: string;
+  /** Request ID */
+  id: string;
   spellId: string;
+  tenantId: string;
   permissionKey: string;
   requesterBotId: string;
+  requestedMetadata: Record<string, unknown>;
+  contextChannelId: string | null;
+  expiresAt: string | Date;
+  reason: string | null;
 }
 
 /** A permission request was decided (approved or denied). */
 export interface PermissionRequestDecidedEvent {
-  requestId: string;
-  decision: "once" | "remember" | "deny";
-  decidedBy: string;
+  /** Request ID */
+  id: string;
+  spellId: string;
+  status: "approved_once" | "approved_durable" | "denied" | "cancelled";
+  decidedByUserId: string | null;
+  durableGrantId: string | null;
 }
 
 /** A previously-approved permission was consumed (one-time grant used). */
 export interface PermissionRequestConsumedEvent {
-  requestId: string;
+  /** Request ID */
+  id: string;
+  requesterBotId: string;
+  permissionKey: string;
 }
 
 /** A durable permission grant was created. */
 export interface PermissionGrantCreatedEvent {
-  grantId: string;
+  /** Grant ID */
+  id: string;
+  tenantId: string;
   subjectKind: string;
   subjectId: string;
   permissionKey: string;
+  scopeMetadata: Record<string, unknown>;
 }
 
 /** A permission grant was revoked. */
 export interface PermissionGrantRevokedEvent {
-  grantId: string;
+  /** Grant ID */
+  id: string;
+  tenantId: string;
 }
 
 // ==================== Type Mappings ====================
