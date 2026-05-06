@@ -397,6 +397,7 @@ describe('CommonStaffService', () => {
     it('sets BotExtra.commonStaff with dto fields', async () => {
       staffService.generateShortRoleTitle.mockResolvedValueOnce('Dev');
       const dto = makeCreateDto({
+        displayName: 'Morgan',
         roleTitle: 'Dev',
         persona: 'Expert',
         jobDescription: 'Codes',
@@ -422,6 +423,7 @@ describe('CommonStaffService', () => {
             persona: 'Expert',
             jobDescription: 'Codes',
             model: dto.model,
+            identity: { name: 'Morgan' },
           }),
         }),
       );
@@ -962,6 +964,26 @@ describe('CommonStaffService', () => {
       expect(botService.updateBotDisplayName).toHaveBeenCalledWith(
         BOT_ID,
         'New Name',
+      );
+    });
+
+    it('mirrors displayName updates into common staff identity.name', async () => {
+      const dto = makeUpdateDto({ displayName: 'New Name' });
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
+
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          commonStaff: expect.objectContaining({
+            identity: { name: 'New Name' },
+          }),
+        }),
       );
     });
 

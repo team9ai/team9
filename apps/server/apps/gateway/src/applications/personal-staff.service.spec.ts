@@ -467,6 +467,20 @@ describe('PersonalStaffService', () => {
       );
     });
 
+    it('stores provided display name as personal staff identity.name', async () => {
+      const dto = makeCreateDto({ displayName: 'Aria' });
+      await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          personalStaff: expect.objectContaining({
+            identity: { name: 'Aria' },
+          }),
+        }),
+      );
+    });
+
     it('registers claw-hive agent with correct params', async () => {
       const dto = makeCreateDto();
       await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
@@ -967,6 +981,20 @@ describe('PersonalStaffService', () => {
       expect(botService.updateBotDisplayName).toHaveBeenCalledWith(
         BOT_ID,
         'Updated PA',
+      );
+    });
+
+    it('mirrors displayName updates into personal staff identity.name', async () => {
+      const dto = makeUpdateDto({ displayName: 'Updated PA' });
+      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          personalStaff: expect.objectContaining({
+            identity: { name: 'Updated PA' },
+          }),
+        }),
       );
     });
 
