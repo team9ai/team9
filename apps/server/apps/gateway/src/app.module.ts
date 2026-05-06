@@ -108,10 +108,10 @@ export class AppModule implements OnModuleInit, NestModule {
   constructor(private readonly configService: DbConfigService) {}
 
   configure(consumer: MiddlewareConsumer) {
-    // Rewrite legacy /v1/tasks → /v1/routines during rename rollout
-    consumer
-      .apply(LegacyTaskRoutesMiddleware)
-      .forRoutes('v1/tasks/{*path}', 'v1/bot/tasks/{*path}');
+    // Rewrite legacy /v1/tasks → /v1/routines during rename rollout.
+    // Apply globally so requests still include the /api global prefix when
+    // the middleware rewrites req.url before Nest route matching.
+    consumer.apply(LegacyTaskRoutesMiddleware).forRoutes('*');
     // Apply TenantMiddleware to all routes
     consumer.apply(TenantMiddleware).forRoutes('*');
   }

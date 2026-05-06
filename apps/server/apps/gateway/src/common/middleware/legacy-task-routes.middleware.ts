@@ -14,7 +14,11 @@ import type { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class LegacyTaskRoutesMiddleware implements NestMiddleware {
   use(req: Request, _res: Response, next: NextFunction) {
-    if (req.url.startsWith('/v1/bot/tasks')) {
+    if (req.url.startsWith('/api/v1/bot/tasks')) {
+      req.url = req.url.replace('/api/v1/bot/tasks', '/api/v1/bot/routines');
+    } else if (req.url.startsWith('/api/v1/tasks')) {
+      req.url = req.url.replace('/api/v1/tasks', '/api/v1/routines');
+    } else if (req.url.startsWith('/v1/bot/tasks')) {
       req.url = req.url.replace('/v1/bot/tasks', '/v1/bot/routines');
     } else if (req.url.startsWith('/v1/tasks')) {
       req.url = req.url.replace('/v1/tasks', '/v1/routines');
