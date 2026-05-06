@@ -220,7 +220,7 @@ describe('PersonalStaffService', () => {
     createDirectChannel: MockFn;
   };
   let installedApplicationsService: { findById: MockFn };
-  let usersService: { getLocalePreferences: MockFn };
+  let usersService: { getLocalePreferences: MockFn; findById: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -260,6 +260,18 @@ describe('PersonalStaffService', () => {
       getLocalePreferences: jest
         .fn<any>()
         .mockResolvedValue({ language: null, timeZone: null }),
+      findById: jest.fn<any>().mockResolvedValue({
+        id: OWNER_ID,
+        email: 'owner@example.com',
+        username: 'owner',
+        displayName: 'Alice',
+        avatarUrl: null,
+        status: 'online',
+        lastSeenAt: null,
+        userType: 'human',
+        language: null,
+        timeZone: null,
+      }),
     };
 
     mockStreamText.mockReset();
@@ -404,13 +416,26 @@ describe('PersonalStaffService', () => {
       );
     });
 
-    it('uses default display name "Personal Assistant" when none provided', async () => {
+    it("uses the owner's localized assistant name when none provided", async () => {
+      usersService.findById.mockResolvedValueOnce({
+        id: OWNER_ID,
+        email: 'owner@example.com',
+        username: 'owner',
+        displayName: '林晓宇',
+        avatarUrl: null,
+        status: 'online',
+        lastSeenAt: null,
+        userType: 'human',
+        language: 'zh-CN',
+        timeZone: 'Asia/Shanghai',
+      });
+
       const dto = makeCreateDto();
       await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
       expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
         expect.objectContaining({
-          displayName: 'Personal Assistant',
+          displayName: '林晓宇的助理',
         }),
       );
     });

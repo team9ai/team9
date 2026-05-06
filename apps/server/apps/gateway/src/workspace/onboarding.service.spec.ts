@@ -121,6 +121,7 @@ describe('OnboardingService — provisionRoutines', () => {
     createStaff: MockFn;
     updateStaff: MockFn;
     triggerBootstrapForExistingStaff: MockFn;
+    getDefaultDisplayName: MockFn;
   };
   let commonStaffService: {
     createStaff: MockFn;
@@ -164,6 +165,9 @@ describe('OnboardingService — provisionRoutines', () => {
       triggerBootstrapForExistingStaff: jest
         .fn<any>()
         .mockResolvedValue(undefined),
+      getDefaultDisplayName: jest
+        .fn<any>()
+        .mockResolvedValue("Alice's Assistant"),
     };
 
     commonStaffService = {
@@ -528,6 +532,7 @@ describe('OnboardingService — provisionCommonStaff', () => {
     createStaff: MockFn;
     updateStaff: MockFn;
     triggerBootstrapForExistingStaff: MockFn;
+    getDefaultDisplayName: MockFn;
   };
   let commonStaffService: { createStaff: MockFn };
   let routinesService: { create: MockFn };
@@ -571,6 +576,9 @@ describe('OnboardingService — provisionCommonStaff', () => {
       triggerBootstrapForExistingStaff: jest
         .fn<any>()
         .mockResolvedValue(undefined),
+      getDefaultDisplayName: jest
+        .fn<any>()
+        .mockResolvedValue("Alice's Assistant"),
     };
 
     commonStaffService = {
@@ -732,6 +740,7 @@ describe('OnboardingService — persistPreferences (no selectedTaskTitles)', () 
     createStaff: MockFn;
     updateStaff: MockFn;
     triggerBootstrapForExistingStaff: MockFn;
+    getDefaultDisplayName: MockFn;
   };
   let commonStaffService: { createStaff: MockFn };
   let channelsService: Record<string, MockFn>;
@@ -762,6 +771,9 @@ describe('OnboardingService — persistPreferences (no selectedTaskTitles)', () 
       triggerBootstrapForExistingStaff: jest
         .fn<any>()
         .mockResolvedValue(undefined),
+      getDefaultDisplayName: jest
+        .fn<any>()
+        .mockResolvedValue("Alice's Assistant"),
     };
     commonStaffService = {
       createStaff: jest.fn<any>().mockResolvedValue(undefined),
@@ -845,6 +857,7 @@ describe('OnboardingService — pipeline ordering', () => {
     createStaff: MockFn;
     updateStaff: MockFn;
     triggerBootstrapForExistingStaff: MockFn;
+    getDefaultDisplayName: MockFn;
   };
   let commonStaffService: { createStaff: MockFn };
   let channelsService: Record<string, MockFn>;
@@ -886,6 +899,9 @@ describe('OnboardingService — pipeline ordering', () => {
         .mockImplementation(async () => {
           callOrder.push('provisionPersonalStaff:triggerBootstrap');
         }),
+      getDefaultDisplayName: jest
+        .fn<any>()
+        .mockResolvedValue("Alice's Assistant"),
     };
     commonStaffService = {
       createStaff: jest.fn<any>().mockImplementation(async () => {

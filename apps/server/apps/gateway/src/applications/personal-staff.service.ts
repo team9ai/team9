@@ -38,6 +38,25 @@ export type { StaffBotResult as PersonalStaffResult };
 const PERSONAL_STAFF_APPLICATION_ID = 'personal-staff';
 const HIVE_BLUEPRINT_ID = 'team9-personal-staff';
 
+function normalizeLanguage(language: string | null | undefined): string {
+  return (language ?? '').trim().toLowerCase();
+}
+
+function personalAssistantName(ownerName: string, language?: string | null) {
+  const lang = normalizeLanguage(language);
+  if (lang.startsWith('zh')) return `${ownerName}的助理`;
+  if (lang.startsWith('ja')) return `${ownerName}のアシスタント`;
+  if (lang.startsWith('ko')) return `${ownerName}님의 어시스턴트`;
+  if (lang.startsWith('es')) return `Asistente de ${ownerName}`;
+  if (lang.startsWith('pt')) return `Assistente de ${ownerName}`;
+  if (lang.startsWith('fr')) return `Assistant de ${ownerName}`;
+  if (lang.startsWith('de')) return `${ownerName}s Assistent`;
+  if (lang.startsWith('it')) return `Assistente di ${ownerName}`;
+  if (lang.startsWith('nl')) return `Assistent van ${ownerName}`;
+  if (lang.startsWith('ru')) return `Помощник ${ownerName}`;
+  return `${ownerName}'s Assistant`;
+}
+
 @Injectable()
 export class PersonalStaffService {
   private readonly logger = new Logger(PersonalStaffService.name);
@@ -95,6 +114,13 @@ export class PersonalStaffService {
       .limit(1);
 
     return rows[0] ?? null;
+  }
+
+  async getDefaultDisplayName(ownerId: string): Promise<string> {
+    const owner = await this.usersService.findById(ownerId);
+    const ownerName = owner?.displayName || owner?.username;
+    if (!ownerName) return PERSONAL_STAFF_ROLE_TITLE;
+    return personalAssistantName(ownerName, owner.language);
   }
 
   /**
@@ -189,7 +215,8 @@ export class PersonalStaffService {
     }
 
     // 3. Create bot + register agent
-    const effectiveDisplayName = dto.displayName ?? PERSONAL_STAFF_ROLE_TITLE;
+    const effectiveDisplayName =
+      dto.displayName ?? (await this.getDefaultDisplayName(ownerId));
     const effectiveBootstrap = dto.agenticBootstrap ?? true;
 
     const extra: BotExtra = {

@@ -71,6 +71,9 @@ export function UserListItem({
   const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-9 h-9";
   const avatarTextClass = avatarSize === "sm" ? "text-xs" : "text-sm";
   const onlineIndicatorSize = avatarSize === "sm" ? "w-2.5 h-2.5" : "w-3 h-3";
+  const onlineIndicatorPosition = isBot
+    ? "-top-0.5 -right-0.5"
+    : "-bottom-0.5 -right-0.5";
   const username = subtitle?.startsWith("@") ? subtitle.slice(1) : undefined;
 
   const rootClassName = cn(
@@ -88,13 +91,15 @@ export function UserListItem({
           username={username}
           avatarUrl={avatarUrl}
           isBot={isBot}
+          showAiBadge={isBot}
           className={avatarSizeClass}
           fallbackClassName={avatarTextClass}
         />
         {isOnline && (
           <div
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 bg-success rounded-full border-2 border-nav-sub-bg",
+              "absolute bg-success rounded-full border-2 border-nav-sub-bg",
+              onlineIndicatorPosition,
               onlineIndicatorSize,
             )}
           />
