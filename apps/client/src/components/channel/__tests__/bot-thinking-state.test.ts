@@ -85,6 +85,28 @@ describe("bot thinking state", () => {
     expect(applyBotThinkingMessage(state, makeTextMessage())).toEqual([]);
   });
 
+  it("removes stale warmup when a completed writing reply arrives without lifecycle events", () => {
+    const state: BotThinkingStatus[] = [{ botId: "bot-1", phase: "warming" }];
+
+    expect(
+      applyBotThinkingMessage(
+        state,
+        makeAgentTextMessage("writing", "2026-01-01T00:00:20Z"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps working status on writing replies until agent_end arrives", () => {
+    const state: BotThinkingStatus[] = [{ botId: "bot-1", phase: "working" }];
+
+    expect(
+      applyBotThinkingMessage(
+        state,
+        makeAgentTextMessage("writing", "2026-01-01T00:00:20Z"),
+      ),
+    ).toEqual(state);
+  });
+
   it("removes a working bot when a regular final reply arrives before agent_end", () => {
     const state: BotThinkingStatus[] = [{ botId: "bot-1", phase: "working" }];
 

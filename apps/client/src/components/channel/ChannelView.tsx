@@ -390,6 +390,7 @@ export function ChannelView({
   const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
     [],
   );
+  const autoSendThinkingStartedKeyRef = useRef<string | null>(null);
   const thinkingBotIds = useMemo(
     () => getBotThinkingIds(thinkingStatuses),
     [thinkingStatuses],
@@ -449,6 +450,7 @@ export function ChannelView({
 
   // Clear thinking state when channel changes
   useEffect(() => {
+    autoSendThinkingStartedKeyRef.current = null;
     setThinkingStatuses([]);
   }, [channelId]);
 
@@ -458,6 +460,11 @@ export function ChannelView({
     if (!autoSendInitialDraft || !initialDraft || !isBotDm || !botDmUserId) {
       return;
     }
+    const autoSendThinkingKey = `${channelId}:${botDmUserId}:${initialDraft}`;
+    if (autoSendThinkingStartedKeyRef.current === autoSendThinkingKey) {
+      return;
+    }
+    autoSendThinkingStartedKeyRef.current = autoSendThinkingKey;
 
     setThinkingStatuses((prev) =>
       prev.some((status) => status.botId === botDmUserId)
@@ -474,6 +481,7 @@ export function ChannelView({
   }, [
     autoSendInitialDraft,
     botDmUserId,
+    channelId,
     initialDraft,
     isBotDm,
     latestMessageTimeMs,

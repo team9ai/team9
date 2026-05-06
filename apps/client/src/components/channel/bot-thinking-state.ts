@@ -9,6 +9,21 @@ export interface BotThinkingStatus {
   startedAfterMs?: number;
 }
 
+const DEBUG_STORAGE_KEY = "team9.debugBotThinking";
+
+function debugBotThinking(
+  event: string,
+  payload: Record<string, unknown>,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(DEBUG_STORAGE_KEY) !== "1") return;
+  } catch {
+    return;
+  }
+  console.debug(`[bot-thinking] ${event}`, payload);
+}
+
 export function startBotThinkingStatuses(
   botIds: string[],
   startedAfterMs?: number,
@@ -94,18 +109,56 @@ export function applyBotThinkingMessage(
 
   const status = statuses.find((item) => item.botId === message.senderId);
   if (shouldIgnoreMessageForStatus(status, message)) {
+    debugBotThinking("ignore-old-message", {
+      messageId: message.id,
+      senderId: message.senderId,
+      createdAt: message.createdAt,
+      status,
+      metadata: message.metadata,
+    });
     return statuses;
   }
 
   const meta = getAgentMeta(message);
   if (meta?.agentEventType === "agent_start") {
+    debugBotThinking("agent-start", {
+      messageId: message.id,
+      senderId: message.senderId,
+      createdAt: message.createdAt,
+      status,
+    });
     return upsertBotThinkingStatus(statuses, message.senderId, "working");
   }
   if (meta?.agentEventType === "agent_end") {
+    debugBotThinking("agent-end", {
+      messageId: message.id,
+      senderId: message.senderId,
+      createdAt: message.createdAt,
+      status,
+    });
+    return removeBotThinkingStatus(statuses, message.senderId);
+  }
+  if (
+    meta?.agentEventType === "writing" &&
+    meta.status === "completed" &&
+    status?.phase === "warming"
+  ) {
+    debugBotThinking("clear-stale-warmup-on-writing", {
+      messageId: message.id,
+      senderId: message.senderId,
+      createdAt: message.createdAt,
+      status,
+    });
     return removeBotThinkingStatus(statuses, message.senderId);
   }
   if (!meta) {
     if (status) {
+      debugBotThinking("clear-on-plain-message", {
+        messageId: message.id,
+        senderId: message.senderId,
+        createdAt: message.createdAt,
+        status,
+      });
       return removeBotThinkingStatus(statuses, message.senderId);
     }
   }
