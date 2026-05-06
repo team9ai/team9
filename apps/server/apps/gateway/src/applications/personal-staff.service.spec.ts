@@ -7,9 +7,11 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
 
 const mockStreamText = jest.fn<any>();
+const mockGenerateText = jest.fn<any>();
 
 jest.unstable_mockModule('ai', () => ({
   streamText: mockStreamText,
+  generateText: mockGenerateText,
   Output: { object: jest.fn<any>().mockReturnValue('mock-output-spec') },
 }));
 
