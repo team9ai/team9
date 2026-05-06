@@ -23,6 +23,11 @@ export interface TrackingDisplayItem {
   metadata: AgentEventMetadata;
   isStreaming: boolean;
   createdAt?: string;
+  resultMessage?: Pick<
+    Message,
+    "id" | "content" | "isTruncated" | "fullContentLength"
+  > &
+    Partial<Pick<Message, "type">>;
 }
 
 export type TrackingRenderItem =
@@ -146,6 +151,17 @@ export function TrackingCard({ message }: TrackingCardProps) {
             metadata,
             isStreaming: false,
             createdAt: msg.createdAt,
+            ...(metadata.agentEventType === "tool_result"
+              ? {
+                  resultMessage: {
+                    id: msg.id,
+                    content: msg.content ?? "",
+                    type: msg.type,
+                    isTruncated: msg.isTruncated,
+                    fullContentLength: msg.fullContentLength,
+                  },
+                }
+              : {}),
           },
         ]
       : [];
@@ -233,6 +249,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
                     callMetadata={ri.callItem.metadata}
                     resultMetadata={ri.resultItem.metadata}
                     resultContent={ri.resultItem.content}
+                    resultMessage={ri.resultItem.resultMessage}
                   />
                 );
               }

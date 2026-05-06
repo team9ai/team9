@@ -249,6 +249,8 @@ export const WS_EVENTS = {
     CONTENT: 'streaming_content',
     /** Bot sends full accumulated thinking/reasoning content */
     THINKING_CONTENT: 'streaming_thinking_content',
+    /** Bot sends transient stream metadata such as tool_call args */
+    METADATA: 'streaming_metadata',
     /** Bot finishes streaming, includes final persisted message */
     END: 'streaming_end',
     /** Bot aborts streaming (error/cancel/timeout/disconnect) */

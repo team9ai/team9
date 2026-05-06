@@ -31,6 +31,11 @@ export class UpdateStreamingThinkingContentDto {
   content: string;
 }
 
+export class UpdateStreamingMetadataDto {
+  @IsObject()
+  metadata: Record<string, unknown>;
+}
+
 export class EndStreamingDto {
   @IsString()
   @IsNotEmpty()

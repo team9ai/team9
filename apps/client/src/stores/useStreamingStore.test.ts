@@ -60,6 +60,72 @@ describe("useStreamingStore", () => {
     });
   });
 
+  it("merges streaming_start metadata into an existing race-created stream", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+    });
+    useStreamingStore.getState().setStreamContent("stream-1", "hello");
+
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 2000,
+      metadata: {
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-1",
+      },
+    });
+
+    const stream = useStreamingStore.getState().streams.get("stream-1");
+    expect(stream?.content).toBe("hello");
+    expect(stream?.parts.map((part) => [part.type, part.content])).toEqual([
+      ["content", "hello"],
+    ]);
+    expect(stream?.metadata).toEqual({
+      agentEventType: "tool_call",
+      status: "running",
+      toolCallId: "tc-1",
+    });
+    expect(stream?.startedAt).toBe(1000);
+  });
+
+  it("merges streaming metadata deltas without recording intermediate parts", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      metadata: {
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-1",
+        toolName: "RunScript",
+        toolArgsText: '{"cmd":"pnpm',
+      },
+    });
+
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      toolArgsText: '{"cmd":"pnpm test -- --runInBand"}',
+      toolPhase: "executing",
+    });
+
+    const stream = useStreamingStore.getState().streams.get("stream-1");
+    expect(stream?.parts).toEqual([]);
+    expect(stream?.metadata).toEqual({
+      agentEventType: "tool_call",
+      status: "running",
+      toolCallId: "tc-1",
+      toolName: "RunScript",
+      toolArgsText: '{"cmd":"pnpm test -- --runInBand"}',
+      toolPhase: "executing",
+    });
+  });
+
   it("updates the active part instead of creating duplicates for same-phase deltas", () => {
     useStreamingStore.getState().startStream({
       streamId: "stream-1",

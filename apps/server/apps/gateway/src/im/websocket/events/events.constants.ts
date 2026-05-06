@@ -78,6 +78,7 @@ export type {
   StreamingStartEvent,
   StreamingContentEvent,
   StreamingThinkingContentEvent,
+  StreamingMetadataEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
   // Type mappings

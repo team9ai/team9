@@ -460,8 +460,16 @@ export function MessageList({
             })
           : undefined;
         if (streamMeta?.agentEventType === "tool_call") {
+          const hasStreamBody =
+            item.stream.parts.length > 0 ||
+            item.stream.content.trim().length > 0 ||
+            item.stream.thinking.trim().length > 0;
+
           return (
             <div className="py-2">
+              {hasStreamBody && (
+                <StreamingMessageParts stream={item.stream} members={members} />
+              )}
               <ToolCallBlock callMetadata={streamMeta} resultContent="" />
             </div>
           );

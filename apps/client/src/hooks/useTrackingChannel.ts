@@ -13,11 +13,15 @@ import type {
   TrackingDeactivatedEvent,
 } from "@/types/ws-events";
 
+type TrackingLatestMessage = Pick<
+  Message,
+  "id" | "content" | "metadata" | "createdAt"
+> &
+  Partial<Pick<Message, "type" | "isTruncated" | "fullContentLength">>;
+
 interface TrackingChannelState {
   isActivated: boolean;
-  latestMessages: Array<
-    Pick<Message, "id" | "content" | "metadata" | "createdAt">
-  >;
+  latestMessages: TrackingLatestMessage[];
   totalMessageCount: number;
   isLoading: boolean;
   /** Currently streaming message (not yet persisted) */

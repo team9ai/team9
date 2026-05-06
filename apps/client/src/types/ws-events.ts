@@ -125,6 +125,7 @@ export const WS_EVENTS = {
     START: "streaming_start",
     CONTENT: "streaming_content",
     THINKING_CONTENT: "streaming_thinking_content",
+    METADATA: "streaming_metadata",
     END: "streaming_end",
     ABORT: "streaming_abort",
   },
@@ -615,6 +616,14 @@ export interface StreamingThinkingContentEvent {
   content: string;
 }
 
+/** Streaming metadata update - transient stream state, not persisted as history */
+export interface StreamingMetadataEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  metadata: Record<string, unknown>;
+}
+
 /** Streaming end - finalization with persisted message */
 export interface StreamingEndEvent {
   streamId: string;
@@ -812,6 +821,7 @@ export interface ServerToClientEvents {
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;
   streaming_thinking_content: StreamingThinkingContentEvent;
+  streaming_metadata: StreamingMetadataEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
   // Property system

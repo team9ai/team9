@@ -183,7 +183,9 @@ vi.mock("../MessageItem", () => ({
 }));
 
 vi.mock("../StreamingMessageItem", () => ({
-  StreamingMessageItem: () => <div data-testid="streaming-item" />,
+  StreamingMessageItem: ({ stream }: { stream: { content?: string } }) => (
+    <div data-testid="streaming-item">{stream.content}</div>
+  ),
 }));
 
 vi.mock("../ToolCallBlock", () => ({
@@ -193,7 +195,11 @@ vi.mock("../ToolCallBlock", () => ({
     resultContent,
     resultMessage,
   }: {
-    callMetadata?: { toolCallId?: string; toolName?: string };
+    callMetadata?: {
+      toolCallId?: string;
+      toolName?: string;
+      toolArgsText?: string;
+    };
     resultMetadata?: { toolCallId?: string };
     resultContent?: string;
     resultMessage?: { id?: string };
@@ -202,6 +208,7 @@ vi.mock("../ToolCallBlock", () => ({
       data-testid="tool-call-block"
       data-tool-call-id={callMetadata?.toolCallId ?? ""}
       data-tool-name={callMetadata?.toolName ?? ""}
+      data-tool-args-text={callMetadata?.toolArgsText ?? ""}
       data-result-tool-call-id={resultMetadata?.toolCallId ?? ""}
       data-result-content={resultContent ?? ""}
       data-result-message-id={resultMessage?.id ?? ""}
@@ -766,6 +773,74 @@ describe("MessageList — round auto-fold", () => {
       expect(blocks).toHaveLength(1);
       expect(blocks[0].getAttribute("data-tool-call-id")).toBe("fc-stream");
       expect(blocks[0].getAttribute("data-tool-name")).toBe("view_map");
+    });
+
+    it("preserves text content when an active stream also has tool_call metadata", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-text-tool",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "I will check that now.",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [
+            {
+              id: "stream-text-tool-0",
+              type: "content",
+              content: "I will check that now.",
+              startedAt: 1000,
+              isStreaming: true,
+            },
+          ],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "view_map",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getByTestId("tool-call-block")).toBeInTheDocument();
+      expect(screen.getByTestId("streaming-item")).toHaveTextContent(
+        "I will check that now.",
+      );
+    });
+
+    it("renders the latest streaming tool_call args text from stream metadata", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool-args",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "RunScript",
+            toolArgsText: '{"cmd":"pnpm test -- --runInBand"}',
+            toolPhase: "args_streaming",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getByTestId("tool-call-block")).toHaveAttribute(
+        "data-tool-args-text",
+        '{"cmd":"pnpm test -- --runInBand"}',
+      );
     });
 
     it("keeps the bot thinking indicator visible while an active stream exists", () => {

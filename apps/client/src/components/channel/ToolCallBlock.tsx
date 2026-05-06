@@ -13,13 +13,15 @@ interface ToolCallBlockProps {
   resultContent?: string;
   resultMessage?: Pick<
     Message,
-    "id" | "type" | "content" | "isTruncated" | "fullContentLength"
-  >;
+    "id" | "content" | "isTruncated" | "fullContentLength"
+  > &
+    Partial<Pick<Message, "type">>;
 }
 
 function formatJson(text: string): string {
   try {
     const parsed = JSON.parse(text);
+    if (typeof parsed === "string") return parsed;
     return JSON.stringify(parsed, null, 2);
   } catch {
     return text;
