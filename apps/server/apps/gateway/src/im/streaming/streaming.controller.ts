@@ -22,6 +22,7 @@ import {
   MessagesService,
   type MessageResponse,
 } from '../messages/messages.service.js';
+import { determineMessageType } from '../messages/message-utils.js';
 import { normalizeToolEventMetadata } from '../messages/utils/tool-event-metadata.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
@@ -32,6 +33,7 @@ import {
   StartStreamingDto,
   UpdateStreamingContentDto,
   UpdateStreamingThinkingContentDto,
+  UpdateStreamingMetadataDto,
   EndStreamingDto,
 } from './dto/streaming.dto.js';
 
@@ -240,6 +242,61 @@ export class StreamingController {
     return { success: true };
   }
 
+  // ── POST /v1/im/streaming/:streamId/metadata ────────────────────────
+
+  @Post('streaming/:streamId/metadata')
+  async updateMetadata(
+    @CurrentUser('sub') userId: string,
+    @Param('streamId') streamId: string,
+    @Body() dto: UpdateStreamingMetadataDto,
+  ): Promise<{ success: true }> {
+    await this.assertBot(userId);
+
+    const sessionRaw = await this.redisService.get(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+    );
+    if (!sessionRaw) {
+      throw new ForbiddenException('Streaming session not found or expired');
+    }
+    const session = this.parseStreamingSession(sessionRaw);
+
+    if (session.senderId !== userId) {
+      throw new ForbiddenException('Not the owner of this stream');
+    }
+
+    // Keep only the latest metadata snapshot. This supports long tool_call
+    // argument streaming without persisting every intermediate delta.
+    const nextSession: StreamingSession = {
+      ...session,
+      metadata: {
+        ...(session.metadata ?? {}),
+        ...dto.metadata,
+      },
+    };
+    await this.redisService.set(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+      JSON.stringify(nextSession),
+      STREAM_TTL,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
+      STREAM_TTL,
+    );
+
+    await this.websocketGateway.sendToChannelMembers(
+      session.channelId,
+      WS_EVENTS.STREAMING.METADATA,
+      {
+        streamId,
+        channelId: session.channelId,
+        senderId: userId,
+        metadata: dto.metadata,
+      },
+    );
+
+    return { success: true };
+  }
+
   // ── POST /v1/im/streaming/:streamId/end ────────────────────────────
 
   @Post('streaming/:streamId/end')
@@ -293,7 +350,7 @@ export class StreamingController {
       senderId: userId,
       content: dto.content,
       parentId: session.parentId,
-      type: 'text',
+      type: determineMessageType(dto.content, false),
       workspaceId,
       metadata,
     });

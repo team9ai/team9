@@ -23,6 +23,7 @@ import type {
   StreamingStartEvent,
   StreamingContentEvent,
   StreamingThinkingContentEvent,
+  StreamingMetadataEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
   ReactionAddedEvent,
@@ -465,6 +466,14 @@ export function useMessages(channelId: string | undefined) {
         .setThinkingContent(event.streamId, event.content);
     };
 
+    const handleStreamingMetadata = (event: StreamingMetadataEvent) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setStreamMetadata(event.streamId, event.metadata);
+    };
+
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
       useStreamingStore.getState().endStream(event.streamId);
@@ -699,6 +708,7 @@ export function useMessages(channelId: string | undefined) {
     wsService.onStreamingStart(handleStreamingStart);
     wsService.onStreamingContent(handleStreamingDelta);
     wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
+    wsService.onStreamingMetadata(handleStreamingMetadata);
     wsService.onStreamingEnd(handleStreamingEnd);
     wsService.onStreamingAbort(handleStreamingAbort);
 
@@ -711,6 +721,7 @@ export function useMessages(channelId: string | undefined) {
       wsService.off("streaming_start", handleStreamingStart);
       wsService.off("streaming_content", handleStreamingDelta);
       wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
+      wsService.off("streaming_metadata", handleStreamingMetadata);
       wsService.off("streaming_end", handleStreamingEnd);
       wsService.off("streaming_abort", handleStreamingAbort);
     };
@@ -909,6 +920,14 @@ export function useChannelMessages(
       useStreamingStore
         .getState()
         .setThinkingContent(event.streamId, event.content);
+    };
+
+    const handleStreamingMetadata = (event: StreamingMetadataEvent) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setStreamMetadata(event.streamId, event.metadata);
     };
 
     const handleStreamingEnd = (event: StreamingEndEvent) => {
@@ -1115,6 +1134,7 @@ export function useChannelMessages(
     wsService.onStreamingStart(handleStreamingStart);
     wsService.onStreamingContent(handleStreamingDelta);
     wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
+    wsService.onStreamingMetadata(handleStreamingMetadata);
     wsService.onStreamingEnd(handleStreamingEnd);
     wsService.onStreamingAbort(handleStreamingAbort);
     wsService.onReactionAdded(handleReactionAdded);
@@ -1127,6 +1147,7 @@ export function useChannelMessages(
       wsService.off("streaming_start", handleStreamingStart);
       wsService.off("streaming_content", handleStreamingDelta);
       wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
+      wsService.off("streaming_metadata", handleStreamingMetadata);
       wsService.off("streaming_end", handleStreamingEnd);
       wsService.off("streaming_abort", handleStreamingAbort);
       wsService.off("reaction_added", handleReactionAdded);

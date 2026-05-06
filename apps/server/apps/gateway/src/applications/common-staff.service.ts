@@ -36,6 +36,21 @@ export type { StaffBotResult as CommonStaffResult };
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
 const HIVE_BLUEPRINT_ID = 'team9-common-staff';
 
+function mergeIdentityName(
+  identity: Record<string, unknown> | undefined,
+  displayName: string | undefined,
+): Record<string, unknown> | undefined {
+  if (displayName === undefined) return identity;
+  const next = { ...(identity ?? {}) };
+  const name = displayName.trim();
+  if (name) {
+    next.name = name;
+  } else {
+    delete next.name;
+  }
+  return next;
+}
+
 @Injectable()
 export class CommonStaffService {
   private readonly logger = new Logger(CommonStaffService.name);
@@ -88,9 +103,10 @@ export class CommonStaffService {
     // bootstrap) → "New Staff". Falling through to roleTitle lets callers
     // (e.g. onboarding) seed staff with a meaningful temporary name while
     // still leaving the bootstrap flow to ask the mentor for a final name.
+    const explicitDisplayName = dto.displayName?.trim();
     let effectiveDisplayName: string;
-    if (dto.displayName?.trim()) {
-      effectiveDisplayName = dto.displayName.trim();
+    if (explicitDisplayName) {
+      effectiveDisplayName = explicitDisplayName;
     } else if (dto.roleTitle?.trim()) {
       effectiveDisplayName = dto.roleTitle.trim();
     } else if (dto.agenticBootstrap) {
@@ -138,6 +154,9 @@ export class CommonStaffService {
         persona: dto.persona,
         jobDescription: dto.jobDescription,
         model: dto.model,
+        ...(explicitDisplayName
+          ? { identity: { name: explicitDisplayName } }
+          : {}),
       },
     };
 
@@ -365,6 +384,14 @@ export class CommonStaffService {
       ...existingExtra,
       commonStaff: {
         ...existingCommonStaff,
+        ...(dto.displayName !== undefined
+          ? {
+              identity: mergeIdentityName(
+                existingCommonStaff.identity,
+                dto.displayName,
+              ),
+            }
+          : {}),
         ...(dto.roleTitle !== undefined
           ? { roleTitle: dto.roleTitle, shortRoleTitle }
           : {}),

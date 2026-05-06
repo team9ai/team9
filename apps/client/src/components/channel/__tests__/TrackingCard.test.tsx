@@ -349,6 +349,46 @@ describe("TrackingCard", () => {
     );
   });
 
+  it("passes truncated tool_result message metadata so expanded cards can fetch full content", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [
+        {
+          id: "a",
+          content: "",
+          metadata: callMeta("tc-1"),
+          createdAt: "2026-03-27T12:00:00Z",
+        },
+        {
+          id: "b",
+          content: "preview ... (truncated)",
+          type: "long_text",
+          metadata: resultMeta("tc-1"),
+          isTruncated: true,
+          fullContentLength: 8192,
+          createdAt: "2026-03-27T12:00:01Z",
+        },
+      ],
+      totalMessageCount: 2,
+      isLoading: false,
+      activeStream: null,
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultMessage: expect.objectContaining({
+          id: "b",
+          type: "long_text",
+          content: "preview ... (truncated)",
+          isTruncated: true,
+          fullContentLength: 8192,
+        }),
+      }),
+    );
+  });
+
   it("pairs newest-first persisted tool_result + tool_call messages", () => {
     mockUseTrackingChannel.mockReturnValue({
       isActivated: true,

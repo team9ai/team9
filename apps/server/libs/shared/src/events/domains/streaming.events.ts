@@ -17,6 +17,8 @@ export interface StreamingStartEvent {
   senderId: string;
   /** Optional parent message ID (for threaded replies) */
   parentId?: string;
+  /** Optional initial agent-event metadata */
+  metadata?: Record<string, unknown>;
   /** Timestamp when streaming started */
   startedAt: number;
 }
@@ -41,6 +43,16 @@ export interface StreamingThinkingContentEvent {
   senderId: string;
   /** Full accumulated thinking content so far */
   content: string;
+}
+
+/**
+ * Streaming metadata update - transient stream state, not persisted as history
+ */
+export interface StreamingMetadataEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  metadata: Record<string, unknown>;
 }
 
 /**

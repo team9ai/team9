@@ -550,6 +550,25 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText(/"success": true/)).toBeInTheDocument();
     });
 
+    it("renders JSON string results as the raw string content rather than escaped JSON", () => {
+      const agentVisibleResult = '{"name":"twitter_get_user_tweets"}';
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("invoke_tool")}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify(agentVisibleResult)}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getByText(agentVisibleResult)).toBeInTheDocument();
+      expect(
+        screen.queryByText(/\\"twitter_get_user_tweets\\"/),
+      ).not.toBeInTheDocument();
+    });
+
     it("falls back to the raw result when nested content has no text blocks", () => {
       const wrappedContent = JSON.stringify({
         content: [{ type: "image", url: "x" }],

@@ -38,6 +38,21 @@ export type { StaffBotResult as PersonalStaffResult };
 const PERSONAL_STAFF_APPLICATION_ID = 'personal-staff';
 const HIVE_BLUEPRINT_ID = 'team9-personal-staff';
 
+function mergeIdentityName(
+  identity: Record<string, unknown> | undefined,
+  displayName: string | undefined,
+): Record<string, unknown> | undefined {
+  if (displayName === undefined) return identity;
+  const next = { ...(identity ?? {}) };
+  const name = displayName.trim();
+  if (name) {
+    next.name = name;
+  } else {
+    delete next.name;
+  }
+  return next;
+}
+
 function normalizeLanguage(language: string | null | undefined): string {
   return (language ?? '').trim().toLowerCase();
 }
@@ -223,6 +238,9 @@ export class PersonalStaffService {
       personalStaff: {
         persona: dto.persona,
         model: dto.model,
+        ...(dto.displayName?.trim()
+          ? { identity: { name: dto.displayName.trim() } }
+          : {}),
         visibility: {
           allowMention: false,
           allowDirectMessage: false,
@@ -540,6 +558,14 @@ export class PersonalStaffService {
       ...existingExtra,
       personalStaff: {
         ...existingPersonalStaff,
+        ...(dto.displayName !== undefined
+          ? {
+              identity: mergeIdentityName(
+                existingPersonalStaff.identity,
+                dto.displayName,
+              ),
+            }
+          : {}),
         ...(dto.persona !== undefined ? { persona: dto.persona } : {}),
         ...(dto.model !== undefined ? { model: dto.model } : {}),
         ...(dto.visibility !== undefined
