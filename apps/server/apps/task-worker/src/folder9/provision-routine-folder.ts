@@ -38,12 +38,17 @@ export interface ProvisionRoutineFolderDeps {
 }
 
 /**
- * First two segments of a UUID, used as the human-readable folder name slug.
- * Example: `slugifyUuid("7f3a2b1c-1111-2222-3333-444455556666")` →
- * `"7f3a2b1c-1111"`.
+ * Random tail of a canonical UUID, used as the human-readable folder name slug.
+ * Example: `slugifyUuid("019dfa50-5944-7249-8b85-5fe11a2719e8")` →
+ * `"5fe11a2719e8"`.
  */
 export function slugifyUuid(id: string): string {
-  return id.split('-').slice(0, 2).join('-');
+  const normalized = id.trim().toLowerCase();
+  const compact = normalized.replace(/-/g, '');
+  if (/^[0-9a-f]{32}$/.test(compact)) {
+    return compact.slice(-12);
+  }
+  return normalized.split('-').slice(0, 2).join('-');
 }
 
 function normalizeDescription(value: string): string {

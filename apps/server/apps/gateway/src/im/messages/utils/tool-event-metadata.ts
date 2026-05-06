@@ -1,5 +1,35 @@
 type Metadata = Record<string, unknown>;
 
+function normalizeAgentEventType(value: unknown): string | undefined {
+  if (value === 'func_call' || value === 'function_call') {
+    return 'tool_call';
+  }
+  if (value === 'func_result' || value === 'function_result') {
+    return 'tool_result';
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
+function normalizeAgentEventStatus(
+  value: unknown,
+  rawAgentEventType: unknown,
+): string | undefined {
+  if (typeof value === 'string') return value;
+  if (
+    rawAgentEventType === 'func_call' ||
+    rawAgentEventType === 'function_call'
+  ) {
+    return 'running';
+  }
+  if (
+    rawAgentEventType === 'func_result' ||
+    rawAgentEventType === 'function_result'
+  ) {
+    return 'completed';
+  }
+  return undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -68,34 +98,57 @@ export function normalizeToolEventMetadata(
   metadata: Metadata | undefined,
   content: string,
 ): Metadata | undefined {
-  if (!metadata || metadata.agentEventType !== 'tool_result') {
+  if (!metadata) {
     return metadata;
   }
 
+  const rawAgentEventType = metadata.agentEventType;
+  const agentEventType = normalizeAgentEventType(rawAgentEventType);
+  const normalizedStatus = normalizeAgentEventStatus(
+    metadata.status,
+    rawAgentEventType,
+  );
+  const normalizedMetadata =
+    agentEventType && agentEventType !== metadata.agentEventType
+      ? {
+          ...metadata,
+          agentEventType,
+          ...(normalizedStatus ? { status: normalizedStatus } : {}),
+        }
+      : metadata;
+
+  if (normalizedMetadata.agentEventType !== 'tool_result') {
+    return normalizedMetadata;
+  }
+
   const failedStatus =
-    metadata.status === 'failed' ||
-    metadata.status === 'cancelled' ||
-    metadata.status === 'timeout';
+    normalizedMetadata.status === 'failed' ||
+    normalizedMetadata.status === 'cancelled' ||
+    normalizedMetadata.status === 'timeout';
   const inferredFailureMessage =
     getExplicitFailureMessage(content) ?? getToolRuntimeFailureMessage(content);
   const failureMessage =
-    typeof metadata.errorMessage === 'string'
-      ? metadata.errorMessage
+    typeof normalizedMetadata.errorMessage === 'string'
+      ? normalizedMetadata.errorMessage
       : failedStatus
         ? getFailedStatusMessage(content)
         : inferredFailureMessage;
   const success =
-    metadata.success === false || failedStatus || failureMessage ? false : true;
+    normalizedMetadata.success === false || failedStatus || failureMessage
+      ? false
+      : true;
   const status =
-    success || failedStatus ? (metadata.status ?? 'completed') : 'failed';
+    success || failedStatus
+      ? (normalizedMetadata.status ?? 'completed')
+      : 'failed';
 
   return {
-    ...metadata,
+    ...normalizedMetadata,
     status,
     success,
     completedAt:
-      typeof metadata.completedAt === 'string'
-        ? metadata.completedAt
+      typeof normalizedMetadata.completedAt === 'string'
+        ? normalizedMetadata.completedAt
         : new Date().toISOString(),
     ...(!success && failureMessage ? { errorMessage: failureMessage } : {}),
   };

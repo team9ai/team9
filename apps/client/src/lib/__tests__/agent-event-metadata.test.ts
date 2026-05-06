@@ -52,6 +52,43 @@ describe("getAgentEventMetadata", () => {
       });
     });
 
+    it("normalizes legacy func_call metadata into a tool_call event", () => {
+      const result = getAgentEventMetadata(
+        {
+          agentEventType: "func_call",
+          status: "running",
+          toolName: "search",
+          toolCallId: "call_123",
+          toolArgs: { query: "hello" },
+        },
+        FALLBACK,
+      );
+      expect(result).toEqual({
+        agentEventType: "tool_call",
+        status: "running",
+        toolName: "search",
+        toolCallId: "call_123",
+        toolArgs: { query: "hello" },
+      });
+    });
+
+    it("defaults legacy func_call status to running when omitted", () => {
+      const result = getAgentEventMetadata(
+        {
+          agentEventType: "func_call",
+          toolName: "search",
+          toolCallId: "call_123",
+        },
+        FALLBACK,
+      );
+      expect(result).toEqual({
+        agentEventType: "tool_call",
+        status: "running",
+        toolName: "search",
+        toolCallId: "call_123",
+      });
+    });
+
     it("passes through tool_result success flag", () => {
       const result = getAgentEventMetadata(
         {

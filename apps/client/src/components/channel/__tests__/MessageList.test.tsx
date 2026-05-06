@@ -738,6 +738,36 @@ describe("MessageList — round auto-fold", () => {
       expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
     });
 
+    it("renders an active streaming func_call alias as a ToolCallBlock", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-func",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "func_call",
+            status: "running",
+            toolCallId: "fc-stream",
+            toolName: "view_map",
+            toolArgsText: '{"place":"Beijing"}',
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      const blocks = screen.getAllByTestId("tool-call-block");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].getAttribute("data-tool-call-id")).toBe("fc-stream");
+      expect(blocks[0].getAttribute("data-tool-name")).toBe("view_map");
+    });
+
     it("keeps the bot thinking indicator visible while an active stream exists", () => {
       mockChannelStreams.current = [
         {

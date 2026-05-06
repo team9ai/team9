@@ -8,9 +8,15 @@ import {
 } from './provision-routine-folder.js';
 
 describe('slugifyUuid', () => {
-  it('takes the first two segments of a UUID', () => {
+  it('takes the random tail of a canonical UUID', () => {
     expect(slugifyUuid('7f3a2b1c-1111-2222-3333-444455556666')).toBe(
-      '7f3a2b1c-1111',
+      '444455556666',
+    );
+  });
+
+  it('does not expose the timestamp prefix of a UUIDv7', () => {
+    expect(slugifyUuid('019dfa50-5944-7249-8b85-5fe11a2719e8')).toBe(
+      '5fe11a2719e8',
     );
   });
 
@@ -29,7 +35,7 @@ describe('provisionFolder9SkillFolder', () => {
   beforeEach(() => {
     createFolder = jest.fn<any>().mockResolvedValue({
       id: 'folder-001',
-      name: 'routine-7f3a2b1c-1111',
+      name: 'routine-444455556666',
       type: 'managed',
       owner_type: 'workspace',
       owner_id: 'tenant-001',
@@ -74,7 +80,7 @@ describe('provisionFolder9SkillFolder', () => {
 
     expect(result).toEqual({ folderId: 'folder-001' });
     expect(createFolder).toHaveBeenCalledWith('tenant-001', {
-      name: 'routine-7f3a2b1c-1111',
+      name: 'routine-444455556666',
       type: 'managed',
       owner_type: 'workspace',
       owner_id: 'tenant-001',
@@ -102,7 +108,7 @@ describe('provisionFolder9SkillFolder', () => {
     expect(skill.path).toBe('SKILL.md');
     expect(skill.action).toBe('create');
     expect(skill.encoding).toBe('text');
-    expect(skill.content).toContain('name: routine-7f3a2b1c-1111');
+    expect(skill.content).toContain('name: routine-444455556666');
     expect(skill.content).toContain('description: do the thing');
   });
 

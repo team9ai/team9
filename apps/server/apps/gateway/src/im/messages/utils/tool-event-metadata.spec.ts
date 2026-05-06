@@ -19,6 +19,43 @@ describe('normalizeToolEventMetadata', () => {
     });
   });
 
+  it('normalizes legacy func_call metadata into a tool_call event', () => {
+    const result = normalizeToolEventMetadata(
+      {
+        agentEventType: 'func_call',
+        status: 'running',
+        toolName: 'view_map',
+        toolCallId: 'fc-1',
+      },
+      '',
+    );
+
+    expect(result).toMatchObject({
+      agentEventType: 'tool_call',
+      status: 'running',
+      toolName: 'view_map',
+      toolCallId: 'fc-1',
+    });
+  });
+
+  it('defaults legacy func_call status to running when omitted', () => {
+    const result = normalizeToolEventMetadata(
+      {
+        agentEventType: 'func_call',
+        toolName: 'view_map',
+        toolCallId: 'fc-1',
+      },
+      '',
+    );
+
+    expect(result).toMatchObject({
+      agentEventType: 'tool_call',
+      status: 'running',
+      toolName: 'view_map',
+      toolCallId: 'fc-1',
+    });
+  });
+
   it('sets success false for failed status without changing toolCallId', () => {
     const result = normalizeToolEventMetadata(
       {

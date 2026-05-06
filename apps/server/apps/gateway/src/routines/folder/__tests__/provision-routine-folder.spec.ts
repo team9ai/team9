@@ -20,7 +20,7 @@ function makeFolder9ClientMock(): MockFolder9Client {
   return {
     createFolder: jest.fn<any>().mockResolvedValue({
       id: 'folder-uuid-1',
-      name: 'routine-7f3a2b1c-1111',
+      name: 'routine-444455556666',
       type: 'managed',
       owner_type: 'workspace',
       owner_id: 'ws-1',
@@ -88,7 +88,7 @@ describe('provisionFolder9SkillFolder', () => {
       const [wsId, input] = folder9Client.createFolder.mock.calls[0];
       expect(wsId).toBe('ws-1');
       expect(input).toEqual({
-        name: 'routine-7f3a2b1c-1111',
+        name: 'routine-444455556666',
         type: 'managed',
         owner_type: 'workspace',
         owner_id: 'ws-1',
@@ -96,13 +96,13 @@ describe('provisionFolder9SkillFolder', () => {
       });
     });
 
-    it('derives the slug from the first two UUID segments', async () => {
+    it('derives the slug from the UUID random tail instead of the timestamp prefix', async () => {
       await provisionFolder9SkillFolder(
-        { ...baseRoutine, id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' },
+        { ...baseRoutine, id: '019dfa50-5944-7249-8b85-5fe11a2719e8' },
         deps,
       );
       expect(folder9Client.createFolder.mock.calls[0][1].name).toBe(
-        'routine-aaaaaaaa-bbbb',
+        'routine-5fe11a2719e8',
       );
     });
   });
@@ -112,7 +112,7 @@ describe('provisionFolder9SkillFolder', () => {
       await provisionFolder9SkillFolder(baseRoutine, deps);
       const skillMd = folder9Client.commit.mock.calls[0][3].files[0]
         .content as string;
-      expect(skillMd).toContain('---\nname: routine-7f3a2b1c-1111\n');
+      expect(skillMd).toContain('---\nname: routine-444455556666\n');
       expect(skillMd).toContain('description: Send daily standup at 9am\n');
       expect(skillMd).toContain('# Steps\n1. Check status\n2. Post update');
       // Frontmatter must come before body
@@ -221,7 +221,7 @@ describe('provisionFolder9SkillFolder', () => {
       await provisionFolder9SkillFolder(baseRoutine, deps);
       const commitInput = folder9Client.commit.mock.calls[0][3];
       expect(commitInput.message).toBe(
-        'Migrate routine 7f3a2b1c-1111 documentContent to SKILL.md',
+        'Migrate routine 444455556666 documentContent to SKILL.md',
       );
     });
 
@@ -231,7 +231,7 @@ describe('provisionFolder9SkillFolder', () => {
         deps,
       );
       expect(folder9Client.commit.mock.calls[0][3].message).toBe(
-        'Initial scaffold for routine 7f3a2b1c-1111',
+        'Initial scaffold for routine 444455556666',
       );
     });
 
@@ -241,7 +241,7 @@ describe('provisionFolder9SkillFolder', () => {
         deps,
       );
       expect(folder9Client.commit.mock.calls[0][3].message).toBe(
-        'Initial scaffold for routine 7f3a2b1c-1111',
+        'Initial scaffold for routine 444455556666',
       );
     });
 
@@ -251,7 +251,7 @@ describe('provisionFolder9SkillFolder', () => {
         deps,
       );
       expect(folder9Client.commit.mock.calls[0][3].message).toBe(
-        'Initial scaffold for routine 7f3a2b1c-1111',
+        'Initial scaffold for routine 444455556666',
       );
     });
 

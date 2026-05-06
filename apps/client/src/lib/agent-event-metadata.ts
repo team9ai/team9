@@ -48,6 +48,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function normalizeAgentEventType(
+  value: unknown,
+): AgentEventMetadata["agentEventType"] | undefined {
+  if (value === "func_call" || value === "function_call") {
+    return "tool_call";
+  }
+  if (value === "func_result" || value === "function_result") {
+    return "tool_result";
+  }
+  return isAgentEventType(value) ? value : undefined;
+}
+
 function isAgentEventType(
   value: unknown,
 ): value is AgentEventMetadata["agentEventType"] {
@@ -66,6 +78,26 @@ function isAgentEventStatus(
   );
 }
 
+function getNormalizedStatus(
+  value: unknown,
+  rawAgentEventType: unknown,
+): AgentEventMetadata["status"] | undefined {
+  if (isAgentEventStatus(value)) return value;
+  if (
+    rawAgentEventType === "func_call" ||
+    rawAgentEventType === "function_call"
+  ) {
+    return "running";
+  }
+  if (
+    rawAgentEventType === "func_result" ||
+    rawAgentEventType === "function_result"
+  ) {
+    return "completed";
+  }
+  return undefined;
+}
+
 export function getAgentEventMetadata(
   value: unknown,
   fallback: AgentEventMetadata,
@@ -80,10 +112,11 @@ export function getOptionalAgentEventMetadata(
     return undefined;
   }
 
-  const agentEventType = value.agentEventType;
-  const status = value.status;
+  const rawAgentEventType = value.agentEventType;
+  const agentEventType = normalizeAgentEventType(rawAgentEventType);
+  const status = getNormalizedStatus(value.status, rawAgentEventType);
 
-  if (!isAgentEventType(agentEventType) || !isAgentEventStatus(status)) {
+  if (!agentEventType || !status) {
     return undefined;
   }
 

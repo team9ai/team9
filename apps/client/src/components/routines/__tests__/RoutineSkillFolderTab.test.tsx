@@ -128,7 +128,7 @@ const baseRoutine: RoutineDetail = {
 
 const SKILL_MD_CONTENT =
   "---\n" +
-  "name: routine-7f3a2b1c-1111\n" +
+  "name: routine-444455556666\n" +
   "description: Existing routine description.\n" +
   "---\n" +
   "\n" +
@@ -257,8 +257,8 @@ describe("RoutineSkillFolderTab — SKILL.md composite editor", () => {
     const nameInput = (await screen.findByTestId(
       "routine-skill-name",
     )) as HTMLInputElement;
-    // First two segments of the UUID, prefixed with "routine-".
-    expect(nameInput.value).toBe("routine-7f3a2b1c-1111");
+    // Last 12 UUID hex characters, prefixed with "routine-".
+    expect(nameInput.value).toBe("routine-444455556666");
     expect(nameInput.readOnly).toBe(true);
   });
 
@@ -316,7 +316,7 @@ describe("RoutineSkillFolderTab — SKILL.md composite editor", () => {
     const setDraftCalls = draftHook.state!.setDraft.mock.calls;
     const lastCall = setDraftCalls[setDraftCalls.length - 1][0];
     expect(lastCall.body).toContain("description: New description");
-    expect(lastCall.body).toContain("name: routine-7f3a2b1c-1111");
+    expect(lastCall.body).toContain("name: routine-444455556666");
     expect(lastCall.body).toContain("# Routine body");
   });
 
