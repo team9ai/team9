@@ -172,6 +172,32 @@ describe('RoutineTriggersService', () => {
     );
   });
 
+  it('creates schedule triggers using the configured timezone, not the server timezone', async () => {
+    db.chains.taskLimit.mockResolvedValueOnce([
+      { id: 'task-1', tenantId: 'tenant-1' },
+    ]);
+    db.chains.insertReturning.mockResolvedValueOnce([{ id: 'trigger-ny' }]);
+
+    await service.create(
+      'task-1',
+      {
+        type: 'schedule',
+        config: {
+          frequency: 'daily',
+          time: '09:15',
+          timezone: 'America/New_York',
+        },
+      } as never,
+      'tenant-1',
+    );
+
+    expect(db.chains.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextRunAt: new Date('2026-04-02T13:15:00.000Z'),
+      }),
+    );
+  });
+
   it('validates required config before inserting triggers', async () => {
     db.chains.taskLimit.mockResolvedValue([
       { id: 'task-1', tenantId: 'tenant-1' },
