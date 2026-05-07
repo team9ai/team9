@@ -40,6 +40,7 @@ import { type PostBroadcastTask } from '@team9/shared';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { FileService } from '../../file/file.service.js';
 
 export interface MessageSender {
   id: string;
@@ -52,16 +53,19 @@ export interface MessageSender {
 
 export interface MessageAttachmentResponse {
   id: string;
+  messageId: string;
   fileName: string;
   // null when the attachment is an external pass-through — bytes live at a
   // third-party URL (fileUrl) and were never uploaded to team9 S3.
   fileKey: string | null;
   fileUrl: string;
+  publicUrl?: string | null;
   fileSize: number;
   mimeType: string;
   thumbnailUrl: string | null;
   width: number | null;
   height: number | null;
+  createdAt: Date;
 }
 
 export interface MessageReactionResponse {
@@ -139,11 +143,45 @@ export class MessagesService {
     private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
+    @Optional() private readonly fileService?: FileService,
   ) {}
 
   /** Lazily resolve WebsocketGateway to avoid ESM circular dependency at import time */
   private get wsGateway(): WebsocketGateway {
     return this.moduleRef.get(WEBSOCKET_GATEWAY, { strict: false });
+  }
+
+  private async withAttachmentPublicUrls(
+    attachments: schema.MessageAttachment[],
+  ): Promise<MessageAttachmentResponse[]> {
+    return Promise.all(
+      attachments.map(async (attachment) => {
+        if (!attachment.fileKey || !this.fileService) {
+          return {
+            ...attachment,
+            publicUrl: attachment.fileUrl,
+          };
+        }
+
+        try {
+          const { url } = await this.fileService.createAttachmentPublicUrl(
+            attachment.fileKey,
+          );
+          return {
+            ...attachment,
+            publicUrl: url,
+          };
+        } catch (error) {
+          this.logger.warn(
+            `Failed to create publicUrl for attachment ${attachment.id}: ${error}`,
+          );
+          return {
+            ...attachment,
+            publicUrl: attachment.fileUrl,
+          };
+        }
+      }),
+    );
   }
 
   private mapMessageSender(row: {
@@ -226,10 +264,11 @@ export class MessagesService {
     }
 
     // Get attachments
-    const attachments = await this.db
+    const attachmentsRaw = await this.db
       .select()
       .from(schema.messageAttachments)
       .where(eq(schema.messageAttachments.messageId, messageId));
+    const attachments = await this.withAttachmentPublicUrls(attachmentsRaw);
 
     // Get reactions
     const reactionsRaw = await this.db
@@ -340,10 +379,12 @@ export class MessagesService {
 
     // Batch query 2: Get all attachments
     const attachmentsMap = new Map<string, MessageAttachmentResponse[]>();
-    const allAttachments = await this.db
+    const allAttachmentsRaw = await this.db
       .select()
       .from(schema.messageAttachments)
       .where(inArray(schema.messageAttachments.messageId, messageIds));
+    const allAttachments =
+      await this.withAttachmentPublicUrls(allAttachmentsRaw);
 
     allAttachments.forEach((att) => {
       const existing = attachmentsMap.get(att.messageId) || [];

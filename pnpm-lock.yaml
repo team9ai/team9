@@ -864,6 +864,9 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../../libs/shared
+      "@team9/storage":
+        specifier: workspace:*
+        version: link:../../libs/storage
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

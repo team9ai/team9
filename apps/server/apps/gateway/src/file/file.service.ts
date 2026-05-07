@@ -349,6 +349,25 @@ export class FileService implements OnModuleInit {
   }
 
   /**
+   * Create a short-lived URL for an attachment that already belongs to a
+   * message response the caller is authorized to read.
+   */
+  async createAttachmentPublicUrl(
+    key: string,
+    expiresIn = DEFAULT_DOWNLOAD_EXPIRES_IN,
+  ): Promise<DownloadUrlResult> {
+    const bucket = this.getBucketName();
+    const url = await this.storageService.createPresignedDownload(
+      bucket,
+      key,
+      expiresIn,
+    );
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    return { url, expiresAt };
+  }
+
+  /**
    * Get public download URL (for public files only, no auth required)
    */
   async getPublicDownloadUrl(

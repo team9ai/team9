@@ -495,6 +495,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     sender?: ReturnType<typeof makeSender>;
     channel?: ReturnType<typeof makeChannel>;
     parentMessage?: unknown;
+    attachments?: unknown[];
   }) {
     const {
       bots,
@@ -502,6 +503,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       sender = makeSender(),
       channel = makeChannel(),
       parentMessage = null,
+      attachments = [],
     } = opts;
 
     // 1st where() call: hive bot query (terminal — no limit)
@@ -515,6 +517,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     if (message.parentId) {
       db.where.mockReturnValueOnce(db); // parent message query
     }
+    db.where.mockResolvedValueOnce(attachments); // attachments query (no .limit())
     // Then set up .limit() return values for each query:
     db.limit
       .mockResolvedValueOnce([message]) // messages table
@@ -528,12 +531,14 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     sender?: ReturnType<typeof makeSender>;
     channel?: ReturnType<typeof makeChannel>;
     parentMessage?: unknown;
+    attachments?: unknown[];
   }) {
     const {
       message = makeMessage(),
       sender = makeSender(),
       channel = makeChannel('public'),
       parentMessage = null,
+      attachments = [],
     } = opts;
 
     db.where
@@ -543,7 +548,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     if (message.parentId) {
       db.where.mockReturnValueOnce(db); // parent message query
     }
-    db.where.mockResolvedValueOnce([]); // attachments query (no .limit())
+    db.where.mockResolvedValueOnce(attachments); // attachments query (no .limit())
 
     db.limit
       .mockResolvedValueOnce([message]) // messages table
@@ -785,6 +790,57 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(event.payload.content).toBe('Test content');
     expect(event.payload.sender.id).toBe(sender.id);
     expect(event.payload.sender.username).toBe(sender.username);
+  });
+
+  it('sends attachment publicUrl to hive bots', async () => {
+    const bot = makeHiveBot('claude');
+    const storageService = {
+      createPresignedDownload: jest
+        .fn<any>()
+        .mockResolvedValue('https://signed.example.com/report.pdf'),
+    };
+    (service as any).storageService = storageService;
+
+    setupDbForHivePush({
+      bots: [bot],
+      message: makeMessage({ type: 'file' }),
+      attachments: [
+        {
+          id: 'att-1',
+          messageId: MSG_ID,
+          fileName: 'report.pdf',
+          fileKey: 'workspace-1/report.pdf',
+          fileUrl: 'https://private.example.com/report.pdf',
+          fileSize: 1234,
+          mimeType: 'application/pdf',
+          thumbnailUrl: null,
+          width: null,
+          height: null,
+          createdAt: new Date(),
+        },
+      ],
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    expect(storageService.createPresignedDownload).toHaveBeenCalledWith(
+      expect.any(String),
+      'workspace-1/report.pdf',
+      8 * 3600,
+    );
+    expect(event.payload.file).toEqual(
+      expect.objectContaining({
+        name: 'report.pdf',
+        mimeType: 'application/pdf',
+        url: 'https://signed.example.com/report.pdf',
+        publicUrl: 'https://signed.example.com/report.pdf',
+      }),
+    );
   });
 
   it('builds flat channel location for top-level messages', async () => {

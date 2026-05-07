@@ -67,6 +67,7 @@ export interface TextMessagePayload {
 
 export interface FileMessagePayload {
   fileUrl: string;
+  publicUrl?: string;
   fileName: string;
   fileSize: number;
   mimeType: string;

@@ -45,6 +45,8 @@ export interface MessageAttachment {
   fileName: string;
   /** File URL */
   fileUrl: string;
+  /** Short-lived public/presigned URL for non-authenticated readers */
+  publicUrl?: string;
   /** File size (bytes) */
   fileSize: number;
   /** MIME type */
