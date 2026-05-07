@@ -3,21 +3,20 @@ import { useTheme as useThemeState, useAppStore } from "@/stores/useAppStore";
 
 /**
  * Hook that syncs the theme state with the DOM.
- * Applies the 'dark' class to document.documentElement when theme is 'dark'.
+ * Dark mode is currently disabled product-wide — this hook forces light mode
+ * and migrates any persisted "dark" preference back to "light" for old users.
  * Should be called once at the app root level.
  */
 export function useThemeEffect() {
   const theme = useThemeState();
+  const setTheme = useAppStore((state) => state.setTheme);
 
   useEffect(() => {
-    const root = document.documentElement;
-
     if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
+      setTheme("light");
     }
-  }, [theme]);
+    document.documentElement.classList.remove("dark");
+  }, [theme, setTheme]);
 
   return theme;
 }

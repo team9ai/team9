@@ -81,6 +81,9 @@ export interface ChannelSnapshot {
     content: string;
     metadata: AgentEventMetadata;
     createdAt: string;
+    type?: Message["type"];
+    isTruncated?: boolean;
+    fullContentLength?: number;
   }>;
 }
 
