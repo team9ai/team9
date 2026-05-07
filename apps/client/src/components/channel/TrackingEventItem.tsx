@@ -107,6 +107,40 @@ export function formatDuration(ms: number, t: ChannelTFunction): string {
   return t("tracking.thinking.minutesSeconds", { minutes, seconds });
 }
 
+export function formatRoundDuration(ms: number, t: ChannelTFunction): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  if (totalSeconds < 60) {
+    return t("tracking.roundDuration.seconds", { count: totalSeconds });
+  }
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (totalMinutes < 60) {
+    return t("tracking.roundDuration.minutesSeconds", {
+      minutes: totalMinutes,
+      seconds,
+    });
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return t("tracking.roundDuration.hoursMinutes", { hours, minutes });
+}
+
+function getAgentEndDurationMs(metadata: AgentEventMetadata): number | null {
+  if (typeof metadata.durationMs === "number" && metadata.durationMs >= 0) {
+    return metadata.durationMs;
+  }
+
+  if (!metadata.startedAt || !metadata.completedAt) return null;
+
+  const startedAt = new Date(metadata.startedAt).getTime();
+  const completedAt = new Date(metadata.completedAt).getTime();
+  if (Number.isNaN(startedAt) || Number.isNaN(completedAt)) return null;
+
+  return Math.max(0, completedAt - startedAt);
+}
+
 /**
  * Build the label for a thinking event. Examples:
  *   streaming  → "Thinking 1m 4s"  / "思考中 1 分 4 秒"
@@ -224,7 +258,13 @@ export function TrackingEventItem({
 
   const label = isThinking
     ? buildThinkingStats(metadata, isStreaming, t)
-    : (toolCallLabel ?? eventTypeLabel);
+    : metadata.agentEventType === "agent_end"
+      ? loosenedT("tracking.roundEnd.label")
+      : (toolCallLabel ?? eventTypeLabel);
+  const agentEndDurationMs =
+    metadata.agentEventType === "agent_end"
+      ? getAgentEndDurationMs(metadata)
+      : null;
 
   // Icon stays status-colored so a glance at the left gutter conveys
   // the outcome — except for lifecycle markers (thinking / agent_start
@@ -259,11 +299,17 @@ export function TrackingEventItem({
       : content;
 
   const displayContent =
-    metadata.agentEventType === "tool_call" && metadata.toolName
-      ? metadata.toolName
-      : isThinking
-        ? thinkingBody
-        : content;
+    metadata.agentEventType === "agent_end"
+      ? agentEndDurationMs === null
+        ? ""
+        : loosenedT("tracking.roundEnd.duration", {
+            duration: formatRoundDuration(agentEndDurationMs, t),
+          })
+      : metadata.agentEventType === "tool_call" && metadata.toolName
+        ? metadata.toolName
+        : isThinking
+          ? thinkingBody
+          : content;
 
   const summaryContent = effectiveCollapsible
     ? displayContent.length > 60
@@ -311,7 +357,7 @@ export function TrackingEventItem({
         </span>
         {/* Content — thinking keeps the label-only row; body lives in the
             expandable panel below. */}
-        {!isThinking && (
+        {!isThinking && displayContent && (
           <span
             className={cn(
               "text-xs truncate flex-1 min-w-0 ml-2",

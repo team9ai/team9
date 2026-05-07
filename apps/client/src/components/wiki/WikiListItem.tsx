@@ -7,21 +7,32 @@ import {
   ChevronRight,
   Library as LibraryIcon,
   MoreHorizontal,
+  Plus,
   Settings,
 } from "lucide-react";
 import { useWikiTree } from "@/hooks/useWikiTree";
+import { queryClient } from "@/lib/query-client";
 import {
   useSelectedWikiId,
   useWikiStore,
   wikiActions,
 } from "@/stores/useWikiStore";
 import { buildTree } from "@/lib/wiki-tree";
+import {
+  DEFAULT_WIKI_INDEX_FILENAME,
+  DEFAULT_WIKI_INDEX_PATH,
+  LEGACY_WIKI_INDEX_FILENAME,
+  stripWikiPageExtension,
+} from "@/lib/wiki-paths";
+import { wikisApi } from "@/services/api/wikis";
+import { useWikiPage } from "@/hooks/useWikiPage";
+import { wikiKeys } from "@/hooks/useWikis";
 import { WikiTreeNode } from "./WikiTreeNode";
 import { WikiSettingsDialog } from "./WikiSettingsDialog";
 import {
   DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuContent,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -66,6 +77,30 @@ function archiveErrorMessage(error: unknown): string {
   return i18n.t("wiki:settings.errors.archiveFailed");
 }
 
+function normalizePageFolderIndexPath(input: string): string | null {
+  let trimmed = input.trim().replace(/^\/+|\/+$/g, "");
+  if (!trimmed) return null;
+  trimmed = trimmed.replace(/\.md9?$/i, "");
+  if (!trimmed) return null;
+  return `${trimmed}/${DEFAULT_WIKI_INDEX_FILENAME}`;
+}
+
+function uniqueFolderIndexPath(
+  path: string,
+  existingPaths: Set<string>,
+): string {
+  if (!existingPaths.has(path)) return path;
+  const suffix = `/${DEFAULT_WIKI_INDEX_FILENAME}`;
+  const folderPath = path.endsWith(suffix)
+    ? path.slice(0, -suffix.length)
+    : path;
+  for (let i = 2; i < 1000; i += 1) {
+    const candidate = `${folderPath}-${i}${suffix}`;
+    if (!existingPaths.has(candidate)) return candidate;
+  }
+  return `${folderPath}-${Date.now()}${suffix}`;
+}
+
 /**
  * One wiki row in the sub-sidebar. The wiki tree is lazy-loaded — the
  * `useWikiTree` query is disabled until the user expands this row, so
@@ -90,16 +125,54 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
 
   const { data: entries } = useWikiTree(isOpen ? wiki.id : null);
   const tree = useMemo(() => (entries ? buildTree(entries) : []), [entries]);
+  const visibleTree = useMemo(
+    () =>
+      tree.filter(
+        (node) =>
+          !(
+            node.type === "file" &&
+            (node.name === DEFAULT_WIKI_INDEX_FILENAME ||
+              node.name === LEGACY_WIKI_INDEX_FILENAME)
+          ),
+      ),
+    [tree],
+  );
 
   const [showSettings, setShowSettings] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isCreatingFile, setIsCreatingFile] = useState(false);
 
   const archiveWiki = useArchiveWiki();
   const isArchiving = archiveWiki.isPending;
 
   const navigate = useNavigate();
   const selectedWikiId = useSelectedWikiId();
+  const selectedPagePath = useWikiStore((s) => s.selectedPagePath);
+  const shouldReadRootDocument = isOpen || selectedWikiId === wiki.id;
+  const { data: rootPage } = useWikiPage(
+    wiki.id,
+    shouldReadRootDocument ? DEFAULT_WIKI_INDEX_PATH : null,
+  );
+  const isRootDocumentSelected =
+    selectedWikiId === wiki.id && selectedPagePath === DEFAULT_WIKI_INDEX_PATH;
+  const rootTitle =
+    typeof rootPage?.frontmatter.title === "string" &&
+    rootPage.frontmatter.title.trim().length > 0
+      ? rootPage.frontmatter.title.trim()
+      : wiki.name;
+  const rootIcon =
+    typeof rootPage?.frontmatter.icon === "string" &&
+    rootPage.frontmatter.icon.trim().length > 0
+      ? rootPage.frontmatter.icon.trim()
+      : wiki.icon;
+  const existingPaths = useMemo(
+    () =>
+      new Set(
+        (entries ?? []).filter((e) => e.type === "file").map((e) => e.path),
+      ),
+    [entries],
+  );
 
   // Note: a second invocation while the first is still pending is
   // prevented by the confirm button's `disabled` attribute (the button is
@@ -125,6 +198,59 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
     }
   };
 
+  const handleOpenRootDocument = () => {
+    wikiActions.expandDirectory(expandKey);
+    wikiActions.setSelectedWiki(wiki.id);
+    wikiActions.setSelectedPage(DEFAULT_WIKI_INDEX_PATH);
+    navigate({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: wiki.slug, _splat: DEFAULT_WIKI_INDEX_PATH },
+    });
+  };
+
+  const refreshAfterCreate = (path: string) => {
+    wikiActions.expandDirectory(expandKey);
+    wikiActions.setSelectedWiki(wiki.id);
+    wikiActions.setSelectedPage(path);
+    navigate({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: wiki.slug, _splat: path },
+    });
+    void queryClient.invalidateQueries({ queryKey: wikiKeys.trees(wiki.id) });
+    void queryClient.invalidateQueries({ queryKey: wikiKeys.pages(wiki.id) });
+  };
+
+  const createFile = async (
+    path: string,
+    content: string,
+    encoding: "text" | "base64",
+  ) => {
+    setIsCreatingFile(true);
+    try {
+      await wikisApi.commit(wiki.id, {
+        message: `Create ${path}`,
+        files: [{ path, content, encoding, action: "create" }],
+      });
+      refreshAfterCreate(path);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Create failed");
+    } finally {
+      setIsCreatingFile(false);
+    }
+  };
+
+  const handleCreatePage = () => {
+    if (isCreatingFile) return;
+    const input = window.prompt(t("listItem.newPagePrompt"), "untitled");
+    if (input === null) return;
+    const normalized = normalizePageFolderIndexPath(input);
+    if (!normalized) return;
+    const path = uniqueFolderIndexPath(normalized, existingPaths);
+    const pathSegments = path.split("/");
+    const title = pathSegments[pathSegments.length - 2] ?? "untitled";
+    void createFile(path, `# ${stripWikiPageExtension(title)}\n\n`, "text");
+  };
+
   return (
     <div
       role="treeitem"
@@ -132,35 +258,62 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       aria-expanded={isOpen}
       className="group/wiki-row relative"
     >
-      <div className="flex items-center w-full hover:bg-accent">
+      <div
+        className={cn(
+          "flex items-center w-full hover:bg-muted/50",
+          isRootDocumentSelected && "bg-primary/10 text-primary font-medium",
+        )}
+      >
         <button
           type="button"
           onClick={() => wikiActions.toggleDirectory(expandKey)}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm flex-1 text-left font-medium min-w-0"
+          aria-label={isOpen ? t("listItem.collapse") : t("listItem.expand")}
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid={`wiki-list-item-toggle-${wiki.id}`}
         >
           {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          {wiki.icon ? (
+        </button>
+        <button
+          type="button"
+          onClick={handleOpenRootDocument}
+          className="flex min-w-0 flex-1 items-center gap-1 py-1.5 pr-2 text-left text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-testid={`wiki-list-item-open-${wiki.id}`}
+        >
+          {rootIcon ? (
             <span
               aria-hidden="true"
               className="inline-flex h-[14px] w-[14px] items-center justify-center text-[12px] leading-none"
               data-testid={`wiki-list-item-icon-${wiki.id}`}
             >
-              {wiki.icon}
+              {rootIcon}
             </span>
           ) : (
-            <LibraryIcon size={14} className="text-primary" />
+            <LibraryIcon
+              size={14}
+              className="text-primary group-hover/wiki-row:text-foreground"
+            />
           )}
-          <span className="truncate">{wiki.name}</span>
+          <span className="truncate">{rootTitle}</span>
+        </button>
+        <button
+          type="button"
+          aria-label={t("listItem.newPage")}
+          title={t("listItem.newPage")}
+          data-testid={`wiki-list-item-create-${wiki.id}`}
+          disabled={isCreatingFile}
+          onClick={handleCreatePage}
+          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 group-hover/wiki-row:text-foreground group-hover/wiki-row:opacity-100 hover:bg-muted hover:text-foreground focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus size={14} />
         </button>
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={t("listItem.actionsLabel", { name: wiki.name })}
+              aria-label={t("listItem.actionsLabel", { name: rootTitle })}
               data-testid={`wiki-list-item-kebab-${wiki.id}`}
               className={cn(
-                "mr-2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "mr-2 flex h-6 w-6 items-center justify-center rounded text-muted-foreground group-hover/wiki-row:text-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 // Hidden until row (or the menu itself) is active, so the
                 // sidebar stays uncluttered in the resting state.
                 menuOpen
@@ -193,7 +346,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       </div>
       {isOpen && (
         <div role="group">
-          {tree.map((node) => (
+          {visibleTree.map((node) => (
             <WikiTreeNode
               key={node.path}
               node={node}

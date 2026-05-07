@@ -341,12 +341,10 @@ describe('ChannelsService — effective membership wiring (§8.1 #12–#17)', ()
     it('allows update when effective role is owner via mentor derivation', async () => {
       const updatedChannel = { ...BASE_CHANNEL, name: 'ops-renamed' };
 
-      // getChannelTenantId → findById → redis.getOrSet returns null → then DB query
-      // We mock findById via redis to return null (so falls back to getMemberRole path)
-      // Instead, mock getEffectiveRole directly to isolate the auth guard test.
+      // update() first loads the channel row directly, then checks effective
+      // role. Mock getEffectiveRole directly to isolate the auth guard test.
+      db.limit.mockResolvedValueOnce([BASE_CHANNEL] as any);
       jest.spyOn(service, 'getEffectiveRole').mockResolvedValueOnce('owner');
-      // getChannelTenantId falls back via redis returning 'tenant-1'
-      redisMock.getOrSet.mockResolvedValueOnce(BASE_CHANNEL as any);
 
       db.returning.mockResolvedValueOnce([updatedChannel] as any);
 
@@ -356,8 +354,8 @@ describe('ChannelsService — effective membership wiring (§8.1 #12–#17)', ()
     });
 
     it('denies update when effective role is null (not a member, not a mentor)', async () => {
+      db.limit.mockResolvedValueOnce([BASE_CHANNEL] as any);
       jest.spyOn(service, 'getEffectiveRole').mockResolvedValueOnce(null);
-      redisMock.getOrSet.mockResolvedValueOnce(BASE_CHANNEL as any);
 
       await expect(
         service.update(
@@ -394,11 +392,11 @@ describe('ChannelsService — effective membership wiring (§8.1 #12–#17)', ()
     });
 
     it('updateChannel throws ForbiddenException for stranger', async () => {
-      // Redis returns channel with tenantId
-      redisMock.getOrSet.mockResolvedValueOnce(BASE_CHANNEL as any);
+      // update() first loads the channel row directly.
+      db.limit.mockResolvedValueOnce([BASE_CHANNEL] as any);
       // getEffectiveRole → botService returns no bots, DB returns no rows
       botServiceMock.findActiveBotsByMentorId.mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([] as any);
+      db.where.mockReturnValueOnce(db as any).mockResolvedValueOnce([] as any);
 
       await expect(
         service.update(CHANNEL_ID, { name: 'hack' } as any, 'stranger-1'),

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { extractTitle, WikiPageHeader } from "../WikiPageHeader";
 
@@ -23,27 +23,62 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+vi.mock("../IconPickerPopover", () => ({
+  IconPickerPopover: (props: {
+    value?: string;
+    onChange: (icon: string) => void;
+    disabled?: boolean;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-icon-picker"
+      disabled={props.disabled}
+      className={props.className}
+      onClick={() => props.onChange("🎨")}
+    >
+      {props.value ?? "📄"}
+    </button>
+  ),
+}));
+
 describe("extractTitle", () => {
   it("prefers frontmatter.title when it is a non-empty string", () => {
     expect(extractTitle("f.md", { title: "Hello" }, "# Body H1")).toBe("Hello");
   });
 
   it("ignores empty/whitespace frontmatter.title", () => {
-    expect(extractTitle("f.md", { title: "   " }, "# Body H1")).toBe("Body H1");
+    expect(extractTitle("f.md", { title: "   " }, "# Body H1")).toBe("f.md");
   });
 
-  it("falls back to first H1 in body when no frontmatter title", () => {
+  it("ignores the first H1 in body when no frontmatter title", () => {
     expect(extractTitle("f.md", {}, "intro\n# Heading One\n## sub")).toBe(
-      "Heading One",
+      "f.md",
     );
   });
 
-  it("falls back to filename minus .md when no title and no H1", () => {
-    expect(extractTitle("docs/guide.md", {}, "just prose")).toBe("guide");
+  it("falls back to filename minus .md9 when no title", () => {
+    expect(extractTitle("docs/guide.md9", {}, "just prose")).toBe("guide");
   });
 
-  it("handles uppercase .MD", () => {
-    expect(extractTitle("docs/GUIDE.MD", {}, "")).toBe("GUIDE");
+  it("handles uppercase .MD9", () => {
+    expect(extractTitle("docs/GUIDE.MD9", {}, "")).toBe("GUIDE");
+  });
+
+  it("does not strip legacy .md by default", () => {
+    expect(extractTitle("docs/guide.md", {}, "")).toBe("guide.md");
+  });
+
+  it("uses the parent folder name for hidden index documents", () => {
+    expect(extractTitle("docs/handbook/index.md9", {}, "# Body")).toBe(
+      "handbook",
+    );
+  });
+
+  it("uses the wiki name for the root index document", () => {
+    expect(extractTitle("index.md9", {}, "# Body", "Team Handbook")).toBe(
+      "Team Handbook",
+    );
   });
 
   it("handles empty path gracefully", () => {
@@ -51,7 +86,7 @@ describe("extractTitle", () => {
   });
 
   it("ignores non-string frontmatter.title", () => {
-    expect(extractTitle("x.md", { title: 123 }, "")).toBe("x");
+    expect(extractTitle("x.md9", { title: 123 }, "")).toBe("x");
   });
 });
 
@@ -60,7 +95,7 @@ describe("WikiPageHeader", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="index.md"
+        path="index.md9"
         frontmatter={{}}
         body=""
       />,
@@ -72,7 +107,7 @@ describe("WikiPageHeader", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="index.md"
+        path="index.md9"
         frontmatter={{ icon: "🚀" }}
         body=""
       />,
@@ -106,16 +141,18 @@ describe("WikiPageHeader", () => {
     // Parent dir segments shown; filename omitted (title takes its place).
     expect(screen.getByText("api")).toBeInTheDocument();
     expect(screen.getByText("docs")).toBeInTheDocument();
-    // Filename shouldn't be in the breadcrumb, but "auth.md" has .md stripped
-    // and the title is "Auth" (from body H1).
-    expect(screen.queryByText("auth.md")).toBeNull();
+    // Filename shouldn't be in the breadcrumb; the title below is derived
+    // from the file path.
+    expect(
+      screen.getByRole("navigation", { name: "breadcrumb" }),
+    ).not.toHaveTextContent("auth.md");
   });
 
   it("renders an empty breadcrumb for root pages without crashing", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="index.md"
+        path="index.md9"
         frontmatter={{ title: "Home" }}
         body=""
       />,
@@ -136,14 +173,14 @@ describe("WikiPageHeader", () => {
         body="# Root"
       />,
     );
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Root");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("");
   });
 
   it("renders the derived title as an H1", () => {
     render(
       <WikiPageHeader
         wikiSlug="public"
-        path="docs/getting-started.md"
+        path="docs/getting-started.md9"
         frontmatter={{}}
         body=""
       />,
@@ -151,5 +188,51 @@ describe("WikiPageHeader", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "getting-started",
     );
+  });
+
+  it("renders an editable title input when metadata editing is enabled", () => {
+    const onFrontmatterChange = vi.fn();
+    render(
+      <WikiPageHeader
+        wikiSlug="public"
+        path="index.md9"
+        frontmatter={{ title: "Home", icon: "🚀" }}
+        body=""
+        readOnly={false}
+        onFrontmatterChange={onFrontmatterChange}
+      />,
+    );
+
+    const input = screen.getByTestId("wiki-page-title-input");
+    expect(input).toHaveValue("Home");
+
+    fireEvent.change(input, { target: { value: "Updated" } });
+    fireEvent.blur(input);
+
+    expect(onFrontmatterChange).toHaveBeenCalledWith({
+      title: "Updated",
+      icon: "🚀",
+    });
+  });
+
+  it("renders an editable emoji picker when metadata editing is enabled", () => {
+    const onFrontmatterChange = vi.fn();
+    render(
+      <WikiPageHeader
+        wikiSlug="public"
+        path="index.md9"
+        frontmatter={{ title: "Home", icon: "🚀" }}
+        body=""
+        readOnly={false}
+        onFrontmatterChange={onFrontmatterChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("mock-icon-picker"));
+
+    expect(onFrontmatterChange).toHaveBeenCalledWith({
+      title: "Home",
+      icon: "🎨",
+    });
   });
 });

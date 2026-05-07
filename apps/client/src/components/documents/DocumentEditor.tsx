@@ -23,7 +23,7 @@ import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { editorTheme } from "@/components/channel/editor/themes/editorTheme";
 import { DOCUMENT_MARKDOWN_TRANSFORMERS } from "./markdownTransformers";
-import { DocumentToolbar } from "./DocumentToolbar";
+import { DocumentFormattingOverlay } from "./DocumentToolbar";
 import { cn } from "@/lib/utils";
 
 interface DocumentEditorProps {
@@ -128,7 +128,6 @@ export function DocumentEditor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className={cn("flex flex-col", className)}>
-        {!readOnly && <DocumentToolbar />}
         <div
           className={cn(
             "relative flex-1 overflow-y-auto mt-2",
@@ -155,6 +154,7 @@ export function DocumentEditor({
           />
           <CodeHighlightPlugin />
           <OnChangePlugin onChange={handleChange} />
+          {!readOnly && <DocumentFormattingOverlay />}
           <InitialContentPlugin
             content={initialContent}
             transformers={DOCUMENT_MARKDOWN_TRANSFORMERS}

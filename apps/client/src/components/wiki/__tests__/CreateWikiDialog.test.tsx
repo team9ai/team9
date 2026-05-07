@@ -80,6 +80,12 @@ describe("slugifyWikiName", () => {
     expect(slugifyWikiName("Design @2026 docs")).toBe("design-2026-docs");
   });
 
+  it("transliterates non-Latin names into ASCII slugs", () => {
+    expect(slugifyWikiName("团队手册")).toBe("tuan-dui-shou-ce");
+    expect(slugifyWikiName("Русский справочник")).toBe("russkiy-spravochnik");
+    expect(slugifyWikiName("Résumé Café")).toBe("resume-cafe");
+  });
+
   it("empty / whitespace-only input returns empty string", () => {
     expect(slugifyWikiName("")).toBe("");
     expect(slugifyWikiName("   ")).toBe("");

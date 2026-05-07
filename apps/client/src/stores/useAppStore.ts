@@ -122,9 +122,21 @@ const DEFAULT_FONT_SCALES: FontScales = {
   main: FONT_SCALE_DEFAULT,
 };
 
+export const SUB_SIDEBAR_WIDTH_MIN = 240;
+export const SUB_SIDEBAR_WIDTH_MAX = 480;
+export const SUB_SIDEBAR_WIDTH_DEFAULT = 320;
+
 function clampFontScale(value: number): number {
   if (!Number.isFinite(value)) return FONT_SCALE_DEFAULT;
   return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, value));
+}
+
+function clampSubSidebarWidth(value: number): number {
+  if (!Number.isFinite(value)) return SUB_SIDEBAR_WIDTH_DEFAULT;
+  return Math.min(
+    SUB_SIDEBAR_WIDTH_MAX,
+    Math.max(SUB_SIDEBAR_WIDTH_MIN, Math.round(value)),
+  );
 }
 
 function sanitizeFontScales(input: unknown): FontScales {
@@ -151,6 +163,7 @@ interface AppState {
   activeSidebar: SidebarSection;
   sidebarCollapsed: boolean;
   fontScales: FontScales;
+  subSidebarWidth: number;
 
   // Actions
   setUser: (user: User | null) => void;
@@ -163,6 +176,7 @@ interface AppState {
   toggleSidebarCollapsed: () => void;
   setFontScale: (region: FontScaleRegion, value: number) => void;
   resetFontScales: () => void;
+  setSubSidebarWidth: (width: number) => void;
   reset: () => void;
 }
 
@@ -175,6 +189,7 @@ const initialState = {
   activeSidebar: "home" as SidebarSection,
   sidebarCollapsed: false,
   fontScales: { ...DEFAULT_FONT_SCALES },
+  subSidebarWidth: SUB_SIDEBAR_WIDTH_DEFAULT,
 };
 
 // Store
@@ -248,6 +263,13 @@ export const useAppStore = create<AppState>()(
             "resetFontScales",
           ),
 
+        setSubSidebarWidth: (subSidebarWidth) =>
+          set(
+            { subSidebarWidth: clampSubSidebarWidth(subSidebarWidth) },
+            false,
+            "setSubSidebarWidth",
+          ),
+
         reset: () => set(initialState, false, "reset"),
       }),
       {
@@ -258,6 +280,7 @@ export const useAppStore = create<AppState>()(
           activeSidebar: state.activeSidebar,
           sidebarCollapsed: state.sidebarCollapsed,
           fontScales: state.fontScales,
+          subSidebarWidth: state.subSidebarWidth,
         }),
         merge: (persisted, current) => {
           const persistedState = (persisted ?? {}) as Partial<AppState>;
@@ -265,6 +288,10 @@ export const useAppStore = create<AppState>()(
             ...current,
             ...persistedState,
             fontScales: sanitizeFontScales(persistedState.fontScales),
+            subSidebarWidth:
+              typeof persistedState.subSidebarWidth === "number"
+                ? clampSubSidebarWidth(persistedState.subSidebarWidth)
+                : SUB_SIDEBAR_WIDTH_DEFAULT,
           };
         },
       },
@@ -286,6 +313,8 @@ export const useSidebarCollapsed = () =>
 export const useFontScales = () => useAppStore((state) => state.fontScales);
 export const useFontScale = (region: FontScaleRegion) =>
   useAppStore((state) => state.fontScales[region]);
+export const useSubSidebarWidth = () =>
+  useAppStore((state) => state.subSidebarWidth);
 
 // Get last visited path for a specific section
 export const getLastVisitedPath = (section: SidebarSection): string => {
@@ -309,5 +338,7 @@ export const appActions = {
   setFontScale: (region: FontScaleRegion, value: number) =>
     useAppStore.getState().setFontScale(region, value),
   resetFontScales: () => useAppStore.getState().resetFontScales(),
+  setSubSidebarWidth: (width: number) =>
+    useAppStore.getState().setSubSidebarWidth(width),
   reset: () => useAppStore.getState().reset(),
 };

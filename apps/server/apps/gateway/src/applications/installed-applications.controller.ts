@@ -52,6 +52,7 @@ import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
 import { resolveAgentTypeByApplicationId } from '../common/utils/agent-type.util.js';
+import { StaffService } from './staff.service.js';
 
 type InstalledApplicationBot = Awaited<
   ReturnType<BotService['getBotsByInstalledApplicationId']>
@@ -76,6 +77,7 @@ export class InstalledApplicationsController {
     private readonly channelsService: ChannelsService,
     private readonly websocketGateway: WebsocketGateway,
     private readonly redisService: RedisService,
+    private readonly staffService: StaffService,
   ) {}
 
   private async getBotsOrEmpty(
@@ -96,6 +98,41 @@ export class InstalledApplicationsController {
     try {
       return await this.openclawService.getInstance(instanceId);
     } catch {
+      return null;
+    }
+  }
+
+  private async ensureCommonStaffShortRoleTitle(
+    bot: InstalledApplicationBot,
+    tenantId: string,
+    installedApplicationId: string,
+  ): Promise<string | null> {
+    const commonStaff = bot.extra?.commonStaff;
+    const roleTitle = commonStaff?.roleTitle?.trim();
+    const existing = commonStaff?.shortRoleTitle?.trim();
+    if (existing) return existing;
+    if (!roleTitle) return null;
+
+    try {
+      const shortRoleTitle = await this.staffService.generateShortRoleTitle({
+        tenantId,
+        installedApplicationId,
+        roleTitle,
+      });
+      if (!shortRoleTitle) return null;
+
+      await this.botService.updateBotExtra(bot.botId, {
+        ...(bot.extra ?? {}),
+        commonStaff: {
+          ...(commonStaff ?? {}),
+          shortRoleTitle,
+        },
+      });
+      return shortRoleTitle;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to backfill shortRoleTitle for bot ${bot.botId}: ${err}`,
+      );
       return null;
     }
   }
@@ -252,25 +289,36 @@ export class InstalledApplicationsController {
               .where(inArray(schema.users.id, botUserIds));
             avatarMap = new Map(userRows.map((r) => [r.id, r.avatarUrl]));
           }
+          const commonStaffBots = await Promise.all(
+            bots.map(async (bot) => {
+              const shortRoleTitle = await this.ensureCommonStaffShortRoleTitle(
+                bot,
+                tenantId,
+                app.id,
+              );
+              return {
+                botId: bot.botId,
+                userId: bot.userId,
+                username: bot.username,
+                displayName: bot.displayName,
+                roleTitle: bot.extra?.commonStaff?.roleTitle ?? null,
+                shortRoleTitle,
+                persona: bot.extra?.commonStaff?.persona ?? null,
+                jobDescription: bot.extra?.commonStaff?.jobDescription ?? null,
+                avatarUrl: avatarMap.get(bot.userId) ?? null,
+                model: bot.extra?.commonStaff?.model ?? null,
+                mentorId: bot.mentorId,
+                mentorDisplayName: bot.mentorDisplayName,
+                mentorAvatarUrl: bot.mentorAvatarUrl,
+                isActive: bot.isActive,
+                createdAt: bot.createdAt,
+                managedMeta: bot.managedMeta,
+              };
+            }),
+          );
           return {
             ...app,
-            bots: bots.map((bot) => ({
-              botId: bot.botId,
-              userId: bot.userId,
-              username: bot.username,
-              displayName: bot.displayName,
-              roleTitle: bot.extra?.commonStaff?.roleTitle ?? null,
-              persona: bot.extra?.commonStaff?.persona ?? null,
-              jobDescription: bot.extra?.commonStaff?.jobDescription ?? null,
-              avatarUrl: avatarMap.get(bot.userId) ?? null,
-              model: bot.extra?.commonStaff?.model ?? null,
-              mentorId: bot.mentorId,
-              mentorDisplayName: bot.mentorDisplayName,
-              mentorAvatarUrl: bot.mentorAvatarUrl,
-              isActive: bot.isActive,
-              createdAt: bot.createdAt,
-              managedMeta: bot.managedMeta,
-            })),
+            bots: commonStaffBots,
             instanceStatus: null,
           };
         }

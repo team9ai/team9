@@ -328,17 +328,10 @@ export class RoutineTriggersService {
       return new Date(now.getTime() + ms);
     }
 
-    // For schedule type, use a simple initial calculation — will be refined by task-worker scheduler
+    // For schedule type, calculate the first run using the trigger timezone.
+    // The task-worker scheduler uses the same semantics when advancing it.
     if (type === 'schedule') {
-      const time = config.time as string;
-      if (!time) return null;
-      const [hours, minutes] = time.split(':').map(Number);
-      const next = new Date(now);
-      next.setHours(hours, minutes, 0, 0);
-      if (next <= now) {
-        next.setDate(next.getDate() + 1);
-      }
-      return next;
+      return calculateNextRunAt(config as schema.ScheduleConfig);
     }
 
     return null;
@@ -362,4 +355,236 @@ export class RoutineTriggersService {
         return every * 86_400_000;
     }
   }
+}
+
+function calculateNextRunAt(config?: schema.ScheduleConfig): Date | null {
+  if (!config?.frequency) {
+    return null;
+  }
+
+  const tz = config.timezone || undefined;
+  const now = new Date();
+  const [hours, minutes] = parseTime(config.time);
+
+  switch (config.frequency) {
+    case 'daily':
+      return nextDaily(now, hours, minutes, tz);
+    case 'weekly':
+      return nextWeekly(now, hours, minutes, config.dayOfWeek ?? 1, tz);
+    case 'weekdays':
+      return nextWeekday(now, hours, minutes, tz);
+    case 'monthly':
+      return nextMonthly(now, hours, minutes, config.dayOfMonth ?? 1, tz);
+    case 'yearly':
+      return nextYearly(now, hours, minutes, config.dayOfMonth ?? 1, tz);
+    default:
+      return null;
+  }
+}
+
+function parseTime(time?: string): [number, number] {
+  if (!time) return [0, 0];
+  const parts = time.split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  return [Number.isNaN(h) ? 0 : h, Number.isNaN(m) ? 0 : m];
+}
+
+function getTimezoneOffsetMinutes(date: Date, tz: string): number {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const get = (type: string) =>
+      parseInt(parts.find((p) => p.type === type)!.value, 10);
+
+    const tzTime = Date.UTC(
+      get('year'),
+      get('month') - 1,
+      get('day'),
+      get('hour'),
+      get('minute'),
+      get('second'),
+    );
+    return Math.round((tzTime - date.getTime()) / 60_000);
+  } catch {
+    return 0;
+  }
+}
+
+function buildDateInTz(
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number,
+  tz?: string,
+): Date {
+  if (!tz) {
+    return new Date(year, month, day, hours, minutes, 0, 0);
+  }
+  const utcGuess = new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
+  const offset = getTimezoneOffsetMinutes(utcGuess, tz);
+  return new Date(utcGuess.getTime() - offset * 60_000);
+}
+
+function nowInTz(
+  now: Date,
+  tz?: string,
+): { year: number; month: number; day: number; weekday: number } {
+  if (!tz) {
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth(),
+      day: now.getDate(),
+      weekday: now.getDay(),
+    };
+  }
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)!.value;
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return {
+    year: parseInt(get('year'), 10),
+    month: parseInt(get('month'), 10) - 1,
+    day: parseInt(get('day'), 10),
+    weekday: weekdayMap[get('weekday')] ?? 0,
+  };
+}
+
+function nextDaily(
+  now: Date,
+  hours: number,
+  minutes: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  const next = buildDateInTz(n.year, n.month, n.day, hours, minutes, tz);
+  if (next <= now) {
+    return buildDateInTz(n.year, n.month, n.day + 1, hours, minutes, tz);
+  }
+  return next;
+}
+
+function nextWeekly(
+  now: Date,
+  hours: number,
+  minutes: number,
+  dayOfWeek: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  let daysUntil = (dayOfWeek - n.weekday + 7) % 7;
+  const candidate = buildDateInTz(
+    n.year,
+    n.month,
+    n.day + daysUntil,
+    hours,
+    minutes,
+    tz,
+  );
+  if (daysUntil === 0 && candidate <= now) {
+    daysUntil = 7;
+    return buildDateInTz(
+      n.year,
+      n.month,
+      n.day + daysUntil,
+      hours,
+      minutes,
+      tz,
+    );
+  }
+  return candidate;
+}
+
+function nextMonthly(
+  now: Date,
+  hours: number,
+  minutes: number,
+  dayOfMonth: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  const lastDayThisMonth = new Date(n.year, n.month + 1, 0).getDate();
+  const clampedDay = Math.min(dayOfMonth, lastDayThisMonth);
+  const next = buildDateInTz(n.year, n.month, clampedDay, hours, minutes, tz);
+
+  if (next <= now) {
+    const nextMonth = n.month + 1;
+    const lastDayNextMonth = new Date(n.year, nextMonth + 1, 0).getDate();
+    const clampedNextDay = Math.min(dayOfMonth, lastDayNextMonth);
+    return buildDateInTz(n.year, nextMonth, clampedNextDay, hours, minutes, tz);
+  }
+  return next;
+}
+
+function nextYearly(
+  now: Date,
+  hours: number,
+  minutes: number,
+  dayOfMonth: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  const next = buildDateInTz(n.year, n.month, dayOfMonth, hours, minutes, tz);
+  if (next <= now) {
+    return buildDateInTz(n.year + 1, n.month, dayOfMonth, hours, minutes, tz);
+  }
+  return next;
+}
+
+function nextWeekday(
+  now: Date,
+  hours: number,
+  minutes: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  for (let daysAhead = 0; daysAhead <= 7; daysAhead++) {
+    const candidate = buildDateInTz(
+      n.year,
+      n.month,
+      n.day + daysAhead,
+      hours,
+      minutes,
+      tz,
+    );
+    if (candidate <= now) continue;
+    const candidateTz = nowInTz(candidate, tz);
+    if (candidateTz.weekday >= 1 && candidateTz.weekday <= 5) {
+      return candidate;
+    }
+  }
+  const daysUntilMonday = (1 - n.weekday + 7) % 7 || 7;
+  return buildDateInTz(
+    n.year,
+    n.month,
+    n.day + daysUntilMonday,
+    hours,
+    minutes,
+    tz,
+  );
 }

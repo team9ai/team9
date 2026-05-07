@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
+import {
+  getAgentEventMetadata,
+  getOptionalAgentEventMetadata,
+} from "@/lib/agent-event-metadata";
 import { parseLikelyPastDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useTrackingChannel } from "@/hooks/useTrackingChannel";
@@ -19,6 +22,12 @@ export interface TrackingDisplayItem {
   content: string;
   metadata: AgentEventMetadata;
   isStreaming: boolean;
+  createdAt?: string;
+  resultMessage?: Pick<
+    Message,
+    "id" | "content" | "isTruncated" | "fullContentLength"
+  > &
+    Partial<Pick<Message, "type">>;
 }
 
 export type TrackingRenderItem =
@@ -72,6 +81,29 @@ function formatElapsed(startTime: string | number): string {
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
+function getTrackingItemTimeMs(item: TrackingDisplayItem): number {
+  if (item.metadata.startedAt) {
+    const startedAt = new Date(item.metadata.startedAt).getTime();
+    if (!Number.isNaN(startedAt)) return startedAt;
+  }
+
+  if (item.createdAt) {
+    const createdAt = new Date(item.createdAt).getTime();
+    if (!Number.isNaN(createdAt)) return createdAt;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function sortTrackingDisplayItems(
+  items: TrackingDisplayItem[],
+): TrackingDisplayItem[] {
+  return items
+    .map((item, index) => ({ item, index, time: getTrackingItemTimeMs(item) }))
+    .sort((a, b) => a.time - b.time || a.index - b.index)
+    .map(({ item }) => item);
+}
+
 export function TrackingCard({ message }: TrackingCardProps) {
   const { t } = useTranslation("channel");
   const metadata = (message.metadata ?? {}) as Record<string, unknown>;
@@ -109,15 +141,31 @@ export function TrackingCard({ message }: TrackingCardProps) {
   const showFrost = moreCount > 0;
 
   // Build display items: latest messages + active stream
-  const displayItems: TrackingDisplayItem[] = latestMessages.map((msg) => ({
-    id: msg.id,
-    content: msg.content ?? "",
-    metadata: getAgentEventMetadata(msg.metadata, {
-      agentEventType: "writing",
-      status: "completed",
-    }),
-    isStreaming: false,
-  }));
+  const displayItems: TrackingDisplayItem[] = latestMessages.flatMap((msg) => {
+    const metadata = getOptionalAgentEventMetadata(msg.metadata);
+    return metadata && metadata.agentEventType !== "writing"
+      ? [
+          {
+            id: msg.id,
+            content: msg.content ?? "",
+            metadata,
+            isStreaming: false,
+            createdAt: msg.createdAt,
+            ...(metadata.agentEventType === "tool_result"
+              ? {
+                  resultMessage: {
+                    id: msg.id,
+                    content: msg.content ?? "",
+                    type: msg.type,
+                    isTruncated: msg.isTruncated,
+                    fullContentLength: msg.fullContentLength,
+                  },
+                }
+              : {}),
+          },
+        ]
+      : [];
+  });
 
   if (activeStream) {
     displayItems.push({
@@ -134,7 +182,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
   // Merge consecutive tool_call + tool_result pairs into a single ToolCallBlock
   // render item (matching MessageList behaviour). Then only show the latest 3
   // render items — a merged toolCall counts as 1 slot rather than 2.
-  const renderItems = buildRenderItems(displayItems);
+  const renderItems = buildRenderItems(sortTrackingDisplayItems(displayItems));
   const visibleRenderItems = renderItems.slice(-3);
 
   return (
@@ -201,6 +249,16 @@ export function TrackingCard({ message }: TrackingCardProps) {
                     callMetadata={ri.callItem.metadata}
                     resultMetadata={ri.resultItem.metadata}
                     resultContent={ri.resultItem.content}
+                    resultMessage={ri.resultItem.resultMessage}
+                  />
+                );
+              }
+              if (ri.item.metadata.agentEventType === "tool_call") {
+                return (
+                  <ToolCallBlock
+                    key={ri.item.id}
+                    callMetadata={ri.item.metadata}
+                    resultContent=""
                   />
                 );
               }

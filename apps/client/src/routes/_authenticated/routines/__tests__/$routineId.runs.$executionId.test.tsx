@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { JSX, ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -174,6 +174,31 @@ describe("/_authenticated/routines/$routineId/runs/$executionId run route", () =
     expect(chat.getAttribute("data-selected-run")).toBe("null");
     expect(chat.getAttribute("data-creation-channel")).toBe("ch-creation");
     expect(chat.getAttribute("data-history")).toBe("false");
+  });
+
+  it("redirects the creation sentinel to routine detail after the draft is completed", async () => {
+    routeParams.executionId = "creation";
+    mockGetById.mockResolvedValue({
+      id: "r-1",
+      status: "upcoming",
+      currentExecution: null,
+      creationChannelId: "ch-creation",
+    });
+    mockGetExecutions.mockResolvedValue([]);
+
+    const Component = (RunRoute as unknown as RouteHandle).__config.component;
+    renderWithQuery(<Component />);
+
+    await screen.findByTestId("routines-sidebar");
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/routines/$routineId",
+        params: { routineId: "r-1" },
+        replace: true,
+      }),
+    );
+    expect(screen.queryByTestId("chat-area")).not.toBeInTheDocument();
   });
 
   it("returnToCurrent navigates to the active execution", async () => {

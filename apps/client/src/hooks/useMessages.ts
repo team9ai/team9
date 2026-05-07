@@ -23,6 +23,7 @@ import type {
   StreamingStartEvent,
   StreamingContentEvent,
   StreamingThinkingContentEvent,
+  StreamingMetadataEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
   ReactionAddedEvent,
@@ -35,7 +36,8 @@ import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
 import { useChannelScrollStore } from "./useChannelScrollState";
-import { upsertIncomingMessageInData } from "@/lib/message-query-cache";
+import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
+import { getHttpErrorMessage } from "@/lib/http-error";
 
 // --- Temp message coordination ---
 // Coordinates between HTTP onSuccess and WebSocket handleNewMessage
@@ -290,9 +292,11 @@ export function useMessages(channelId: string | undefined) {
         setTimeout(() => resolvedServerIds.delete(message.id), 30000);
       }
 
-      queryClient.setQueryData<MessagesQueryData>(
-        ["messages", channelId],
-        (old) => upsertIncomingMessageInData(old, message, matchedTempId),
+      upsertChannelMessageInCache(
+        queryClient,
+        channelId,
+        message,
+        matchedTempId,
       );
 
       // Notify channel scroll state machine about the new message
@@ -462,6 +466,14 @@ export function useMessages(channelId: string | undefined) {
         .setThinkingContent(event.streamId, event.content);
     };
 
+    const handleStreamingMetadata = (event: StreamingMetadataEvent) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setStreamMetadata(event.streamId, event.metadata);
+    };
+
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
       useStreamingStore.getState().endStream(event.streamId);
@@ -472,12 +484,7 @@ export function useMessages(channelId: string | undefined) {
         const msg = event.message;
         if (!msg.parentId) {
           // Main channel message - insert into messages cache
-          queryClient.setQueryData<MessagesQueryData>(
-            ["messages", channelId],
-            (old) => {
-              return upsertIncomingMessageInData(old, msg);
-            },
-          );
+          upsertChannelMessageInCache(queryClient, channelId, msg);
         } else {
           // Thread reply - invalidate thread query so it's fresh when viewed
           const rootId = msg.rootId || msg.parentId;
@@ -701,6 +708,7 @@ export function useMessages(channelId: string | undefined) {
     wsService.onStreamingStart(handleStreamingStart);
     wsService.onStreamingContent(handleStreamingDelta);
     wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
+    wsService.onStreamingMetadata(handleStreamingMetadata);
     wsService.onStreamingEnd(handleStreamingEnd);
     wsService.onStreamingAbort(handleStreamingAbort);
 
@@ -713,6 +721,7 @@ export function useMessages(channelId: string | undefined) {
       wsService.off("streaming_start", handleStreamingStart);
       wsService.off("streaming_content", handleStreamingDelta);
       wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
+      wsService.off("streaming_metadata", handleStreamingMetadata);
       wsService.off("streaming_end", handleStreamingEnd);
       wsService.off("streaming_abort", handleStreamingAbort);
     };
@@ -805,8 +814,11 @@ export function useChannelMessages(
         setTimeout(() => resolvedServerIds.delete(message.id), 30000);
       }
 
-      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) =>
-        upsertIncomingMessageInData(old, message, matchedTempId),
+      upsertChannelMessageInCache(
+        queryClient,
+        channelId,
+        message,
+        matchedTempId,
       );
 
       // Notify scroll state machine
@@ -910,15 +922,21 @@ export function useChannelMessages(
         .setThinkingContent(event.streamId, event.content);
     };
 
+    const handleStreamingMetadata = (event: StreamingMetadataEvent) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setStreamMetadata(event.streamId, event.metadata);
+    };
+
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
       useStreamingStore.getState().endStream(event.streamId);
       if (event.message) {
         const msg = event.message;
         if (!msg.parentId) {
-          queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) =>
-            upsertIncomingMessageInData(old, msg),
-          );
+          upsertChannelMessageInCache(queryClient, channelId, msg);
         } else {
           const rootId = msg.rootId || msg.parentId;
           queryClient.invalidateQueries({
@@ -1116,6 +1134,7 @@ export function useChannelMessages(
     wsService.onStreamingStart(handleStreamingStart);
     wsService.onStreamingContent(handleStreamingDelta);
     wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
+    wsService.onStreamingMetadata(handleStreamingMetadata);
     wsService.onStreamingEnd(handleStreamingEnd);
     wsService.onStreamingAbort(handleStreamingAbort);
     wsService.onReactionAdded(handleReactionAdded);
@@ -1128,6 +1147,7 @@ export function useChannelMessages(
       wsService.off("streaming_start", handleStreamingStart);
       wsService.off("streaming_content", handleStreamingDelta);
       wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
+      wsService.off("streaming_metadata", handleStreamingMetadata);
       wsService.off("streaming_end", handleStreamingEnd);
       wsService.off("streaming_abort", handleStreamingAbort);
       wsService.off("reaction_added", handleReactionAdded);
@@ -1543,6 +1563,7 @@ export function useSendMessage(channelId: string) {
                 newMsgs[tempIndex] = {
                   ...serverMessage,
                   sendStatus: undefined,
+                  sendError: undefined,
                   _retryData: undefined,
                 };
                 return setMessages(page, newMsgs);
@@ -1566,11 +1587,12 @@ export function useSendMessage(channelId: string) {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
-    onError: (_err, variables, context) => {
+    onError: (err, variables, context) => {
       if (variables.clientMsgId) {
         // Clean up pending tracking
         pendingByClientMsgId.delete(variables.clientMsgId);
       }
+      const sendError = getHttpErrorMessage(err);
       // Mark the optimistic message as failed instead of rolling back
       if (context?.tempId) {
         queryClient.setQueriesData(
@@ -1587,6 +1609,7 @@ export function useSendMessage(channelId: string) {
                       ? {
                           ...msg,
                           sendStatus: "failed" as MessageSendStatus,
+                          sendError,
                           _retryData: variables,
                         }
                       : msg,
@@ -1639,6 +1662,7 @@ export function useRetryMessage(channelId: string) {
                         ...msg,
                         clientMsgId,
                         sendStatus: "sending" as MessageSendStatus,
+                        sendError: undefined,
                       }
                     : msg,
                 ),
@@ -1712,6 +1736,7 @@ export function useRetryMessage(channelId: string) {
                 newMsgs[tempIndex] = {
                   ...serverMessage,
                   sendStatus: undefined,
+                  sendError: undefined,
                   _retryData: undefined,
                 };
                 return setMessages(page, newMsgs);
@@ -1734,10 +1759,11 @@ export function useRetryMessage(channelId: string) {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
-    onError: (_err, { tempId, retryData }) => {
+    onError: (err, { tempId, retryData }) => {
       if (retryData.clientMsgId) {
         pendingByClientMsgId.delete(retryData.clientMsgId);
       }
+      const sendError = getHttpErrorMessage(err);
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
         (old: MessagesQueryData | undefined) => {
@@ -1752,6 +1778,7 @@ export function useRetryMessage(channelId: string) {
                     ? {
                         ...msg,
                         sendStatus: "failed" as MessageSendStatus,
+                        sendError,
                         _retryData: retryData,
                       }
                     : msg,

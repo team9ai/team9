@@ -33,10 +33,9 @@
  *     - Lazy provision (A.3) re-raises as 503.
  *     - Batch migration (A.9) records a per-row warning and continues.
  *
- * - **Slug.** `slugifyUuid("7f3a2b1c-1111-2222-3333-444455556666")` →
- *   `"7f3a2b1c-1111"`. Matches the §"Cross-repo slug consistency" rule in
- *   the design doc — readable in folder names without leaking the full UUID
- *   while keeping enough entropy to avoid trivial collisions.
+ * - **Slug.** `slugifyUuid("019dfa50-5944-7249-8b85-5fe11a2719e8")` →
+ *   `"5fe11a2719e8"`. Use the random tail of canonical UUIDs instead of
+ *   the prefix because UUIDv7 stores the timestamp in the leading bytes.
  */
 
 import type { Folder9ClientService } from '../../wikis/folder9-client.service.js';
@@ -79,10 +78,10 @@ export interface ProvisionRoutineFolderDeps {
 }
 
 /**
- * Take the first two segments of a UUID for a human-readable slug.
+ * Take the random tail of a canonical UUID for a human-readable slug.
  *
- * Example: `slugifyUuid("7f3a2b1c-1111-2222-3333-444455556666")` →
- * `"7f3a2b1c-1111"`.
+ * Example: `slugifyUuid("019dfa50-5944-7249-8b85-5fe11a2719e8")` →
+ * `"5fe11a2719e8"`.
  *
  * Exported so downstream consumers (e.g. `validateSkillMd` in A.5) can
  * derive the same expected `routine-<slug>` value without redefining the
@@ -90,7 +89,12 @@ export interface ProvisionRoutineFolderDeps {
  * (should we ever decide to widen it) only has to be made here.
  */
 export function slugifyUuid(id: string): string {
-  return id.split('-').slice(0, 2).join('-');
+  const normalized = id.trim().toLowerCase();
+  const compact = normalized.replace(/-/g, '');
+  if (/^[0-9a-f]{32}$/.test(compact)) {
+    return compact.slice(-12);
+  }
+  return normalized.split('-').slice(0, 2).join('-');
 }
 
 /**

@@ -46,6 +46,7 @@ import {
   type StreamingStartEvent,
   type StreamingContentEvent,
   type StreamingThinkingContentEvent,
+  type StreamingMetadataEvent,
   type StreamingEndEvent,
   type StreamingAbortEvent,
   type TrackingDeactivatedEvent,
@@ -686,6 +687,10 @@ class WebSocketService {
       WS_EVENTS.STREAMING.THINKING_CONTENT,
       callback,
     );
+  }
+
+  onStreamingMetadata(callback: (event: StreamingMetadataEvent) => void): void {
+    this.on<StreamingMetadataEvent>(WS_EVENTS.STREAMING.METADATA, callback);
   }
 
   onStreamingEnd(callback: (event: StreamingEndEvent) => void): void {

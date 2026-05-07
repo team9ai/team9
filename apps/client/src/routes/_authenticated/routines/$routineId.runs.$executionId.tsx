@@ -1,6 +1,6 @@
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { RoutinesSidebar } from "@/components/routines/RoutinesSidebar";
 import { ChatArea } from "@/components/routines/ChatArea";
@@ -62,7 +62,31 @@ function RoutineRunPage() {
     });
   }, [activeExecution, navigate, routineId]);
 
+  const shouldLeaveCreationSession =
+    isCreation && routine != null && routine.status !== "draft";
+
+  useEffect(() => {
+    if (!shouldLeaveCreationSession) return;
+    void navigate({
+      to: "/routines/$routineId",
+      params: { routineId },
+      replace: true,
+    });
+  }, [navigate, routineId, shouldLeaveCreationSession]);
+
   if (!routine) {
+    return (
+      <div className="flex h-full">
+        <RoutinesSidebar
+          selectedRoutineId={routineId}
+          selectedExecutionId={executionId}
+        />
+        <div className="flex-1" />
+      </div>
+    );
+  }
+
+  if (shouldLeaveCreationSession) {
     return (
       <div className="flex h-full">
         <RoutinesSidebar

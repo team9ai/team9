@@ -72,6 +72,7 @@
   "permanentDelete": "永久删除（不可恢复）",
   "deleting": "删除中...",
   "channelNotFound": "找不到频道",
+  "archivedReadOnly": "此会话已结束，不能再发送消息。",
   "loadingChannel": "加载频道中...",
   "loadingMessages": "加载消息中...",
   "loadingMoreMessages": "加载更多消息...",
@@ -96,17 +97,33 @@
   "botInstanceStarting": "启动中...",
   "botInstanceStartingMessage": "机器人实例正在启动中，请稍候...",
   "botThinking": {
-    "texts": {
-      "thinking": "正在思考",
-      "analyzing": "正在分析",
-      "reasoning": "正在推理",
-      "computing": "正在计算",
-      "parsing": "正在解析",
-      "brewing": "正在酝酿",
-      "crafting": "正在构思",
-      "decoding": "正在解码",
-      "imagining": "正在想象",
-      "composing": "正在组织"
+    "warmingTexts": {
+      "warming": "正在热身",
+      "headingOver": "正在赶往现场",
+      "commuting": "正在通勤",
+      "gatheringThoughts": "正在整理思路",
+      "gettingReady": "正在准备",
+      "findingSignal": "正在找信号",
+      "checkingMap": "正在看地图",
+      "openingNotebook": "正在打开笔记",
+      "syncingContext": "正在同步上下文",
+      "confirmingTask": "正在确认任务",
+      "queueingUp": "正在排队进场",
+      "settingUp": "正在布置现场"
+    },
+    "workingTexts": {
+      "workingHard": "正在努力工作",
+      "thinkingActively": "正在积极思考",
+      "processing": "正在处理",
+      "makingProgress": "正在推进",
+      "focusing": "正在专注执行",
+      "reviewingContext": "正在回看上下文",
+      "breakingItDown": "正在拆解问题",
+      "checkingDetails": "正在核对细节",
+      "connectingDots": "正在串联线索",
+      "draftingAnswer": "正在组织回复",
+      "verifyingResult": "正在验证结果",
+      "polishingResponse": "正在润色表达"
     }
   },
   "tracking": {
@@ -157,6 +174,15 @@
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}} 秒",
       "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒"
+    },
+    "roundEnd": {
+      "label": "本轮结束",
+      "duration": "持续时间：{{duration}}"
+    },
+    "roundDuration": {
+      "seconds": "{{count}} 秒",
+      "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒",
+      "hoursMinutes": "{{hours}} 时 {{minutes}} 分"
     },
     "toolCall": {
       "argsLabel": "参数",

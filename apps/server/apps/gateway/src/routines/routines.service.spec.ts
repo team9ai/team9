@@ -110,6 +110,7 @@ describe('RoutinesService — TaskCast integration', () => {
     registerAgent: MockFn;
     sendInput: MockFn;
     createSession: MockFn;
+    getSession: MockFn;
     deleteSession: MockFn;
   };
   let botsService: { getBotById: MockFn };
@@ -162,6 +163,16 @@ describe('RoutinesService — TaskCast integration', () => {
       createSession: jest
         .fn<any>()
         .mockResolvedValue({ sessionId: 'pre-created-session' }),
+      getSession: jest.fn<any>().mockResolvedValue({
+        sessionId: 'existing-session',
+        team9Context: { routineId: 'routine-1' },
+        componentConfigs: {
+          'team9-routine-creation': {
+            routineId: 'routine-1',
+            team9Context: { routineId: 'routine-1' },
+          },
+        },
+      }),
       deleteSession: jest.fn<any>().mockResolvedValue(undefined),
     };
     botsService = {
@@ -3195,6 +3206,27 @@ describe('RoutinesService — TaskCast integration', () => {
       startSpy.mockRestore();
     });
 
+    it('returns finalized routine without waiting for autoRunFirst dispatch to settle', async () => {
+      setupDraftFixture();
+      const startSpy = jest
+        .spyOn(service, 'start')
+        .mockReturnValue(new Promise(() => {}) as any);
+
+      const result = await Promise.race([
+        service.completeCreation(
+          'routine-1',
+          { autoRunFirst: true },
+          'user-1',
+          'tenant-1',
+        ),
+        new Promise((resolve) => setTimeout(() => resolve('timed-out'), 25)),
+      ]);
+
+      expect(result).toEqual(UPDATED_ROUTINE);
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      startSpy.mockRestore();
+    });
+
     it('does NOT dispatch when autoRunFirst is omitted', async () => {
       setupDraftFixture();
       const startSpy = jest
@@ -3239,6 +3271,7 @@ describe('RoutinesService — TaskCast integration', () => {
       );
 
       expect(result).toBeDefined(); // Did NOT throw
+      await Promise.resolve();
       expect(loggerWarn).toHaveBeenCalledWith(
         expect.stringContaining('autoRunFirst dispatch failed'),
       );
@@ -4264,6 +4297,24 @@ describe('RoutinesService — TaskCast integration', () => {
         `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
       );
       expect(clawHiveService.createSession).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.createSession).toHaveBeenCalledWith(
+        AGENT_ID,
+        expect.objectContaining({
+          componentConfigs: expect.objectContaining({
+            'team9-routine-creation': expect.objectContaining({
+              routineId: ROUTINE_ID,
+              isCreationChannel: true,
+              team9Context: expect.objectContaining({
+                routineId: ROUTINE_ID,
+                creatorUserId: USER_ID,
+                creationChannelId: CHANNEL_ID,
+                isCreationChannel: true,
+              }),
+            }),
+          }),
+        }),
+        TENANT_ID,
+      );
       expect(clawHiveService.sendInput).toHaveBeenCalledWith(
         result.creationSessionId,
         expect.objectContaining({
@@ -4296,6 +4347,7 @@ describe('RoutinesService — TaskCast integration', () => {
           title: 'Test Draft',
           creationChannelId: 'existing-channel',
           creationSessionId: 'existing-session',
+          folderId: 'folder-existing',
         },
       ]);
 
@@ -4312,10 +4364,96 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(
         channelsService.createRoutineSessionChannel,
       ).not.toHaveBeenCalled();
+      expect(clawHiveService.createSession).not.toHaveBeenCalled();
       expect(clawHiveService.sendInput).not.toHaveBeenCalled();
       expect(result).toEqual({
         creationChannelId: 'existing-channel',
         creationSessionId: 'existing-session',
+      });
+    });
+
+    it('repairs an existing routine-session when Hive session lacks routine context', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          description: 'Draft description',
+          creationChannelId: CHANNEL_ID,
+          creationSessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+          folderId: 'folder-existing',
+        },
+      ]);
+      db.limit.mockResolvedValueOnce([{ type: 'routine-session' }]);
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Test Draft',
+          folderId: 'folder-existing',
+        },
+      ]);
+      clawHiveService.getSession.mockResolvedValueOnce({
+        sessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+        componentConfigs: {},
+      });
+      usersService.getLocalePreferences.mockResolvedValueOnce({
+        language: 'zh-CN',
+        timeZone: 'Asia/Shanghai',
+      });
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      expect(clawHiveService.createSession).toHaveBeenCalledWith(
+        AGENT_ID,
+        expect.objectContaining({
+          userId: USER_ID,
+          sessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+          team9Context: expect.objectContaining({
+            routineId: ROUTINE_ID,
+            creatorUserId: USER_ID,
+            creationChannelId: CHANNEL_ID,
+            isCreationChannel: true,
+            language: 'zh-CN',
+            timeZone: 'Asia/Shanghai',
+          }),
+          componentConfigs: expect.objectContaining({
+            'team9-routine-creation': expect.objectContaining({
+              routineId: ROUTINE_ID,
+              isCreationChannel: true,
+              team9Context: expect.objectContaining({
+                routineId: ROUTINE_ID,
+                creationChannelId: CHANNEL_ID,
+              }),
+            }),
+            'just-bash-team9-workspace': expect.objectContaining({
+              folderMap: expect.objectContaining({
+                'routine.document': expect.objectContaining({
+                  folderId: 'folder-existing',
+                  workspaceId: TENANT_ID,
+                }),
+              }),
+              mountTeam9Skills: true,
+            }),
+          }),
+        }),
+        TENANT_ID,
+      );
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        creationChannelId: CHANNEL_ID,
+        creationSessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
       });
     });
 
@@ -4596,7 +4734,7 @@ describe('RoutinesService — TaskCast integration', () => {
         expect(clawHiveService.createSession).toHaveBeenCalledWith(
           AGENT_ID,
           expect.objectContaining({
-            componentConfigs: {
+            componentConfigs: expect.objectContaining({
               'just-bash-team9-workspace': {
                 folderMap: {
                   'routine.document': {
@@ -4609,7 +4747,7 @@ describe('RoutinesService — TaskCast integration', () => {
                 },
                 mountTeam9Skills: true,
               },
-            },
+            }),
           }),
           TENANT_ID,
         );

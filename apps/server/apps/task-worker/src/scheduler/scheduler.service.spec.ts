@@ -317,7 +317,7 @@ describe('SchedulerService', () => {
     };
 
     executor = {
-      triggerExecution: jest.fn().mockResolvedValue(undefined),
+      triggerExecution: jest.fn().mockResolvedValue(true),
     };
 
     redisClient = {
@@ -445,6 +445,30 @@ describe('SchedulerService', () => {
     });
   });
 
+  it('does not advance trigger run times when execution is not started', async () => {
+    const trigger = {
+      id: 'trigger-skipped',
+      routineId: 'task-skipped',
+      type: 'interval',
+      config: { every: 1, unit: 'hours' },
+      nextRunAt: new Date('2026-04-02T09:00:00.000Z'),
+    };
+    executor.triggerExecution.mockResolvedValueOnce(false);
+    selectChain.where.mockResolvedValueOnce([{ trigger, taskStatus: 'idle' }]);
+
+    await (service as any).doScan();
+
+    expect(executor.triggerExecution).toHaveBeenCalledWith('task-skipped', {
+      triggerId: 'trigger-skipped',
+      triggerType: 'interval',
+      triggerContext: {
+        triggeredAt: '2026-04-02T10:00:00.000Z',
+        scheduledAt: '2026-04-02T09:00:00.000Z',
+      },
+    });
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it('uses schedule configs and leaves nextRunAt null for unsupported trigger types', async () => {
     const scheduleTrigger = {
       id: 'trigger-schedule',
@@ -519,7 +543,7 @@ describe('SchedulerService', () => {
     };
     executor.triggerExecution
       .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(true);
     selectChain.where.mockResolvedValueOnce([
       { trigger: triggerOne, taskStatus: 'idle' },
       { trigger: triggerTwo, taskStatus: 'idle' },

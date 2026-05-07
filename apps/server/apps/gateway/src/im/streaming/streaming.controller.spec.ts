@@ -271,6 +271,75 @@ describe('StreamingController', () => {
     });
   });
 
+  // ── updateMetadata ───────────────────────────────────────────────────────────
+
+  describe('updateMetadata', () => {
+    it('stores the latest metadata snapshot and broadcasts metadata deltas', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_call',
+              status: 'running',
+              toolCallId: 'tc-1',
+            },
+          }),
+        ),
+      );
+
+      await expect(
+        controller.updateMetadata(BOT_USER_ID, STREAM_ID, {
+          metadata: {
+            agentEventType: 'tool_call',
+            status: 'running',
+            toolCallId: 'tc-1',
+            toolName: 'RunScript',
+            toolArgsText: '{"cmd":"pnpm test"}',
+            toolPhase: 'args_streaming',
+          },
+        }),
+      ).resolves.toEqual({ success: true });
+
+      expect(redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_call',
+              status: 'running',
+              toolCallId: 'tc-1',
+              toolName: 'RunScript',
+              toolArgsText: '{"cmd":"pnpm test"}',
+              toolPhase: 'args_streaming',
+            },
+          }),
+        ),
+        120,
+      );
+      expect(redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS(BOT_USER_ID),
+        120,
+      );
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.STREAMING.METADATA,
+        {
+          streamId: STREAM_ID,
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          metadata: {
+            agentEventType: 'tool_call',
+            status: 'running',
+            toolCallId: 'tc-1',
+            toolName: 'RunScript',
+            toolArgsText: '{"cmd":"pnpm test"}',
+            toolPhase: 'args_streaming',
+          },
+        },
+      );
+    });
+  });
+
   // ── updateContent ────────────────────────────────────────────────────────────
 
   describe('updateContent', () => {
@@ -499,6 +568,29 @@ describe('StreamingController', () => {
       expect(gatewayMQService.publishWorkspaceEvent).not.toHaveBeenCalled();
     });
 
+    it('persists long streaming content as long_text so preview clients can fetch full content', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(
+        makeMessage(),
+      );
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
+      const longContent = Array.from(
+        { length: 25 },
+        (_, i) => `line ${i}`,
+      ).join('\n');
+
+      await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: longContent,
+      });
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: longContent,
+          type: 'long_text',
+        }),
+      );
+    });
+
     it('uses undefined workspaceId when channel has no tenantId', async () => {
       redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
       channelsService.findById.mockResolvedValueOnce({ tenantId: null });
@@ -546,6 +638,73 @@ describe('StreamingController', () => {
         expect.objectContaining({
           content: 'Final response',
           metadata: undefined,
+        }),
+      );
+    });
+
+    it('normalizes session tool_result metadata when finalizing a stream', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_result',
+              status: 'completed',
+              toolCallId: 'tc-stream',
+            },
+          }),
+        ),
+      );
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
+
+      await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: '{"success":false,"error":"denied"}',
+      });
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            agentEventType: 'tool_result',
+            status: 'failed',
+            toolCallId: 'tc-stream',
+            success: false,
+            errorMessage: 'denied',
+          }),
+        }),
+      );
+    });
+
+    it('merges thinking content into session metadata when finalizing a stream', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_result',
+              status: 'completed',
+              toolCallId: 'tc-stream',
+            },
+          }),
+        ),
+      );
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
+
+      await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: '{"success":true}',
+        thinking: 'checked inputs',
+      });
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            agentEventType: 'tool_result',
+            status: 'completed',
+            toolCallId: 'tc-stream',
+            success: true,
+            thinking: 'checked inputs',
+          }),
         }),
       );
     });

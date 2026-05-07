@@ -7,9 +7,11 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
 
 const mockStreamText = jest.fn<any>();
+const mockGenerateText = jest.fn<any>();
 
 jest.unstable_mockModule('ai', () => ({
   streamText: mockStreamText,
+  generateText: mockGenerateText,
   Output: { object: jest.fn<any>().mockReturnValue('mock-output-spec') },
 }));
 
@@ -218,7 +220,7 @@ describe('PersonalStaffService', () => {
     createDirectChannel: MockFn;
   };
   let installedApplicationsService: { findById: MockFn };
-  let usersService: { getLocalePreferences: MockFn };
+  let usersService: { getLocalePreferences: MockFn; findById: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -258,6 +260,18 @@ describe('PersonalStaffService', () => {
       getLocalePreferences: jest
         .fn<any>()
         .mockResolvedValue({ language: null, timeZone: null }),
+      findById: jest.fn<any>().mockResolvedValue({
+        id: OWNER_ID,
+        email: 'owner@example.com',
+        username: 'owner',
+        displayName: 'Alice',
+        avatarUrl: null,
+        status: 'online',
+        lastSeenAt: null,
+        userType: 'human',
+        language: null,
+        timeZone: null,
+      }),
     };
 
     mockStreamText.mockReset();
@@ -402,13 +416,26 @@ describe('PersonalStaffService', () => {
       );
     });
 
-    it('uses default display name "Personal Assistant" when none provided', async () => {
+    it("uses the owner's localized assistant name when none provided", async () => {
+      usersService.findById.mockResolvedValueOnce({
+        id: OWNER_ID,
+        email: 'owner@example.com',
+        username: 'owner',
+        displayName: '林晓宇',
+        avatarUrl: null,
+        status: 'online',
+        lastSeenAt: null,
+        userType: 'human',
+        language: 'zh-CN',
+        timeZone: 'Asia/Shanghai',
+      });
+
       const dto = makeCreateDto();
       await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
       expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
         expect.objectContaining({
-          displayName: 'Personal Assistant',
+          displayName: '林晓宇的助理',
         }),
       );
     });
@@ -435,6 +462,20 @@ describe('PersonalStaffService', () => {
             persona: 'Quirky helper',
             model: dto.model,
             visibility: { allowMention: false, allowDirectMessage: false },
+          }),
+        }),
+      );
+    });
+
+    it('stores provided display name as personal staff identity.name', async () => {
+      const dto = makeCreateDto({ displayName: 'Aria' });
+      await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          personalStaff: expect.objectContaining({
+            identity: { name: 'Aria' },
           }),
         }),
       );
@@ -940,6 +981,20 @@ describe('PersonalStaffService', () => {
       expect(botService.updateBotDisplayName).toHaveBeenCalledWith(
         BOT_ID,
         'Updated PA',
+      );
+    });
+
+    it('mirrors displayName updates into personal staff identity.name', async () => {
+      const dto = makeUpdateDto({ displayName: 'Updated PA' });
+      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          personalStaff: expect.objectContaining({
+            identity: { name: 'Updated PA' },
+          }),
+        }),
       );
     });
 

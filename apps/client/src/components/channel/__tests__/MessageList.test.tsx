@@ -19,6 +19,22 @@ import type { Message, AgentEventMetadata, MessageType } from "@/types/im";
 // Mocks — collaborators we don't care about
 // ---------------------------------------------------------------------------
 
+const mockChannelStreams = vi.hoisted(() => ({
+  current: [] as Array<{
+    streamId: string;
+    channelId: string;
+    senderId: string;
+    parentId?: string;
+    content: string;
+    thinking: string;
+    isThinking: boolean;
+    isStreaming: boolean;
+    startedAt: number;
+    parts: unknown[];
+    metadata?: Record<string, unknown>;
+  }>,
+}));
+
 // Minimal `t()` stand-in: returns the key by default, but expands the
 // tracking keys that MessageList's round-fold tests rely on (RoundCollapseSummary)
 // so the accessible name remains human-readable. This keeps the mock narrow
@@ -130,9 +146,9 @@ vi.mock("@/hooks/useChannelScrollState", () => {
   };
 });
 
-// Streaming store — no streaming messages for these tests
+// Streaming store — controllable active streams for streaming render tests
 vi.mock("@/stores/useStreamingStore", () => ({
-  useStreamingStore: () => [],
+  useStreamingStore: () => mockChannelStreams.current,
 }));
 
 // Agent-event helpers: the real `getAgentMeta` pulls from message.metadata,
@@ -149,15 +165,27 @@ vi.mock("@/lib/agent-events", async () => {
 // MessageItem / ChannelMessageItem are swapped for a text stub so the tests
 // can assert on raw message IDs without rendering the real UI.
 vi.mock("../MessageItem", () => ({
-  MessageItem: ({ message }: { message: Message }) => (
-    <div data-testid="message-item" data-id={message.id}>
+  MessageItem: ({
+    message,
+    roundStartedAt,
+  }: {
+    message: Message;
+    roundStartedAt?: string;
+  }) => (
+    <div
+      data-testid="message-item"
+      data-id={message.id}
+      data-round-started-at={roundStartedAt ?? ""}
+    >
       {message.content}
     </div>
   ),
 }));
 
 vi.mock("../StreamingMessageItem", () => ({
-  StreamingMessageItem: () => <div data-testid="streaming-item" />,
+  StreamingMessageItem: ({ stream }: { stream: { content?: string } }) => (
+    <div data-testid="streaming-item">{stream.content}</div>
+  ),
 }));
 
 vi.mock("../ToolCallBlock", () => ({
@@ -165,17 +193,25 @@ vi.mock("../ToolCallBlock", () => ({
     callMetadata,
     resultMetadata,
     resultContent,
+    resultMessage,
   }: {
-    callMetadata?: { toolCallId?: string; toolName?: string };
+    callMetadata?: {
+      toolCallId?: string;
+      toolName?: string;
+      toolArgsText?: string;
+    };
     resultMetadata?: { toolCallId?: string };
     resultContent?: string;
+    resultMessage?: { id?: string };
   }) => (
     <div
       data-testid="tool-call-block"
       data-tool-call-id={callMetadata?.toolCallId ?? ""}
       data-tool-name={callMetadata?.toolName ?? ""}
+      data-tool-args-text={callMetadata?.toolArgsText ?? ""}
       data-result-tool-call-id={resultMetadata?.toolCallId ?? ""}
       data-result-content={resultContent ?? ""}
+      data-result-message-id={resultMessage?.id ?? ""}
     />
   ),
 }));
@@ -234,6 +270,7 @@ function makeMessage(id: string, overrides: Partial<Message> = {}): Message {
 function makeAgentEvent(
   id: string,
   agentEventType: AgentEventMetadata["agentEventType"] = "thinking",
+  overrides: Partial<Message> = {},
 ): Message {
   return makeMessage(id, {
     senderId: "bot-1",
@@ -241,7 +278,9 @@ function makeAgentEvent(
     metadata: {
       agentEventType,
       status: "running",
+      ...(overrides.metadata ?? {}),
     },
+    ...overrides,
   });
 }
 
@@ -320,6 +359,7 @@ function renderList(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockChannelStreams.current = [];
 });
 
 describe("MessageList — round auto-fold", () => {
@@ -373,27 +413,30 @@ describe("MessageList — round auto-fold", () => {
     it("expands a folded round when the summary button is clicked", () => {
       const chrono = [
         makeAgentEvent("a1", "thinking"),
-        makeAgentEvent("a2", "agent_end"),
+        makeAgentEvent("a2", "tool_call"),
+        makeAgentEvent("a3", "agent_end"),
         makeMessage("u1", { content: "bot reply" }),
       ];
 
       renderList(chrono, { channelType: "direct" });
 
       // Initially folded — thinking (a1) stays visible as the preview,
-      // but agent_end (a2) is hidden behind the summary.
+      // but later steps are hidden behind the summary.
       expect(getRenderedMessageIds()).toContain("a1");
       expect(getRenderedMessageIds()).not.toContain("a2");
+      expect(getRenderedMessageIds()).not.toContain("a3");
 
       fireEvent.click(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       );
 
-      // After expansion, both agent events are rendered
+      // After expansion, all agent events are rendered
       const renderedIds = getRenderedMessageIds();
       expect(renderedIds).toContain("a1");
       expect(renderedIds).toContain("a2");
+      expect(renderedIds).toContain("a3");
       expect(renderedIds).toContain("u1");
 
       // Summary button is gone
@@ -405,7 +448,8 @@ describe("MessageList — round auto-fold", () => {
     it("re-folds a round when the expanded summary is clicked again", () => {
       const chrono = [
         makeAgentEvent("a1", "thinking"),
-        makeAgentEvent("a2", "agent_end"),
+        makeAgentEvent("a2", "tool_call"),
+        makeAgentEvent("a3", "agent_end"),
         makeMessage("u1", { content: "done" }),
       ];
 
@@ -422,15 +466,14 @@ describe("MessageList — round auto-fold", () => {
       // simplest collapse trigger is a fresh click if we re-introduce the
       // summary via a re-render of the same data (expanded state is internal
       // to the component, so we rerender with different ids to reset).
-      // We pick `writing` + `agent_end` for the new round so neither is a
-      // "thinking" event — thinking rows stay visible even when folded, so
-      // using them here would muddy the fold-behaviour assertion.
+      // Keep the replacement round at 3 visible steps so it is foldable.
       rerender(
         <ProvidersWrapper>
           <MessageList
             {...asProps([
-              makeAgentEvent("b1", "writing"),
-              makeAgentEvent("b2", "agent_end"),
+              makeAgentEvent("b1", "tool_call"),
+              makeAgentEvent("b2", "tool_result"),
+              makeAgentEvent("b3", "agent_end"),
               makeMessage("u2"),
             ])}
             channelType="direct"
@@ -441,7 +484,7 @@ describe("MessageList — round auto-fold", () => {
       // New round b1 is now folded again (no user expansion recorded for it)
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       ).toBeInTheDocument();
       expect(getRenderedMessageIds()).not.toContain("b1");
@@ -451,7 +494,8 @@ describe("MessageList — round auto-fold", () => {
       const initialChrono = [
         makeMessage("u0", { content: "hi" }),
         makeAgentEvent("a1", "thinking"),
-        makeAgentEvent("a2", "agent_end"),
+        makeAgentEvent("a2", "tool_call"),
+        makeAgentEvent("a3", "agent_end"),
       ];
 
       const { rerender } = renderList(initialChrono, {
@@ -460,7 +504,7 @@ describe("MessageList — round auto-fold", () => {
 
       // Initially, the round is the latest → expanded
       expect(getRenderedMessageIds()).toEqual(
-        expect.arrayContaining(["u0", "a1", "a2"]),
+        expect.arrayContaining(["u0", "a1", "a2", "a3"]),
       );
       expect(
         screen.queryByRole("button", { name: /Expand execution process/i }),
@@ -480,15 +524,16 @@ describe("MessageList — round auto-fold", () => {
       );
 
       // The old round collapses but its thinking row (a1) stays as
-      // the preview; agent_end (a2) is absorbed into the summary.
+      // the preview; later steps are absorbed into the summary.
       const renderedIds = getRenderedMessageIds();
       expect(renderedIds).toContain("a1");
       expect(renderedIds).not.toContain("a2");
+      expect(renderedIds).not.toContain("a3");
       expect(renderedIds).toContain("u1");
       expect(renderedIds).toContain("b1");
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       ).toBeInTheDocument();
     });
@@ -600,6 +645,7 @@ describe("MessageList — round auto-fold", () => {
       expect(block.getAttribute("data-tool-name")).toBe("browser");
       expect(block.getAttribute("data-result-tool-call-id")).toBe("call-1");
       expect(block.getAttribute("data-result-content")).toBe("final result");
+      expect(block.getAttribute("data-result-message-id")).toBe("a3");
 
       // The tool_result message (a3) is NOT rendered independently as a
       // MessageItem — it was consumed by the combined block.
@@ -646,6 +692,186 @@ describe("MessageList — round auto-fold", () => {
       expect(renderedIds).not.toContain("a2");
       expect(renderedIds).toContain("u0");
     });
+
+    it("renders an unpaired running tool_call as a ToolCallBlock", () => {
+      const chrono = [makeToolCall("call-1", "tc-running", "RunScript")];
+      chrono[0].metadata = {
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-running",
+        toolName: "RunScript",
+        toolArgsText: '{"cmd":"pnpm test',
+      };
+
+      renderList(chrono, { channelType: "direct" });
+
+      const blocks = screen.getAllByTestId("tool-call-block");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].getAttribute("data-tool-call-id")).toBe("tc-running");
+      expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
+      expect(blocks[0].getAttribute("data-result-content")).toBe("");
+      expect(blocks[0].getAttribute("data-result-message-id")).toBe("");
+      expect(screen.queryByTestId("message-item")).not.toBeInTheDocument();
+    });
+
+    it("renders an active streaming tool_call as a ToolCallBlock", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "RunScript",
+            toolArgsText: '{"cmd":"pnpm',
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      const blocks = screen.getAllByTestId("tool-call-block");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].getAttribute("data-tool-call-id")).toBe("tc-stream");
+      expect(blocks[0].getAttribute("data-tool-name")).toBe("RunScript");
+      expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
+    });
+
+    it("renders an active streaming func_call alias as a ToolCallBlock", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-func",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "func_call",
+            status: "running",
+            toolCallId: "fc-stream",
+            toolName: "view_map",
+            toolArgsText: '{"place":"Beijing"}',
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      const blocks = screen.getAllByTestId("tool-call-block");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].getAttribute("data-tool-call-id")).toBe("fc-stream");
+      expect(blocks[0].getAttribute("data-tool-name")).toBe("view_map");
+    });
+
+    it("preserves text content when an active stream also has tool_call metadata", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-text-tool",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "I will check that now.",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [
+            {
+              id: "stream-text-tool-0",
+              type: "content",
+              content: "I will check that now.",
+              startedAt: 1000,
+              isStreaming: true,
+            },
+          ],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "view_map",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getByTestId("tool-call-block")).toBeInTheDocument();
+      expect(screen.getByTestId("streaming-item")).toHaveTextContent(
+        "I will check that now.",
+      );
+    });
+
+    it("renders the latest streaming tool_call args text from stream metadata", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool-args",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "RunScript",
+            toolArgsText: '{"cmd":"pnpm test -- --runInBand"}',
+            toolPhase: "args_streaming",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getByTestId("tool-call-block")).toHaveAttribute(
+        "data-tool-args-text",
+        '{"cmd":"pnpm test -- --runInBand"}',
+      );
+    });
+
+    it("keeps the bot thinking indicator visible while an active stream exists", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "RunScript",
+          },
+        },
+      ];
+
+      renderList([], {
+        channelType: "direct",
+        thinkingBotIds: ["bot-1"],
+      });
+
+      expect(screen.getByTestId("tool-call-block")).toBeInTheDocument();
+      expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
+    });
   });
 
   describe("non-DM channels", () => {
@@ -676,6 +902,7 @@ describe("MessageList — round auto-fold", () => {
       const chrono = [
         makeAgentEvent("a1"),
         makeAgentEvent("a2"),
+        makeAgentEvent("a3"),
         makeMessage("u1"),
       ];
 
@@ -695,6 +922,7 @@ describe("MessageList — round auto-fold", () => {
       const chrono = [
         makeAgentEvent("a1"),
         makeAgentEvent("a2"),
+        makeAgentEvent("a3"),
         makeMessage("u1"),
       ];
 

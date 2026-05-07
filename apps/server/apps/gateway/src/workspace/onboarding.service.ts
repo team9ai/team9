@@ -593,6 +593,11 @@ export class OnboardingService {
       userId,
       app.id,
     );
+    const genericMainName = onboardingMainAgentName(lang);
+    const displayName =
+      main.name && main.name !== genericMainName
+        ? main.name
+        : await this.personalStaffService.getDefaultDisplayName(userId);
 
     if (existingBot) {
       // The personal-staff auto-install handler pre-created this bot with
@@ -602,7 +607,7 @@ export class OnboardingService {
       // bootstrap so the agent's first greeting uses the chosen identity in
       // the user's language.
       await this.personalStaffService.updateStaff(app.id, workspaceId, userId, {
-        displayName: main.name || onboardingMainAgentName(lang),
+        displayName,
         persona: main.description,
         model: DEFAULT_STAFF_MODEL,
       });
@@ -615,7 +620,7 @@ export class OnboardingService {
     }
 
     await this.personalStaffService.createStaff(app.id, workspaceId, userId, {
-      displayName: main.name || onboardingMainAgentName(lang),
+      displayName,
       persona: main.description,
       model: DEFAULT_STAFF_MODEL,
       agenticBootstrap: true,

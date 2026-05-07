@@ -68,6 +68,107 @@ describe("upsertChannelMessageInCache", () => {
       "msg-existing",
     ]);
   });
+
+  it("updates all cached variants for the channel", () => {
+    const queryClient = new QueryClient();
+    const existing = makeMessage("msg-existing");
+    const inserted = makeMessage("msg-3");
+
+    queryClient.setQueryData(["messages", "channel-1"], {
+      pages: [[existing]],
+      pageParams: [undefined],
+    });
+    queryClient.setQueryData(["messages", "channel-1", "latest"], {
+      pages: [
+        {
+          messages: [existing],
+          hasOlder: false,
+          hasNewer: false,
+        },
+      ],
+      pageParams: [undefined],
+    });
+    queryClient.setQueryData(["messages", "channel-1", "anchor-1"], {
+      pages: [
+        {
+          messages: [existing],
+          hasOlder: true,
+          hasNewer: true,
+        },
+      ],
+      pageParams: [undefined],
+    });
+
+    upsertChannelMessageInCache(queryClient, "channel-1", inserted);
+
+    const legacy = queryClient.getQueryData<{ pages: Message[][] }>([
+      "messages",
+      "channel-1",
+    ]);
+    const latest = queryClient.getQueryData<{
+      pages: PaginatedMessagesResponse[];
+    }>(["messages", "channel-1", "latest"]);
+    const anchored = queryClient.getQueryData<{
+      pages: PaginatedMessagesResponse[];
+    }>(["messages", "channel-1", "anchor-1"]);
+
+    expect(legacy?.pages[0]?.map((message) => message.id)).toEqual([
+      "msg-3",
+      "msg-existing",
+    ]);
+    expect(latest?.pages[0]?.messages.map((message) => message.id)).toEqual([
+      "msg-3",
+      "msg-existing",
+    ]);
+    expect(anchored?.pages[0]?.messages.map((message) => message.id)).toEqual([
+      "msg-3",
+      "msg-existing",
+    ]);
+  });
+
+  it("replaces matching optimistic temp messages across cached variants", () => {
+    const queryClient = new QueryClient();
+    const temp = { ...makeMessage("temp-1"), sendStatus: "sending" as const };
+    const inserted = makeMessage("msg-4");
+
+    queryClient.setQueryData(["messages", "channel-1", "latest"], {
+      pages: [
+        {
+          messages: [temp],
+          hasOlder: false,
+          hasNewer: false,
+        },
+      ],
+      pageParams: [undefined],
+    });
+    queryClient.setQueryData(["messages", "channel-1", "anchor-1"], {
+      pages: [
+        {
+          messages: [temp],
+          hasOlder: true,
+          hasNewer: true,
+        },
+      ],
+      pageParams: [undefined],
+    });
+
+    upsertChannelMessageInCache(queryClient, "channel-1", inserted, "temp-1");
+
+    const latest = queryClient.getQueryData<{
+      pages: PaginatedMessagesResponse[];
+    }>(["messages", "channel-1", "latest"]);
+    const anchored = queryClient.getQueryData<{
+      pages: PaginatedMessagesResponse[];
+    }>(["messages", "channel-1", "anchor-1"]);
+
+    expect(latest?.pages[0]?.messages.map((message) => message.id)).toEqual([
+      "msg-4",
+    ]);
+    expect(anchored?.pages[0]?.messages.map((message) => message.id)).toEqual([
+      "msg-4",
+    ]);
+    expect(latest?.pages[0]?.messages[0]?.sendStatus).toBeUndefined();
+  });
 });
 
 describe("upsertIncomingMessageInData", () => {

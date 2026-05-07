@@ -122,7 +122,7 @@ describe("TrackingEventItem", () => {
       { type: "tool_call", label: "Tool call completed" },
       { type: "tool_result", label: "Result" },
       { type: "agent_start", label: "Started" },
-      { type: "agent_end", label: "Stopped" },
+      { type: "agent_end", label: "Round ended" },
       { type: "error", label: "Error" },
     ];
 
@@ -136,6 +136,41 @@ describe("TrackingEventItem", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
       unmount();
     }
+  });
+
+  it("renders agent_end as a round summary with seconds duration", () => {
+    render(
+      <TrackingEventItem
+        metadata={{
+          agentEventType: "agent_end",
+          status: "completed",
+          durationMs: 45_000,
+        }}
+        content="Execution complete."
+      />,
+    );
+
+    expect(screen.getByText("Round ended")).toBeInTheDocument();
+    expect(screen.getByText("Duration: 45s")).toBeInTheDocument();
+    expect(screen.queryByText("Execution complete.")).not.toBeInTheDocument();
+  });
+
+  it("renders zh-CN agent_end duration with hours and minutes", async () => {
+    await changeLanguage("zh-CN");
+
+    render(
+      <TrackingEventItem
+        metadata={{
+          agentEventType: "agent_end",
+          status: "completed",
+          durationMs: 7_500_000,
+        }}
+        content="Execution complete."
+      />,
+    );
+
+    expect(screen.getByText("本轮结束")).toBeInTheDocument();
+    expect(screen.getByText("持续时间：2 时 5 分")).toBeInTheDocument();
   });
 
   it("renders a distinct lucide icon per event type", () => {

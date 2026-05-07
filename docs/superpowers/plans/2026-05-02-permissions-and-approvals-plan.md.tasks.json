@@ -1,0 +1,124 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-02-permissions-and-approvals-plan.md",
+  "lastUpdated": "2026-05-02T00:00:00Z",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: DB schema & migration",
+      "status": "pending",
+      "description": "**Goal:** Permissions tables, enums, indexes; pnpm db:generate produces a clean migration.\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/permissions/grants.ts\",\"apps/server/libs/database/src/schemas/permissions/requests.ts\",\"apps/server/libs/database/src/schemas/permissions/relations.ts\",\"apps/server/libs/database/src/schemas/permissions/index.ts\",\"apps/server/libs/database/src/schemas/index.ts\"],\"verifyCommand\":\"cd apps/server && pnpm db:generate && pnpm db:migrate\",\"acceptanceCriteria\":[\"Schema files compile\",\"Migration applies cleanly\",\"Both tables and 3 enums exist\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: SpellIdService + BIP-39 word list",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Generate memorable 3-4 word spell ids backed by BIP-39 wordlist.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/spell-words.ts\",\"apps/server/apps/gateway/src/permissions/spell-id.service.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/spell-id.service.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/spell-id.service.spec.ts\",\"acceptanceCriteria\":[\"SPELL_WORDS length=2048\",\"generate() returns 3-4 word lowercase string\",\"parse() normalizes whitespace and case\",\"deterministic via injected RNG\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: PermissionMatcher",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Pure scope_metadata matcher (absent/array/string/glob).\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permission-matcher.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permission-matcher.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permission-matcher.spec.ts\",\"acceptanceCriteria\":[\"empty scope matches all\",\"array whitelist\",\"exact string\",\"glob: prefix\",\"AND across fields\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Permission keys + ApproverRepository",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** PERMISSION_KEYS registry with per-key resolveApprovers + ApproverRepository implementing holder lookups.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permission-keys.ts\",\"apps/server/apps/gateway/src/permissions/permissions-approver.repository.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permissions-approver.repository.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permissions-approver.repository.spec.ts\",\"acceptanceCriteria\":[\"6+ keys defined with resolver\",\"findChannelOwnersAndAdmins filters role and leftAt\",\"findBotOwnerAndMentor filters nulls\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: PermissionsService — grants CRUD",
+      "status": "pending",
+      "blockedBy": [1, 4],
+      "description": "**Goal:** createGrant / revokeGrant / listGrants on PermissionsService.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permissions.service.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permissions.service.grants.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permissions.service.grants.spec.ts\",\"acceptanceCriteria\":[\"createGrant rejects unknown key\",\"revokeGrant idempotent\",\"listGrants honors filters\",\"emits permissions.grant.* events\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: PermissionsService — gate + once-use consume",
+      "status": "pending",
+      "blockedBy": [1, 3, 5],
+      "description": "**Goal:** Central gate() check with specificity ordering, scope match, race-safe once-use consume.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permissions.service.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permissions.service.gate.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permissions.service.gate.spec.ts\",\"acceptanceCriteria\":[\"specificity order execution>channel>task>agent\",\"skips revoked/expired\",\"once-use consume race-safe\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: PermissionsService — request lifecycle + resolveApprovers",
+      "status": "pending",
+      "blockedBy": [2, 4, 6],
+      "description": "**Goal:** createRequest / cancelRequest / decideRequest / resolveApprovers / canDecide.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permissions.service.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permissions.service.requests.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permissions.service.requests.spec.ts\",\"acceptanceCriteria\":[\"spell-id collision retry escalates 3->4 words\",\"remember creates grant in same tx\",\"resolveApprovers unions key-holders + suggested + ws-owners\",\"foreign-tenant suggested approvers dropped\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: WS events domain + broadcastToApprovers",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Permissions WS event domain + bridge from service events to gateway.sendToUser per approver.\n\n```json:metadata\n{\"files\":[\"apps/server/libs/shared/src/events/domains/permissions/index.ts\",\"apps/server/libs/shared/src/events/index.ts\",\"apps/server/apps/gateway/src/permissions/permissions.ws-bridge.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permissions.ws-bridge.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permissions.ws-bridge.spec.ts\",\"acceptanceCriteria\":[\"5 typed events\",\"request.created broadcasts to all approvers\",\"request.decided also notifies bot user id\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: PermissionsController + DTOs + e2e",
+      "status": "pending",
+      "blockedBy": [5, 6, 7],
+      "description": "**Goal:** REST endpoints under /api/v1/permissions + class-validator DTOs + supertest e2e.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permissions.controller.ts\",\"apps/server/apps/gateway/src/permissions/dto/create-grant.dto.ts\",\"apps/server/apps/gateway/src/permissions/dto/list-grants.dto.ts\",\"apps/server/apps/gateway/src/permissions/dto/create-request.dto.ts\",\"apps/server/apps/gateway/src/permissions/dto/decide-request.dto.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/permissions.controller.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/permissions.controller.spec.ts\",\"acceptanceCriteria\":[\"all 9 routes wired\",\"DTOs validate uuid and enum\",\"decide returns 403 when canDecide=false\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: PermissionsModule + AppModule wiring",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** Wire module into gateway; bootstrap smoke test.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/permissions/permissions.module.ts\",\"apps/server/apps/gateway/src/app.module.ts\",\"apps/server/apps/gateway/test/app.bootstrap.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest test/app.bootstrap.spec.ts\",\"acceptanceCriteria\":[\"providers all registered\",\"PermissionsService exported\",\"dev server boots clean\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Enforcement — bot cross-channel messages:send",
+      "status": "pending",
+      "blockedBy": [7, 10],
+      "description": "**Goal:** Replace plain ForbiddenException at messages.controller:85 with permission gate; on deny, file request and return 403 PERMISSION_REQUIRED with spell id.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/messages/messages.controller.ts\",\"apps/server/apps/gateway/src/im/messages/messages.module.ts\",\"apps/server/apps/gateway/src/im/bots/bots.service.ts\",\"apps/server/apps/gateway/src/permissions/__tests__/messages.gate-integration.spec.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/src/permissions/__tests__/messages.gate-integration.spec.ts\",\"acceptanceCriteria\":[\"non-bot 403 unchanged\",\"bot deny -> PERMISSION_REQUIRED + spell id\",\"bot allow -> 201 message created\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Frontend i18n + ScopeEditor",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** permissions i18n namespace (en + zh-CN) + key-aware ScopeEditor component.\n\n```json:metadata\n{\"files\":[\"apps/client/src/i18n/locales/en/permissions.json\",\"apps/client/src/i18n/locales/zh-CN/permissions.json\",\"apps/client/src/i18n/loadLanguage.ts\",\"apps/client/src/i18n/index.ts\",\"apps/client/src/components/permissions/ScopeEditor.tsx\",\"apps/client/src/components/permissions/__tests__/ScopeEditor.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm vitest run src/components/permissions/__tests__/ScopeEditor.test.tsx\",\"acceptanceCriteria\":[\"namespace registered\",\"messages:send shows channelIds field\",\"unknown key falls back to JSON textarea\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: Frontend PermissionRequestCard",
+      "status": "pending",
+      "blockedBy": [12],
+      "description": "**Goal:** Render single request with spell id + 3 buttons + remember-form expansion.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/permissions/PermissionRequestCard.tsx\",\"apps/client/src/components/permissions/__tests__/PermissionRequestCard.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm vitest run src/components/permissions/__tests__/PermissionRequestCard.test.tsx\",\"acceptanceCriteria\":[\"3 buttons emit onDecide\",\"remember expands form\",\"copy spell id to clipboard\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: Frontend WS + store + Query hooks",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Goal:** WS listeners + pendingPermissionCount in store + useGrants/useDecidePermission etc.\n\n```json:metadata\n{\"files\":[\"apps/client/src/services/websocket.ts\",\"apps/client/src/stores/useAppStore.ts\",\"apps/client/src/hooks/usePermissions.ts\",\"apps/client/src/hooks/__tests__/usePermissions.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm vitest run src/hooks/__tests__/usePermissions.test.tsx\",\"acceptanceCriteria\":[\"5 WS events handled\",\"badge count updates\",\"hooks invalidate Query cache on mutation\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 15: PermissionInbox + in-channel embed",
+      "status": "pending",
+      "blockedBy": [13, 14],
+      "description": "**Goal:** Top-bar bell with badge + popover list + in-channel inline card render.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/permissions/PermissionInbox.tsx\",\"apps/client/src/components/permissions/__tests__/PermissionInbox.test.tsx\",\"apps/client/src/components/channel/MessageList.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm vitest run src/components/permissions/__tests__/PermissionInbox.test.tsx\",\"acceptanceCriteria\":[\"bell shows badge >0\",\"popover lists pending\",\"in-channel embed when contextChannelId matches\"]}\n```"
+    },
+    {
+      "id": 16,
+      "subject": "Task 16: GrantList + GrantEditor (settings tabs)",
+      "status": "pending",
+      "blockedBy": [13, 14],
+      "description": "**Goal:** Grant management UI in agent / channel / routine settings.\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/permissions/GrantList.tsx\",\"apps/client/src/components/permissions/GrantEditor.tsx\",\"apps/client/src/components/permissions/__tests__/GrantList.test.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm vitest run src/components/permissions/__tests__/GrantList.test.tsx\",\"acceptanceCriteria\":[\"list grants for subject\",\"add grant via dialog\",\"revoke flow\",\"mounted in 3 settings pages\"]}\n```"
+    },
+    {
+      "id": 17,
+      "subject": "Task 17: End-to-end backend smoke test",
+      "status": "pending",
+      "blockedBy": [11],
+      "description": "**Goal:** Full happy path e2e (deny -> decide -> success) over real AppModule with fake DB.\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/test/permissions.e2e-spec.ts\",\"apps/server/apps/gateway/test/__support__/fake-db.ts\"],\"verifyCommand\":\"cd apps/server && pnpm jest apps/gateway/test/permissions.e2e-spec.ts\",\"acceptanceCriteria\":[\"first POST returns 403 PERMISSION_REQUIRED\",\"decide remember -> 201\",\"retry POST returns 201\"]}\n```"
+    }
+  ]
+}

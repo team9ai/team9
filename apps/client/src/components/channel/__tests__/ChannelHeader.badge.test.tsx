@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { ChannelHeader } from "../ChannelHeader";
 import type { ChannelWithUnread } from "@/types/im";
@@ -11,6 +17,8 @@ const mockUseLeaveChannel = vi.fn();
 const mockUseIsUserOnline = vi.fn();
 const mockUseTrackingChannel = vi.fn();
 const mockUseUser = vi.fn();
+const mockUseIMUser = vi.fn();
+const mockUpdateChannelMutateAsync = vi.fn();
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -27,6 +35,7 @@ vi.mock("@/hooks/useChannels", () => ({
 }));
 
 vi.mock("@/hooks/useIMUsers", () => ({
+  useIMUser: (...args: unknown[]) => mockUseIMUser(...args),
   useIsUserOnline: (...args: unknown[]) => mockUseIsUserOnline(...args),
 }));
 
@@ -86,10 +95,11 @@ function makeBotDirectChannel(
 
 describe("ChannelHeader · Model badge placement", () => {
   beforeEach(() => {
+    mockUseChannel.mockReturnValue({ data: null });
     mockUseChannelMembers.mockReturnValue({ data: [] });
     mockUseIsUserOnline.mockReturnValue(false);
     mockUseUpdateChannel.mockReturnValue({
-      mutateAsync: vi.fn(),
+      mutateAsync: mockUpdateChannelMutateAsync,
       isPending: false,
     });
     mockUseLeaveChannel.mockReturnValue({
@@ -104,6 +114,12 @@ describe("ChannelHeader · Model badge placement", () => {
       activeStream: null,
     });
     mockUseUser.mockReturnValue({ id: "user-1" });
+    mockUseIMUser.mockReturnValue({ data: null, isLoading: false });
+    mockUpdateChannelMutateAsync.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the Model badge below the displayName row for base_model agents", () => {
@@ -146,5 +162,142 @@ describe("ChannelHeader · Model badge placement", () => {
 
     expect(screen.queryByText("Model")).not.toBeInTheDocument();
     expect(screen.queryByText("OpenClaw")).not.toBeInTheDocument();
+  });
+
+  it("renders agent metadata on a second line for topic-session channels", () => {
+    render(
+      <ChannelHeader
+        channel={
+          {
+            id: "topic-1",
+            tenantId: "tenant-1",
+            name: "folder9挂载情况",
+            type: "topic-session",
+            createdBy: "user-1",
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            unreadCount: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z",
+            otherUser: {
+              id: "bot-lxy",
+              username: "lin_xiaoyu",
+              displayName: "林晓宇",
+              status: "online",
+              userType: "bot",
+              agentType: "openclaw",
+              roleTitle: "平台工程师",
+              agentId: "agent-lxy-001",
+            },
+          } as ChannelWithUnread
+        }
+      />,
+    );
+
+    const title = screen.getByRole("heading", { name: "folder9挂载情况" });
+    const agentName = screen.getByText("林晓宇");
+
+    expect(title.parentElement).not.toBe(agentName.parentElement);
+    expect(agentName).toBeInTheDocument();
+    expect(screen.getByText("平台工程师")).toBeInTheDocument();
+    expect(screen.getByText("OpenClaw")).toBeInTheDocument();
+    expect(screen.getByText("agent-lxy-001")).toBeInTheDocument();
+  });
+
+  it("renders the second-line agent avatar and shows the profile card when hovering avatar or name", () => {
+    vi.useFakeTimers();
+    mockUseIMUser.mockReturnValue({
+      data: {
+        id: "bot-lxy",
+        username: "lin_xiaoyu",
+        displayName: "林晓宇",
+        avatarUrl: "/agent.png",
+        userType: "bot",
+      },
+      isLoading: false,
+    });
+
+    const { container } = render(
+      <ChannelHeader
+        channel={
+          {
+            id: "topic-1",
+            tenantId: "tenant-1",
+            name: "folder9挂载情况",
+            type: "topic-session",
+            createdBy: "user-1",
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            unreadCount: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z",
+            otherUser: {
+              id: "bot-lxy",
+              username: "lin_xiaoyu",
+              displayName: "林晓宇",
+              avatarUrl: "/agent.png",
+              status: "online",
+              userType: "bot",
+              agentType: "openclaw",
+              roleTitle: "平台工程师",
+              agentId: "agent-lxy-001",
+            },
+          } as ChannelWithUnread
+        }
+      />,
+    );
+
+    const profileTrigger = screen.getByLabelText("Show 林晓宇 profile");
+    expect(profileTrigger.querySelector('[data-slot="avatar"]')).not.toBeNull();
+
+    fireEvent.mouseEnter(profileTrigger);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(container.querySelector('[data-slot="avatar"]')).not.toBeNull();
+    expect(mockUseIMUser).toHaveBeenCalledWith("bot-lxy");
+    expect(screen.getAllByText("林晓宇")).toHaveLength(2);
+    expect(screen.getByText("@lin_xiaoyu")).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it("shows a title edit affordance beside non-direct channel titles and saves the new title", async () => {
+    render(
+      <ChannelHeader
+        currentUserRole="member"
+        channel={
+          {
+            id: "topic-1",
+            tenantId: "tenant-1",
+            name: "folder9挂载情况",
+            type: "topic-session",
+            createdBy: "user-1",
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            unreadCount: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z",
+          } as ChannelWithUnread
+        }
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Edit channel title"));
+
+    const input = screen.getByLabelText("Channel title");
+    fireEvent.change(input, { target: { value: "新标题" } });
+    fireEvent.click(screen.getByLabelText("Save channel title"));
+
+    await waitFor(() => {
+      expect(mockUpdateChannelMutateAsync).toHaveBeenCalledWith({
+        channelId: "topic-1",
+        data: { name: "新标题" },
+      });
+    });
   });
 });

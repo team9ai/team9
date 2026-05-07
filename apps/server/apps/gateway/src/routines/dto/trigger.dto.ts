@@ -4,13 +4,12 @@ import {
   IsIn,
   IsInt,
   IsBoolean,
+  IsObject,
   Min,
   Max,
   Matches,
   IsUUID,
-  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import type { RoutineTriggerType } from '@team9/database/schemas';
 
 export class IntervalConfigDto {
@@ -57,8 +56,7 @@ export class CreateTriggerDto {
   type: RoutineTriggerType;
 
   @IsOptional()
-  @ValidateNested()
-  @Type(() => Object)
+  @IsObject()
   config?: Record<string, unknown>;
 
   @IsBoolean()
@@ -68,6 +66,7 @@ export class CreateTriggerDto {
 
 export class UpdateTriggerDto {
   @IsOptional()
+  @IsObject()
   config?: Record<string, unknown>;
 
   @IsBoolean()

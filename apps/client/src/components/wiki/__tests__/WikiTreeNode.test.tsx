@@ -151,7 +151,7 @@ describe("WikiTreeNode", () => {
     expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(true);
   });
 
-  it("does not navigate when the directory has no index.md", () => {
+  it("does not navigate when the directory has no index page", () => {
     render(
       <WikiTreeNode
         node={dirNode("api", [fileNode("api/other.md")])}
@@ -163,7 +163,40 @@ describe("WikiTreeNode", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("navigates to index.md when the directory has an index.md child", () => {
+  it("navigates to index.md9 when the directory has an index.md9 child", () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    fireEvent.click(screen.getByRole("treeitem", { name: /api/ }));
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: "public", _splat: "api/index.md9" },
+    });
+  });
+
+  it("prefers index.md9 over legacy index.md when both exist", () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [
+          fileNode("api/index.md"),
+          fileNode("api/index.md9"),
+        ])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    fireEvent.click(screen.getByRole("treeitem", { name: /api/ }));
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: "public", _splat: "api/index.md9" },
+    });
+  });
+
+  it("still navigates to legacy index.md for existing folders", () => {
     render(
       <WikiTreeNode
         node={dirNode("api", [fileNode("api/index.md")])}
@@ -178,14 +211,67 @@ describe("WikiTreeNode", () => {
     });
   });
 
-  it("expands (not toggles) a directory with index.md so repeated clicks never collapse it", () => {
+  it("hides the .md9 extension in the tree label", () => {
+    render(
+      <WikiTreeNode
+        node={fileNode("api/file-title.md9")}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+
+    expect(
+      screen.getByRole("treeitem", { name: "file-title" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("file-title.md9")).toBeNull();
+  });
+
+  it("does not render index.md9 as a child row because it is the folder document", () => {
+    act(() => {
+      useWikiStore.getState().toggleDirectory("api");
+    });
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [
+          fileNode("api/index.md9"),
+          fileNode("api/overview.md9"),
+        ])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+
+    expect(screen.queryByRole("treeitem", { name: /^index$/ })).toBeNull();
+    expect(
+      screen.getByRole("treeitem", { name: /^overview$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("highlights a directory when its folder document is selected", () => {
+    act(() => {
+      useWikiStore.getState().setSelectedPage("api/index.md9");
+    });
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+
+    expect(screen.getByRole("treeitem", { name: /api/ }).className).toMatch(
+      /bg-primary/,
+    );
+  });
+
+  it("expands (not toggles) a directory with index.md9 so repeated clicks never collapse it", () => {
     // Regression guard against the toggle+navigate race: if clicks toggled
     // the dir, the second click would collapse it after navigating — and the
     // splat route's auto-expand would then re-open, producing a flicker.
     // Using `expandDirectory` keeps the dir open across repeated clicks.
     render(
       <WikiTreeNode
-        node={dirNode("api", [fileNode("api/index.md")])}
+        node={dirNode("api", [fileNode("api/index.md9")])}
         wikiSlug="public"
         depth={0}
       />,

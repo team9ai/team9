@@ -567,6 +567,107 @@ describe("useWebSocketEvents", () => {
     expect(mockShowTauriNotification).toHaveBeenCalledTimes(1);
   });
 
+  // ==================== New Message ====================
+
+  it("patches and refreshes agent sidebar identity when a bot sends a new message", () => {
+    queryCache.set(
+      JSON.stringify(["installed-applications-with-bots", "workspace-1"]),
+      [
+        {
+          id: "app-install-1",
+          applicationId: "personal-staff",
+          name: "Personal Staff",
+          tenantId: "workspace-1",
+          config: {},
+          permissions: {},
+          status: "active",
+          isActive: true,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
+          bots: [
+            {
+              botId: "bot-1",
+              userId: "bot-user-1",
+              username: "bot_b155",
+              displayName: "Personal Staff",
+              avatarUrl: null,
+              ownerId: "user-1",
+              persona: null,
+              model: null,
+              visibility: {
+                allowMention: true,
+                allowDirectMessage: true,
+              },
+              isActive: true,
+              createdAt: "2026-04-01T00:00:00.000Z",
+              managedMeta: { agentId: "agent-1" },
+            },
+          ],
+        },
+      ],
+    );
+    queryCache.set(
+      JSON.stringify(["topic-sessions-grouped", "workspace-1", 5]),
+      [
+        {
+          agentUserId: "bot-user-1",
+          agentId: "agent-1",
+          agentDisplayName: "Personal Staff",
+          agentAvatarUrl: null,
+          legacyDirectChannelId: null,
+          totalCount: 1,
+          recentSessions: [],
+        },
+      ],
+    );
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("new_message")?.[0];
+    expect(callback).toBeDefined();
+
+    callback?.({
+      id: "msg-1",
+      channelId: "channel-1",
+      senderId: "bot-user-1",
+      content: "好，现在我叫夏夏夏",
+      type: "text",
+      metadata: {},
+      isPinned: false,
+      isEdited: false,
+      isDeleted: false,
+      createdAt: "2026-05-02T07:26:00.000Z",
+      updatedAt: "2026-05-02T07:26:00.000Z",
+      sender: {
+        id: "bot-user-1",
+        email: "bot@example.com",
+        username: "bot_b155",
+        displayName: "夏夏夏",
+        status: "online",
+        isActive: true,
+        userType: "bot",
+        createdAt: "2026-04-01T00:00:00.000Z",
+        updatedAt: "2026-05-02T07:26:00.000Z",
+      },
+    });
+
+    const apps = queryCache.get(
+      JSON.stringify(["installed-applications-with-bots", "workspace-1"]),
+    ) as Array<{ bots: Array<{ displayName: string | null }> }>;
+    const groups = queryCache.get(
+      JSON.stringify(["topic-sessions-grouped", "workspace-1", 5]),
+    ) as Array<{ agentDisplayName: string }>;
+
+    expect(apps[0].bots[0].displayName).toBe("夏夏夏");
+    expect(groups[0].agentDisplayName).toBe("夏夏夏");
+    expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["installed-applications-with-bots", "workspace-1"],
+    });
+    expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["topic-sessions-grouped", "workspace-1"],
+    });
+  });
+
   // ==================== Topic Session Updated ====================
 
   it("patches topic-session sidebar cache immediately when title updates", () => {
@@ -634,7 +735,7 @@ describe("useWebSocketEvents", () => {
   // ==================== User Updated ====================
 
   describe("user_updated handler", () => {
-    it("invalidates users and per-user im-users caches for any user", () => {
+    it("invalidates user, channel, topic-session, and agent bot caches for any user", () => {
       renderHook(() => useWebSocketEvents());
       const handler = listeners.get("user_updated")?.[0];
       expect(handler).toBeDefined();
@@ -646,6 +747,15 @@ describe("useWebSocketEvents", () => {
       });
       expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: ["im-users", "user-other"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["channels"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["topic-sessions-grouped", "workspace-1"],
+      });
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["installed-applications-with-bots", "workspace-1"],
       });
     });
 

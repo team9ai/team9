@@ -148,10 +148,6 @@ describe('RoutineTriggersService', () => {
       { id: 'task-1', tenantId: 'tenant-1' },
     ]);
     db.chains.insertReturning.mockResolvedValueOnce([{ id: 'trigger-3' }]);
-    const expectedNextRunAt = new Date('2026-04-02T10:30:00.000Z');
-    expectedNextRunAt.setHours(9, 15, 0, 0);
-    expectedNextRunAt.setDate(expectedNextRunAt.getDate() + 1);
-
     await service.create(
       'task-1',
       {
@@ -167,7 +163,34 @@ describe('RoutineTriggersService', () => {
 
     expect(db.chains.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        nextRunAt: expectedNextRunAt,
+        // 09:15 on 2026-04-03 in Asia/Shanghai is 01:15 UTC.
+        nextRunAt: new Date('2026-04-03T01:15:00.000Z'),
+      }),
+    );
+  });
+
+  it('creates schedule triggers using the configured timezone, not the server timezone', async () => {
+    db.chains.taskLimit.mockResolvedValueOnce([
+      { id: 'task-1', tenantId: 'tenant-1' },
+    ]);
+    db.chains.insertReturning.mockResolvedValueOnce([{ id: 'trigger-ny' }]);
+
+    await service.create(
+      'task-1',
+      {
+        type: 'schedule',
+        config: {
+          frequency: 'daily',
+          time: '09:15',
+          timezone: 'America/New_York',
+        },
+      } as never,
+      'tenant-1',
+    );
+
+    expect(db.chains.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextRunAt: new Date('2026-04-02T13:15:00.000Z'),
       }),
     );
   });

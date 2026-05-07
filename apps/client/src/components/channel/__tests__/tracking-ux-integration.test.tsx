@@ -316,6 +316,21 @@ function makeAgentReply(id: string, content: string): Message {
   });
 }
 
+function makeDocsLookupPair(prefix: string, toolCallId: string): Message[] {
+  return [
+    makeToolCallEvent(`${prefix}-docs-call`, toolCallId, "search_docs", {
+      query: "team9",
+    }),
+    makeToolResultEvent(
+      `${prefix}-docs-result`,
+      toolCallId,
+      "search_docs",
+      "3 results",
+      true,
+    ),
+  ];
+}
+
 // MessageList expects messages in DESC order (newest first) and reverses
 // internally. Tests build chronological lists and convert here for clarity.
 function asProps(chronoMessages: Message[]) {
@@ -423,17 +438,18 @@ describe("Tracking UX end-to-end integration", () => {
           text: "hi",
         }),
         makeToolResultEvent("r1-result", "call-1", "send_message", "ok", true),
+        ...makeDocsLookupPair("r1", "call-1b"),
         makeAgentReply("r1-reply", "Hi there — how can I help?"),
       ];
 
       renderList(round1WithReply, { channelType: "direct" });
 
-      // Round 1 is auto-folded → summary button visible with 2 steps
-      // (thinking + the paired tool_call/tool_result collapse to a single
-      // ToolCallBlock card, so the visible row count is 2 not 3).
+      // Round 1 is auto-folded → summary button visible with 3 steps.
+      // Two-step rounds intentionally stay expanded because the summary
+      // row costs almost as much attention as the content it would hide.
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       ).toBeInTheDocument();
 
@@ -454,7 +470,7 @@ describe("Tracking UX end-to-end integration", () => {
       // ToolCallBlock renders the friendly tool label.
       fireEvent.click(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       );
 
@@ -478,6 +494,7 @@ describe("Tracking UX end-to-end integration", () => {
         makeThinkingEvent("r1-think", "Round 1 thinking", 500, 10_000),
         makeToolCallEvent("r1-call", "call-1", "send_message", { text: "hi" }),
         makeToolResultEvent("r1-result", "call-1", "send_message", "ok", true),
+        ...makeDocsLookupPair("r1", "call-1b"),
       ];
       const round1Reply = makeAgentReply("r1-reply", "First round reply text");
       const round2 = [
@@ -498,12 +515,10 @@ describe("Tracking UX end-to-end integration", () => {
       renderList(chrono, { channelType: "direct" });
 
       // Round 1 is folded → RoundCollapseSummary button with step count.
-      // Round 1 has 3 agent-event messages (thinking + tool_call +
-      // tool_result) but only 2 visible rows once rendered: the paired
-      // tool_call/tool_result collapse into a single ToolCallBlock card,
-      // so stepCount on the summary is 2, not 3.
+      // Round 1 has 3 visible rows once rendered: thinking plus two
+      // paired tool_call/tool_result blocks.
       const foldButton = screen.getByRole("button", {
-        name: /Expand execution process \(2 steps\)/i,
+        name: /Expand execution process \(3 steps\)/i,
       });
       expect(foldButton).toBeInTheDocument();
 
@@ -531,6 +546,7 @@ describe("Tracking UX end-to-end integration", () => {
         makeThinkingEvent("r1-think", "Round 1 thinking", 500, 10_000),
         makeToolCallEvent("r1-call", "call-1", "send_message", { text: "hi" }),
         makeToolResultEvent("r1-result", "call-1", "send_message", "ok", true),
+        ...makeDocsLookupPair("r1", "call-1b"),
       ];
       const round1Reply = makeAgentReply("r1-reply", "Round 1 reply");
       const round2 = [
@@ -547,7 +563,7 @@ describe("Tracking UX end-to-end integration", () => {
       // the preview; the summary button surfaces the hidden steps.
       expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
       const summary = screen.getByRole("button", {
-        name: /Expand execution process \(2 steps\)/i,
+        name: /Expand execution process \(3 steps\)/i,
       });
 
       // Click to expand.
@@ -571,6 +587,7 @@ describe("Tracking UX end-to-end integration", () => {
         makeThinkingEvent("r1-think", "Round 1 thinking", 500, 10_000),
         makeToolCallEvent("r1-call", "call-1", "send_message", { text: "hi" }),
         makeToolResultEvent("r1-result", "call-1", "send_message", "ok", true),
+        ...makeDocsLookupPair("r1", "call-1b"),
       ];
       const round1Reply = makeAgentReply("r1-reply", "Round 1 reply");
       const round2Running = [
@@ -578,6 +595,7 @@ describe("Tracking UX end-to-end integration", () => {
         makeToolCallEvent("r2-call", "call-2", "search_docs", {
           query: "team9",
         }),
+        ...makeDocsLookupPair("r2", "call-2b"),
       ];
 
       const { rerender } = renderList(
@@ -588,7 +606,7 @@ describe("Tracking UX end-to-end integration", () => {
       // Expand round 1 manually.
       fireEvent.click(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       );
       expect(screen.getByText("Thought for 10s")).toBeInTheDocument();
@@ -618,11 +636,11 @@ describe("Tracking UX end-to-end integration", () => {
 
       // Round 2 is now non-latest (it's followed by its reply). Since the
       // user did NOT manually expand Round 2, it collapses. The summary
-      // button for Round 2 is rendered with 2 visible steps (the paired
-      // tool_call/tool_result render as a single combined card).
+      // button for Round 2 is rendered with 3 visible steps. A 2-step round
+      // would stay expanded under the current threshold.
       expect(
         screen.getByRole("button", {
-          name: /Expand execution process \(2 steps\)/i,
+          name: /Expand execution process \(3 steps\)/i,
         }),
       ).toBeInTheDocument();
 
@@ -648,6 +666,13 @@ describe("Tracking UX end-to-end integration", () => {
         makeToolCallEvent("r2-call", "call-2", "search_docs", {
           query: "team9",
         }),
+        makeToolResultEvent(
+          "r2-result",
+          "call-2",
+          "search_docs",
+          "3 results",
+          true,
+        ),
       ];
       const chrono = [...round1, round1Reply, ...round2];
 

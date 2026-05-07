@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import wsService from "@/services/websocket";
 import type { ChannelWithUnread, Message } from "@/types/im";
+import type { InstalledApplicationWithBots } from "@/services/api/applications";
 import type { TopicSessionGroup } from "@/services/api/im";
 import type {
   ReadStatusUpdatedEvent,
@@ -173,6 +174,55 @@ export function useWebSocketEvents() {
           });
         },
       );
+
+      if (message.sender?.userType === "bot" && message.senderId) {
+        const senderDisplayName =
+          message.sender.displayName || message.sender.username;
+
+        if (senderDisplayName) {
+          queryClient.setQueriesData<InstalledApplicationWithBots[]>(
+            { queryKey: ["installed-applications-with-bots", workspaceId] },
+            (old) => {
+              if (!old) return old;
+              let changed = false;
+              const next = old.map((app) => ({
+                ...app,
+                bots: app.bots.map((bot) => {
+                  if (bot.userId !== message.senderId) return bot;
+                  if (bot.displayName === senderDisplayName) return bot;
+                  changed = true;
+                  return { ...bot, displayName: senderDisplayName };
+                }),
+              }));
+              return changed ? next : old;
+            },
+          );
+
+          queryClient.setQueriesData<TopicSessionGroup[]>(
+            { queryKey: ["topic-sessions-grouped", workspaceId] },
+            (old) => {
+              if (!old) return old;
+              let changed = false;
+              const next = old.map((group) => {
+                if (group.agentUserId !== message.senderId) return group;
+                if (group.agentDisplayName === senderDisplayName) {
+                  return group;
+                }
+                changed = true;
+                return { ...group, agentDisplayName: senderDisplayName };
+              });
+              return changed ? next : old;
+            },
+          );
+        }
+
+        queryClient.invalidateQueries({
+          queryKey: ["installed-applications-with-bots", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["topic-sessions-grouped", workspaceId],
+        });
+      }
     };
 
     // Handle read status updated - reset unread count for current user
@@ -406,6 +456,17 @@ export function useWebSocketEvents() {
       // Invalidate IM user cache for this specific user (avatar/displayName)
       queryClient.invalidateQueries({
         queryKey: ["im-users", event.userId],
+      });
+      // Agent display names can be embedded in channel rows, channel member
+      // rows, topic-session groups, and installed-application bot lists.
+      // Refresh these together so staff rename/profile updates stay in sync
+      // across the sidebar and the active channel header.
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({
+        queryKey: ["topic-sessions-grouped", workspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
       });
 
       // Multi-device self-sync: if another device edited THIS user's profile,

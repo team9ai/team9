@@ -41,6 +41,7 @@ import {
   type StreamingStartEvent,
   type StreamingContentEvent,
   type StreamingThinkingContentEvent,
+  type StreamingMetadataEvent,
   type StreamingEndEvent,
   type StreamingAbortEvent,
 } from './events/events.constants.js';
@@ -1019,6 +1020,33 @@ export class WebsocketGateway
     await this.sendToChannelMembers(
       data.channelId,
       WS_EVENTS.STREAMING.THINKING_CONTENT,
+      {
+        ...data,
+        senderId: socketClient.userId,
+      },
+    );
+
+    return { success: true };
+  }
+
+  @SubscribeMessage(WS_EVENTS.STREAMING.METADATA)
+  async handleStreamingMetadata(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: StreamingMetadataEvent,
+  ) {
+    const socketClient = client as SocketWithUser;
+    if (!socketClient.isBot) {
+      return { error: 'Only bot users can stream messages' };
+    }
+
+    await this.redisService.expire(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      120,
+    );
+
+    await this.sendToChannelMembers(
+      data.channelId,
+      WS_EVENTS.STREAMING.METADATA,
       {
         ...data,
         senderId: socketClient.userId,

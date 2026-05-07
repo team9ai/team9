@@ -182,7 +182,9 @@ describe('ExecutorService', () => {
     // CAS update().returning() returns empty → task not claimed
     returningResultQueue = [[]];
 
-    await service.triggerExecution('nonexistent-task');
+    await expect(service.triggerExecution('nonexistent-task')).resolves.toBe(
+      false,
+    );
 
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
@@ -193,7 +195,7 @@ describe('ExecutorService', () => {
     // CAS returns task with no botId
     returningResultQueue = [[{ ...sampleTask, botId: null }]];
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
@@ -206,7 +208,7 @@ describe('ExecutorService', () => {
     selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(true);
 
     // insertValues: [channel, channelMember-creator, execution, channelMember-bot]
     const executionInsert = insertValues.find(
@@ -223,7 +225,7 @@ describe('ExecutorService', () => {
     returningResultQueue = [[sampleTask]];
     selectResultQueue = [[]]; // bot not found
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     // Should call update to mark status as failed
     expect(mockDb.update).toHaveBeenCalled();
@@ -240,7 +242,7 @@ describe('ExecutorService', () => {
     ];
     // No strategy registered
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     expect(mockDb.update).toHaveBeenCalled();
     const failedSet = updateSets.find((s) => s.status === 'failed');
@@ -261,7 +263,7 @@ describe('ExecutorService', () => {
     };
     service.registerStrategy('system', failingStrategy);
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
 
     expect(failingStrategy.execute).toHaveBeenCalled();
     const failedSet = updateSets.find((s) => s.status === 'failed');
@@ -275,7 +277,7 @@ describe('ExecutorService', () => {
     selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
-    await service.triggerExecution('task-001');
+    await expect(service.triggerExecution('task-001')).resolves.toBe(true);
 
     expect(mockStrategy.execute).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -443,6 +445,34 @@ describe('ExecutorService', () => {
     // Routine flips to 'failed' so it isn't stuck in_progress forever.
     const failedSet = updateSets.find((s) => s.status === 'failed');
     expect(failedSet).toBeDefined();
+  });
+
+  it('records a failed execution when ensureRoutineFolder throws before strategy execution', async () => {
+    mockEnsureRoutineFolder.mockRejectedValueOnce(
+      new Error('folder9 unavailable'),
+    );
+    returningResultQueue = [[sampleTask]];
+    service.registerStrategy('system', mockStrategy);
+
+    await expect(service.triggerExecution('task-001')).resolves.toBe(false);
+
+    const executionInsert = insertValues.find(
+      (v) => v.routineVersion !== undefined,
+    );
+    expect(executionInsert).toMatchObject({
+      routineId: 'task-001',
+      routineVersion: sampleTask.version,
+      status: 'failed',
+      channelId: 'mock-uuid-1',
+    });
+    expect(executionInsert.startedAt).toBeInstanceOf(Date);
+    expect(executionInsert.completedAt).toBeInstanceOf(Date);
+
+    const failedRoutineSet = updateSets.find(
+      (s) =>
+        s.status === 'failed' && s.currentExecutionId === executionInsert.id,
+    );
+    expect(failedRoutineSet).toBeDefined();
   });
 
   // ── folder9 token mint failure marks routine as failed ────────────

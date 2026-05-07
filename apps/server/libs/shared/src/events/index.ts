@@ -100,6 +100,7 @@ import type {
   StreamingStartEvent,
   StreamingContentEvent,
   StreamingThinkingContentEvent,
+  StreamingMetadataEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
   // Property
@@ -146,6 +147,7 @@ export interface ClientToServerEvents {
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;
   streaming_thinking_content: StreamingThinkingContentEvent;
+  streaming_metadata: StreamingMetadataEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
 }
@@ -207,6 +209,7 @@ export interface ServerToClientEvents {
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;
   streaming_thinking_content: StreamingThinkingContentEvent;
+  streaming_metadata: StreamingMetadataEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
   // Property

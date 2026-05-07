@@ -200,9 +200,134 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
       </Wrapper>,
     );
 
-    const editor = await screen.findByTestId("doc-editor");
-    expect(editor).toBeInTheDocument();
-    expect((editor as HTMLTextAreaElement).value).toBe("# Server body");
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+  });
+
+  it("reloads the body when the external initialPath changes", async () => {
+    const { api, fetchBlob } = makeApi();
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+
+    rerender(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            hideTree: true,
+            initialPath: "docs/intro.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(fetchBlob).toHaveBeenCalledWith("docs/intro.md"),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body of docs/intro.md",
+      ),
+    );
+  });
+
+  it("reloads the body when the folder changes but the path stays the same", async () => {
+    const apiA = makeApi({
+      fetchBlob: vi.fn(
+        async (path: string): Promise<BlobDto> => ({
+          path,
+          content: "body from folder A",
+          encoding: "text",
+        }),
+      ),
+    }).api;
+    const apiB = makeApi({
+      fetchBlob: vi.fn(
+        async (path: string): Promise<BlobDto> => ({
+          path,
+          content: "body from folder B",
+          encoding: "text",
+        }),
+      ),
+    }).api;
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api: apiA,
+            folderId: "folder-a",
+            hideTree: true,
+            initialPath: "index.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body from folder A",
+      ),
+    );
+
+    rerender(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api: apiB,
+            folderId: "folder-b",
+            hideTree: true,
+            initialPath: "index.md",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body from folder B",
+      ),
+    );
+  });
+
+  it("hydrates the server body after a transient dirty state clears", async () => {
+    const { api } = makeApi();
+    draftHook.state = makeDraftState({ isDirty: true });
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("doc-editor");
+    expect(screen.getByTestId("doc-editor")).toHaveValue("");
+
+    draftHook.state = makeDraftState({ isDirty: false });
+    rerender(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({ api, hideTree: true, initialPath: "SKILL.md" })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
   });
 
   it("falls back to a plain textarea for non-markdown text files", async () => {
@@ -354,7 +479,10 @@ describe("Folder9FolderEditor — read-only mode", () => {
       </Wrapper>,
     );
 
-    const editor = await screen.findByTestId("doc-editor");
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
     expect(editor).toHaveAttribute("data-readonly", "true");
 
     const saveBtn = screen.getByRole("button", { name: /save/i });
@@ -373,7 +501,10 @@ describe("Folder9FolderEditor — read-only mode", () => {
       </Wrapper>,
     );
 
-    const editor = await screen.findByTestId("doc-editor");
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
     fireEvent.change(editor, { target: { value: "user typed" } });
     // setDraft is gated by readOnly inside the shell.
     expect(setDraft).not.toHaveBeenCalled();
@@ -536,6 +667,135 @@ describe("Folder9FolderEditor — commit pipeline", () => {
     );
   });
 
+  it("auto-saves dirty edits after a debounce when the user can commit directly", async () => {
+    const { api, commit } = makeApi();
+    const setDraft = vi.fn();
+    const clearDraft = vi.fn();
+    draftHook.state = makeDraftState({ setDraft, clearDraft });
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps({ api, initialPath: "SKILL.md" })} />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(editor, { target: { value: "auto body" } });
+      expect(setDraft).toHaveBeenCalledWith({
+        body: "auto body",
+        frontmatter: {},
+      });
+
+      draftHook.state = makeDraftState({
+        draft: { body: "auto body", frontmatter: {} },
+        isDirty: true,
+        setDraft,
+        clearDraft,
+      });
+      rerender(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({ api, initialPath: "SKILL.md" })}
+          />
+        </Wrapper>,
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+      });
+
+      expect(commit).toHaveBeenCalledTimes(1);
+      expect(commit).toHaveBeenCalledWith({
+        message: "Update SKILL.md",
+        files: [
+          {
+            path: "SKILL.md",
+            content: "auto body",
+            action: "update",
+          },
+        ],
+        propose: false,
+      });
+      expect(clearDraft).toHaveBeenCalledTimes(1);
+
+      rerender(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({ api, initialPath: "SKILL.md" })}
+          />
+        </Wrapper>,
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+      });
+      expect(commit).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not auto-save review proposals because they need explicit submit metadata", async () => {
+    const { api, commit } = makeApi();
+    const setDraft = vi.fn();
+    draftHook.state = makeDraftState({ setDraft });
+    const Wrapper = makeWrapper();
+    const { rerender } = render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "SKILL.md",
+            permission: "propose",
+            approvalMode: "review",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    const editor = screen.getByTestId("doc-editor");
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(editor, { target: { value: "proposal body" } });
+
+      draftHook.state = makeDraftState({
+        draft: { body: "proposal body", frontmatter: {} },
+        isDirty: true,
+        setDraft,
+      });
+      rerender(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({
+              api,
+              initialPath: "SKILL.md",
+              permission: "propose",
+              approvalMode: "review",
+            })}
+          />
+        </Wrapper>,
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(900);
+        await Promise.resolve();
+      });
+
+      expect(commit).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("defers to onProposeReview when provided in review mode", async () => {
     const { api, commit } = makeApi();
     draftHook.state = makeDraftState({
@@ -630,11 +890,13 @@ describe("Folder9FolderEditor — commit pipeline", () => {
 
 describe("Folder9FolderEditor — renderFile slot", () => {
   it("uses renderFile when it returns a node", async () => {
-    const renderFile = vi.fn((args: { path: string; content: string }) => (
-      <div data-testid="custom-renderer">
-        custom for {args.path}: {args.content}
-      </div>
-    ));
+    const renderFile = vi.fn(
+      (args: { path: string; editorKey: string; content: string }) => (
+        <div data-testid="custom-renderer">
+          custom for {args.path}: {args.content}
+        </div>
+      ),
+    );
     const Wrapper = makeWrapper();
     render(
       <Wrapper>
@@ -658,6 +920,7 @@ describe("Folder9FolderEditor — renderFile slot", () => {
     });
     const last = renderFile.mock.lastCall?.[0] as Record<string, unknown>;
     expect(last.path).toBe("SKILL.md");
+    expect(last.editorKey).toMatch(/^folder-1:SKILL\.md:/);
     expect(last.readOnly).toBe(false);
     expect(last.encoding).toBe("text");
     expect(typeof last.onChange).toBe("function");
@@ -675,7 +938,9 @@ describe("Folder9FolderEditor — renderFile slot", () => {
     );
 
     // Default renderer for .md = DocumentEditor (mocked to a textarea).
-    expect(await screen.findByTestId("doc-editor")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toBeInTheDocument(),
+    );
     expect(renderFile).toHaveBeenCalled();
   });
 });

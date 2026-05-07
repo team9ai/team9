@@ -21,6 +21,13 @@ import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import { StreamingMessageParts } from "./StreamingMessageParts";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import {
+  applyBotThinkingMessage,
+  getBotThinkingIds,
+  startBotThinkingStatuses,
+  syncBotThinkingStatusesWithMessages,
+} from "./bot-thinking-state";
+import type { BotThinkingStatus } from "./bot-thinking-state";
 import { ResizeHandle } from "./ResizeHandle";
 import { PropertyPanel } from "./properties/PropertyPanel";
 import type { ThreadReply, AttachmentDto, Message } from "@/types/im";
@@ -34,6 +41,13 @@ function extractMentionedBotIds(content: string): string[] {
     botIds.push(match[1]);
   }
   return botIds;
+}
+
+function getLatestMessageTimeMs(messages: readonly Message[]): number {
+  return messages.reduce((latest, message) => {
+    const time = new Date(message.createdAt).getTime();
+    return Number.isNaN(time) ? latest : Math.max(latest, time);
+  }, 0);
 }
 
 interface ThreadPanelProps {
@@ -88,9 +102,28 @@ export function ThreadPanel({
   const channelId = threadData?.rootMessage.channelId;
   const { data: members = [] } = useChannelMembers(channelId);
 
-  // Bot thinking indicator state
-  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
-  const thinkingBotIdsKey = thinkingBotIds.join("|");
+  // Bot response indicator state
+  const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
+    [],
+  );
+  const thinkingBotIds = useMemo(
+    () => getBotThinkingIds(thinkingStatuses),
+    [thinkingStatuses],
+  );
+  const thinkingBotIdsKey = thinkingStatuses
+    .map((status) => `${status.botId}:${status.phase}`)
+    .join("|");
+  const threadMessages = useMemo(
+    () =>
+      threadData
+        ? [threadData.rootMessage as Message, ...threadData.replies]
+        : [],
+    [threadData],
+  );
+  const latestThreadMessageTimeMs = useMemo(
+    () => getLatestMessageTimeMs(threadMessages),
+    [threadMessages],
+  );
 
   // Thread-specific streaming messages
   const threadStreams = useStreamingStore(
@@ -124,7 +157,9 @@ export function ThreadPanel({
           stream,
         })),
       );
-    } else if (thinkingBotIds.length > 0) {
+    }
+
+    if (thinkingBotIds.length > 0) {
       items.push({ type: "thinking", key: thinkingBotIdsKey });
     }
 
@@ -241,8 +276,14 @@ export function ThreadPanel({
 
   // Clear thinking state when thread changes
   useEffect(() => {
-    setThinkingBotIds([]);
+    setThinkingStatuses([]);
   }, [rootMessageId]);
+
+  useEffect(() => {
+    setThinkingStatuses((prev) =>
+      syncBotThinkingStatusesWithMessages(prev, threadMessages),
+    );
+  }, [threadMessages]);
 
   // Keep a ref of all message IDs in this thread for sub-reply matching
   const threadMessageIdsRef = useRef<Set<string>>(new Set());
@@ -256,11 +297,12 @@ export function ThreadPanel({
     threadMessageIdsRef.current = ids;
   }, [threadData, rootMessageId]);
 
-  // Listen for bot replies or streaming start to dismiss thinking indicator
+  // Track bot lifecycle markers to move the response indicator through:
+  // warmup -> working -> hidden.
   useEffect(() => {
-    if (thinkingBotIds.length === 0 || !channelId) return;
+    if (!channelId) return;
 
-    const handleBotReply = (message: Message) => {
+    const handleBotTrackingMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
       // Match direct replies to root or sub-replies to any message in this thread
       if (
@@ -268,31 +310,14 @@ export function ThreadPanel({
         !threadMessageIdsRef.current.has(message.parentId)
       )
         return;
-      if (message.sender?.userType === "bot" && message.senderId) {
-        setThinkingBotIds((prev) =>
-          prev.filter((id) => id !== message.senderId),
-        );
-      }
+      setThinkingStatuses((prev) => applyBotThinkingMessage(prev, message));
     };
 
-    const handleStreamingStart = (data: {
-      channelId: string;
-      senderId: string;
-      parentId?: string;
-    }) => {
-      if (data.channelId !== channelId) return;
-      if (!data.parentId || !threadMessageIdsRef.current.has(data.parentId))
-        return;
-      setThinkingBotIds((prev) => prev.filter((id) => id !== data.senderId));
-    };
-
-    wsService.onNewMessage(handleBotReply);
-    wsService.onStreamingStart(handleStreamingStart);
+    wsService.onNewMessage(handleBotTrackingMessage);
     return () => {
-      wsService.off("new_message", handleBotReply);
-      wsService.off("streaming_start", handleStreamingStart);
+      wsService.off("new_message", handleBotTrackingMessage);
     };
-  }, [channelId, rootMessageId, thinkingBotIds.length]);
+  }, [channelId, rootMessageId]);
 
   // Handle send reply with optional attachments
   const handleSendReply = async (
@@ -309,7 +334,9 @@ export function ThreadPanel({
     );
 
     if (botIds.length > 0) {
-      setThinkingBotIds(botIds);
+      setThinkingStatuses(
+        startBotThinkingStatuses(botIds, latestThreadMessageTimeMs),
+      );
     }
 
     await sendReply.mutateAsync({ content, contentAst, attachments });
@@ -333,6 +360,7 @@ export function ThreadPanel({
         return (
           <BotThinkingIndicator
             thinkingBotIds={thinkingBotIds}
+            thinkingStatuses={thinkingStatuses}
             members={members}
           />
         );
@@ -353,6 +381,7 @@ export function ThreadPanel({
     [
       members,
       thinkingBotIds,
+      thinkingStatuses,
       currentUser?.id,
       rootMessageId,
       level,

@@ -7,11 +7,23 @@ import type { ChannelMember } from "@/types/im";
 // Mock motion/react — framer-motion components are replaced with plain elements.
 vi.mock("motion/react", () => ({
   motion: {
-    div: ({ children, className }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div className={className}>{children}</div>
+    div: ({
+      children,
+      className,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div className={className} {...props}>
+        {children}
+      </div>
     ),
-    span: ({ children, className }: React.HTMLAttributes<HTMLSpanElement>) => (
-      <span className={className}>{children}</span>
+    span: ({
+      children,
+      className,
+      ...props
+    }: React.HTMLAttributes<HTMLSpanElement>) => (
+      <span className={className} {...props}>
+        {children}
+      </span>
     ),
   },
   AnimatePresence: ({
@@ -65,15 +77,89 @@ afterEach(() => {
 
 describe("BotThinkingIndicator", () => {
   describe("happy path — normal rendering", () => {
-    it("displays bot name and thinking text when given valid thinkingBotIds and members", () => {
+    it("displays bot name and warmup text by default when given valid thinkingBotIds and members", () => {
       const members = [makeMember("bot-1")];
       render(
         <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
       );
 
       expect(screen.getByText("Bot bot-1")).toBeInTheDocument();
-      // Initial text index is 0 → "Thinking" (en translation of botThinking.texts.thinking)
-      expect(screen.getByText("Thinking")).toBeInTheDocument();
+      expect(screen.getByText("Warming up")).toBeInTheDocument();
+    });
+
+    it("displays working text when the bot is in working phase", () => {
+      const members = [makeMember("bot-1")];
+      render(
+        <BotThinkingIndicator
+          thinkingBotIds={["bot-1"]}
+          thinkingStatuses={[{ botId: "bot-1", phase: "working" }]}
+          members={members}
+        />,
+      );
+
+      expect(screen.getByText("Working hard")).toBeInTheDocument();
+    });
+
+    it("keeps bot name, dots, and status on a single row", () => {
+      const members = [makeMember("bot-1")];
+      const { container } = render(
+        <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
+      );
+
+      const row = container.querySelector("[data-testid='bot-thinking-row']");
+      expect(row).toBeInTheDocument();
+      expect(row).toHaveClass("flex-row");
+      expect(row).not.toHaveClass("flex-col");
+    });
+
+    it("centers the animated dots within the text line", () => {
+      const members = [makeMember("bot-1")];
+      render(
+        <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
+      );
+
+      const dots = screen.getByTestId("bot-thinking-dots");
+      expect(dots).toHaveClass("h-5");
+      expect(dots).toHaveClass("items-center");
+      expect(dots).toHaveClass("translate-y-px");
+    });
+
+    it("renders warming phase with muted visual treatment", () => {
+      const members = [makeMember("bot-1")];
+      render(
+        <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
+      );
+
+      expect(screen.getByTestId("bot-thinking-glow")).toHaveClass(
+        "bg-muted-foreground/15",
+      );
+      expect(screen.getAllByTestId("bot-thinking-dot")[0]).toHaveClass(
+        "bg-muted-foreground/45",
+      );
+      expect(screen.getByTestId("bot-thinking-status")).toHaveClass(
+        "text-muted-foreground/75",
+      );
+    });
+
+    it("renders working phase with active visual treatment", () => {
+      const members = [makeMember("bot-1")];
+      render(
+        <BotThinkingIndicator
+          thinkingBotIds={["bot-1"]}
+          thinkingStatuses={[{ botId: "bot-1", phase: "working" }]}
+          members={members}
+        />,
+      );
+
+      expect(screen.getByTestId("bot-thinking-glow")).toHaveClass(
+        "bg-primary/20",
+      );
+      expect(screen.getAllByTestId("bot-thinking-dot")[0]).toHaveClass(
+        "bg-primary",
+      );
+      expect(screen.getByTestId("bot-thinking-status")).toHaveClass(
+        "text-muted-foreground",
+      );
     });
   });
 
@@ -99,33 +185,49 @@ describe("BotThinkingIndicator", () => {
         <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
       );
 
-      // Index 0 → "Thinking"
-      expect(screen.getByText("Thinking")).toBeInTheDocument();
+      expect(screen.getByText("Warming up")).toBeInTheDocument();
 
-      // Advance to index 1 → "Analyzing"
       act(() => {
         vi.advanceTimersByTime(3000);
       });
-      expect(screen.getByText("Analyzing")).toBeInTheDocument();
-      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+      expect(screen.getByText("Heading over")).toBeInTheDocument();
+      expect(screen.queryByText("Warming up")).not.toBeInTheDocument();
 
-      // Advance to index 2 → "Reasoning"
       act(() => {
         vi.advanceTimersByTime(3000);
       });
-      expect(screen.getByText("Reasoning")).toBeInTheDocument();
+      expect(screen.getByText("Commuting")).toBeInTheDocument();
 
-      // Advance all the way to index 9 (7 more intervals) → "Composing"
+      // Advance to the final warmup status.
       act(() => {
-        vi.advanceTimersByTime(3000 * 7);
+        vi.advanceTimersByTime(3000 * 2);
       });
-      expect(screen.getByText("Composing")).toBeInTheDocument();
+      expect(screen.getByText("Getting ready")).toBeInTheDocument();
 
-      // Advance one more → wraps back to index 0 → "Thinking"
       act(() => {
         vi.advanceTimersByTime(3000);
       });
-      expect(screen.getByText("Thinking")).toBeInTheDocument();
+      expect(screen.getByText("Finding signal")).toBeInTheDocument();
+    });
+
+    it("cycles working text through the extended status set", () => {
+      vi.useFakeTimers();
+
+      const members = [makeMember("bot-1")];
+      render(
+        <BotThinkingIndicator
+          thinkingBotIds={["bot-1"]}
+          thinkingStatuses={[{ botId: "bot-1", phase: "working" }]}
+          members={members}
+        />,
+      );
+
+      expect(screen.getByText("Working hard")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(3000 * 5);
+      });
+      expect(screen.getByText("Reviewing context")).toBeInTheDocument();
     });
 
     it("resets textIndex to 0 when thinkingBotIds changes", () => {
@@ -140,14 +242,12 @@ describe("BotThinkingIndicator", () => {
       act(() => {
         vi.advanceTimersByTime(3000 * 3);
       });
-      // textIndex should be 3 → "Computing"
-      expect(screen.getByText("Computing")).toBeInTheDocument();
+      expect(screen.getByText("Gathering thoughts")).toBeInTheDocument();
 
-      // Change thinkingBotIds — should reset to index 0
       rerender(
         <BotThinkingIndicator thinkingBotIds={["bot-2"]} members={members} />,
       );
-      expect(screen.getByText("Thinking")).toBeInTheDocument();
+      expect(screen.getByText("Warming up")).toBeInTheDocument();
     });
   });
 
@@ -198,8 +298,7 @@ describe("BotThinkingIndicator", () => {
         <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
       );
 
-      // The first text key is "botThinking.texts.thinking" which resolves to "Thinking" in en
-      expect(screen.getByText("Thinking")).toBeInTheDocument();
+      expect(screen.getByText("Warming up")).toBeInTheDocument();
     });
 
     it("uses displayName from the bot user", () => {
@@ -252,6 +351,18 @@ describe("BotThinkingIndicator", () => {
   });
 
   describe("avatar rendering", () => {
+    it("uses a compact avatar size so the indicator stays visually one-line", () => {
+      const members = [makeMember("bot-1")];
+      const { container } = render(
+        <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
+      );
+
+      const avatar = container.querySelector("[data-slot='avatar']");
+      expect(avatar).toBeInTheDocument();
+      expect(avatar).toHaveClass("w-7");
+      expect(avatar).toHaveClass("h-7");
+    });
+
     it("renders the avatar fallback initial from the bot name", () => {
       const members = [makeMember("bot-1")];
       const { container } = render(
@@ -306,7 +417,7 @@ describe("BotThinkingIndicator", () => {
       act(() => {
         vi.advanceTimersByTime(3000);
       });
-      expect(screen.getByText("Analyzing")).toBeInTheDocument();
+      expect(screen.getByText("Heading over")).toBeInTheDocument();
 
       // Set thinkingBotIds to empty — component should stop cycling
       rerender(<BotThinkingIndicator thinkingBotIds={[]} members={members} />);
@@ -315,7 +426,7 @@ describe("BotThinkingIndicator", () => {
       act(() => {
         vi.advanceTimersByTime(3000 * 5);
       });
-      expect(screen.queryByText("Analyzing")).not.toBeInTheDocument();
+      expect(screen.queryByText("Heading over")).not.toBeInTheDocument();
     });
 
     it("clears the interval on unmount", () => {

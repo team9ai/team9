@@ -1,11 +1,22 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import i18n from "@/i18n";
 import { changeLanguage } from "@/i18n/loadLanguage";
 import { ToolCallBlock } from "../ToolCallBlock";
-import type { AgentEventMetadata } from "@/types/im";
+import type { AgentEventMetadata, Message } from "@/types/im";
+
+const mockUseFullContent = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/useMessages", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useMessages")>();
+  return {
+    ...actual,
+    useFullContent: (...args: unknown[]) => mockUseFullContent(...args),
+  };
+});
 
 beforeEach(async () => {
+  mockUseFullContent.mockReturnValue({ data: undefined });
   if (i18n.language !== "en") {
     await act(async () => {
       await i18n.changeLanguage("en");
@@ -16,6 +27,7 @@ beforeEach(async () => {
 function makeCallMeta(
   toolName: string,
   toolArgs?: Record<string, unknown>,
+  overrides: Partial<AgentEventMetadata> = {},
 ): AgentEventMetadata {
   return {
     agentEventType: "tool_call",
@@ -23,17 +35,20 @@ function makeCallMeta(
     toolName,
     toolCallId: "tc-1",
     toolArgs,
+    ...overrides,
   };
 }
 
 function makeResultMeta(
   status: "completed" | "failed" | "running" = "completed",
+  overrides: Partial<AgentEventMetadata> = {},
 ): AgentEventMetadata {
   return {
     agentEventType: "tool_result",
     status,
     success: status === "completed",
     toolCallId: "tc-1",
+    ...overrides,
   };
 }
 
@@ -75,7 +90,7 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("Calling tool")).toBeInTheDocument();
     });
 
-    it("treats missing result content as running (loading label)", () => {
+    it("uses completed result metadata even when result content is empty", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("SearchFiles")}
@@ -84,8 +99,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      // Missing result content → still loading regardless of status
-      expect(screen.getByText("Calling tool")).toBeInTheDocument();
+      expect(screen.getByText("Tool call completed")).toBeInTheDocument();
     });
 
     it("uses tool-specific copy when the tool has a dedicated label (send_message success)", () => {
@@ -244,6 +258,26 @@ describe("ToolCallBlock", () => {
       expect(icon).not.toHaveClass("animate-pulse");
     });
 
+    it("keeps failed row text neutral while retaining failure indicators", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("RunScript")}
+          resultMetadata={makeResultMeta("failed")}
+          resultContent="permission denied"
+        />,
+      );
+
+      const label = screen.getByText("Tool call failed");
+      expect(label).toHaveClass("text-foreground/70");
+      expect(label).not.toHaveClass("text-red-500");
+
+      const displayLine = screen.getByText("RunScript");
+      expect(displayLine).toHaveClass("text-foreground/80");
+      expect(displayLine).not.toHaveClass("text-red-400");
+
+      expect(screen.getByText("\u2718")).toHaveClass("text-red-400");
+    });
+
     it("does NOT show a result indicator while still running", () => {
       render(
         <ToolCallBlock
@@ -255,6 +289,73 @@ describe("ToolCallBlock", () => {
 
       expect(screen.queryByText("\u2714")).not.toBeInTheDocument();
       expect(screen.queryByText("\u2718")).not.toBeInTheDocument();
+    });
+
+    it("shows failure when result success is false even if status is completed", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("RunScript")}
+          resultMetadata={makeResultMeta("completed", { success: false })}
+          resultContent='{"success":false,"error":"script failed"}'
+        />,
+      );
+
+      expect(screen.getByText("Tool call failed")).toBeInTheDocument();
+      expect(screen.getByText("\u2718")).toBeInTheDocument();
+      expect(screen.queryByText("\u2714")).not.toBeInTheDocument();
+    });
+
+    it("shows failure when wrapped legacy result content has success false", () => {
+      const wrappedContent = JSON.stringify({
+        content: [
+          {
+            type: "text",
+            text: '{"success":false,"error":"permission denied"}',
+          },
+        ],
+      });
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("RunScript")}
+          resultMetadata={makeResultMeta("completed", { success: undefined })}
+          resultContent={wrappedContent}
+        />,
+      );
+
+      expect(screen.getByText("Tool call failed")).toBeInTheDocument();
+      expect(screen.getByText("\u2718")).toBeInTheDocument();
+    });
+
+    it("shows failure for tool-not-found text results from old completed metadata", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("invoke_tool")}
+          resultMetadata={makeResultMeta("completed", { success: true })}
+          resultContent="tool not found: completeRoutine. Use search_tools to find available tools."
+        />,
+      );
+
+      expect(screen.getByText("Tool call failed")).toBeInTheDocument();
+      expect(screen.getByText("\u2718")).toBeInTheDocument();
+      expect(screen.queryByText("\u2714")).not.toBeInTheDocument();
+    });
+
+    it("renders a running tool call without result metadata", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("RunScript", undefined, {
+            status: "running",
+            toolArgsText: '{"cmd":"pnpm test',
+          })}
+          resultContent=""
+        />,
+      );
+
+      expect(screen.getByText("Calling tool")).toBeInTheDocument();
+      expect(screen.queryByText("\u2714")).not.toBeInTheDocument();
+      expect(screen.queryByText("\u2718")).not.toBeInTheDocument();
+      expect(screen.getByText(/RunScript/)).toBeInTheDocument();
     });
 
     it("uses an emerald wrench icon for successful result", () => {
@@ -353,6 +454,43 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("permission denied")).toBeInTheDocument();
     });
 
+    it("uses fetched full content for expanded truncated result messages", () => {
+      const resultMessage: Pick<
+        Message,
+        "id" | "type" | "content" | "isTruncated" | "fullContentLength"
+      > = {
+        id: "msg-result-1",
+        type: "tracking",
+        content: '{"preview":true}',
+        isTruncated: true,
+        fullContentLength: 5000,
+      };
+      mockUseFullContent.mockReturnValue({
+        data: { content: '{"full":true,"value":"complete result"}' },
+      });
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("ReadLargeResult")}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent='{"preview":true}'
+          resultMessage={resultMessage}
+        />,
+      );
+
+      expect(mockUseFullContent).toHaveBeenLastCalledWith(
+        "msg-result-1",
+        false,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(mockUseFullContent).toHaveBeenLastCalledWith("msg-result-1", true);
+      expect(screen.getByText(/"full": true/)).toBeInTheDocument();
+      expect(screen.getByText(/"complete result"/)).toBeInTheDocument();
+      expect(screen.queryByText(/"preview": true/)).not.toBeInTheDocument();
+    });
+
     it("toggles collapse state when clicked twice", () => {
       render(
         <ToolCallBlock
@@ -410,6 +548,25 @@ describe("ToolCallBlock", () => {
 
       // The expanded Result pre shows the unwrapped + re-formatted JSON
       expect(screen.getByText(/"success": true/)).toBeInTheDocument();
+    });
+
+    it("renders JSON string results as the raw string content rather than escaped JSON", () => {
+      const agentVisibleResult = '{"name":"twitter_get_user_tweets"}';
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("invoke_tool")}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify(agentVisibleResult)}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getByText(agentVisibleResult)).toBeInTheDocument();
+      expect(
+        screen.queryByText(/\\"twitter_get_user_tweets\\"/),
+      ).not.toBeInTheDocument();
     });
 
     it("falls back to the raw result when nested content has no text blocks", () => {

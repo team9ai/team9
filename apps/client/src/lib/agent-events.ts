@@ -1,12 +1,9 @@
 import type { Message, AgentEventMetadata } from "@/types/im";
+import { getOptionalAgentEventMetadata } from "./agent-event-metadata";
 
 /** Extract agent event metadata from a message, if present */
 export function getAgentMeta(message: Message): AgentEventMetadata | undefined {
-  const meta = message.metadata as Record<string, unknown> | undefined;
-  if (meta && typeof meta.agentEventType === "string") {
-    return meta as unknown as AgentEventMetadata;
-  }
-  return undefined;
+  return getOptionalAgentEventMetadata(message.metadata);
 }
 
 /**
@@ -90,7 +87,7 @@ export function pairToolEvents(messages: Message[]): Message[] {
   const callIds = new Set<string>();
 
   for (const msg of messages) {
-    const meta = msg.metadata as AgentEventMetadata | undefined;
+    const meta = getAgentMeta(msg);
     if (meta?.agentEventType === "tool_call" && meta.toolCallId) {
       callIds.add(meta.toolCallId);
     }
@@ -111,7 +108,7 @@ export function pairToolEvents(messages: Message[]): Message[] {
 
   const result: Message[] = [];
   for (const msg of messages) {
-    const meta = msg.metadata as AgentEventMetadata | undefined;
+    const meta = getAgentMeta(msg);
 
     // Skip paired tool_results — they'll be inserted after their tool_call
     if (pairedResultIds.has(msg.id)) continue;

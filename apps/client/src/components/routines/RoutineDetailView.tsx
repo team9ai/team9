@@ -141,11 +141,7 @@ export function RoutineDetailView({
           </ScrollArea>
         </TabsContent>
         <TabsContent value="documents" className="flex-1 min-h-0 mt-0">
-          <ScrollArea className="h-full">
-            <div className="p-4">
-              <RoutineSkillFolderTab routine={routine} />
-            </div>
-          </ScrollArea>
+          <RoutineSkillFolderTab routine={routine} />
         </TabsContent>
         <TabsContent value="runs" className="flex-1 min-h-0 mt-0">
           {/* selectedExecutionId is always null on the detail-page Runs tab; selection lives on the dedicated /runs/$executionId route. */}

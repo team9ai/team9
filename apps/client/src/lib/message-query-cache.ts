@@ -13,48 +13,6 @@ function setMessages(page: MessagesPage, messages: Message[]): MessagesPage {
   return Array.isArray(page) ? messages : { ...page, messages };
 }
 
-function upsertMessage(
-  old: MessagesQueryData | undefined,
-  message: Message,
-): MessagesQueryData {
-  if (!old) {
-    return {
-      pages: [{ messages: [message], hasOlder: false, hasNewer: false }],
-      pageParams: [undefined],
-    };
-  }
-
-  let found = false;
-  const pages = old.pages.map((page) => {
-    const messages = getMessages(page);
-    const index = messages.findIndex((item) => item.id === message.id);
-
-    if (index === -1) {
-      return page;
-    }
-
-    found = true;
-    const nextMessages = [...messages];
-    nextMessages[index] = message;
-    return setMessages(page, nextMessages);
-  });
-
-  if (found) {
-    return { ...old, pages };
-  }
-
-  return {
-    ...old,
-    pages: [
-      setMessages(old.pages[0], [
-        message,
-        ...getMessages(old.pages[0]).filter((item) => item.id !== message.id),
-      ]),
-      ...old.pages.slice(1),
-    ],
-  };
-}
-
 export function upsertIncomingMessageInData(
   old: MessagesQueryData | undefined,
   message: Message,
@@ -125,6 +83,7 @@ export function upsertChannelMessageInCache(
   queryClient: QueryClient,
   channelId: string,
   message: Message,
+  matchedTempId?: string,
 ) {
   const normalizedMessage = normalizeMessage(message);
   const seedKeys = new Set(["latest", normalizedMessage.id]);
@@ -132,17 +91,18 @@ export function upsertChannelMessageInCache(
   for (const key of seedKeys) {
     queryClient.setQueryData<MessagesQueryData>(
       ["messages", channelId, key],
-      (old) => upsertMessage(old, normalizedMessage),
+      (old) =>
+        upsertIncomingMessageInData(old, normalizedMessage, matchedTempId),
     );
   }
 
   queryClient.setQueryData<MessagesQueryData>(["messages", channelId], (old) =>
-    upsertMessage(old, normalizedMessage),
+    upsertIncomingMessageInData(old, normalizedMessage, matchedTempId),
   );
 
   queryClient.setQueriesData(
     { queryKey: ["messages", channelId] },
     (old: MessagesQueryData | undefined) =>
-      upsertMessage(old, normalizedMessage),
+      upsertIncomingMessageInData(old, normalizedMessage, matchedTempId),
   );
 }

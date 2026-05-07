@@ -118,6 +118,12 @@ function writingMeta(
   return { agentEventType: "writing", status };
 }
 
+function thinkingMeta(
+  status: AgentEventMetadata["status"] = "completed",
+): AgentEventMetadata {
+  return { agentEventType: "thinking", status };
+}
+
 // --- Pure function tests for buildRenderItems ---
 describe("buildRenderItems", () => {
   it("merges consecutive tool_call + tool_result with matching toolCallId into a single toolCall item", () => {
@@ -343,6 +349,81 @@ describe("TrackingCard", () => {
     );
   });
 
+  it("passes truncated tool_result message metadata so expanded cards can fetch full content", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [
+        {
+          id: "a",
+          content: "",
+          metadata: callMeta("tc-1"),
+          createdAt: "2026-03-27T12:00:00Z",
+        },
+        {
+          id: "b",
+          content: "preview ... (truncated)",
+          type: "long_text",
+          metadata: resultMeta("tc-1"),
+          isTruncated: true,
+          fullContentLength: 8192,
+          createdAt: "2026-03-27T12:00:01Z",
+        },
+      ],
+      totalMessageCount: 2,
+      isLoading: false,
+      activeStream: null,
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resultMessage: expect.objectContaining({
+          id: "b",
+          type: "long_text",
+          content: "preview ... (truncated)",
+          isTruncated: true,
+          fullContentLength: 8192,
+        }),
+      }),
+    );
+  });
+
+  it("pairs newest-first persisted tool_result + tool_call messages", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [
+        {
+          id: "b",
+          content: '{"ok": true}',
+          metadata: resultMeta("tc-1"),
+          createdAt: "2026-03-27T12:00:01Z",
+        },
+        {
+          id: "a",
+          content: "",
+          metadata: callMeta("tc-1"),
+          createdAt: "2026-03-27T12:00:00Z",
+        },
+      ],
+      totalMessageCount: 2,
+      isLoading: false,
+      activeStream: null,
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callMetadata: expect.objectContaining({ toolCallId: "tc-1" }),
+        resultMetadata: expect.objectContaining({ toolCallId: "tc-1" }),
+        resultContent: '{"ok": true}',
+      }),
+    );
+  });
+
   it("keeps unrelated events as TrackingEventItems and still merges the paired tool call", () => {
     mockUseTrackingChannel.mockReturnValue({
       isActivated: true,
@@ -377,7 +458,51 @@ describe("TrackingCard", () => {
     expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(1);
   });
 
-  it("shows a lone tool_call as TrackingEventItem (no pairing yet) — execution still running", () => {
+  it("does not coerce plain chat messages into writing events", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [
+        {
+          id: "plain",
+          content: "normal bot reply",
+          metadata: undefined,
+          createdAt: "2026-03-27T12:00:00Z",
+        },
+      ],
+      totalMessageCount: 1,
+      isLoading: false,
+      activeStream: null,
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tool-call-block")).not.toBeInTheDocument();
+  });
+
+  it("does not render persisted writing messages as tracking events", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [
+        {
+          id: "writing",
+          content: "Hi! 有什么需要帮忙的吗? 😊",
+          metadata: writingMeta("completed"),
+          createdAt: "2026-03-27T12:00:00Z",
+        },
+      ],
+      totalMessageCount: 1,
+      isLoading: false,
+      activeStream: null,
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tool-call-block")).not.toBeInTheDocument();
+  });
+
+  it("renders a lone tool_call as ToolCallBlock (no pairing yet) — execution still running", () => {
     mockUseTrackingChannel.mockReturnValue({
       isActivated: true,
       latestMessages: [
@@ -395,8 +520,56 @@ describe("TrackingCard", () => {
 
     render(<TrackingCard message={makeMessage()} />);
 
-    expect(screen.queryByTestId("tool-call-block")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(1);
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    const toolCallProps = mockToolCallBlock.mock.calls[
+      mockToolCallBlock.mock.calls.length - 1
+    ][0] as { resultMetadata?: unknown };
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callMetadata: expect.objectContaining({
+          toolCallId: "tc-1",
+          toolName: "SearchFiles",
+        }),
+        resultContent: "",
+      }),
+    );
+    expect(toolCallProps.resultMetadata).toBeUndefined();
+  });
+
+  it("renders an active streaming tool_call as ToolCallBlock before a result arrives", () => {
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: true,
+      latestMessages: [],
+      totalMessageCount: 0,
+      isLoading: false,
+      activeStream: {
+        streamId: "stream-tool-call",
+        content: "",
+        metadata: callMeta("tc-stream", {
+          status: "running",
+          toolName: "RunScript",
+        }),
+      },
+    });
+
+    render(<TrackingCard message={makeMessage()} />);
+
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.queryByTestId("tracking-event-item")).not.toBeInTheDocument();
+    const toolCallProps = mockToolCallBlock.mock.calls[
+      mockToolCallBlock.mock.calls.length - 1
+    ][0] as { resultMetadata?: unknown };
+    expect(mockToolCallBlock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callMetadata: expect.objectContaining({
+          toolCallId: "tc-stream",
+          toolName: "RunScript",
+        }),
+        resultContent: "",
+      }),
+    );
+    expect(toolCallProps.resultMetadata).toBeUndefined();
   });
 
   it("does not merge when the tool_call and tool_result have different toolCallIds", () => {
@@ -423,12 +596,12 @@ describe("TrackingCard", () => {
 
     render(<TrackingCard message={makeMessage()} />);
 
-    expect(screen.queryByTestId("tool-call-block")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(2);
+    expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
+    expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(1);
   });
 
   it("only shows the latest 3 render items (merged toolCall counts as 1 slot)", () => {
-    // 4 standalone writing events + 1 merged toolCall = 5 original display
+    // 4 standalone thinking events + 1 merged toolCall = 5 original display
     // items become 5 render items; we trim to the last 3.
     mockUseTrackingChannel.mockReturnValue({
       isActivated: true,
@@ -436,19 +609,19 @@ describe("TrackingCard", () => {
         {
           id: "w1",
           content: "one",
-          metadata: writingMeta("completed"),
+          metadata: thinkingMeta("completed"),
           createdAt: "2026-03-27T12:00:00Z",
         },
         {
           id: "w2",
           content: "two",
-          metadata: writingMeta("completed"),
+          metadata: thinkingMeta("completed"),
           createdAt: "2026-03-27T12:00:01Z",
         },
         {
           id: "w3",
           content: "three",
-          metadata: writingMeta("completed"),
+          metadata: thinkingMeta("completed"),
           createdAt: "2026-03-27T12:00:02Z",
         },
         {
@@ -471,7 +644,7 @@ describe("TrackingCard", () => {
 
     render(<TrackingCard message={makeMessage()} />);
 
-    // 5 render items total -> last 3 = [writing w2, writing w3, toolCall]
+    // 5 render items total -> last 3 = [thinking w2, thinking w3, toolCall]
     expect(screen.getAllByTestId("tracking-event-item")).toHaveLength(2);
     expect(screen.getAllByTestId("tool-call-block")).toHaveLength(1);
   });
@@ -522,19 +695,19 @@ describe("TrackingCard", () => {
         {
           id: "w1",
           content: "one",
-          metadata: writingMeta("completed"),
+          metadata: thinkingMeta("completed"),
           createdAt: "2026-03-27T12:00:00Z",
         },
         {
           id: "w2",
           content: "two",
-          metadata: writingMeta("completed"),
+          metadata: thinkingMeta("completed"),
           createdAt: "2026-03-27T12:00:01Z",
         },
         {
           id: "w3",
           content: "three",
-          metadata: writingMeta("completed"),
+          metadata: thinkingMeta("completed"),
           createdAt: "2026-03-27T12:00:02Z",
         },
       ],

@@ -4,6 +4,7 @@ import { UsersService } from './users.service.js';
 import { AuthModule } from '../../auth/auth.module.js';
 import { WebsocketModule } from '../websocket/websocket.module.js';
 import { WorkspaceModule } from '../../workspace/workspace.module.js';
+import { UserProfileEventsService } from './user-profile-events.service.js';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { WorkspaceModule } from '../../workspace/workspace.module.js';
     forwardRef(() => WorkspaceModule),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, UserProfileEventsService],
   exports: [UsersService],
 })
 export class UsersModule {}

@@ -129,6 +129,7 @@
   },
   "page": {
     "loading": "Caricamento…",
+    "notFound": "Questa pagina non esiste ancora: {{path}}. Seleziona una pagina esistente dall’albero o creala nell’editor.",
     "binaryFile": "File binario — non modificabile qui."
   },
   "proposalBanner": {

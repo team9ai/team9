@@ -20,6 +20,7 @@ import {
   pairToolEvents,
   sortByEffectiveTime,
 } from "@/lib/agent-events";
+import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
@@ -45,6 +46,7 @@ import { StreamingMessageParts } from "./StreamingMessageParts";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import type { BotThinkingStatus } from "./bot-thinking-state";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
 import { RoundCollapseSummary } from "./RoundCollapseSummary";
 import { UnreadDivider } from "./UnreadDivider";
@@ -73,6 +75,7 @@ interface MessageListProps {
   readOnly?: boolean;
   // Bot thinking indicator
   thinkingBotIds?: string[];
+  thinkingStatuses?: readonly BotThinkingStatus[];
   members?: ChannelMember[];
   // Last read message ID for unread divider positioning
   lastReadMessageId?: string;
@@ -85,6 +88,24 @@ type ChannelListItem =
   | { type: "message"; message: Message }
   | { type: "stream"; stream: StreamingMessage }
   | { type: "thinking"; key: string };
+
+function findRoundStartedAt(
+  items: ChannelListItem[],
+  itemIndex: number,
+): string | undefined {
+  for (let i = itemIndex - 1; i >= 0; i -= 1) {
+    const item = items[i];
+    if (item?.type !== "message") return undefined;
+
+    const meta = getAgentMeta(item.message);
+    if (!meta || meta.agentEventType === "writing") return undefined;
+    if (meta.agentEventType === "agent_start") {
+      return meta.startedAt ?? item.message.createdAt;
+    }
+  }
+
+  return undefined;
+}
 
 // Per-channel scroll position snapshots for restoring on channel switch
 const scrollSnapshots = new Map<string, StateSnapshot>();
@@ -102,6 +123,7 @@ export function MessageList({
   channelType,
   readOnly = false,
   thinkingBotIds = [],
+  thinkingStatuses = [],
   members = [],
   lastReadMessageId,
 }: MessageListProps) {
@@ -207,7 +229,6 @@ export function MessageList({
           stream,
         })),
       );
-      return items;
     }
 
     if (thinkingBotIds.length > 0) {
@@ -432,6 +453,28 @@ export function MessageList({
   const itemContent = useCallback(
     (index: number, item: ChannelListItem) => {
       if (item.type === "stream") {
+        const streamMeta = item.stream.metadata
+          ? getAgentEventMetadata(item.stream.metadata, {
+              agentEventType: "writing",
+              status: "running",
+            })
+          : undefined;
+        if (streamMeta?.agentEventType === "tool_call") {
+          const hasStreamBody =
+            item.stream.parts.length > 0 ||
+            item.stream.content.trim().length > 0 ||
+            item.stream.thinking.trim().length > 0;
+
+          return (
+            <div className="py-2">
+              {hasStreamBody && (
+                <StreamingMessageParts stream={item.stream} members={members} />
+              )}
+              <ToolCallBlock callMetadata={streamMeta} resultContent="" />
+            </div>
+          );
+        }
+
         // While streaming, lift thinking out of the bot bubble into a
         // tracking row that looks identical to the persisted "Thought
         // for Xs" row the user will see after the round finishes. The
@@ -451,6 +494,7 @@ export function MessageList({
         return (
           <BotThinkingIndicator
             thinkingBotIds={thinkingBotIds}
+            thinkingStatuses={thinkingStatuses}
             members={members}
           />
         );
@@ -543,10 +587,32 @@ export function MessageList({
                 callMetadata={agentMeta}
                 resultMetadata={nextMeta}
                 resultContent={nextMsg?.content ?? ""}
+                resultMessage={nextMsg}
               />
             </div>
           );
         }
+      }
+
+      if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
+        const prevItem = listDataRef.current[itemIndex - 1];
+        const prevIsAgentEvent =
+          prevItem?.type === "message" && !!getAgentMeta(prevItem.message);
+        const isFirstInGroup = !prevIsAgentEvent;
+
+        return (
+          <div
+            id={`message-${message.id}`}
+            className={cn(
+              "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
+              isFirstInGroup ? "mt-1 pt-1.5" : "",
+              "pb-0.5",
+            )}
+            style={{ paddingLeft: "9px" }}
+          >
+            <ToolCallBlock callMetadata={agentMeta} resultContent="" />
+          </div>
+        );
       }
 
       // Hide tool_result already rendered in the combined block above.
@@ -606,6 +672,10 @@ export function MessageList({
       const prevItem = listDataRef.current[itemIndex - 1];
       const prevMessage =
         prevItem?.type === "message" ? prevItem.message : undefined;
+      const roundStartedAt =
+        agentMeta?.agentEventType === "agent_end"
+          ? findRoundStartedAt(listDataRef.current, itemIndex)
+          : undefined;
 
       const supportsProperties =
         channelType === "public" || channelType === "private";
@@ -619,6 +689,7 @@ export function MessageList({
                 key={message.id}
                 message={message}
                 prevMessage={prevMessage}
+                roundStartedAt={roundStartedAt}
                 isRootMessage={true}
                 isHighlighted={isHighlighted}
                 supportsProperties={supportsProperties}
@@ -637,6 +708,7 @@ export function MessageList({
               key={message.id}
               message={message}
               prevMessage={prevMessage}
+              roundStartedAt={roundStartedAt}
               currentUserId={currentUser?.id}
               currentUserRole={currentUserRole}
               showReplyCount={Boolean(hasReplies)}
@@ -672,6 +744,7 @@ export function MessageList({
       firstItemIndex,
       members,
       thinkingBotIds,
+      thinkingStatuses,
       toggleRoundExpanded,
       foldMaps,
       editingMessageId,
@@ -682,14 +755,14 @@ export function MessageList({
     ],
   );
 
-  if (isLoading && messages.length === 0) {
+  if (isLoading && listData.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-muted-foreground">Loading messages...</p>
       </div>
     );
   }
-  if (messages.length === 0) {
+  if (listData.length === 0) {
     return (
       <EmptyMessageState
         channelId={channelId}
@@ -766,6 +839,7 @@ export function MessageList({
 function ChannelMessageItem({
   message,
   prevMessage,
+  roundStartedAt,
   currentUserId,
   currentUserRole,
   showReplyCount,
@@ -782,6 +856,7 @@ function ChannelMessageItem({
 }: {
   message: Message;
   prevMessage?: Message;
+  roundStartedAt?: string;
   currentUserId?: string;
   currentUserRole?: string;
   showReplyCount?: boolean;
@@ -872,6 +947,7 @@ function ChannelMessageItem({
       <MessageItem
         message={message}
         prevMessage={prevMessage}
+        roundStartedAt={roundStartedAt}
         currentUserId={currentUserId}
         showReplyCount={!isDirect && showReplyCount}
         onReplyCountClick={isDirect ? undefined : onReplyCountClick}

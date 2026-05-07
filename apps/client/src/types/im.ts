@@ -43,7 +43,15 @@ export interface AgentEventMetadata {
   toolName?: string;
   toolCallId?: string;
   toolArgs?: Record<string, unknown>;
+  toolArgsText?: string;
+  toolPhase?: "args_streaming" | "executing";
   success?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  resultTruncated?: boolean;
+  fullContentMessageId?: string;
+  completedAt?: string;
+  updatedAt?: string;
   surfaceId?: string;
   payload?: unknown[];
   surfaceMetadata?: Record<string, unknown>;
@@ -73,6 +81,9 @@ export interface ChannelSnapshot {
     content: string;
     metadata: AgentEventMetadata;
     createdAt: string;
+    type?: Message["type"];
+    isTruncated?: boolean;
+    fullContentLength?: number;
   }>;
 }
 
@@ -87,6 +98,7 @@ export interface IMUser {
   isActive: boolean;
   userType?: "human" | "bot" | "system";
   agentType?: AgentType | null;
+  agentId?: string | null;
   staffKind?: "common" | "personal" | "other" | null;
   roleTitle?: string | null;
   ownerName?: string | null;
@@ -125,6 +137,7 @@ export interface ChannelWithUnread extends Channel {
     status: UserStatus;
     userType?: "human" | "bot" | "system";
     agentType?: AgentType | null;
+    agentId?: string | null;
     staffKind?: "common" | "personal" | "other" | null;
     roleTitle?: string | null;
     ownerName?: string | null;
@@ -207,6 +220,7 @@ export interface Message {
     avatarUrl: string | null;
     userType: string;
     agentType?: AgentType | null;
+    agentId?: string | null;
     staffKind?: "common" | "personal" | "other" | null;
     roleTitle?: string | null;
     ownerName?: string | null;
@@ -214,6 +228,8 @@ export interface Message {
   lastReplyAt?: string;
   // Client-side only fields for optimistic updates
   sendStatus?: MessageSendStatus;
+  // Specific client-visible failure reason for optimistic sends
+  sendError?: string;
   // Original request data for retry (only present when sendStatus is 'failed')
   _retryData?: CreateMessageDto;
 }
@@ -382,6 +398,7 @@ export interface SyncMessageItem {
     displayName: string | null;
     avatarUrl: string | null;
     agentType?: AgentType | null;
+    agentId?: string | null;
     staffKind?: "common" | "personal" | "other" | null;
     roleTitle?: string | null;
     ownerName?: string | null;

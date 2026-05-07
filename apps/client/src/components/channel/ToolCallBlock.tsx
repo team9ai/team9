@@ -2,83 +2,67 @@ import { useState } from "react";
 import { ChevronRight, Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getLabelKey, type StatusType } from "@/config/toolLabels";
-import { formatParams } from "@/config/toolParamConfig";
-import type { AgentEventMetadata } from "@/types/im";
+import { getLabelKey } from "@/config/toolLabels";
+import { useFullContent } from "@/hooks/useMessages";
+import { buildToolDisplayState } from "@/lib/tool-events";
+import type { AgentEventMetadata, Message } from "@/types/im";
 
 interface ToolCallBlockProps {
   callMetadata: AgentEventMetadata;
-  resultMetadata: AgentEventMetadata;
-  resultContent: string;
-}
-
-/**
- * Extract readable text from tool result content.
- * Tool results may be wrapped in `{ content: [{ type: "text", text: "..." }], details: {} }`.
- * This unwraps that structure to show the actual result text.
- */
-function unwrapResultContent(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.content)) {
-      const texts = parsed.content
-        .filter(
-          (block: { type?: string; text?: string }) => block.type === "text",
-        )
-        .map((block: { text: string }) => block.text);
-      if (texts.length > 0) return texts.join("\n");
-    }
-  } catch {
-    // Not JSON or unexpected structure — use raw content
-  }
-  return raw;
+  resultMetadata?: AgentEventMetadata;
+  resultContent?: string;
+  resultMessage?: Pick<
+    Message,
+    "id" | "content" | "isTruncated" | "fullContentLength"
+  > &
+    Partial<Pick<Message, "type">>;
 }
 
 function formatJson(text: string): string {
   try {
     const parsed = JSON.parse(text);
+    if (typeof parsed === "string") return parsed;
     return JSON.stringify(parsed, null, 2);
   } catch {
     return text;
   }
 }
 
-/**
- * Derive the label status from the runtime state.
- * - running (or missing result) => loading
- * - failed => error
- * - otherwise => success
- */
-function deriveLabelStatus(
-  resultMetadata: AgentEventMetadata,
-  hasResultContent: boolean,
-): StatusType {
-  if (resultMetadata.status === "running" || !hasResultContent) {
-    return "loading";
-  }
-  if (resultMetadata.status === "failed") {
-    return "error";
-  }
-  return "success";
-}
-
 export function ToolCallBlock({
   callMetadata,
   resultMetadata,
   resultContent,
+  resultMessage,
 }: ToolCallBlockProps) {
   const { t } = useTranslation("channel");
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const toolName = callMetadata.toolName ?? t("tracking.toolCall.unknownTool");
-  const toolArgs = callMetadata.toolArgs;
+  const fullContentTargetId =
+    resultMetadata?.fullContentMessageId ??
+    (resultMessage?.isTruncated ? resultMessage.id : undefined);
+  const shouldFetchFullContent = isExpanded && !!fullContentTargetId;
+  const { data: fullContentData } = useFullContent(
+    fullContentTargetId,
+    shouldFetchFullContent,
+  );
+  const effectiveResultContent =
+    fullContentData?.content ?? resultContent ?? resultMessage?.content ?? "";
+  const displayState = buildToolDisplayState({
+    callMetadata,
+    resultMetadata,
+    resultContent: effectiveResultContent,
+  });
+  const labelStatus = displayState.status;
 
-  const hasResultContent = resultContent !== undefined && resultContent !== "";
-  const labelStatus = deriveLabelStatus(resultMetadata, hasResultContent);
-
-  const isRunning = labelStatus === "loading";
-  const isError = labelStatus === "error";
-  const isSuccess = labelStatus === "success";
+  const toolName = displayState.toolName;
+  const paramsSummary = displayState.argsSummary;
+  const displayLine = paramsSummary
+    ? `${toolName}(${paramsSummary})`
+    : toolName;
+  const unwrapped = displayState.resultText;
+  const isRunning = displayState.isRunning;
+  const isError = displayState.isError;
+  const hasResultContent = unwrapped !== "";
 
   // Friendly label from toolLabels (e.g. "Sending message", "Message sent",
   // "Failed to send message"). The raw key/values come from getLabelKey and
@@ -96,15 +80,6 @@ export function ToolCallBlock({
     t as (key: string, options?: Record<string, unknown>) => string
   )(labelDescriptor.key, labelDescriptor.values);
 
-  // Params summary using formatParams (friendly key="value" for configured tools,
-  // JSON fallback for unknown tools).
-  const paramsSummary = toolArgs ? formatParams(toolName, toolArgs) : "";
-
-  // One-line display: toolName(paramsSummary) or just toolName
-  const displayLine = toolArgs ? `${toolName}(${paramsSummary})` : toolName;
-
-  const unwrapped = hasResultContent ? unwrapResultContent(resultContent) : "";
-
   // Icon color follows status: yellow while running (pulsing), red on
   // failure, emerald on success. Matches TrackingEventItem so tool call
   // rows sit seamlessly alongside the other event rows.
@@ -114,14 +89,17 @@ export function ToolCallBlock({
       ? "text-yellow-400"
       : "text-emerald-500";
 
-  // Label uses a muted gray so the icon (color) carries status signal
-  // and the label reads as secondary metadata. Failure is the one case
-  // we keep red on the label itself — silencing an error would be a
-  // bigger regression than visual inconsistency.
-  const labelColorClass = isError ? "text-red-500" : "text-foreground/70";
+  // Label uses a muted gray so the icon/indicator carry the status signal
+  // without making failed rows feel visually louder than normal tool output.
+  const labelColorClass = "text-foreground/70";
 
   // Success/failure indicator tail icon. Hidden while running.
-  const indicatorChar = isError ? "\u2718" : isSuccess ? "\u2714" : "";
+  const indicatorChar =
+    displayState.indicator === "cross"
+      ? "\u2718"
+      : displayState.indicator === "check"
+        ? "\u2714"
+        : "";
   const indicatorColorClass = isError ? "text-red-400" : "text-emerald-500/70";
 
   return (
@@ -156,7 +134,7 @@ export function ToolCallBlock({
         <span
           className={cn(
             "text-xs truncate flex-1 min-w-0 ml-2 font-mono",
-            isError ? "text-red-400" : "text-foreground/80",
+            "text-foreground/80",
           )}
         >
           {displayLine}
@@ -181,7 +159,7 @@ export function ToolCallBlock({
       {/* Expanded: full args + result (including error detail on failure) */}
       {isExpanded && (
         <div className="mt-1 mb-1.5 space-y-2">
-          {toolArgs && (
+          {displayState.argsText && (
             <div>
               <span className="text-xs font-semibold text-muted-foreground">
                 {t("tracking.toolCall.argsLabel")}
@@ -195,7 +173,7 @@ export function ToolCallBlock({
                   "bg-muted/60 border border-border font-mono text-foreground/85",
                 )}
               >
-                {JSON.stringify(toolArgs, null, 2)}
+                {displayState.argsText}
               </pre>
             </div>
           )}

@@ -1,8 +1,15 @@
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useWikiImageUpload } from "@/hooks/useWikiImageUpload";
 import { useWikiPage } from "@/hooks/useWikiPage";
-import { useWikis } from "@/hooks/useWikis";
-import { useSubmittedProposal } from "@/stores/useWikiStore";
+import { useWikis, wikiKeys } from "@/hooks/useWikis";
+import { queryClient } from "@/lib/query-client";
+import { serializeFrontmatter } from "@/lib/wiki-frontmatter";
+import { DEFAULT_WIKI_INDEX_PATH } from "@/lib/wiki-paths";
+import { wikisApi } from "@/services/api/wikis";
+import { useSubmittedProposal, wikiActions } from "@/stores/useWikiStore";
 import { WikiCover } from "./WikiCover";
 import { WikiEmptyState } from "./WikiEmptyState";
 import { WikiPageHeader } from "./WikiPageHeader";
@@ -44,6 +51,138 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   const { data: wikis, isLoading: wikisLoading } = useWikis();
   const wiki = wikis?.find((w) => w.id === wikiId);
   const pendingProposalId = useSubmittedProposal(wikiId, path);
+  const bootstrapKey = `${wikiId}:${path}`;
+  const [bootstrappingKey, setBootstrappingKey] = useState<string | null>(null);
+  const [bootstrapFailedKey, setBootstrapFailedKey] = useState<string | null>(
+    null,
+  );
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const canEditMetadata = Boolean(wiki && wiki.humanPermission !== "read");
+  const coverUpload = useWikiImageUpload(wikiId);
+
+  const handleFrontmatterChange = useCallback(
+    async (nextFrontmatter: Record<string, unknown>) => {
+      if (!canEditMetadata || !page || page.encoding !== "text") return;
+      setIsSavingMetadata(true);
+      const nextSource = serializeFrontmatter({
+        frontmatter: nextFrontmatter,
+        body: page.content,
+      });
+      try {
+        const result = await wikisApi.commit(wikiId, {
+          message: `Update ${path}`,
+          files: [
+            {
+              path,
+              content: nextSource,
+              encoding: "text",
+              action: "update",
+            },
+          ],
+        });
+        queryClient.setQueryData(wikiKeys.page(wikiId, path), {
+          ...page,
+          frontmatter: nextFrontmatter,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.page(wikiId, path),
+        });
+        if (result.proposal) {
+          wikiActions.setSubmittedProposal(wikiId, path, result.proposal.id);
+        }
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Save failed");
+      } finally {
+        setIsSavingMetadata(false);
+      }
+    },
+    [canEditMetadata, page, path, wikiId],
+  );
+
+  const handleCoverChange = useCallback(
+    (cover: string) => {
+      if (!page) return;
+      const nextFrontmatter = { ...page.frontmatter };
+      const trimmed = cover.trim();
+      if (trimmed.length > 0) {
+        nextFrontmatter.cover = trimmed;
+      } else {
+        delete nextFrontmatter.cover;
+      }
+      void handleFrontmatterChange(nextFrontmatter);
+    },
+    [handleFrontmatterChange, page],
+  );
+
+  const handleCoverUpload = useCallback(
+    (file: File) => coverUpload.upload(file, "covers"),
+    [coverUpload],
+  );
+
+  useEffect(() => {
+    if (
+      !wiki ||
+      page ||
+      pageLoading ||
+      wikisLoading ||
+      path !== DEFAULT_WIKI_INDEX_PATH ||
+      wiki.humanPermission !== "write" ||
+      bootstrappingKey === bootstrapKey ||
+      bootstrapFailedKey === bootstrapKey
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setBootstrappingKey(bootstrapKey);
+    void wikisApi
+      .commit(wiki.id, {
+        message: `Create ${DEFAULT_WIKI_INDEX_PATH}`,
+        files: [
+          {
+            path: DEFAULT_WIKI_INDEX_PATH,
+            content: `# ${wiki.name}\n\n`,
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      })
+      .then(() => {
+        queryClient.setQueryData(wikiKeys.page(wiki.id, path), {
+          path,
+          content: `# ${wiki.name}\n\n`,
+          encoding: "text",
+          frontmatter: {},
+          lastCommit: null,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.trees(wiki.id),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: wikiKeys.page(wiki.id, path),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setBootstrapFailedKey(bootstrapKey);
+      })
+      .finally(() => {
+        if (!cancelled) setBootstrappingKey(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bootstrapFailedKey,
+    bootstrapKey,
+    bootstrappingKey,
+    page,
+    pageLoading,
+    path,
+    wiki,
+    wikiId,
+    wikisLoading,
+  ]);
 
   // Split the loading / missing-wiki / missing-page checks.
   //
@@ -53,10 +192,16 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
   // mid-session). Now we surface an explicit "not found" empty state
   // when the wikis list has resolved without the target id, so the user
   // can recover by picking another wiki from the sidebar.
-  if (pageLoading || wikisLoading) {
+  if (pageLoading || wikisLoading || bootstrappingKey === bootstrapKey) {
     return (
-      <div data-testid="wiki-page-loading" className="p-8">
-        {t("page.loading")}
+      <div
+        data-testid="wiki-page-loading"
+        role="status"
+        aria-live="polite"
+        className="h-full flex flex-col items-center justify-center gap-3 bg-background text-muted-foreground"
+      >
+        <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+        <span className="text-sm">{t("page.loading")}</span>
       </div>
     );
   }
@@ -64,11 +209,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
     return <WikiEmptyState message={t("errors.wikiNotFound")} />;
   }
   if (!page) {
-    return (
-      <div data-testid="wiki-page-loading" className="p-8">
-        {t("page.loading")}
-      </div>
-    );
+    return <WikiEmptyState message={t("page.notFound", { path })} />;
   }
 
   const coverPath =
@@ -90,12 +231,23 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
         data-testid="wiki-page-view"
         className="h-full flex flex-col bg-background overflow-auto"
       >
-        <WikiCover wikiId={wikiId} coverPath={coverPath} />
+        <WikiCover
+          wikiId={wikiId}
+          coverPath={coverPath}
+          editable={canEditMetadata}
+          isSaving={isSavingMetadata || coverUpload.uploading}
+          onChangeCover={handleCoverChange}
+          onUploadCover={handleCoverUpload}
+        />
         <WikiPageHeader
           wikiSlug={wiki.slug}
+          wikiName={wiki.name}
           path={path}
           frontmatter={page.frontmatter}
           body={page.content}
+          readOnly={!canEditMetadata}
+          isSavingMetadata={isSavingMetadata}
+          onFrontmatterChange={handleFrontmatterChange}
         />
         <div
           data-testid="wiki-page-binary"
@@ -112,12 +264,23 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
       data-testid="wiki-page-view"
       className="h-full flex flex-col bg-background overflow-auto"
     >
-      <WikiCover wikiId={wikiId} coverPath={coverPath} />
+      <WikiCover
+        wikiId={wikiId}
+        coverPath={coverPath}
+        editable={canEditMetadata}
+        isSaving={isSavingMetadata || coverUpload.uploading}
+        onChangeCover={handleCoverChange}
+        onUploadCover={handleCoverUpload}
+      />
       <WikiPageHeader
         wikiSlug={wiki.slug}
+        wikiName={wiki.name}
         path={path}
         frontmatter={page.frontmatter}
         body={page.content}
+        readOnly={!canEditMetadata}
+        isSavingMetadata={isSavingMetadata}
+        onFrontmatterChange={handleFrontmatterChange}
       />
       {pendingProposalId && (
         <WikiProposalBanner

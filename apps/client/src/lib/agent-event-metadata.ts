@@ -48,6 +48,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function normalizeAgentEventType(
+  value: unknown,
+): AgentEventMetadata["agentEventType"] | undefined {
+  if (value === "func_call" || value === "function_call") {
+    return "tool_call";
+  }
+  if (value === "func_result" || value === "function_result") {
+    return "tool_result";
+  }
+  return isAgentEventType(value) ? value : undefined;
+}
+
 function isAgentEventType(
   value: unknown,
 ): value is AgentEventMetadata["agentEventType"] {
@@ -66,19 +78,46 @@ function isAgentEventStatus(
   );
 }
 
+function getNormalizedStatus(
+  value: unknown,
+  rawAgentEventType: unknown,
+): AgentEventMetadata["status"] | undefined {
+  if (isAgentEventStatus(value)) return value;
+  if (
+    rawAgentEventType === "func_call" ||
+    rawAgentEventType === "function_call"
+  ) {
+    return "running";
+  }
+  if (
+    rawAgentEventType === "func_result" ||
+    rawAgentEventType === "function_result"
+  ) {
+    return "completed";
+  }
+  return undefined;
+}
+
 export function getAgentEventMetadata(
   value: unknown,
   fallback: AgentEventMetadata,
 ): AgentEventMetadata {
+  return getOptionalAgentEventMetadata(value) ?? fallback;
+}
+
+export function getOptionalAgentEventMetadata(
+  value: unknown,
+): AgentEventMetadata | undefined {
   if (!isRecord(value)) {
-    return fallback;
+    return undefined;
   }
 
-  const agentEventType = value.agentEventType;
-  const status = value.status;
+  const rawAgentEventType = value.agentEventType;
+  const agentEventType = normalizeAgentEventType(rawAgentEventType);
+  const status = getNormalizedStatus(value.status, rawAgentEventType);
 
-  if (!isAgentEventType(agentEventType) || !isAgentEventStatus(status)) {
-    return fallback;
+  if (!agentEventType || !status) {
+    return undefined;
   }
 
   return {
@@ -89,7 +128,31 @@ export function getAgentEventMetadata(
       ? { toolCallId: value.toolCallId }
       : {}),
     ...(isRecord(value.toolArgs) ? { toolArgs: value.toolArgs } : {}),
+    ...(typeof value.toolArgsText === "string"
+      ? { toolArgsText: value.toolArgsText }
+      : {}),
+    ...(value.toolPhase === "args_streaming" || value.toolPhase === "executing"
+      ? { toolPhase: value.toolPhase }
+      : {}),
     ...(typeof value.success === "boolean" ? { success: value.success } : {}),
+    ...(typeof value.errorCode === "string"
+      ? { errorCode: value.errorCode }
+      : {}),
+    ...(typeof value.errorMessage === "string"
+      ? { errorMessage: value.errorMessage }
+      : {}),
+    ...(typeof value.resultTruncated === "boolean"
+      ? { resultTruncated: value.resultTruncated }
+      : {}),
+    ...(typeof value.fullContentMessageId === "string"
+      ? { fullContentMessageId: value.fullContentMessageId }
+      : {}),
+    ...(typeof value.completedAt === "string"
+      ? { completedAt: value.completedAt }
+      : {}),
+    ...(typeof value.updatedAt === "string"
+      ? { updatedAt: value.updatedAt }
+      : {}),
     ...(typeof value.surfaceId === "string"
       ? { surfaceId: value.surfaceId }
       : {}),
@@ -149,12 +212,11 @@ export function normalizeTrackingSnapshot(
 ): ChannelSnapshot {
   return {
     totalMessageCount: snapshot.totalMessageCount,
-    latestMessages: snapshot.latestMessages.map((message) => ({
-      ...message,
-      metadata: getAgentEventMetadata(message.metadata, {
-        agentEventType: "writing",
-        status: "completed",
-      }),
-    })),
+    latestMessages: snapshot.latestMessages.flatMap((message) => {
+      const metadata = getOptionalAgentEventMetadata(message.metadata);
+      return metadata && metadata.agentEventType !== "writing"
+        ? [{ ...message, metadata }]
+        : [];
+    }),
   };
 }

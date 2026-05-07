@@ -38,7 +38,7 @@ function getWorkspaceT(): WorkspaceT {
 export function formatMoney(amountCents: number) {
   const hasFraction = amountCents % 100 !== 0;
 
-  return new Intl.NumberFormat(getLocale(), {
+  return new Intl.NumberFormat("en", {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: hasFraction ? 2 : 0,

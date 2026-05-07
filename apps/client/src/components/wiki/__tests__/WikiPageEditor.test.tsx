@@ -37,7 +37,8 @@ vi.mock("@/components/folder9-editor/Folder9FolderEditor", () => ({
     // picker, document editor stand-in).
     const slot = props.renderFile?.({
       path: props.initialPath ?? "index.md",
-      content: "---\nicon: 🚀\ntitle: Home\n---\n\nserver body",
+      editorKey: `mock:${props.folderId}:${props.initialPath ?? "index.md"}`,
+      content: `---\nicon: 🚀\ntitle: Home\n---\n\nbody from ${props.folderId}`,
       encoding: "text",
       readOnly: props.permission === "read",
       onChange: (next) => {
@@ -152,44 +153,6 @@ vi.mock("../IconPickerPopover", () => ({
       >
         icon-picker
       </button>
-    );
-  },
-}));
-
-const coverPickerProps = vi.hoisted(() =>
-  vi.fn<(props: Record<string, unknown>) => void>(),
-);
-
-vi.mock("../CoverPickerPopover", () => ({
-  CoverPickerPopover: (props: {
-    wikiId: string;
-    value?: string;
-    onChange: (cover: string) => void;
-    disabled?: boolean;
-  }) => {
-    coverPickerProps(props);
-    return (
-      <div>
-        <button
-          type="button"
-          data-testid="mock-cover-picker"
-          data-wiki-id={props.wikiId}
-          data-value={props.value ?? ""}
-          data-disabled={props.disabled ? "true" : "false"}
-          disabled={props.disabled}
-          onClick={() => props.onChange("attachments/new.jpg")}
-        >
-          cover-picker
-        </button>
-        <button
-          type="button"
-          data-testid="mock-cover-remove"
-          disabled={props.disabled}
-          onClick={() => props.onChange("")}
-        >
-          cover-remove
-        </button>
-      </div>
     );
   },
 }));
@@ -361,7 +324,6 @@ const basePage: PageDto = {
 beforeEach(() => {
   folderEditorProps.mockReset();
   iconPickerProps.mockReset();
-  coverPickerProps.mockReset();
   submitForReviewProps.mockReset();
   setSubmittedProposalSpy.mockReset();
   wikiFolderApiCommit.mockReset();
@@ -541,7 +503,7 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
   });
 
   describe("renderFile slot — wiki frontmatter", () => {
-    it("renders icon + cover popovers for markdown files", () => {
+    it("does not render the old inline metadata controls for markdown files", () => {
       render(
         <WikiPageEditor
           wikiId="wiki-1"
@@ -550,106 +512,44 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
           wiki={baseWiki}
         />,
       );
-      expect(screen.getByTestId("mock-icon-picker")).toBeInTheDocument();
-      expect(screen.getByTestId("mock-cover-picker")).toBeInTheDocument();
+      expect(screen.queryByTestId("mock-icon-picker")).toBeNull();
+      expect(screen.queryByTestId("wiki-page-editor-controls")).toBeNull();
     });
 
-    it("seeds the icon picker from the parsed frontmatter", () => {
+    it("does not render the old inline metadata controls for md9 wiki pages", () => {
       render(
         <WikiPageEditor
           wikiId="wiki-1"
-          path="index.md"
-          serverPage={basePage}
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
           wiki={baseWiki}
         />,
       );
-      // The mock shell hands the slot a default content of
-      // `---\nicon: 🚀\ntitle: Home\n---\n\nserver body` — the picker
-      // should pick up the icon string.
-      expect(screen.getByTestId("mock-icon-picker")).toHaveAttribute(
-        "data-value",
-        "🚀",
-      );
+      expect(screen.queryByTestId("mock-icon-picker")).toBeNull();
+      expect(screen.queryByTestId("wiki-page-editor-controls")).toBeNull();
     });
 
-    it("disables the pickers when the slot is in read-only mode", () => {
-      render(
+    it("reinitializes the markdown editor when switching wikis with the same page path", () => {
+      const { rerender } = render(
         <WikiPageEditor
           wikiId="wiki-1"
-          path="index.md"
-          serverPage={basePage}
-          wiki={{ ...baseWiki, humanPermission: "read" }}
-        />,
-      );
-      expect(screen.getByTestId("mock-icon-picker")).toBeDisabled();
-      expect(screen.getByTestId("mock-cover-picker")).toBeDisabled();
-    });
-
-    it("reserializes frontmatter on icon change and bubbles up to the shell", async () => {
-      render(
-        <WikiPageEditor
-          wikiId="wiki-1"
-          path="index.md"
-          serverPage={basePage}
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
           wiki={baseWiki}
         />,
       );
-      await click(screen.getByTestId("mock-icon-picker"));
-      expect(slotState.lastBody).not.toBeNull();
-      const body = slotState.lastBody as string;
-      expect(body).toContain("icon:");
-      expect(body).toContain("🎨");
-      expect(body).toContain("server body");
-    });
+      expect(screen.getByTestId("doc-editor")).toHaveValue("body from wiki-1");
 
-    it("reserializes frontmatter on cover change", async () => {
-      render(
+      rerender(
         <WikiPageEditor
-          wikiId="wiki-1"
-          path="index.md"
-          serverPage={basePage}
-          wiki={baseWiki}
+          wikiId="wiki-2"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={{ ...baseWiki, id: "wiki-2" }}
         />,
       );
-      await click(screen.getByTestId("mock-cover-picker"));
-      expect(slotState.lastBody).not.toBeNull();
-      const body = slotState.lastBody as string;
-      expect(body).toContain("cover:");
-      expect(body).toContain("attachments/new.jpg");
-    });
 
-    it("removes the cover key when cover picker fires with empty string", async () => {
-      // Override the default content via a per-test stub so the slot
-      // is rendered with a `cover` already present.
-      folderEditorProps.mockImplementation((props) => {
-        // Trigger renderFile manually with the cover-bearing content so
-        // the resulting picker UI represents the right starting state.
-        // The shell mock above already ran once with the default
-        // content; we re-call into renderFile to overwrite the rendered
-        // slot. The simpler path: test the helper inline.
-        void props;
-      });
-      // Use the SUT directly to verify the behaviour: render the
-      // wrapper but use the inner WikiMarkdownFile by calling the
-      // exported render slot via the mock-shell stub.
-      render(
-        <WikiPageEditor
-          wikiId="wiki-1"
-          path="index.md"
-          serverPage={basePage}
-          wiki={baseWiki}
-        />,
-      );
-      // We start with the default content (no cover), so set one via
-      // the cover picker, then remove it.
-      await click(screen.getByTestId("mock-cover-picker"));
-      slotState.lastBody = null;
-      await click(screen.getByTestId("mock-cover-remove"));
-      expect(slotState.lastBody).not.toBeNull();
-      const body = slotState.lastBody as unknown as string;
-      // The default content has icon:, so it should still be there;
-      // and `cover:` must be gone.
-      expect(body).toContain("icon:");
+      expect(screen.getByTestId("doc-editor")).toHaveValue("body from wiki-2");
     });
 
     it("falls back to the default renderer for non-markdown text files", () => {
@@ -657,6 +557,7 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       folderEditorProps.mockImplementation((props) => {
         slotResult = props.renderFile?.({
           path: "scripts/run.sh",
+          editorKey: "mock:scripts/run.sh",
           content: "echo hi",
           encoding: "text",
           readOnly: false,
@@ -680,6 +581,7 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       folderEditorProps.mockImplementation((props) => {
         slotResult = props.renderFile?.({
           path: "image.png",
+          editorKey: "mock:image.png",
           content: "blob",
           encoding: "base64",
           readOnly: false,
@@ -732,29 +634,12 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       expect(slotState.lastBody).toBeNull();
     });
 
-    it("frontmatter edits while read-only do not bubble through onChange", () => {
-      render(
-        <WikiPageEditor
-          wikiId="wiki-1"
-          path="index.md"
-          serverPage={basePage}
-          wiki={{ ...baseWiki, humanPermission: "read" }}
-        />,
-      );
-      // Force the icon picker via its captured onChange (real disabled
-      // attribute would normally suppress a click in the DOM).
-      const lastIconCall =
-        iconPickerProps.mock.calls[iconPickerProps.mock.calls.length - 1];
-      const onChange = lastIconCall[0].onChange as (icon: string) => void;
-      onChange("🎨");
-      expect(slotState.lastBody).toBeNull();
-    });
-
     it("tolerates malformed frontmatter without crashing", () => {
       let slotResult: unknown;
       folderEditorProps.mockImplementation((props) => {
         slotResult = props.renderFile?.({
           path: "index.md",
+          editorKey: "mock:index.md",
           content: "---\n: bad-yaml: [\n---\n\nbody",
           encoding: "text",
           readOnly: false,

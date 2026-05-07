@@ -17,6 +17,8 @@ export interface StreamingMessage {
   startedAt: number;
   /** Ordered thinking/text parts as they arrive within this response */
   parts: StreamingPart[];
+  /** Optional agent-event metadata from streaming_start */
+  metadata?: Record<string, unknown>;
 }
 
 export interface StreamingPart {
@@ -39,6 +41,7 @@ interface StreamingState {
     senderId: string;
     parentId?: string;
     startedAt: number;
+    metadata?: Record<string, unknown>;
   }) => void;
 
   /** Set the current accumulated text content for a stream */
@@ -46,6 +49,12 @@ interface StreamingState {
 
   /** Set the current accumulated thinking content for a stream */
   setThinkingContent: (streamId: string, content: string) => void;
+
+  /** Merge transient stream metadata, e.g. tool_call args streaming */
+  setStreamMetadata: (
+    streamId: string,
+    metadata: Record<string, unknown>,
+  ) => void;
 
   /** End a stream (remove from active) */
   endStream: (streamId: string) => void;
@@ -146,6 +155,19 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
 
     set((state) => {
       const newStreams = new Map(state.streams);
+      const existing = newStreams.get(event.streamId);
+      if (existing) {
+        newStreams.set(event.streamId, {
+          ...existing,
+          ...event,
+          parentId: event.parentId ?? existing.parentId,
+          metadata: event.metadata ?? existing.metadata,
+          startedAt: existing.startedAt,
+          isStreaming: true,
+        });
+        return { streams: newStreams };
+      }
+
       newStreams.set(event.streamId, {
         ...event,
         content: "",
@@ -195,6 +217,22 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
         thinking: aggregateParts(parts, "thinking"),
         isThinking: true,
         parts,
+      });
+      return { streams: newStreams };
+    });
+  },
+
+  setStreamMetadata: (streamId, metadata) => {
+    set((state) => {
+      const stream = state.streams.get(streamId);
+      if (!stream) return state;
+      const newStreams = new Map(state.streams);
+      newStreams.set(streamId, {
+        ...stream,
+        metadata: {
+          ...(stream.metadata ?? {}),
+          ...metadata,
+        },
       });
       return { streams: newStreams };
     });

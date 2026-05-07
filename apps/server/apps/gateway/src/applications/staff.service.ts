@@ -9,7 +9,7 @@ import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
 import { RedisService } from '@team9/redis';
-import { streamText, Output } from 'ai';
+import { generateText, streamText, Output } from 'ai';
 import { z } from 'zod';
 import { createOpenAI } from '@ai-sdk/openai';
 import { BotService } from '../bot/bot.service.js';
@@ -97,11 +97,30 @@ export interface GenerateAvatarOptions {
   prompt?: string;
 }
 
+export interface GenerateShortRoleTitleOptions {
+  tenantId: string;
+  installedApplicationId: string;
+  roleTitle: string;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const PLATFORM_BOT_DISPLAY_NAME = 'Platform LLM Service';
 const PLATFORM_BOT_TOKEN_CACHE_PREFIX = 'platform-llm-token:';
 const PLATFORM_BOT_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+const SHORT_ROLE_TITLE_MODEL = 'anthropic/claude-3.5-haiku';
+
+const SHORT_ROLE_TITLE_PROMPT = `You write compact job-title labels for a chat app sidebar.
+
+Given one full job title, return a concise display label in the same language as the input.
+
+Rules:
+- Preserve the input language. Chinese input -> Chinese output; English input -> English output.
+- For Chinese/Japanese/Korean, use at most 6 characters.
+- For Latin-script titles, use at most 2 words or a widely-known abbreviation.
+- Keep the professional meaning; do not invent a different role.
+- No quotes, punctuation, explanations, prefixes, or markdown.
+- Output only the short label.`;
 
 // ── Candidate generation schema ──────────────────────────────────────────────
 
@@ -249,6 +268,39 @@ export class StaffService {
       baseURL: `${capabilityHubUrl}/api/proxy/openrouter`,
       apiKey: token,
     });
+  }
+
+  async generateShortRoleTitle(
+    options: GenerateShortRoleTitleOptions,
+  ): Promise<string | null> {
+    const roleTitle = options.roleTitle.trim();
+    if (!roleTitle) return null;
+
+    const llm = await this.createLlmProvider(
+      options.tenantId,
+      options.installedApplicationId,
+    );
+
+    const result = await generateText({
+      model: llm(SHORT_ROLE_TITLE_MODEL),
+      system: SHORT_ROLE_TITLE_PROMPT,
+      prompt: roleTitle,
+      temperature: 0.2,
+      maxOutputTokens: 32,
+    });
+
+    return this.cleanShortRoleTitle(result.text);
+  }
+
+  private cleanShortRoleTitle(raw: string | null | undefined): string | null {
+    const cleaned = (raw ?? '')
+      .replace(/^[`'"“”‘’「『《]+|[`'"“”‘’」』》]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[。！？!?.]+$/u, '')
+      .trim();
+
+    if (!cleaned) return null;
+    return cleaned.length > 18 ? cleaned.slice(0, 18) : cleaned;
   }
 
   /**

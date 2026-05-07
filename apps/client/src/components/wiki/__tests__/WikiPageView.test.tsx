@@ -1,11 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PageDto, WikiDto } from "@/types/wiki";
 
 const mockUseWikiPage = vi.hoisted(() => vi.fn());
 const mockUseWikis = vi.hoisted(() => vi.fn());
 const mockUseSubmittedProposal = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockCommit = vi.hoisted(() => vi.fn());
+const mockSetSubmittedProposal = vi.hoisted(() => vi.fn());
+const mockUploadCover = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiPage", () => ({
   useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
@@ -15,13 +18,30 @@ vi.mock("@/hooks/useWikis", () => ({
   useWikis: (...args: unknown[]) => mockUseWikis(...args),
 }));
 
+vi.mock("@/hooks/useWikiImageUpload", () => ({
+  useWikiImageUpload: () => ({
+    upload: (...args: unknown[]) => mockUploadCover(...args),
+    uploading: false,
+  }),
+}));
+
 vi.mock("@/stores/useWikiStore", () => ({
   useSubmittedProposal: (...args: unknown[]) =>
     mockUseSubmittedProposal(...args),
+  wikiActions: {
+    setSubmittedProposal: (...args: unknown[]) =>
+      mockSetSubmittedProposal(...args),
+  },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+}));
+
+vi.mock("@/services/api/wikis", () => ({
+  wikisApi: {
+    commit: (...args: unknown[]) => mockCommit(...args),
+  },
 }));
 
 // Child components are covered by their own tests; stub them here so we
@@ -31,21 +51,63 @@ vi.mock("../WikiCover", () => ({
   WikiCover: ({
     wikiId,
     coverPath,
+    editable,
+    onChangeCover,
+    onUploadCover,
   }: {
     wikiId: string;
     coverPath: string | null;
-  }) => (
-    <div
-      data-testid="cover-stub"
-      data-wiki-id={wikiId}
-      data-cover-path={coverPath ?? ""}
-    />
-  ),
+    editable?: boolean;
+    onChangeCover?: (cover: string) => void;
+    onUploadCover?: (file: File) => Promise<string>;
+  }) => {
+    const uploadAndApply = async () => {
+      const path = await onUploadCover?.(
+        new File(["image"], "cover.png", { type: "image/png" }),
+      );
+      if (path) onChangeCover?.(path);
+    };
+    return (
+      <div
+        data-testid="cover-stub"
+        data-wiki-id={wikiId}
+        data-cover-path={coverPath ?? ""}
+        data-editable={editable ? "true" : "false"}
+      >
+        <button
+          type="button"
+          data-testid="cover-change-stub"
+          onClick={() => onChangeCover?.("covers/manual.png")}
+        />
+        <button
+          type="button"
+          data-testid="cover-upload-stub"
+          onClick={() => {
+            void uploadAndApply();
+          }}
+        />
+      </div>
+    );
+  },
 }));
 
 vi.mock("../WikiPageHeader", () => ({
-  WikiPageHeader: ({ wikiSlug, path }: { wikiSlug: string; path: string }) => (
-    <div data-testid="header-stub" data-slug={wikiSlug} data-path={path} />
+  WikiPageHeader: ({
+    wikiSlug,
+    path,
+    onFrontmatterChange,
+  }: {
+    wikiSlug: string;
+    path: string;
+    onFrontmatterChange?: (next: Record<string, unknown>) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="header-stub"
+      data-slug={wikiSlug}
+      data-path={path}
+      onClick={() => onFrontmatterChange?.({ title: "Renamed", icon: "🎨" })}
+    />
   ),
 }));
 
@@ -105,6 +167,16 @@ beforeEach(() => {
   mockUseSubmittedProposal.mockReset();
   mockUseSubmittedProposal.mockReturnValue(null);
   mockNavigate.mockReset();
+  mockCommit.mockReset();
+  mockSetSubmittedProposal.mockReset();
+  mockUploadCover.mockReset();
+  mockUploadCover.mockResolvedValue("covers/uploaded.png");
+  mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
+  vi.spyOn(window, "alert").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("WikiPageView", () => {
@@ -113,6 +185,18 @@ describe("WikiPageView", () => {
     mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
     expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
+  });
+
+  it("centers the loading cue in the content pane with a spinner", () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: true });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    const { container } = render(
+      <WikiPageView wikiId="wiki-1" path="index.md" />,
+    );
+
+    const loading = screen.getByTestId("wiki-page-loading");
+    expect(loading).toHaveClass("h-full", "items-center", "justify-center");
+    expect(container.querySelector("svg.animate-spin")).not.toBeNull();
   });
 
   it("shows loading cue while the wikis list is fetching", () => {
@@ -135,11 +219,46 @@ describe("WikiPageView", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows loading cue when the wiki list is resolved but the page hasn't loaded yet", () => {
+  it("shows an empty state when the selected page is missing after the query settles", () => {
     mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
     mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
     render(<WikiPageView wikiId="wiki-1" path="index.md" />);
+    expect(screen.queryByTestId("wiki-page-loading")).toBeNull();
+    expect(
+      screen.getByText(/page doesn't exist/i, { exact: false }),
+    ).toBeInTheDocument();
+  });
+
+  it("creates the default md9 homepage when it is missing and the user can write", async () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
     expect(screen.getByTestId("wiki-page-loading")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Create index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content: "# Handbook\n\n",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+      });
+    });
+  });
+
+  it("does not auto-create non-index missing pages", () => {
+    mockUseWikiPage.mockReturnValue({ data: undefined, isLoading: false });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="docs/missing.md9" />);
+
+    expect(mockCommit).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/page doesn't exist/i, { exact: false }),
+    ).toBeInTheDocument();
   });
 
   it("renders the composite when both queries resolve", () => {
@@ -151,6 +270,36 @@ describe("WikiPageView", () => {
     expect(screen.getByTestId("cover-stub")).toBeInTheDocument();
     expect(screen.getByTestId("header-stub").dataset.slug).toBe("handbook");
     expect(screen.getByTestId("editor-stub").dataset.path).toBe("index.md");
+  });
+
+  it("commits title and emoji metadata changes from the page header", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        ...page,
+        path: "index.md9",
+        content: "Body",
+        frontmatter: { title: "Old", icon: "📄" },
+      },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    fireEvent.click(screen.getByTestId("header-stub"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Update index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content: "---\ntitle: Renamed\nicon: 🎨\n---\n\nBody",
+            encoding: "text",
+            action: "update",
+          },
+        ],
+      });
+    });
   });
 
   it("passes coverPath=null when frontmatter.cover is missing", () => {
@@ -170,6 +319,65 @@ describe("WikiPageView", () => {
     expect(screen.getByTestId("cover-stub").dataset.coverPath).toBe(
       "assets/banner.png",
     );
+  });
+
+  it("commits cover metadata changes from the cover band", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        ...page,
+        path: "index.md9",
+        content: "# Body",
+        frontmatter: { title: "Home" },
+      },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    fireEvent.click(screen.getByTestId("cover-change-stub"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Update index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content:
+              "---\ntitle: Home\ncover: covers/manual.png\n---\n\n# Body",
+            encoding: "text",
+            action: "update",
+          },
+        ],
+      });
+    });
+  });
+
+  it("uploads a local cover image and commits the uploaded path", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: { ...page, path: "index.md9", content: "Body" },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    render(<WikiPageView wikiId="wiki-1" path="index.md9" />);
+
+    fireEvent.click(screen.getByTestId("cover-upload-stub"));
+
+    await waitFor(() => {
+      expect(mockUploadCover).toHaveBeenCalledWith(expect.any(File), "covers");
+    });
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Update index.md9",
+        files: [
+          {
+            path: "index.md9",
+            content: "---\ncover: covers/uploaded.png\n---\n\nBody",
+            encoding: "text",
+            action: "update",
+          },
+        ],
+      });
+    });
   });
 
   it("ignores non-string frontmatter.cover values", () => {

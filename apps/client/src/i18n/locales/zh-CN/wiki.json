@@ -85,7 +85,15 @@
   "listItem": {
     "settings": "设置",
     "archive": "归档",
-    "actionsLabel": "{{name}} 操作"
+    "actionsLabel": "{{name}} 操作",
+    "createMenuLabel": "在 {{name}} 中创建",
+    "expand": "展开",
+    "collapse": "收起",
+    "newPage": "新建页面",
+    "newPagePrompt": "页面路径",
+    "newFolder": "新建文件夹",
+    "newFolderPrompt": "文件夹路径",
+    "uploadFile": "上传文件"
   },
   "archive": {
     "title": "归档此知识库？",
@@ -129,6 +137,7 @@
   },
   "page": {
     "loading": "加载中…",
+    "notFound": "此页面尚不存在：{{path}}。请从左侧树选择已有页面，或在编辑器中创建它。",
     "binaryFile": "二进制文件 — 不支持在此编辑。"
   },
   "proposalBanner": {

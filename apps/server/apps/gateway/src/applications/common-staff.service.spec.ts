@@ -7,11 +7,13 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
 
 const mockStreamText = jest.fn<any>();
+const mockGenerateText = jest.fn<any>();
 
 const mockOutputObject = jest.fn<any>().mockReturnValue('mock-output-spec');
 
 jest.unstable_mockModule('ai', () => ({
   streamText: mockStreamText,
+  generateText: mockGenerateText,
   Output: { object: mockOutputObject },
 }));
 
@@ -267,7 +269,11 @@ describe('CommonStaffService', () => {
   let channelsService: { createDirectChannel: MockFn };
   let installedApplicationsService: { findById: MockFn };
   let usersService: { getLocalePreferences: MockFn };
-  let staffService: { createBotWithAgent: MockFn };
+  let injectedStaffService: StaffService;
+  let staffService: {
+    createBotWithAgent: MockFn;
+    generateShortRoleTitle: MockFn;
+  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -312,6 +318,8 @@ describe('CommonStaffService', () => {
     // Candidate tests override with mockStreamTextWithOutputReturn
     mockStreamText.mockReset();
     mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
+    mockGenerateText.mockReset();
+    mockGenerateText.mockResolvedValue({ text: 'PM' });
     mockOutputObject.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -340,11 +348,15 @@ describe('CommonStaffService', () => {
     }).compile();
 
     service = module.get<CommonStaffService>(CommonStaffService);
-    const injectedStaffService = module.get<StaffService>(StaffService);
+    injectedStaffService = module.get<StaffService>(StaffService);
     staffService = {
       createBotWithAgent: jest.spyOn(
         injectedStaffService,
         'createBotWithAgent',
+      ),
+      generateShortRoleTitle: jest.spyOn(
+        injectedStaffService,
+        'generateShortRoleTitle',
       ),
     };
   });
@@ -383,7 +395,9 @@ describe('CommonStaffService', () => {
     });
 
     it('sets BotExtra.commonStaff with dto fields', async () => {
+      staffService.generateShortRoleTitle.mockResolvedValueOnce('Dev');
       const dto = makeCreateDto({
+        displayName: 'Morgan',
         roleTitle: 'Dev',
         persona: 'Expert',
         jobDescription: 'Codes',
@@ -405,9 +419,35 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           commonStaff: expect.objectContaining({
             roleTitle: 'Dev',
+            shortRoleTitle: 'Dev',
             persona: 'Expert',
             jobDescription: 'Codes',
             model: dto.model,
+            identity: { name: 'Morgan' },
+          }),
+        }),
+      );
+    });
+
+    it('generates a short role title with Haiku when creating staff', async () => {
+      staffService.generateShortRoleTitle.mockResolvedValueOnce('Perf');
+      const dto = makeCreateDto({
+        roleTitle: 'Performance Tracking Analyst',
+      });
+
+      await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      expect(staffService.generateShortRoleTitle).toHaveBeenCalledWith({
+        tenantId: TENANT_ID,
+        installedApplicationId: INSTALLED_APP_ID,
+        roleTitle: 'Performance Tracking Analyst',
+      });
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          commonStaff: expect.objectContaining({
+            roleTitle: 'Performance Tracking Analyst',
+            shortRoleTitle: 'Perf',
           }),
         }),
       );
@@ -927,6 +967,26 @@ describe('CommonStaffService', () => {
       );
     });
 
+    it('mirrors displayName updates into common staff identity.name', async () => {
+      const dto = makeUpdateDto({ displayName: 'New Name' });
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
+
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          commonStaff: expect.objectContaining({
+            identity: { name: 'New Name' },
+          }),
+        }),
+      );
+    });
+
     it('does not update display name when not provided', async () => {
       const dto = makeUpdateDto({ displayName: undefined });
       await service.updateStaff(
@@ -1007,6 +1067,7 @@ describe('CommonStaffService', () => {
     });
 
     it('merges BotExtra.commonStaff with existing values', async () => {
+      staffService.generateShortRoleTitle.mockResolvedValueOnce('New');
       const existingBot = {
         ...makeBotResult().bot,
         extra: {
@@ -1032,8 +1093,58 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           commonStaff: expect.objectContaining({
             roleTitle: 'New Role',
+            shortRoleTitle: 'New',
             persona: 'Old Persona', // preserved
           }),
+        }),
+      );
+    });
+
+    it('regenerates shortRoleTitle when roleTitle is updated', async () => {
+      staffService.generateShortRoleTitle.mockResolvedValueOnce('产品');
+      const dto = makeUpdateDto({ roleTitle: '产品经理' });
+
+      await service.updateStaff(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        BOT_ID,
+        dto,
+        OWNER_ID,
+      );
+
+      expect(staffService.generateShortRoleTitle).toHaveBeenCalledWith({
+        tenantId: TENANT_ID,
+        installedApplicationId: INSTALLED_APP_ID,
+        roleTitle: '产品经理',
+      });
+      expect(botService.updateBotExtra).toHaveBeenCalledWith(
+        BOT_ID,
+        expect.objectContaining({
+          commonStaff: expect.objectContaining({
+            roleTitle: '产品经理',
+            shortRoleTitle: '产品',
+          }),
+        }),
+      );
+    });
+
+    it('generates concise role labels with Haiku', async () => {
+      mockGenerateText.mockResolvedValueOnce({ text: '"Ops Lead."' });
+
+      const result = await injectedStaffService.generateShortRoleTitle({
+        tenantId: TENANT_ID,
+        installedApplicationId: INSTALLED_APP_ID,
+        roleTitle: 'Operations Lead for Enterprise Workflow Automation',
+      });
+
+      expect(result).toBe('Ops Lead');
+      expect(mockGenerateText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          temperature: 0.2,
+          maxOutputTokens: 32,
+          prompt: expect.stringContaining(
+            'Operations Lead for Enterprise Workflow Automation',
+          ),
         }),
       );
     });

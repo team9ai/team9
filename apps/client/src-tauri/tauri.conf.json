@@ -29,7 +29,8 @@
         "acceptFirstMouse": true,
         "alwaysOnTop": false,
         "contentProtected": false,
-        "skipTaskbar": false
+        "skipTaskbar": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

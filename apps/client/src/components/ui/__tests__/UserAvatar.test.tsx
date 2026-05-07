@@ -64,6 +64,23 @@ describe("UserAvatar", () => {
     expect(image).toHaveAttribute("src", "https://example.com/avatar.png");
   });
 
+  it("renders an AI corner badge only when requested", () => {
+    const { rerender } = render(
+      <UserAvatar userId="bot-1" username="helper-bot" isBot />,
+    );
+
+    expect(screen.queryByText("AI")).not.toBeInTheDocument();
+
+    rerender(
+      <UserAvatar userId="bot-1" username="helper-bot" isBot showAiBadge />,
+    );
+
+    const badge = screen.getByText("AI");
+
+    expect(badge).toHaveAttribute("aria-hidden", "true");
+    expect(badge).toHaveClass("absolute", "left-[calc(100%-5px)]", "bottom-0");
+  });
+
   it("uses the username when the name is whitespace only", () => {
     render(<UserAvatar username="helper" name="   " />);
 

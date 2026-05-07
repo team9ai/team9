@@ -11,18 +11,23 @@ import { routinesApi } from "@/services/api/routines";
 import type { RoutineDetail } from "@/types/routine";
 
 /**
- * First two segments of a UUID (mirrors the server-side helper at
+ * Random tail of a canonical UUID (mirrors the server-side helper at
  * `apps/server/apps/task-worker/src/folder9/provision-routine-folder.ts`).
  *
- * Example: `slugifyUuid("7f3a2b1c-1111-2222-3333-444455556666")` →
- * `"7f3a2b1c-1111"`.
+ * Example: `slugifyUuid("019dfa50-5944-7249-8b85-5fe11a2719e8")` →
+ * `"5fe11a2719e8"`.
  *
  * Inlined here (rather than imported) because the server-side helper
  * lives in a different package and the conversion is trivial; both
  * sides MUST stay in lockstep — change one and update the other.
  */
 export function slugifyUuid(id: string): string {
-  return id.split("-").slice(0, 2).join("-");
+  const normalized = id.trim().toLowerCase();
+  const compact = normalized.replace(/-/g, "");
+  if (/^[0-9a-f]{32}$/.test(compact)) {
+    return compact.slice(-12);
+  }
+  return normalized.split("-").slice(0, 2).join("-");
 }
 
 /**

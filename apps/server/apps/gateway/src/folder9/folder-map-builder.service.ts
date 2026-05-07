@@ -72,16 +72,6 @@ export class FolderMapBuilder {
         `agentId "${ctx.agentId}" does not match sessionId agent "${shape.agentId}"`,
       );
     }
-    if (ctx.routineId !== undefined && shape.kind !== 'routine') {
-      // Defensive cross-check: if the caller supplies a routineId, the
-      // sessionId must actually be a routine session. Mismatches
-      // (e.g. DM sessionId + routineId) would otherwise silently emit
-      // a routine.* mount tied to an unrelated session.
-      throw new BadRequestException(
-        `routineId provided but sessionId scope is "${shape.kind}", expected "routine"`,
-      );
-    }
-
     const tenantId = shape.tenantId;
     const result: Record<string, FolderMapEntry> = {};
 
@@ -127,10 +117,12 @@ export class FolderMapBuilder {
       });
     }
 
-    // routine.{tmp,home} only when the caller asked for a routine
-    // session AND the session itself is a routine (mismatch already
-    // rejected above). routine.document is intentionally NOT emitted.
-    if (ctx.routineId !== undefined && shape.kind === 'routine') {
+    // routine.{tmp,home} whenever the session context carries a routineId.
+    // Routine creation conversations are DM-backed sessionIds with a
+    // routineId in team9Context, so tying this only to shape.kind==='routine'
+    // would drop the routine workspace in the main authoring flow.
+    // routine.document is intentionally NOT emitted.
+    if (ctx.routineId !== undefined) {
       for (const mountKey of ['tmp', 'home'] as const) {
         await provisionInto(`routine.${mountKey}`, {
           workspaceId: tenantId,

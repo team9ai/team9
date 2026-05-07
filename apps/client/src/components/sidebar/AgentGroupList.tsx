@@ -176,7 +176,7 @@ function AgentGroup({
         onClick={handleHeaderClick}
         onKeyDown={handleHeaderKeyDown}
         className={cn(
-          "group flex items-center gap-2 h-8 px-2 rounded-md cursor-pointer select-none",
+          "group relative flex items-center gap-2 h-8 px-2 rounded-md cursor-pointer select-none",
           "text-sm font-medium text-nav-foreground-strong",
           "hover:bg-nav-hover",
           headerHighlighted &&
@@ -191,11 +191,24 @@ function AgentGroup({
           name={group.agentDisplayName}
           avatarUrl={group.agentAvatarUrl}
           isBot
+          showAiBadge
           className="size-5 shrink-0"
           fallbackClassName="text-[0.58rem] font-semibold"
         />
-        <span className="truncate flex-1 text-left">
-          {group.agentDisplayName}
+        <span className="min-w-0 flex flex-1 items-baseline gap-1.5 text-left">
+          <span className="min-w-0 truncate">{group.agentDisplayName}</span>
+          {group.agentSubtitle && (
+            <span
+              className={cn(
+                "ml-auto shrink-0 max-w-[5.5rem] truncate text-[0.68rem] font-normal text-nav-foreground-muted",
+                "transition-[margin] group-hover:mr-6 group-focus-within:mr-6",
+                (expanded || headerHighlighted) && "mr-6",
+              )}
+              title={group.agentSubtitle}
+            >
+              {group.agentSubtitle}
+            </span>
+          )}
         </span>
         <button
           type="button"
@@ -209,7 +222,7 @@ function AgentGroup({
             defaultValue: "新建话题",
           })}
           className={cn(
-            "shrink-0 inline-flex size-5 items-center justify-center rounded",
+            "absolute right-2 shrink-0 inline-flex size-5 items-center justify-center rounded",
             "text-nav-foreground-subtle transition-opacity",
             "hover:text-nav-foreground-strong hover:bg-nav-hover",
             "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",

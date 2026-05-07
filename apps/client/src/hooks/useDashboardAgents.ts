@@ -39,6 +39,7 @@ export interface DashboardAgent {
   canSwitchModel: boolean;
   staffKind: "common" | "personal" | "other" | null;
   roleTitle: string | null;
+  shortRoleTitle: string | null;
   ownerName: string | null;
 }
 
@@ -83,6 +84,10 @@ function getStaffKind(applicationId: string): DashboardAgent["staffKind"] {
 
 function getBotRoleTitle(bot: DashboardBot): string | null {
   return "roleTitle" in bot ? (bot.roleTitle ?? null) : null;
+}
+
+function getBotShortRoleTitle(bot: DashboardBot): string | null {
+  return "shortRoleTitle" in bot ? (bot.shortRoleTitle ?? null) : null;
 }
 
 function getBotOwnerId(bot: DashboardBot): string | null {
@@ -159,6 +164,7 @@ export function buildDashboardAgents(
         staffKind,
         roleTitle:
           getBotRoleTitle(bot) ?? existingChannel?.otherUser?.roleTitle ?? null,
+        shortRoleTitle: getBotShortRoleTitle(bot),
         ownerName,
       });
     }
@@ -184,6 +190,7 @@ export function buildDashboardAgents(
       canSwitchModel: false,
       staffKind: otherUser.staffKind ?? null,
       roleTitle: otherUser.roleTitle ?? null,
+      shortRoleTitle: null,
       ownerName: otherUser.ownerName ?? null,
     });
   }

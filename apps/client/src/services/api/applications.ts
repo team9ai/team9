@@ -165,6 +165,7 @@ export interface CommonStaffBotInfo {
   username: string;
   displayName: string | null;
   roleTitle: string | null;
+  shortRoleTitle?: string | null;
   persona: string | null;
   jobDescription: string | null;
   avatarUrl: string | null;

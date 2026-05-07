@@ -23,7 +23,6 @@ import type { AgentEventMetadata, Message } from "@/types/im";
  */
 const AGENT_EVENT_TYPES = new Set<AgentEventMetadata["agentEventType"]>([
   "thinking",
-  "writing",
   "tool_call",
   "tool_result",
   "agent_start",
@@ -66,6 +65,8 @@ export type RoundGroupItem =
        *     row). Each such `tool_result` therefore contributes 0.
        *   - `turn_separator` renders as `null` in TrackingEventItem, so it
        *     is never shown to the user and contributes 0.
+       *   - `agent_start` is a hidden lifecycle marker in MessageItem and
+       *     contributes 0.
        *
        * Unpaired tool events (a `tool_result` without a matching `tool_call`
        * in the same round, or a `tool_call` without a matching result) still
@@ -125,6 +126,7 @@ function countVisibleSteps(roundMessages: Message[]): number {
     if (metadata === null || typeof metadata !== "object") continue;
     const record = metadata as Record<string, unknown>;
     const eventType = record.agentEventType;
+    if (eventType === "agent_start") continue;
     if (eventType === "turn_separator") continue;
     if (
       eventType === "tool_result" &&

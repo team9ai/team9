@@ -1521,6 +1521,50 @@ describe('WebsocketGateway', () => {
         }),
       );
     });
+
+    it('refreshes TTL and broadcasts metadata deltas for bot streams', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+
+      await expect(
+        gateway.handleStreamingMetadata(
+          client as never,
+          {
+            streamId: 'stream-1',
+            channelId: 'channel-1',
+            metadata: {
+              agentEventType: 'tool_call',
+              status: 'running',
+              toolCallId: 'tc-1',
+              toolName: 'RunScript',
+              toolArgsText: '{"cmd":"pnpm test"}',
+              toolPhase: 'args_streaming',
+            },
+          } as never,
+        ),
+      ).resolves.toEqual({ success: true });
+
+      expect(deps.redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION('stream-1'),
+        120,
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.STREAMING.METADATA,
+        expect.objectContaining({
+          streamId: 'stream-1',
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          metadata: expect.objectContaining({
+            toolCallId: 'tc-1',
+            toolArgsText: '{"cmd":"pnpm test"}',
+          }),
+        }),
+      );
+    });
   });
 
   describe('cleanupBotStreams', () => {

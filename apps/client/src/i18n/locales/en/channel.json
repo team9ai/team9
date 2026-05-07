@@ -72,6 +72,7 @@
   "permanentDelete": "Permanently delete (cannot be recovered)",
   "deleting": "Deleting...",
   "channelNotFound": "Channel not found",
+  "archivedReadOnly": "This conversation has ended. New messages cannot be sent.",
   "loadingChannel": "Loading channel...",
   "loadingMessages": "Loading messages...",
   "loadingMoreMessages": "Loading more messages...",
@@ -96,17 +97,33 @@
   "botInstanceStarting": "Starting...",
   "botInstanceStartingMessage": "The bot's instance is starting up, please wait a moment...",
   "botThinking": {
-    "texts": {
-      "thinking": "Thinking",
-      "analyzing": "Analyzing",
-      "reasoning": "Reasoning",
-      "computing": "Computing",
-      "parsing": "Parsing",
-      "brewing": "Brewing",
-      "crafting": "Crafting",
-      "decoding": "Decoding",
-      "imagining": "Imagining",
-      "composing": "Composing"
+    "warmingTexts": {
+      "warming": "Warming up",
+      "headingOver": "Heading over",
+      "commuting": "Commuting",
+      "gatheringThoughts": "Gathering thoughts",
+      "gettingReady": "Getting ready",
+      "findingSignal": "Finding signal",
+      "checkingMap": "Checking the map",
+      "openingNotebook": "Opening notes",
+      "syncingContext": "Syncing context",
+      "confirmingTask": "Confirming the task",
+      "queueingUp": "Queueing up",
+      "settingUp": "Setting up"
+    },
+    "workingTexts": {
+      "workingHard": "Working hard",
+      "thinkingActively": "Thinking actively",
+      "processing": "Processing",
+      "makingProgress": "Making progress",
+      "focusing": "Focusing",
+      "reviewingContext": "Reviewing context",
+      "breakingItDown": "Breaking it down",
+      "checkingDetails": "Checking details",
+      "connectingDots": "Connecting the dots",
+      "draftingAnswer": "Drafting the answer",
+      "verifyingResult": "Verifying the result",
+      "polishingResponse": "Polishing the response"
     }
   },
   "tracking": {
@@ -157,6 +174,15 @@
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}}s",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
+    },
+    "roundEnd": {
+      "label": "Round ended",
+      "duration": "Duration: {{duration}}"
+    },
+    "roundDuration": {
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s",
+      "hoursMinutes": "{{hours}}h {{minutes}}m"
     },
     "toolCall": {
       "argsLabel": "Args",

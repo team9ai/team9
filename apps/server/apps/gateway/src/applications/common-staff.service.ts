@@ -36,6 +36,21 @@ export type { StaffBotResult as CommonStaffResult };
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
 const HIVE_BLUEPRINT_ID = 'team9-common-staff';
 
+function mergeIdentityName(
+  identity: Record<string, unknown> | undefined,
+  displayName: string | undefined,
+): Record<string, unknown> | undefined {
+  if (displayName === undefined) return identity;
+  const next = { ...(identity ?? {}) };
+  const name = displayName.trim();
+  if (name) {
+    next.name = name;
+  } else {
+    delete next.name;
+  }
+  return next;
+}
+
 @Injectable()
 export class CommonStaffService {
   private readonly logger = new Logger(CommonStaffService.name);
@@ -88,9 +103,10 @@ export class CommonStaffService {
     // bootstrap) → "New Staff". Falling through to roleTitle lets callers
     // (e.g. onboarding) seed staff with a meaningful temporary name while
     // still leaving the bootstrap flow to ask the mentor for a final name.
+    const explicitDisplayName = dto.displayName?.trim();
     let effectiveDisplayName: string;
-    if (dto.displayName?.trim()) {
-      effectiveDisplayName = dto.displayName.trim();
+    if (explicitDisplayName) {
+      effectiveDisplayName = explicitDisplayName;
     } else if (dto.roleTitle?.trim()) {
       effectiveDisplayName = dto.roleTitle.trim();
     } else if (dto.agenticBootstrap) {
@@ -124,13 +140,23 @@ export class CommonStaffService {
       );
     }
 
+    const shortRoleTitle = await this.generateShortRoleTitleOrNull(
+      tenantId,
+      installedApplicationId,
+      dto.roleTitle,
+    );
+
     // 3. Create bot + register agent via StaffService
     const extra: BotExtra = {
       commonStaff: {
         roleTitle: dto.roleTitle,
+        shortRoleTitle,
         persona: dto.persona,
         jobDescription: dto.jobDescription,
         model: dto.model,
+        ...(explicitDisplayName
+          ? { identity: { name: explicitDisplayName } }
+          : {}),
       },
     };
 
@@ -340,6 +366,14 @@ export class CommonStaffService {
     // 3. Build merged BotExtra and delegate to StaffService
     const existingExtra = (bot.extra as BotExtra) ?? {};
     const existingCommonStaff = existingExtra.commonStaff ?? {};
+    const shortRoleTitle =
+      dto.roleTitle !== undefined
+        ? await this.generateShortRoleTitleOrNull(
+            tenantId,
+            installedApplicationId,
+            dto.roleTitle,
+          )
+        : existingCommonStaff.shortRoleTitle;
 
     // dm outbound policy: partial-update semantics — undefined means no change
     const currentPolicy = existingExtra.dmOutboundPolicy ?? null;
@@ -350,7 +384,17 @@ export class CommonStaffService {
       ...existingExtra,
       commonStaff: {
         ...existingCommonStaff,
-        ...(dto.roleTitle !== undefined ? { roleTitle: dto.roleTitle } : {}),
+        ...(dto.displayName !== undefined
+          ? {
+              identity: mergeIdentityName(
+                existingCommonStaff.identity,
+                dto.displayName,
+              ),
+            }
+          : {}),
+        ...(dto.roleTitle !== undefined
+          ? { roleTitle: dto.roleTitle, shortRoleTitle }
+          : {}),
         ...(dto.persona !== undefined ? { persona: dto.persona } : {}),
         ...(dto.jobDescription !== undefined
           ? { jobDescription: dto.jobDescription }
@@ -391,6 +435,27 @@ export class CommonStaffService {
         to: nextPolicy,
         timestamp: new Date().toISOString(),
       });
+    }
+  }
+
+  private async generateShortRoleTitleOrNull(
+    tenantId: string,
+    installedApplicationId: string,
+    roleTitle: string | null | undefined,
+  ): Promise<string | null> {
+    if (!roleTitle?.trim()) return null;
+
+    try {
+      return await this.staffService.generateShortRoleTitle({
+        tenantId,
+        installedApplicationId,
+        roleTitle,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to generate short role title for "${roleTitle}": ${err}`,
+      );
+      return null;
     }
   }
 
