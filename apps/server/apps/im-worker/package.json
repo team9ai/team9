@@ -37,6 +37,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@jest/globals": "^30.2.0",
     "typescript": "^5.7.3"
   }
 }
