@@ -358,6 +358,18 @@ describe('ExecutorService', () => {
     );
   });
 
+  it('should pass the routine creator as userId in ExecutionContext', async () => {
+    returningResultQueue = [[{ ...sampleTask, creatorId: 'creator-xyz' }]];
+    selectResultQueue = [[sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001');
+
+    expect(mockStrategy.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'creator-xyz' }),
+    );
+  });
+
   it('should persist trigger metadata and pass folderId/folder9Token in ExecutionContext', async () => {
     returningResultQueue = [[sampleTask]];
     selectResultQueue = [[sampleBot]];

@@ -289,6 +289,7 @@ export class ExecutorService {
       routineId,
       executionId,
       botId: routine.botId,
+      userId: routine.creatorId,
       channelId,
       title: routine.title,
       folderId,

@@ -2,6 +2,12 @@ export interface ExecutionContext {
   routineId: string;
   executionId: string;
   botId: string;
+  /**
+   * Human user that owns/started the routine execution. Required by
+   * agent-pi session creation so the run is attached to the correct
+   * user/agent session inventory.
+   */
+  userId?: string;
   channelId: string;
   title: string;
   /**
