@@ -154,9 +154,27 @@ const DEFAULT_EXPIRES_IN = 300; // 5 minutes
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly publicUrl: string | undefined;
+  private readonly presignClient: S3Client;
+  private readonly ownsPresignClient: boolean;
 
   constructor(@Inject(S3_CLIENT) private readonly s3Client: S3Client) {
     this.publicUrl = env.S3_PUBLIC_URL;
+
+    if (env.S3_PUBLIC_URL && env.S3_PUBLIC_URL !== env.S3_ENDPOINT) {
+      this.presignClient = new S3Client({
+        endpoint: env.S3_PUBLIC_URL,
+        region: env.S3_REGION,
+        credentials: {
+          accessKeyId: env.S3_ACCESS_KEY,
+          secretAccessKey: env.S3_SECRET_KEY,
+        },
+        forcePathStyle: env.S3_FORCE_PATH_STYLE,
+      });
+      this.ownsPresignClient = true;
+    } else {
+      this.presignClient = s3Client;
+      this.ownsPresignClient = false;
+    }
   }
 
   // ==================== Frontend Direct Upload ====================
@@ -324,7 +342,7 @@ export class StorageService {
       Key: key,
     });
 
-    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+    const url = await getSignedUrl(this.presignClient, command, { expiresIn });
 
     this.logger.debug(
       `Created presigned download URL for ${bucket}/${key} (expires in ${expiresIn}s)`,
@@ -555,6 +573,13 @@ export class StorageService {
    */
   getClient(): S3Client {
     return this.s3Client;
+  }
+
+  destroy(): void {
+    if (this.ownsPresignClient) {
+      this.presignClient.destroy();
+    }
+    this.s3Client.destroy();
   }
 
   // ==================== Lifecycle Rules ====================

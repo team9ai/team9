@@ -45,7 +45,6 @@ export class StorageModule implements OnModuleDestroy {
   constructor(private readonly storageService: StorageService) {}
 
   onModuleDestroy() {
-    const client = this.storageService.getClient();
-    client.destroy();
+    this.storageService.destroy();
   }
 }
