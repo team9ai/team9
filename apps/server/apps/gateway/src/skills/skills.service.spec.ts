@@ -119,6 +119,7 @@ describe('SkillsService', () => {
     createFolder: jest.Mock;
     createToken: jest.Mock;
     commit: jest.Mock;
+    deleteFolder: jest.Mock;
   };
   let service: InstanceType<typeof SkillsService>;
 
@@ -154,6 +155,7 @@ describe('SkillsService', () => {
       createFolder: jest.fn(async () => ({ id: 'folder-1' })),
       createToken: jest.fn(async () => ({ token: 'folder-token-1' })),
       commit: jest.fn(async () => ({ commit: 'commit-1', branch: 'main' })),
+      deleteFolder: jest.fn(async () => undefined),
     };
 
     service = new SkillsService(db as never, folder9Client as never);
@@ -479,5 +481,48 @@ describe('SkillsService', () => {
     });
 
     expect(db.delete).toHaveBeenCalled();
+    expect(folder9Client.deleteFolder).not.toHaveBeenCalled();
+  });
+
+  it('deletes the folder9 folder when folderId is set', async () => {
+    selectPlans.push({
+      terminal: 'limit',
+      result: [{ id: 'skill-1', tenantId, folderId: 'folder-1' }],
+    });
+
+    await expect(service.delete('skill-1', tenantId)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(folder9Client.deleteFolder).toHaveBeenCalledTimes(1);
+    expect(folder9Client.deleteFolder).toHaveBeenCalledWith(
+      tenantId,
+      'folder-1',
+    );
+    expect(db.delete).toHaveBeenCalled();
+  });
+
+  it('does not delete the DB record when folder9 deleteFolder throws', async () => {
+    selectPlans.push({
+      terminal: 'limit',
+      result: [{ id: 'skill-1', tenantId, folderId: 'folder-1' }],
+    });
+    folder9Client.deleteFolder.mockRejectedValueOnce(
+      new Error('folder9 error'),
+    );
+
+    await expect(service.delete('skill-1', tenantId)).rejects.toThrow(
+      'folder9 error',
+    );
+
+    expect(db.delete).not.toHaveBeenCalled();
+  });
+
+  it('update throws NotFoundException when skill does not exist', async () => {
+    selectPlans.push({ terminal: 'limit', result: [] });
+
+    await expect(
+      service.update('missing-id', { name: 'X' }, tenantId),
+    ).rejects.toThrow(new NotFoundException('Skill not found'));
   });
 });
