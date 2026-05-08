@@ -93,6 +93,8 @@
     "newPagePrompt": "Page path",
     "newFolder": "New folder",
     "newFolderPrompt": "Folder path",
+    "deletePage": "Delete",
+    "deletePageConfirm": "Delete {{path}}? This can't be undone.",
     "uploadFile": "Upload",
     "uploadDescription": "Upload files into a pending Wiki proposal, then let AI update related pages marked for automatic updates.",
     "selectUploadItems": "Select files or folders",

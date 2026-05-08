@@ -212,6 +212,7 @@ describe("WikiListItem", () => {
     archivePending.value = false;
     document.body.innerHTML = "";
     vi.spyOn(window, "alert").mockImplementation(() => {});
+    vi.spyOn(window, "confirm").mockImplementation(() => true);
     vi.spyOn(window, "prompt").mockImplementation(() => null);
     act(() => {
       useWikiStore.getState().reset();
@@ -451,6 +452,46 @@ describe("WikiListItem", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/wiki/$wikiSlug/$",
       params: { wikiSlug: "public", _splat: "api/untitled/index.md9" },
+    });
+  });
+
+  it("deletes the selected tree page from its actions menu and opens the root page", async () => {
+    act(() => {
+      useWikiStore.getState().toggleDirectory("wiki:wiki-1");
+      useWikiStore.getState().toggleDirectory("api");
+      useWikiStore.getState().setSelectedWiki("wiki-1");
+      useWikiStore.getState().setSelectedPage("api/auth.md");
+    });
+    mockUseWikiTree.mockReturnValue({ data: treeEntries });
+
+    render(<WikiListItem wiki={wiki} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("wiki-tree-node-actions-api/auth.md"));
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByTestId("wiki-tree-node-menu-delete-api/auth.md"),
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Delete api/auth.md",
+        files: [
+          {
+            path: "api/auth.md",
+            content: "",
+            action: "delete",
+          },
+        ],
+      });
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/wiki/$wikiSlug/$",
+        params: { wikiSlug: "public", _splat: "index.md9" },
+      });
     });
   });
 

@@ -184,6 +184,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isCreatingFile, setIsCreatingFile] = useState(false);
+  const [isDeletingFile, setIsDeletingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedUploadFiles, setSelectedUploadFiles] = useState<File[]>([]);
   const [uploadProposalId, setUploadProposalId] = useState<string | null>(null);
@@ -271,6 +272,18 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
     void queryClient.invalidateQueries({ queryKey: wikiKeys.pages(wiki.id) });
   };
 
+  const refreshAfterDelete = () => {
+    wikiActions.expandDirectory(expandKey);
+    wikiActions.setSelectedWiki(wiki.id);
+    wikiActions.setSelectedPage(DEFAULT_WIKI_INDEX_PATH);
+    navigate({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: wiki.slug, _splat: DEFAULT_WIKI_INDEX_PATH },
+    });
+    void queryClient.invalidateQueries({ queryKey: wikiKeys.trees(wiki.id) });
+    void queryClient.invalidateQueries({ queryKey: wikiKeys.pages(wiki.id) });
+  };
+
   const createFile = async (
     path: string,
     content: string,
@@ -321,6 +334,39 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       `---\nsummary: ""\n---\n\n# ${stripWikiPageExtension(title)}\n\n`,
       "text",
     );
+  };
+
+  const handleDeletePage = async (path: string) => {
+    if (isDeletingFile) return;
+    if (
+      !window.confirm(
+        t("listItem.deletePageConfirm", {
+          path,
+          defaultValue: `Delete ${path}?`,
+        }),
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingFile(true);
+    try {
+      await wikisApi.commit(wiki.id, {
+        message: `Delete ${path}`,
+        files: [
+          {
+            path,
+            content: "",
+            action: "delete",
+          },
+        ],
+      });
+      refreshAfterDelete();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Delete failed");
+    } finally {
+      setIsDeletingFile(false);
+    }
   };
 
   const handleOpenUploadDialog = () => {
@@ -505,6 +551,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
               wikiSlug={wiki.slug}
               depth={1}
               onCreatePage={handleCreateChildPage}
+              onDeletePage={(path) => void handleDeletePage(path)}
             />
           ))}
         </div>

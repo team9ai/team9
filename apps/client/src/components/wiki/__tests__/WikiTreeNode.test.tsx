@@ -7,6 +7,7 @@ import type { WikiTreeNodeData } from "@/lib/wiki-tree";
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseWikiPage = vi.hoisted(() => vi.fn());
 const mockCreatePage = vi.hoisted(() => vi.fn());
+const mockDeletePage = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -36,6 +37,7 @@ describe("WikiTreeNode", () => {
     mockUseWikiPage.mockReset();
     mockUseWikiPage.mockReturnValue({ data: undefined });
     mockCreatePage.mockReset();
+    mockDeletePage.mockReset();
     act(() => {
       useWikiStore.getState().reset();
     });
@@ -244,6 +246,7 @@ describe("WikiTreeNode", () => {
         wikiSlug="public"
         depth={0}
         onCreatePage={mockCreatePage}
+        onDeletePage={mockDeletePage}
       />,
     );
 
@@ -252,6 +255,29 @@ describe("WikiTreeNode", () => {
     expect(
       await screen.findByTestId("wiki-tree-node-context-create-api"),
     ).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("wiki-tree-node-context-delete-api"),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the right-click delete action on the folder document path", async () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+        onCreatePage={mockCreatePage}
+        onDeletePage={mockDeletePage}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /api/ }));
+    fireEvent.click(
+      await screen.findByTestId("wiki-tree-node-context-delete-api"),
+    );
+
+    expect(mockDeletePage).toHaveBeenCalledWith("api/index.md9");
   });
 
   it("treats an index-only folder as a page row without expanding it", () => {
@@ -388,7 +414,7 @@ describe("WikiTreeNode", () => {
       />,
     );
 
-    const row = screen.getByRole("treeitem", { name: /api/ });
+    const row = screen.getByTestId("wiki-tree-node-row-api");
     expect(row).toHaveClass(
       "bg-[var(--nav-active)]",
       "text-[var(--nav-foreground-strong)]",
@@ -470,7 +496,7 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    const row = screen.getByRole("treeitem", { name: /auth\.md/ });
+    const row = screen.getByTestId("wiki-tree-node-row-api/auth.md");
     expect(row).toHaveClass(
       "bg-[var(--nav-active)]",
       "text-[var(--nav-foreground-strong)]",
@@ -495,7 +521,9 @@ describe("WikiTreeNode", () => {
 
     const row = screen.getByRole("treeitem", { name: /auth\.md/ });
     expect(row).not.toHaveAttribute("aria-selected");
-    expect(row).not.toHaveClass("bg-[var(--nav-active)]");
+    expect(
+      screen.getByTestId("wiki-tree-node-row-api/auth.md"),
+    ).not.toHaveClass("bg-[var(--nav-active)]");
   });
 
   it("does not highlight a non-matching file", () => {
@@ -509,8 +537,9 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
-    const row = screen.getByRole("treeitem", { name: /auth\.md/ });
-    expect(row).not.toHaveClass("bg-[var(--nav-active)]");
+    expect(
+      screen.getByTestId("wiki-tree-node-row-api/auth.md"),
+    ).not.toHaveClass("bg-[var(--nav-active)]");
   });
 
   it("does not highlight a directory even when its path matches selectedPagePath", () => {

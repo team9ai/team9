@@ -93,6 +93,8 @@
     "newPagePrompt": "页面路径",
     "newFolder": "新建文件夹",
     "newFolderPrompt": "文件夹路径",
+    "deletePage": "删除",
+    "deletePageConfirm": "确定删除 {{path}} 吗？此操作无法撤销。",
     "uploadFile": "上传",
     "uploadDescription": "将文件上传为待审核的知识库变更草稿，然后由 AI 更新已开启自动更新的相关页面。",
     "selectUploadItems": "选择文件或文件夹",

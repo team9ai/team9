@@ -6,6 +6,7 @@ import {
   Folder,
   MoreHorizontal,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -26,12 +27,14 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { WikiTreeNodeData } from "@/lib/wiki-tree";
@@ -42,6 +45,7 @@ interface WikiTreeNodeProps {
   wikiSlug: string;
   depth: number;
   onCreatePage?: (parentPath: string) => void;
+  onDeletePage?: (path: string) => void;
 }
 
 function findFolderIndexChild(node: WikiTreeNodeData): WikiTreeNodeData | null {
@@ -74,6 +78,7 @@ export function WikiTreeNode({
   wikiSlug,
   depth,
   onCreatePage,
+  onDeletePage,
 }: WikiTreeNodeProps) {
   const { t } = useTranslation("wiki");
   const navigate = useNavigate();
@@ -113,16 +118,35 @@ export function WikiTreeNode({
     node.type === "dir"
       ? node.path
       : node.path.split("/").slice(0, -1).join("/");
+  const deletePath =
+    indexChild?.path ?? (node.type === "file" ? node.path : null);
+  const canDeletePage = Boolean(onDeletePage && deletePath);
 
   const handleCreatePage = () => {
     if (!onCreatePage) return;
     onCreatePage(createParentPath);
   };
 
-  const actionMenu = (itemTestId: string) => (
+  const handleDeletePage = () => {
+    if (!onDeletePage || !deletePath) return;
+    onDeletePage(deletePath);
+  };
+
+  const createActionMenu = (itemTestId: string) => (
     <DropdownMenuItem data-testid={itemTestId} onSelect={handleCreatePage}>
       <Plus size={14} />
       {t("listItem.newPage")}
+    </DropdownMenuItem>
+  );
+
+  const deleteActionMenu = (itemTestId: string) => (
+    <DropdownMenuItem
+      data-testid={itemTestId}
+      className="text-destructive focus:text-destructive"
+      onSelect={handleDeletePage}
+    >
+      <Trash2 size={14} />
+      {t("listItem.deletePage")}
     </DropdownMenuItem>
   );
 
@@ -172,6 +196,7 @@ export function WikiTreeNode({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
+            data-testid={`wiki-tree-node-row-${node.path}`}
             className={cn(
               "group/wiki-tree-node flex items-center hover:bg-muted/50",
               isActive &&
@@ -190,11 +215,7 @@ export function WikiTreeNode({
               type="button"
               onClick={handleClick}
               style={{ paddingLeft: `${8 + depth * 14}px` }}
-              className={cn(
-                "flex min-w-0 flex-1 items-center gap-1 px-2 py-1 text-xs text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isActive &&
-                  "bg-[var(--nav-active)] text-[var(--nav-foreground-strong)] font-medium",
-              )}
+              className="flex min-w-0 flex-1 items-center gap-1 px-2 py-1 text-xs text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {node.type === "dir" && !isIndexOnlyDirectory ? (
                 isExpanded ? (
@@ -219,18 +240,20 @@ export function WikiTreeNode({
               )}
               <span className="truncate">{displayName}</span>
             </button>
-            {onCreatePage && (
+            {(onCreatePage || canDeletePage) && (
               <>
-                <button
-                  type="button"
-                  aria-label={t("listItem.newPage")}
-                  title={t("listItem.newPage")}
-                  data-testid={`wiki-tree-node-create-${node.path}`}
-                  onClick={handleCreatePage}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/wiki-tree-node:opacity-100"
-                >
-                  <Plus size={14} />
-                </button>
+                {onCreatePage && (
+                  <button
+                    type="button"
+                    aria-label={t("listItem.newPage")}
+                    title={t("listItem.newPage")}
+                    data-testid={`wiki-tree-node-create-${node.path}`}
+                    onClick={handleCreatePage}
+                    className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/wiki-tree-node:opacity-100"
+                  >
+                    <Plus size={14} />
+                  </button>
+                )}
                 <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -250,22 +273,43 @@ export function WikiTreeNode({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
-                    {actionMenu(`wiki-tree-node-menu-create-${node.path}`)}
+                    {onCreatePage &&
+                      createActionMenu(
+                        `wiki-tree-node-menu-create-${node.path}`,
+                      )}
+                    {onCreatePage && canDeletePage && <DropdownMenuSeparator />}
+                    {canDeletePage &&
+                      deleteActionMenu(
+                        `wiki-tree-node-menu-delete-${node.path}`,
+                      )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
             )}
           </div>
         </ContextMenuTrigger>
-        {onCreatePage && (
+        {(onCreatePage || canDeletePage) && (
           <ContextMenuContent className="w-40">
-            <ContextMenuItem
-              data-testid={`wiki-tree-node-context-create-${node.path}`}
-              onSelect={handleCreatePage}
-            >
-              <Plus size={14} className="mr-2" />
-              {t("listItem.newPage")}
-            </ContextMenuItem>
+            {onCreatePage && (
+              <ContextMenuItem
+                data-testid={`wiki-tree-node-context-create-${node.path}`}
+                onSelect={handleCreatePage}
+              >
+                <Plus size={14} className="mr-2" />
+                {t("listItem.newPage")}
+              </ContextMenuItem>
+            )}
+            {onCreatePage && canDeletePage && <ContextMenuSeparator />}
+            {canDeletePage && (
+              <ContextMenuItem
+                data-testid={`wiki-tree-node-context-delete-${node.path}`}
+                className="text-destructive focus:text-destructive"
+                onSelect={handleDeletePage}
+              >
+                <Trash2 size={14} className="mr-2" />
+                {t("listItem.deletePage")}
+              </ContextMenuItem>
+            )}
           </ContextMenuContent>
         )}
       </ContextMenu>
@@ -279,6 +323,7 @@ export function WikiTreeNode({
               wikiSlug={wikiSlug}
               depth={depth + 1}
               onCreatePage={onCreatePage}
+              onDeletePage={onDeletePage}
             />
           ))}
         </div>
