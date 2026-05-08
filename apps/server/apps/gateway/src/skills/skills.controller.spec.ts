@@ -8,6 +8,9 @@ describe('SkillsController', () => {
     getById: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
+    getSkillFolderTree: jest.Mock;
+    getSkillFolderBlob: jest.Mock;
+    commitSkillFolder: jest.Mock;
   };
   let controller: SkillsController;
 
@@ -18,6 +21,9 @@ describe('SkillsController', () => {
       getById: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      getSkillFolderTree: jest.fn(),
+      getSkillFolderBlob: jest.fn(),
+      commitSkillFolder: jest.fn(),
     };
     controller = new SkillsController(skillsService as never);
   });
@@ -69,7 +75,7 @@ describe('SkillsController', () => {
     expect(skillsService.delete).toHaveBeenCalledWith('skill-1', 'tenant-1');
   });
 
-  it('passes agentAccess default "read" to service.create regardless of dto.agentAccess', async () => {
+  it("passes hardcoded { agentAccess: 'read' } as 4th argument to service.create", async () => {
     skillsService.create.mockResolvedValue({ id: 'skill-2' });
 
     await controller.create(
@@ -83,6 +89,65 @@ describe('SkillsController', () => {
       'user-1',
       'tenant-1',
       { agentAccess: 'read' },
+    );
+  });
+
+  it('getFolderTree forwards path and recursive flags to service', async () => {
+    skillsService.getSkillFolderTree.mockResolvedValue([]);
+
+    await controller.getFolderTree(
+      'skill-1',
+      'user-1',
+      'tenant-1',
+      '/sub',
+      'true',
+    );
+
+    expect(skillsService.getSkillFolderTree).toHaveBeenCalledWith(
+      'skill-1',
+      'user-1',
+      'tenant-1',
+      { path: '/sub', recursive: true },
+    );
+  });
+
+  it('getFolderBlob forwards path to service', async () => {
+    skillsService.getSkillFolderBlob.mockResolvedValue({ content: '' });
+
+    await controller.getFolderBlob(
+      'skill-1',
+      'user-1',
+      'tenant-1',
+      '/skill.md',
+    );
+
+    expect(skillsService.getSkillFolderBlob).toHaveBeenCalledWith(
+      'skill-1',
+      'user-1',
+      'tenant-1',
+      '/skill.md',
+    );
+  });
+
+  it('commitFolder forwards dto to service', async () => {
+    skillsService.commitSkillFolder.mockResolvedValue({ commitId: 'x' });
+
+    const dto = {
+      message: 'm',
+      files: [{ path: 'a', content: 'b', action: 'create' as const }],
+    };
+    await controller.commitFolder(
+      'skill-1',
+      'user-1',
+      'tenant-1',
+      dto as never,
+    );
+
+    expect(skillsService.commitSkillFolder).toHaveBeenCalledWith(
+      'skill-1',
+      'user-1',
+      'tenant-1',
+      dto,
     );
   });
 });
