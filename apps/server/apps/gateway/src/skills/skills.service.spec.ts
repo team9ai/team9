@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 let uuidCounter = 0;
 jest.unstable_mockModule('uuid', () => ({
@@ -100,6 +100,9 @@ function createDeleteBuilder(deleteResults: unknown[]) {
 }
 
 describe('SkillsService', () => {
+  const userId = 'user-1';
+  const tenantId = 'tenant-1';
+
   let selectPlans: Plan[];
   let insertPlans: InsertPlan[];
   let updatePlans: UpdatePlan[];
@@ -163,7 +166,7 @@ describe('SkillsService', () => {
         {
           id: 'skill-1',
           name: 'Skill A',
-          currentVersion: 0,
+          agentAccess: 'read',
           folderId: 'folder-1',
         },
       ],
@@ -175,21 +178,21 @@ describe('SkillsService', () => {
           name: 'Skill A',
           description: 'desc',
         },
-        'user-1',
-        'tenant-1',
+        userId,
+        tenantId,
       ),
     ).resolves.toEqual({
       id: 'skill-1',
       name: 'Skill A',
-      currentVersion: 0,
+      agentAccess: 'read',
       folderId: 'folder-1',
     });
 
-    expect(folder9Client.createFolder).toHaveBeenCalledWith('tenant-1', {
+    expect(folder9Client.createFolder).toHaveBeenCalledWith(tenantId, {
       name: 'Skill A',
       type: 'light',
       owner_type: 'workspace',
-      owner_id: 'tenant-1',
+      owner_id: tenantId,
       approval_mode: 'auto',
       metadata: { team9_kind: 'skill', team9_skill_id: 'uuid-1' },
     });
@@ -201,7 +204,7 @@ describe('SkillsService', () => {
       }),
     );
     expect(folder9Client.commit).toHaveBeenCalledWith(
-      'tenant-1',
+      tenantId,
       'folder-1',
       'folder-token-1',
       {
@@ -218,13 +221,13 @@ describe('SkillsService', () => {
     expect(insertValues[0]).toEqual(
       expect.objectContaining({
         id: 'uuid-1',
-        tenantId: 'tenant-1',
+        tenantId,
         name: 'Skill A',
         description: 'desc',
         type: 'general',
-        currentVersion: 0,
+        agentAccess: 'read',
         folderId: 'folder-1',
-        creatorId: 'user-1',
+        creatorId: userId,
       }),
     );
   });
@@ -236,7 +239,7 @@ describe('SkillsService', () => {
         {
           id: 'skill-1',
           name: 'Skill A',
-          currentVersion: 0,
+          agentAccess: 'read',
           folderId: 'folder-1',
         },
       ],
@@ -250,19 +253,19 @@ describe('SkillsService', () => {
           { path: 'prompt.txt', content: 'world' },
         ],
       },
-      'user-1',
-      'tenant-1',
+      userId,
+      tenantId,
     );
 
     expect(insertValues[0]).toEqual(
       expect.objectContaining({
-        currentVersion: 0,
+        agentAccess: 'read',
         folderId: 'folder-1',
       }),
     );
     expect(insertValues).toHaveLength(1);
     expect(folder9Client.commit).toHaveBeenCalledWith(
-      'tenant-1',
+      tenantId,
       'folder-1',
       'folder-token-1',
       {
@@ -280,91 +283,136 @@ describe('SkillsService', () => {
     );
   });
 
-  it('lists skills with pending suggestion counts and optional type filters', async () => {
-    selectPlans.push(
+  it('persists agentAccess from dto when provided', async () => {
+    insertPlans.push({
+      terminal: 'returning',
+      result: [
+        {
+          id: 'skill-1',
+          name: 'X',
+          agentAccess: 'write',
+          folderId: 'folder-1',
+        },
+      ],
+    });
+
+    const skill = await service.create(
+      { name: 'X', type: 'general', agentAccess: 'write' },
+      userId,
+      tenantId,
+    );
+
+    expect(skill.agentAccess).toBe('write');
+    expect(insertValues[0]).toEqual(
+      expect.objectContaining({ agentAccess: 'write' }),
+    );
+  });
+
+  it('uses caller-supplied default for agentAccess when dto omits it', async () => {
+    insertPlans.push(
       {
-        terminal: 'orderBy',
+        terminal: 'returning',
         result: [
-          { id: 'skill-1', name: 'One' },
-          { id: 'skill-2', name: 'Two' },
+          {
+            id: 'skill-a',
+            name: 'A',
+            agentAccess: 'read',
+            folderId: 'folder-1',
+          },
         ],
       },
       {
-        terminal: 'where',
-        result: [{ skillId: 'skill-1' }, { skillId: 'skill-1' }],
+        terminal: 'returning',
+        result: [
+          {
+            id: 'skill-b',
+            name: 'B',
+            agentAccess: 'write',
+            folderId: 'folder-2',
+          },
+        ],
       },
     );
+    folder9Client.createFolder
+      .mockResolvedValueOnce({ id: 'folder-1' })
+      .mockResolvedValueOnce({ id: 'folder-2' });
+    folder9Client.createToken
+      .mockResolvedValueOnce({ token: 'token-1' })
+      .mockResolvedValueOnce({ token: 'token-2' });
 
-    await expect(service.list('tenant-1', 'prompt' as never)).resolves.toEqual([
-      { id: 'skill-1', name: 'One', pendingSuggestionsCount: 2 },
-      { id: 'skill-2', name: 'Two', pendingSuggestionsCount: 0 },
+    const a = await service.create(
+      { name: 'A', type: 'general' },
+      userId,
+      tenantId,
+      { agentAccess: 'read' },
+    );
+    expect(a.agentAccess).toBe('read');
+    expect(insertValues[0]).toEqual(
+      expect.objectContaining({ agentAccess: 'read' }),
+    );
+
+    const b = await service.create(
+      { name: 'B', type: 'general' },
+      userId,
+      tenantId,
+      { agentAccess: 'write' },
+    );
+    expect(b.agentAccess).toBe('write');
+    expect(insertValues[1]).toEqual(
+      expect.objectContaining({ agentAccess: 'write' }),
+    );
+  });
+
+  it('lists skills without pendingSuggestionsCount', async () => {
+    selectPlans.push({
+      terminal: 'orderBy',
+      result: [
+        { id: 'skill-1', name: 'One', agentAccess: 'read' },
+        { id: 'skill-2', name: 'Two', agentAccess: 'write' },
+      ],
+    });
+
+    const result = await service.list(tenantId, 'prompt' as never);
+    expect(result).toEqual([
+      { id: 'skill-1', name: 'One', agentAccess: 'read' },
+      { id: 'skill-2', name: 'Two', agentAccess: 'write' },
     ]);
+    expect(result[0]).not.toHaveProperty('pendingSuggestionsCount');
   });
 
   it('returns an empty list when there are no skills', async () => {
     selectPlans.push({ terminal: 'orderBy', result: [] });
 
-    await expect(service.list('tenant-1')).resolves.toEqual([]);
+    await expect(service.list(tenantId)).resolves.toEqual([]);
   });
 
-  it('hydrates current version files and pending suggestions in getById', async () => {
-    selectPlans.push(
-      {
-        terminal: 'limit',
-        result: [{ id: 'skill-1', currentVersion: 2, name: 'Skill A' }],
-      },
-      {
-        terminal: 'limit',
-        result: [
-          {
-            id: 'version-2',
-            skillId: 'skill-1',
-            version: 2,
-            fileManifest: [
-              { path: 'README.md', fileId: 'file-1' },
-              { path: 'prompt.txt', fileId: 'file-2' },
-            ],
-          },
-        ],
-      },
-      {
-        terminal: 'where',
-        result: [
-          { id: 'file-1', path: 'README.md' },
-          { id: 'file-2', path: 'prompt.txt' },
-        ],
-      },
-      {
-        terminal: 'where',
-        result: [{ id: 'suggested-1', status: 'suggested' }],
-      },
-    );
-
-    await expect(service.getById('skill-1', 'tenant-1')).resolves.toEqual({
-      id: 'skill-1',
-      currentVersion: 2,
-      name: 'Skill A',
-      currentVersionInfo: {
-        id: 'version-2',
-        skillId: 'skill-1',
-        version: 2,
-        fileManifest: [
-          { path: 'README.md', fileId: 'file-1' },
-          { path: 'prompt.txt', fileId: 'file-2' },
-        ],
-      },
-      files: [
-        { id: 'file-1', path: 'README.md' },
-        { id: 'file-2', path: 'prompt.txt' },
-      ],
-      pendingSuggestions: [{ id: 'suggested-1', status: 'suggested' }],
+  it('getById returns the slim skill row without version or file data', async () => {
+    selectPlans.push({
+      terminal: 'limit',
+      result: [{ id: 'skill-1', name: 'Skill A', agentAccess: 'read' }],
     });
+
+    await expect(service.getById('skill-1', tenantId)).resolves.toEqual({
+      id: 'skill-1',
+      name: 'Skill A',
+      agentAccess: 'read',
+    });
+
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+
+  it('getById throws NotFoundException when skill does not exist', async () => {
+    selectPlans.push({ terminal: 'limit', result: [] });
+
+    await expect(service.getById('missing', tenantId)).rejects.toThrow(
+      new NotFoundException('Skill not found'),
+    );
   });
 
   it('updates a skill with only the provided fields', async () => {
     selectPlans.push({
       terminal: 'limit',
-      result: [{ id: 'skill-1', tenantId: 'tenant-1' }],
+      result: [{ id: 'skill-1', tenantId }],
     });
     updatePlans.push({
       terminal: 'returning',
@@ -375,7 +423,7 @@ describe('SkillsService', () => {
       service.update(
         'skill-1',
         { name: 'Updated', icon: 'new-icon' } as never,
-        'tenant-1',
+        tenantId,
       ),
     ).resolves.toEqual({
       id: 'skill-1',
@@ -395,156 +443,41 @@ describe('SkillsService', () => {
     ).toBeUndefined();
   });
 
+  it('updates agentAccess', async () => {
+    selectPlans.push({
+      terminal: 'limit',
+      result: [{ id: 'skill-1', tenantId, agentAccess: 'read' }],
+    });
+    updatePlans.push({
+      terminal: 'returning',
+      result: [{ id: 'skill-1', agentAccess: 'none' }],
+    });
+
+    const updated = await service.update(
+      'skill-1',
+      { agentAccess: 'none' },
+      tenantId,
+    );
+
+    expect(updated.agentAccess).toBe('none');
+    expect(updateSets[0]).toEqual(
+      expect.objectContaining({
+        agentAccess: 'none',
+        updatedAt: expect.any(Date),
+      }),
+    );
+  });
+
   it('deletes a skill after validating tenant ownership', async () => {
     selectPlans.push({
       terminal: 'limit',
-      result: [{ id: 'skill-1', tenantId: 'tenant-1' }],
+      result: [{ id: 'skill-1', tenantId }],
     });
 
-    await expect(service.delete('skill-1', 'tenant-1')).resolves.toEqual({
+    await expect(service.delete('skill-1', tenantId)).resolves.toEqual({
       success: true,
     });
 
     expect(db.delete).toHaveBeenCalled();
-  });
-
-  it('returns version files and throws when the version is missing', async () => {
-    selectPlans.push(
-      {
-        terminal: 'limit',
-        result: [{ id: 'skill-1', tenantId: 'tenant-1' }],
-      },
-      {
-        terminal: 'limit',
-        result: [
-          {
-            id: 'version-2',
-            skillId: 'skill-1',
-            version: 2,
-            fileManifest: [{ path: 'README.md', fileId: 'file-1' }],
-          },
-        ],
-      },
-      {
-        terminal: 'where',
-        result: [{ id: 'file-1', path: 'README.md' }],
-      },
-      {
-        terminal: 'limit',
-        result: [{ id: 'skill-1', tenantId: 'tenant-1' }],
-      },
-      {
-        terminal: 'limit',
-        result: [],
-      },
-    );
-
-    await expect(service.getVersion('skill-1', 2, 'tenant-1')).resolves.toEqual(
-      {
-        id: 'version-2',
-        skillId: 'skill-1',
-        version: 2,
-        fileManifest: [{ path: 'README.md', fileId: 'file-1' }],
-        files: [{ id: 'file-1', path: 'README.md' }],
-      },
-    );
-
-    await expect(service.getVersion('skill-1', 99, 'tenant-1')).rejects.toThrow(
-      new NotFoundException('Version not found'),
-    );
-  });
-
-  it('creates a published version and bumps currentVersion', async () => {
-    selectPlans.push({
-      terminal: 'limit',
-      result: [{ id: 'skill-1', currentVersion: 2, tenantId: 'tenant-1' }],
-    });
-    insertPlans.push(
-      { terminal: 'values' },
-      {
-        terminal: 'returning',
-        result: [{ id: 'version-3', version: 3, status: 'published' }],
-      },
-    );
-    updatePlans.push({ terminal: 'where' });
-
-    await expect(
-      service.createVersion(
-        'skill-1',
-        {
-          message: 'Add examples',
-          status: 'published',
-          files: [{ path: 'README.md', content: 'hello again' }],
-        } as never,
-        'user-1',
-        'tenant-1',
-      ),
-    ).resolves.toEqual({
-      id: 'version-3',
-      version: 3,
-      status: 'published',
-    });
-
-    expect(insertValues[0]).toEqual(
-      expect.objectContaining({
-        path: 'README.md',
-        content: 'hello again',
-      }),
-    );
-    expect(insertValues[1]).toEqual(
-      expect.objectContaining({
-        skillId: 'skill-1',
-        version: 3,
-        status: 'published',
-        message: 'Add examples',
-        creatorId: 'user-1',
-      }),
-    );
-    expect(updateSets[0]).toEqual(
-      expect.objectContaining({
-        currentVersion: 3,
-        updatedAt: expect.any(Date),
-      }),
-    );
-  });
-
-  it('reviews suggested versions and rejects invalid review attempts', async () => {
-    selectPlans.push(
-      {
-        terminal: 'limit',
-        result: [{ id: 'skill-1', tenantId: 'tenant-1' }],
-      },
-      {
-        terminal: 'limit',
-        result: [{ id: 'version-2', status: 'suggested' }],
-      },
-      {
-        terminal: 'limit',
-        result: [{ id: 'skill-1', tenantId: 'tenant-1' }],
-      },
-      {
-        terminal: 'limit',
-        result: [{ id: 'version-3', status: 'published' }],
-      },
-    );
-    updatePlans.push({ terminal: 'where' }, { terminal: 'where' });
-
-    await expect(
-      service.reviewVersion('skill-1', 2, 'approve', 'tenant-1'),
-    ).resolves.toEqual({ success: true });
-
-    expect(updateSets[0]).toEqual({ status: 'published' });
-    expect(updateSets[1]).toEqual(
-      expect.objectContaining({
-        currentVersion: 2,
-        updatedAt: expect.any(Date),
-      }),
-    );
-
-    await expect(
-      service.reviewVersion('skill-1', 3, 'reject', 'tenant-1'),
-    ).rejects.toThrow(
-      new BadRequestException('Only suggested versions can be reviewed'),
-    );
   });
 });

@@ -1,4 +1,5 @@
-import { IsString, MaxLength, IsOptional } from 'class-validator';
+import { IsString, MaxLength, IsOptional, IsIn } from 'class-validator';
+import type { SkillAgentAccess } from '@team9/database/schemas';
 
 export class UpdateSkillDto {
   @IsString()
@@ -14,4 +15,8 @@ export class UpdateSkillDto {
   @MaxLength(64)
   @IsOptional()
   icon?: string;
+
+  @IsIn(['none', 'read', 'write'] as const)
+  @IsOptional()
+  agentAccess?: SkillAgentAccess;
 }
