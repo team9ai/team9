@@ -32,10 +32,12 @@ Reach a clean folder9-only terminal state for skills, then bridge the workspace 
 
 ### 2.1 Single source of truth
 
-- `skills` table is a thin pointer: `id`, `tenantId`, `name`, `description`, `type`, `icon`, `folderId`, `creatorId`, `createdAt`, `updatedAt`. **`currentVersion` is removed.**
+- `skills` table is a thin pointer: `id`, `tenantId`, `name`, `description`, `type`, `icon`, `folderId`, `creatorId`, `agentAccess`, `createdAt`, `updatedAt`. **`currentVersion` is removed.**
 - `skill_versions` and `skill_files` tables are dropped.
-- The folder9 `light` folder is the only file store. History is folder9 commits. "Suggestion vs. published" is folder9 `approval_mode` (`auto` vs. `review`) plus folder9 proposals.
-- Agent-side write policy is **derived** from folder9 — the gateway reads the folder's `approval_mode` when minting a token and chooses `permission` accordingly. There is no separate `agent_write_policy` column on `skills`.
+- The folder9 `light` folder is the only file store. History is folder9 commits.
+- Two orthogonal access axes (see §5 for the full matrix):
+  - **`skills.agentAccess`** (this scope): a 3-state enum `'none' | 'read' | 'write'` controlling whether agents in the tenant can see / load / write a skill. Hidden (`'none'`) skills do not appear in `search_skills` results at all. Default `'read'` for human-created skills; default `'write'` for agent-created (since the agent is its own owner). Set by humans via `PATCH /v1/skills/:id`. Enforced at the gateway (list filter + token-mint branch).
+  - **folder9 `approval_mode`** (out of scope): the proposal/review axis. All skill folders run `'auto'` for now; reintroduction tracked in §9.
 
 ### 2.2 Backend (gateway) surface
 
@@ -44,24 +46,25 @@ The gateway has two parallel namespaces, following the existing pattern (e.g. `/
 **User-facing (`/v1/skills/...`, JWT user auth):**
 
 - Existing folder proxy routes stay: `GET /v1/skills/:id/folder/{tree,blob}` and `POST /v1/skills/:id/folder/commit`.
-- Existing metadata CRUD stays: `POST/GET/PATCH/DELETE /v1/skills`, `GET /v1/skills/:id`.
+- Existing metadata CRUD stays: `POST/GET/PATCH/DELETE /v1/skills`, `GET /v1/skills/:id`. `CreateSkillDto` and `UpdateSkillDto` are extended with an optional `agentAccess: 'none' | 'read' | 'write'`. The user-facing routes are **not** filtered by `agentAccess`; humans always see and manage every skill in the tenant.
 - All four version routes (`GET /:id/versions`, `GET /:id/versions/:v`, `POST /:id/versions`, `PATCH /:id/versions/:v`) are **removed**.
 - No proposal/review surface in this scope. All skill folders run `approval_mode: 'auto'`. A review/proposal flow may be reintroduced later (see §9 Out of Scope).
 
 **Agent-facing (`/v1/bot/skills/...`, bot/agent auth):**
 
-- New `BotSkillsController` mirroring the agent-relevant subset:
-  - `GET /v1/bot/skills` — list skills in the bot's tenant. Accepts optional query params `type` and `name` (substring match) for filtering. Returns metadata only. Backs `WorkspaceSkillsProvider.search()`.
-  - `GET /v1/bot/skills/:id` — get one skill's metadata. Backs `WorkspaceSkillsProvider.resolve()` cache lookup.
-  - `GET /v1/bot/skills/:id/folder/blob?path=...` — read a single blob (typically `skill.md`) for SKILL.md hydration. Backs `WorkspaceSkillsProvider.resolve()` content fetch.
-  - `POST /v1/bot/skills` — create a skill. Backs `create_workspace_skill` tool. `creatorId` comes from the bot's user identity.
+- New `BotSkillsController` mirroring the agent-relevant subset. Every read/write applies an `agentAccess` filter: `'none'` skills are hidden from agents.
+  - `GET /v1/bot/skills` — list skills in the bot's tenant where `agentAccess !== 'none'`. Accepts optional query params `type` and `name` (substring match). Returns metadata only. Backs `WorkspaceSkillsProvider.search()`.
+  - `GET /v1/bot/skills/:id` — get one skill's metadata; 403 if `agentAccess === 'none'`. Backs `WorkspaceSkillsProvider.resolve()` cache lookup.
+  - `GET /v1/bot/skills/:id/folder/blob?path=...` — read a single blob (typically `skill.md`); 403 if `agentAccess === 'none'`. Backs `WorkspaceSkillsProvider.resolve()` content fetch.
+  - `POST /v1/bot/skills` — create a skill. Backs `create_workspace_skill` tool. `creatorId` comes from the bot's user identity. Default `agentAccess: 'write'` (agent owns its own skill).
 - Folder editing by agent does **not** go through `/v1/bot/skills/:id/folder/commit`. Editing is via the folder mount path (see §2.4): agent gets a folder9 token from `POST /v1/bot/folder-token` and writes directly to folder9.
-- Existing: `POST /v1/bot/folder-token` is **extended** with a new `logicalKey` value `workspace.skill`. Authorization branch verifies `req.folderId` matches an existing `skills.folderId` for the caller's tenant; mints a normal `read` or `write` folder9 token per request.
+- Existing: `POST /v1/bot/folder-token` is **extended** with a new `logicalKey` value `workspace.skill`. Authorization branch verifies `req.folderId` matches an existing `skills.folderId` for the caller's tenant **and** applies the `agentAccess` matrix: `'none'` → 403; `'read'` allows only `permission: 'read'` (any `'write'` request → 403); `'write'` allows both. The decision is wrapped in a helper `resolveSkillAgentAccess(skillId, botUserId)` so the future per-agent-override path (see §9) can slot in without changing call sites.
 
 **Service layer:**
 
-- `SkillsService.create` keeps its existing folder9 createFolder + initial `skill.md` write path. All folders are created with `approval_mode: 'auto'`; the parameter is plumbed but no caller sets it to `'review'` in this scope. The same service method is used by both `SkillsController` and `BotSkillsController` (caller difference is just auth + `creatorId` source).
-- `SkillsService.list` no longer returns a `pendingSuggestionsCount` field — the suggestion concept is dropped. The response is plain skill metadata.
+- `SkillsService.create` keeps its existing folder9 createFolder + initial `skill.md` write path. All folders are created with `approval_mode: 'auto'`. The same service method is used by both `SkillsController` and `BotSkillsController` (caller difference is auth + `creatorId` source + default `agentAccess`: `'read'` for human, `'write'` for agent).
+- `SkillsService.update` accepts `agentAccess` and persists it (humans only — `BotSkillsController` does not expose update).
+- `SkillsService.list` no longer returns a `pendingSuggestionsCount` field — the suggestion concept is dropped. The response is plain skill metadata, including `agentAccess` so the UI can render the toggle.
 
 ### 2.3 WebSocket events
 
@@ -74,7 +77,7 @@ Two new pieces in `team9-agent-pi`:
 - `WorkspaceSkillsProvider` (in `agent-components/src/components/skill/`): a session-singleton `ISkillProvider` registered once at `onSessionStart`. Its `search()` calls `GET /v1/bot/skills`; its `resolve(name)` calls `GET /v1/bot/skills/:id/folder/blob?path=skill.md` (folder9 token minted server-side; agent does **not** need a folder9 token for read-only SKILL.md hydration). The provider parses frontmatter and returns a `TieredSkill` shaped like `MountedFolderSkillProvider` does.
 - Two new LLM tools, owned by a new dedicated component `Team9SkillsComponent` (typeKey `team9-skills`). Hard dependencies: `team9` (for `Team9FolderTokenApi`), `folder9` (for `Folder9DependencyApi.applyMount`), `host` (for the bash backend used by mounts), `skill-tier` (for provider registration). The new component is also where `WorkspaceSkillsProvider` is constructed and registered — keeping all skill-library agent surface in one component rather than swelling `Team9Component`. Tools:
   - `create_workspace_skill { name, description?, type?, icon? }` — calls `POST /v1/bot/skills`. Returns the new `skillId` and `folderId`. The tool optionally chains an immediate `mount_workspace_skill` so the agent can keep editing without a second round.
-  - `mount_workspace_skill { skillId, permission: 'read' | 'write', mountPath? }` — calls `Team9FolderTokenApi.issueFolderToken({ logicalKey: 'workspace.skill', folderId: <skill.folderId>, permission })`, then `Folder9DependencyApi.applyMount({ externallyManagedToken: true, mountPath: mountPath ?? '/workspace/skill/<id>/' })`. Once mounted, the agent uses the existing `edit_file` / `submit_changes` flow (commits go straight to HEAD; no proposal in this scope).
+  - `mount_workspace_skill { skillId, permission: 'read' | 'write', mountPath? }` — calls `Team9FolderTokenApi.issueFolderToken({ logicalKey: 'workspace.skill', folderId: <skill.folderId>, permission })`, then `Folder9DependencyApi.applyMount({ externallyManagedToken: true, mountPath: mountPath ?? '/workspace/skill/<id>/' })`. Once mounted, the agent uses the existing `edit_file` / `submit_changes` flow (commits go straight to HEAD; no proposal in this scope). If the gateway denies token issuance (skill is `'none'` for this agent, or `'read'` skill requested with `permission: 'write'`), the tool returns a structured ToolResult error naming the reason ("skill is hidden from agents" / "skill is read-only for agents") so the LLM can recover.
 
 Reused (no changes): `search_skills`, `load_skills`, `unload_skills`, `invoke_skill`, `unmount_folder9`, `edit_file`, `submit_changes`, `mount_folder9` (kept for PSK-direct admin/local cases).
 
@@ -96,32 +99,38 @@ Add `unregisterProvider(providerId: string)` to `SkillTierDependencyApi`. Implem
 - Drop `skill_files` table.
 - Drop `skillVersionStatusEnum` (`skill_version__status`) along with the version table. Keep `skillTypeEnum` (`skill__type`) — it remains in use on `skills.type`.
 - Remove `skills.currentVersion` column.
+- Add `skills.agentAccess` column. Type: new pgEnum `skill__agent_access` with values `'none' | 'read' | 'write'`. Default `'read'`. NOT NULL. Backfill is a no-op (the migration's column-add inserts the default for existing rows).
 - Delete schema source files: `apps/server/libs/database/src/schemas/skill/skill-versions.ts` and `skill-files.ts`. Remove their re-exports from `skill/index.ts` and the `skillVersionsRelations` / `skillFilesRelations` blocks from `skill/relations.ts` (the remaining `skillsRelations` keeps `tenant` and `creator`; `versions` and `files` relations go away).
 
 ### 3.2 Backend (gateway)
 
-- `SkillsController` (user-facing): remove the four version routes (`listVersions`, `getVersion`, `createVersion`, `reviewVersion`). No proposal proxy routes added in this scope.
-- New `BotSkillsController` (agent-facing) under `/v1/bot/skills` with bot auth: `list`, `getById`, `getFolderBlob`, `create`. Reuses `SkillsService`. Tenant scoping derives from the bot's identity (same pattern as `BotStaffProfileController`).
-- `SkillsService`: delete `listVersions`, `getVersion`, `createVersion`, `reviewVersion`, `createVersionInternal`. In `getById`, drop the `currentVersion` / `fileManifest` / `skill_files` lookup and remove the `files` field from the response — files are fetched via folder routes by the caller. In `list`, drop the suggestion-count query entirely; the response is plain skill metadata. In `provisionSkillFolder` / `getSkillFolderSeedFiles`, drop the version-restoration branch — provisioning always seeds a fresh `skill.md` from `name` + `description` (legacy data with `currentVersion > 0` no longer exists after migration).
-- DTOs: delete `create-version.dto.ts`, `review-version.dto.ts`, and their `index.ts` re-exports.
-- `folder-token.service.ts`: add `'workspace.skill'` to `Team9LogicalMountKey` (in `claw-hive-types`) and `KNOWN_LOGICAL_KEYS` (in the gateway service); add a switch branch that joins on `skills` to verify the folder belongs to the caller's tenant. The branch mints a normal folder9 token at the requested `permission` (`read` or `write`); no review-mode clamp logic in this scope.
+- `SkillsController` (user-facing): remove the four version routes (`listVersions`, `getVersion`, `createVersion`, `reviewVersion`). No proposal proxy routes added in this scope. Extend `CreateSkillDto` and `UpdateSkillDto` with optional `agentAccess`.
+- New `BotSkillsController` (agent-facing) under `/v1/bot/skills` with bot auth: `list`, `getById`, `getFolderBlob`, `create`. Reuses `SkillsService`. Tenant scoping derives from the bot's identity (same pattern as `BotStaffProfileController`). Every read filters out `agentAccess === 'none'`; `create` defaults `agentAccess` to `'write'`.
+- `SkillsService`: delete `listVersions`, `getVersion`, `createVersion`, `reviewVersion`, `createVersionInternal`. In `getById`, drop the `currentVersion` / `fileManifest` / `skill_files` lookup and remove the `files` field from the response — files are fetched via folder routes by the caller. In `list`, drop the suggestion-count query entirely; the response is plain skill metadata (now including `agentAccess`). `create` accepts `agentAccess`; `update` accepts and persists `agentAccess`. In `provisionSkillFolder` / `getSkillFolderSeedFiles`, drop the version-restoration branch — provisioning always seeds a fresh `skill.md` from `name` + `description` (legacy data with `currentVersion > 0` no longer exists after migration).
+- DTOs: delete `create-version.dto.ts`, `review-version.dto.ts`, and their `index.ts` re-exports. Add `agentAccess?: SkillAgentAccess` to `create-skill.dto.ts` and `update-skill.dto.ts`.
+- `folder-token.service.ts`: add `'workspace.skill'` to `Team9LogicalMountKey` (in `claw-hive-types`) and `KNOWN_LOGICAL_KEYS` (in the gateway service); add a switch branch that joins on `skills`, verifies the folder belongs to the caller's tenant, then runs `resolveSkillAgentAccess(skillId, botUserId)` and applies the §5.1 access matrix. Mints a normal folder9 token at the post-clamp `permission`.
+- New helper `resolveSkillAgentAccess(skillId, botUserId): Promise<'none' | 'read' | 'write'>` (in a new `apps/server/apps/gateway/src/skills/agent-access.service.ts` or a static helper on `SkillsService`). v1 returns the per-skill default; v2 (out of scope, §9) inserts a per-agent-override lookup before falling through.
 - Webhook handler: no skill-related changes in this scope. Folder9 webhooks for skill folders fire but are silently ignored by the gateway (the folders are all `auto`, so no proposal events arrive). Out-of-scope future work would add a `skill_proposal_*` dispatch path (see §9).
 
 ### 3.3 Frontend (web client)
 
-- `apps/client/src/services/api/skills.ts`: delete `listVersions`, `getVersion`, `createVersion`, `reviewVersion`. No replacement endpoints added.
+- `apps/client/src/services/api/skills.ts`: delete `listVersions`, `getVersion`, `createVersion`, `reviewVersion`. Extend `update`'s body type to allow `agentAccess`. No replacement proposal endpoints added.
 - `apps/client/src/hooks/useSkills.ts`: remove the version-related queries / mutations.
 - `apps/client/src/components/skills/SuggestionReviewPanel.tsx`: **delete** (not rewritten). The suggestion concept is fully retired in this scope; if proposals come back later, a new panel will be designed against the future folder9-proposal data shape.
-- `apps/client/src/components/skills/SkillCard.tsx`: remove the `hasPendingSuggestion` prop and badge entirely.
+- `apps/client/src/components/skills/SkillCard.tsx`: remove the `hasPendingSuggestion` prop and badge entirely. (Optional: surface a small `agentAccess` indicator badge — defer to plan-writing.)
+- New `apps/client/src/components/skills/AgentAccessControl.tsx`: a 3-radio control (Hidden / Read-only / Read & write) bound to `agentAccess`. Mounted in `SkillDetailPage` (or its settings tab) and persists via the existing update mutation.
+- `apps/client/src/components/skills/CreateSkillDialog.tsx`: optional `agentAccess` selector with default `'read'`. If left unset, the gateway uses the same default.
 - `apps/client/src/services/api/folder9-folder.ts`: delete `fetchLegacySkillFiles` and `isMissingSkillFolderRoute`. All skills now have `folderId`; the legacy fallback is dead code.
-- `apps/client/src/types/skill.ts`: drop `SkillVersion`, `SkillFile`, `SkillFileManifestEntry` types.
+- `apps/client/src/types/skill.ts`: drop `SkillVersion`, `SkillFile`, `SkillFileManifestEntry` types. Add `SkillAgentAccess = 'none' | 'read' | 'write'` and extend `Skill` / `SkillDetail` to include `agentAccess`.
 - WebSocket client (`apps/client/src/services/websocket.ts`): no changes in this scope (no new skill events).
 
 ### 3.4 Tests
 
-- Remove all `skill_versions` / `skill_files` test fixtures. Update `skills.service.spec.ts` and `skills.controller.spec.ts` to drop version-related cases.
-- Add `bot-skills.controller.spec.ts` covering the four bot endpoints (`list`, `getById`, `getFolderBlob`, `create`), tenant scoping, and bot-auth path.
-- Add gateway tests for the new `'workspace.skill'` `logicalKey` branch in `folder-token.service.spec.ts`: positive (tenant-owned skill, `write` returned), denial (cross-tenant folderId), denial (folderId not pointing at any skill).
+- Remove all `skill_versions` / `skill_files` test fixtures. Update `skills.service.spec.ts` and `skills.controller.spec.ts` to drop version-related cases. Add `update` test for `agentAccess`. Add `create` tests covering the per-caller default (`'read'` from user controller, `'write'` from bot controller).
+- Add `bot-skills.controller.spec.ts` covering the four bot endpoints (`list`, `getById`, `getFolderBlob`, `create`), tenant scoping, bot-auth path, and the `agentAccess` filter (`'none'` skills excluded from list and 403 on getById/blob).
+- Add `agent-access.service.spec.ts` (or equivalent) covering `resolveSkillAgentAccess`: per-skill default returned correctly; placeholder for future per-agent override behavior.
+- Add gateway tests for the new `'workspace.skill'` `logicalKey` branch in `folder-token.service.spec.ts`. Cover the full access matrix: `'none'` deny, `'read'`+`'read'` allow, `'read'`+`'write'` deny, `'write'`+`'read'` allow, `'write'`+`'write'` allow, cross-tenant deny, unknown folderId deny.
+- Frontend: `AgentAccessControl.tsx` renders three states; selecting one fires the right `update` mutation. `CreateSkillDialog.tsx` defaults to `'read'`.
 
 ## 4. Lifecycle Walkthroughs
 
@@ -166,6 +175,8 @@ LLM → mount_workspace_skill{ skillId: "...", permission: "write" }
      })
   └─ gateway POST /api/v1/bot/folder-token
        ├─ verify folderId is a skill in workspaceId
+       ├─ resolveSkillAgentAccess(skillId, botUserId) → 'none' | 'read' | 'write'
+       ├─ apply §5.1 matrix; reject if denied (mount tool surfaces a structured error)
        └─ folder9 POST /api/tokens → opaque token
   └─ Folder9DependencyApi.applyMount({
        mountPath: "/workspace/skill/<id>/",
@@ -203,12 +214,38 @@ Filesystem: `unmount_folder9` (existing) takes the path back. Skill-tier knowled
 
 ## 5. Permissions Model
 
-All skill folders run `approval_mode: 'auto'` in this scope.
+Two orthogonal axes govern skill access. Only the first is in this scope.
 
-- Read token: granted to any caller with valid bot/user auth scoped to the skill's tenant.
-- Write token: granted when the caller has tenant role ≥ member (same as today's editor commit path). Writes go straight to HEAD; no proposal flow.
-- Cross-tenant safety: the gateway's `'workspace.skill'` logicalKey branch joins on `skills.folderId === req.folderId AND skills.tenantId === req.workspaceId`. Mismatch → `ForbiddenException` (matches the existing pattern for `routine.document`).
-- Future review-mode work (see §9) would re-introduce per-skill `approval_mode` selection and a proposal/review surface.
+### 5.1 Agent access (per-skill, this scope)
+
+`skills.agentAccess` is a 3-state enum (`'none' | 'read' | 'write'`) controlling whether agents in the tenant can see / load / write a particular skill:
+
+| `agentAccess` | `search_skills` finds it | `load_skills` loads SKILL.md | `mount_workspace_skill { permission: 'read' }` | `mount_workspace_skill { permission: 'write' }` |
+| ------------- | ------------------------ | ---------------------------- | ---------------------------------------------- | ----------------------------------------------- |
+| `none`        | no — hidden from list    | n/a (provider can't resolve) | 403                                            | 403                                             |
+| `read`        | yes                      | allowed                      | allowed                                        | 403                                             |
+| `write`       | yes                      | allowed                      | allowed                                        | allowed                                         |
+
+Defaults:
+
+- Human-created (via `POST /v1/skills`): `'read'`. Visible but locked unless the human opens it up.
+- Agent-created (via `create_workspace_skill` → `POST /v1/bot/skills`): `'write'`. The agent owns its own skill.
+
+Enforcement points (all in gateway, all centralized through `resolveSkillAgentAccess(skillId, botUserId)`):
+
+- `GET /v1/bot/skills`: filters out `'none'` rows. Hidden skills are not searchable by the agent.
+- `GET /v1/bot/skills/:id` and `:id/folder/blob`: 403 on `'none'`.
+- `POST /v1/bot/folder-token { logicalKey: 'workspace.skill' }`: applies the matrix above.
+
+The user-facing routes (`/v1/skills/...`) are **not** filtered by `agentAccess`; humans always manage every skill in the tenant.
+
+### 5.2 Folder9 approval mode (per-folder, future scope)
+
+Proposal/review axis. Out of scope; all skill folders are `approval_mode: 'auto'` for now (see §9).
+
+### 5.3 Cross-tenant safety
+
+The gateway's `'workspace.skill'` logicalKey branch joins on `skills.folderId === req.folderId AND skills.tenantId === req.workspaceId`. Mismatch → `ForbiddenException` (matches the existing pattern for `routine.document`).
 
 ## 6. Migration & Rollout
 
@@ -216,7 +253,7 @@ Single deploy, no feature flag. Sequencing matters within the deploy:
 
 1. Add `'workspace.skill'` logicalKey + new endpoints to gateway.
 2. Add `WorkspaceSkillsProvider`, `create_workspace_skill`, `mount_workspace_skill`, `unregisterProvider` to agent-pi packages. Bump claw-hive package versions consumed by gateway (the agent images redeploy on the next routine run).
-3. Drop the legacy DB tables and code in the same gateway deploy (migration `drop_skill_versions_skill_files`). No pre-migration reconciliation needed: the suggestion flow has not been exercised in production and any rows are discarded. Confirm before running with a quick `SELECT COUNT(*) FROM skill_versions` sanity check.
+3. Drop the legacy DB tables and code in the same gateway deploy. Two migrations: `add_skills_agent_access` (creates the new enum + column with default `'read'`, backfilling existing rows) and `drop_skill_versions_skill_files` (removes the legacy tables + `currentVersion` column + version-status enum). No pre-migration reconciliation needed: the suggestion flow has not been exercised in production. Confirm before running with a quick `SELECT COUNT(*) FROM skill_versions` sanity check.
 4. Frontend deploy lands the skills.ts / useSkills.ts cleanup and SuggestionReviewPanel removal. Old clients pointing at deleted `/versions` routes get 404 — acceptable because the new client should be deployed within minutes.
 
 Down-revert: re-add the dropped tables (empty) and re-deploy the old controller. Acceptable if discovered within hours; agent code can be left in place (agents simply won't be able to mount tenant skills until rollback finishes, but they fall back gracefully because the tools are additive, not replacing existing surface).
@@ -238,7 +275,8 @@ None remaining. (The earlier open questions on review-mode token semantics and `
 
 - **Proposal / review flow for skills.** No `skill_proposal_*` websocket events, no `/skills/:id/proposals` proxy, no rewritten `SuggestionReviewPanel`, no review-mode token clamp. Folder9 still supports it natively (wikis uses it); when skills need it back, the work is: add a `team9_kind: 'skill'` branch to the existing folder9 webhook handler, add the proposal proxy routes to `SkillsController`, add a new review UI component, extend the `'workspace.skill'` token branch to clamp permission for `review` folders. None of that is in this scope.
 - A user-facing UI toggle for `approval_mode` on a skill — needed as a prerequisite to bringing review back, but not delivered here.
-- Tenant-wide policy DSL or per-agent policy overrides.
+- **Per-agent `agentAccess` overrides.** v1 is per-skill default only. v2 will add a `skill_agent_access(skillId, botUserId, accessLevel)` table that overrides the per-skill default for a given agent. The decision function `resolveSkillAgentAccess(skillId, botUserId)` is structured so the override lookup slots in cleanly without changing call sites.
+- Tenant-wide policy DSL.
 - Versioning UX beyond folder9's commit history (no pinned releases, tags, or rollback UI).
 - Cross-workspace skill sharing.
 - A per-skill `agent_write_policy` override that diverges from folder9's `approval_mode` (deliberately rejected — folder9 is the single source if/when review returns).
