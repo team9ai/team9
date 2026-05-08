@@ -34,6 +34,12 @@ const schemaModule = {
     channelId: 'cm.channel_id',
     userId: 'cm.user_id',
   },
+  skills: {
+    id: 'skills.id',
+    tenantId: 'skills.tenant_id',
+    folderId: 'skills.folder_id',
+    agentAccess: 'skills.agent_access',
+  },
 };
 
 jest.unstable_mockModule('@team9/database', () => dbModule);
@@ -99,6 +105,7 @@ const ROUTINE_ID = 'routine-1';
 const FOLDER_ID = 'folder-1';
 const USER_ID = 'user-1';
 const CHANNEL_ID = 'channel-dm-1';
+const SKILL_ID = 'skill-1';
 // Canonical sessionIds matching `parseSessionShape` layout —
 // `team9/{tenantId}/{agentId}/{scope}/{scopeId}`.
 const DM_SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`;
@@ -136,13 +143,21 @@ describe('FolderTokenService', () => {
   let service: InstanceType<typeof FolderTokenService>;
   let db: ReturnType<typeof mockDb>;
   let folder9Client: { createToken: MockFn };
+  let skillAccess: { resolve: MockFn };
 
   beforeEach(() => {
     db = mockDb();
     folder9Client = {
       createToken: jest.fn<MockFn>().mockResolvedValue(mintedTokenResponse()),
     };
-    service = new FolderTokenService(db as any, folder9Client as any);
+    skillAccess = {
+      resolve: jest.fn<MockFn>().mockResolvedValue('write'),
+    };
+    service = new FolderTokenService(
+      db as any,
+      folder9Client as any,
+      skillAccess as any,
+    );
   });
 
   /** Queue a routine row to be returned by the next `select(...).from(routines)...`. */
@@ -959,6 +974,215 @@ describe('FolderTokenService', () => {
       await expect(
         service.issueToken(makeDto(), BOT_USER_ID, TENANT_ID),
       ).rejects.toThrow(ServiceUnavailableException);
+    });
+  });
+
+  // ── workspace.skill logicalKey ────────────────────────────────────────────
+
+  describe('workspace.skill logicalKey', () => {
+    /** Queue a skill row (or empty to simulate "not found"). */
+    function queueSkill(row: { id: string } | null) {
+      db.__state.selectResults.push(row ? [{ id: row.id }] : []);
+    }
+
+    /**
+     * Build a minimal DTO for workspace.skill requests. The default
+     * folderId is FOLDER_ID, workspaceId is TENANT_ID.
+     */
+    const makeSkillDto = (
+      overrides: Partial<FolderTokenRequestDto> = {},
+    ): FolderTokenRequestDto =>
+      makeDto({
+        logicalKey: 'workspace.skill',
+        permission: 'write',
+        routineId: undefined,
+        userId: undefined,
+        ...overrides,
+      });
+
+    it('200: write+write — agentAccess=write, permission=write → token minted', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('write');
+
+      const result = await service.issueToken(
+        makeSkillDto({ permission: 'write' }),
+        BOT_USER_ID,
+        TENANT_ID,
+      );
+
+      expect(result.token).toBe('opaque-token');
+      expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
+      const mintArg = folder9Client.createToken.mock.calls[0][0];
+      expect(mintArg.permission).toBe('write');
+      expect(mintArg.name).toBe(`workspace.skill-${SKILL_ID}`);
+    });
+
+    it('200: read+read — agentAccess=read, permission=read → token minted', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('read');
+
+      const result = await service.issueToken(
+        makeSkillDto({ permission: 'read' }),
+        BOT_USER_ID,
+        TENANT_ID,
+      );
+
+      expect(result.token).toBe('opaque-token');
+      expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
+      const mintArg = folder9Client.createToken.mock.calls[0][0];
+      expect(mintArg.permission).toBe('read');
+    });
+
+    it('200: write+read — agentAccess=write, permission=read → token minted', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('write');
+
+      const result = await service.issueToken(
+        makeSkillDto({ permission: 'read' }),
+        BOT_USER_ID,
+        TENANT_ID,
+      );
+
+      expect(result.token).toBe('opaque-token');
+      expect(folder9Client.createToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('403: read+write — agentAccess=read, permission=write → denied', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('read');
+
+      const err = await service
+        .issueToken(
+          makeSkillDto({ permission: 'write' }),
+          BOT_USER_ID,
+          TENANT_ID,
+        )
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(/read-only/);
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('403: none+read — agentAccess=none, permission=read → denied', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('none');
+
+      const err = await service
+        .issueToken(
+          makeSkillDto({ permission: 'read' }),
+          BOT_USER_ID,
+          TENANT_ID,
+        )
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(/hidden/);
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('403: none+write — agentAccess=none, permission=write → denied', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('none');
+
+      const err = await service
+        .issueToken(
+          makeSkillDto({ permission: 'write' }),
+          BOT_USER_ID,
+          TENANT_ID,
+        )
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(/hidden/);
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('403: cross-tenant deny — skill exists but in tenant-B, caller in tenant-A', async () => {
+      // The cross-tenant check happens at the top of issueToken (callerTenantId !== workspaceId).
+      // This test exercises the skill-level check: the DB query uses
+      // (folderId, tenantId=workspaceId) so a skill in a different tenant
+      // returns zero rows, giving "folderId does not belong to any skill".
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill(null); // No skill row in tenant-A for this folderId.
+
+      const err = await service
+        .issueToken(makeSkillDto(), BOT_USER_ID, TENANT_ID)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(
+        /does not belong to any skill/,
+      );
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('403: unknown folder deny — no skill row matches folderId', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill(null);
+
+      const err = await service
+        .issueToken(
+          makeSkillDto({ folderId: 'unknown-folder-id' }),
+          BOT_USER_ID,
+          TENANT_ID,
+        )
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(
+        /does not belong to any skill/,
+      );
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('403: propose deny — permission=propose is not supported in v1', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      // propose is rejected before skill lookup — no skill queue needed.
+
+      const err = await service
+        .issueToken(
+          makeSkillDto({ permission: 'propose' }),
+          BOT_USER_ID,
+          TENANT_ID,
+        )
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(
+        /not supported for workspace\.skill in v1/,
+      );
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('403: admin deny — permission=admin is not supported in v1', async () => {
+      // admin is caught at the global gate (before any logicalKey logic).
+      const err = await service
+        .issueToken(
+          makeSkillDto({ permission: 'admin' }),
+          BOT_USER_ID,
+          TENANT_ID,
+        )
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect((err as ForbiddenException).message).toMatch(
+        /admin permission is never issued/,
+      );
+      expect(folder9Client.createToken).not.toHaveBeenCalled();
+    });
+
+    it('passes callerBotUserId to skillAccess.resolve for per-agent resolution', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueSkill({ id: SKILL_ID });
+      skillAccess.resolve.mockResolvedValueOnce('write');
+
+      await service.issueToken(makeSkillDto(), BOT_USER_ID, TENANT_ID);
+
+      expect(skillAccess.resolve).toHaveBeenCalledWith(
+        SKILL_ID,
+        BOT_USER_ID,
+        TENANT_ID,
+      );
     });
   });
 });
