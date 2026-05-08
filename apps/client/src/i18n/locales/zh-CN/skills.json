@@ -160,5 +160,20 @@
     "claudeCodeSkillDescription": "带 frontmatter 的 Markdown 技能文件",
     "promptTemplate": "提示词模板",
     "promptTemplateDescription": "带变量占位符的可复用提示词"
+  },
+  "agentAccess": {
+    "label": "Agent 访问权限",
+    "none": {
+      "title": "隐藏",
+      "help": "工作空间中的 Agent 无法查看或使用此技能。"
+    },
+    "read": {
+      "title": "只读",
+      "help": "Agent 可以找到并使用此技能，但无法编辑其文件。"
+    },
+    "write": {
+      "title": "读写",
+      "help": "Agent 可以使用并编辑此技能。"
+    }
   }
 }

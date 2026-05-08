@@ -160,5 +160,20 @@
     "claudeCodeSkillDescription": "Markdown skill with frontmatter for Claude Code",
     "promptTemplate": "Prompt Template",
     "promptTemplateDescription": "Reusable prompt with variable placeholders"
+  },
+  "agentAccess": {
+    "label": "Agent access",
+    "none": {
+      "title": "Hidden",
+      "help": "Agents in this workspace cannot see or use this skill."
+    },
+    "read": {
+      "title": "Read-only",
+      "help": "Agents can find and use this skill but cannot edit its files."
+    },
+    "write": {
+      "title": "Read & write",
+      "help": "Agents can both use and edit this skill."
+    }
   }
 }

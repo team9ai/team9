@@ -13,10 +13,9 @@ const TYPE_ICONS: Record<Skill["type"], typeof Sparkles> = {
 
 interface SkillCardProps {
   skill: Skill;
-  hasPendingSuggestion?: boolean;
 }
 
-export function SkillCard({ skill, hasPendingSuggestion }: SkillCardProps) {
+export function SkillCard({ skill }: SkillCardProps) {
   const { t } = useTranslation("skills");
   const navigate = useNavigate();
   const TypeIcon = TYPE_ICONS[skill.type];
@@ -25,7 +24,7 @@ export function SkillCard({ skill, hasPendingSuggestion }: SkillCardProps) {
     <button
       type="button"
       className={cn(
-        "flex flex-col gap-2 rounded-lg border border-border p-4 text-left transition-colors hover:bg-accent/50 cursor-pointer w-full relative",
+        "flex flex-col gap-2 rounded-lg border border-border p-4 text-left transition-colors hover:bg-accent/50 cursor-pointer w-full",
       )}
       onClick={() =>
         navigate({ to: "/skills/$skillId", params: { skillId: skill.id } })
@@ -37,10 +36,6 @@ export function SkillCard({ skill, hasPendingSuggestion }: SkillCardProps) {
         }
       }}
     >
-      {hasPendingSuggestion && (
-        <span className="absolute top-3 right-3 h-2.5 w-2.5 rounded-full bg-orange-500" />
-      )}
-
       <div className="flex items-center gap-2.5">
         <span className="text-xl">{skill.icon || "🧩"}</span>
         <span className="font-medium truncate">{skill.name}</span>

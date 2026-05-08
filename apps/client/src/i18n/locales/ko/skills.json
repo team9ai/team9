@@ -160,5 +160,20 @@
     "claudeCodeSkillDescription": "프론트매터가 포함된 Markdown 스킬 파일",
     "promptTemplate": "프롬프트 템플릿",
     "promptTemplateDescription": "변수 플레이스홀더가 포함된 재사용 가능한 프롬프트"
+  },
+  "agentAccess": {
+    "label": "Agent access",
+    "none": {
+      "title": "Hidden",
+      "help": "Agents in this workspace cannot see or use this skill."
+    },
+    "read": {
+      "title": "Read-only",
+      "help": "Agents can find and use this skill but cannot edit its files."
+    },
+    "write": {
+      "title": "Read & write",
+      "help": "Agents can both use and edit this skill."
+    }
   }
 }
