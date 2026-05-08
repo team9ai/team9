@@ -173,20 +173,7 @@ export class SkillsService {
     if (!path || typeof path !== 'string' || path.trim().length === 0) {
       throw new BadRequestException('path query parameter is required');
     }
-    const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
-    const token = await this.mintSkillFolderToken(
-      folderId,
-      userId,
-      'read',
-      SkillsService.READ_TOKEN_TTL_MS,
-    );
-    const raw = await this.folder9Client.getRaw(
-      tenantId,
-      folderId,
-      token,
-      path,
-    );
-    return this.toBlobResponse(path, raw);
+    return this.getSkillFolderBlobInternal(skill, userId, tenantId, path);
   }
 
   async getSkillFolderTree(
@@ -216,20 +203,7 @@ export class SkillsService {
       throw new BadRequestException('path query parameter is required');
     }
     const skill = await this.getSkillOrThrow(skillId, tenantId);
-    const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
-    const token = await this.mintSkillFolderToken(
-      folderId,
-      userId,
-      'read',
-      SkillsService.READ_TOKEN_TTL_MS,
-    );
-    const raw = await this.folder9Client.getRaw(
-      tenantId,
-      folderId,
-      token,
-      path,
-    );
-    return this.toBlobResponse(path, raw);
+    return this.getSkillFolderBlobInternal(skill, userId, tenantId, path);
   }
 
   async commitSkillFolder(
@@ -251,6 +225,28 @@ export class SkillsService {
       files: dto.files,
       propose: false,
     });
+  }
+
+  private async getSkillFolderBlobInternal(
+    skill: schema.Skill,
+    userId: string,
+    tenantId: string,
+    path: string,
+  ): Promise<Folder9BlobResponse> {
+    const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
+    const token = await this.mintSkillFolderToken(
+      folderId,
+      userId,
+      'read',
+      SkillsService.READ_TOKEN_TTL_MS,
+    );
+    const raw = await this.folder9Client.getRaw(
+      tenantId,
+      folderId,
+      token,
+      path,
+    );
+    return this.toBlobResponse(path, raw);
   }
 
   private ensureSkillMd(
