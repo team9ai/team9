@@ -167,21 +167,6 @@ interface RoutineCommitWireResponse {
   proposal_id?: string;
 }
 
-interface LegacySkillFileWire {
-  path: string;
-  content: string;
-}
-
-interface LegacySkillDetailWire {
-  name: string;
-  description: string | null;
-  files: LegacySkillFileWire[];
-}
-
-interface LegacySkillVersionWire {
-  version: number;
-}
-
 /**
  * Folder9 folder API bound to a routine's `/v1/routines/:id/folder/*`
  * proxy endpoints (Phase A.6 — see
@@ -256,10 +241,8 @@ export function routineFolderApi(routineId: string): Folder9FolderApi {
  * Folder9 light-folder API bound to a skill's
  * `/v1/skills/:id/folder/{tree,blob,commit}` proxy endpoints.
  *
- * Skills use folder9 light folders rather than the legacy
- * `skill_files` / `skill_versions` tables; the gateway keeps folder9
- * tokens server-side and exposes the same lean editor contract as
- * routine folders.
+ * The gateway keeps folder9 tokens server-side and exposes the same
+ * lean editor contract as routine folders.
  */
 export function skillFolderApi(skillId: string): Folder9FolderApi {
   const base = `/v1/skills/${skillId}/folder`;
@@ -269,190 +252,37 @@ export function skillFolderApi(skillId: string): Folder9FolderApi {
       const params: Record<string, string> = {};
       if (path) params.path = path;
       if (recursive) params.recursive = "true";
-      try {
-        const response = await http.get<TreeEntryDto[]>(
-          `${base}/tree`,
-          Object.keys(params).length > 0 ? { params } : undefined,
-        );
-        return response.data;
-      } catch (error) {
-        if (!isMissingSkillFolderRoute(error)) throw error;
-        const files = await fetchLegacySkillFiles(skillId);
-        return buildLegacyTree(files, path, recursive);
-      }
+      const response = await http.get<TreeEntryDto[]>(
+        `${base}/tree`,
+        Object.keys(params).length > 0 ? { params } : undefined,
+      );
+      return response.data;
     },
 
     fetchBlob: async (path: string) => {
-      try {
-        const response = await http.get<RoutineBlobWireResponse>(
-          `${base}/blob`,
-          { params: { path } },
-        );
-        const { data } = response;
-        return {
-          path: data.path,
-          content: data.content,
-          encoding: data.encoding,
-        };
-      } catch (error) {
-        if (!isMissingSkillFolderRoute(error)) throw error;
-        const files = await fetchLegacySkillFiles(skillId);
-        const file = files.find((entry) => entry.path === normalizePath(path));
-        if (!file) throw error;
-        return {
-          path: file.path,
-          content: file.content,
-          encoding: "text",
-        };
-      }
+      const response = await http.get<RoutineBlobWireResponse>(`${base}/blob`, {
+        params: { path },
+      });
+      const { data } = response;
+      return {
+        path: data.path,
+        content: data.content,
+        encoding: data.encoding,
+      };
     },
 
     commit: async (req: CommitRequest) => {
-      try {
-        const response = await http.post<RoutineCommitWireResponse>(
-          `${base}/commit`,
-          req,
-        );
-        const { data } = response;
-        return {
-          sha: data.commit ?? data.status ?? "applied",
-          proposalId: data.proposal_id,
-        };
-      } catch (error) {
-        if (!isMissingSkillFolderRoute(error)) throw error;
-        const files = await fetchLegacySkillFiles(skillId);
-        const nextFiles = mergeLegacySkillFiles(files, req.files);
-        const response = await http.post<LegacySkillVersionWire>(
-          `/v1/skills/${skillId}/versions`,
-          {
-            message: req.message,
-            files: nextFiles,
-            status: "published",
-          },
-        );
-        return {
-          sha: `legacy-v${response.data.version}`,
-          proposalId: undefined,
-        };
-      }
+      const response = await http.post<RoutineCommitWireResponse>(
+        `${base}/commit`,
+        req,
+      );
+      const { data } = response;
+      return {
+        sha: data.commit ?? data.status ?? "applied",
+        proposalId: data.proposal_id,
+      };
     },
   };
-}
-
-function isMissingSkillFolderRoute(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const response = (
-    error as {
-      response?: { status?: number; data?: unknown };
-    }
-  ).response;
-  if (response?.status !== 404) return false;
-
-  const data = response.data;
-  return typeof data === "string" && data.includes("/folder/");
-}
-
-async function fetchLegacySkillFiles(
-  skillId: string,
-): Promise<LegacySkillFileWire[]> {
-  const response = await http.get<LegacySkillDetailWire>(
-    `/v1/skills/${skillId}`,
-  );
-  const detail = response.data;
-  if (detail.files.length > 0) {
-    return detail.files.map((file) => ({
-      path: normalizePath(file.path),
-      content: file.content,
-    }));
-  }
-
-  return [
-    {
-      path: "skill.md",
-      content: detail.description?.trim()
-        ? `# ${detail.name}\n\n${detail.description.trim()}\n`
-        : `# ${detail.name}\n\nDescribe when and how to use this skill.\n`,
-    },
-  ];
-}
-
-function buildLegacyTree(
-  files: LegacySkillFileWire[],
-  rootPath?: string,
-  recursive?: boolean,
-): TreeEntryDto[] {
-  const root = normalizePath(rootPath ?? "");
-  const entries = new Map<string, TreeEntryDto>();
-
-  for (const file of files) {
-    const path = normalizePath(file.path);
-    if (root && path !== root && !path.startsWith(`${root}/`)) continue;
-
-    const relative = root ? path.slice(root.length).replace(/^\//, "") : path;
-    if (!recursive && relative.includes("/")) {
-      const dirName = relative.split("/")[0];
-      const dirPath = root ? `${root}/${dirName}` : dirName;
-      entries.set(dirPath, {
-        name: dirName,
-        path: dirPath,
-        type: "dir",
-        size: 0,
-      });
-      continue;
-    }
-
-    const segments = path.split("/");
-    for (let i = 1; i < segments.length; i += 1) {
-      const dirPath = segments.slice(0, i).join("/");
-      if (!entries.has(dirPath)) {
-        entries.set(dirPath, {
-          name: segments[i - 1],
-          path: dirPath,
-          type: "dir",
-          size: 0,
-        });
-      }
-    }
-
-    entries.set(path, {
-      name: segments[segments.length - 1] ?? path,
-      path,
-      type: "file",
-      size: new TextEncoder().encode(file.content).length,
-    });
-  }
-
-  return [...entries.values()].sort((a, b) => {
-    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-    return a.path.localeCompare(b.path);
-  });
-}
-
-function mergeLegacySkillFiles(
-  currentFiles: LegacySkillFileWire[],
-  changes: FileChange[],
-): LegacySkillFileWire[] {
-  const byPath = new Map(
-    currentFiles.map((file) => [
-      normalizePath(file.path),
-      { path: normalizePath(file.path), content: file.content },
-    ]),
-  );
-
-  for (const change of changes) {
-    const path = normalizePath(change.path);
-    if (change.action === "delete") {
-      byPath.delete(path);
-    } else {
-      byPath.set(path, { path, content: change.content });
-    }
-  }
-
-  return [...byPath.values()];
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/^\/+/, "");
 }
 
 // ─── Wiki folder ─────────────────────────────────────────────────

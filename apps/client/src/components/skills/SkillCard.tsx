@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
-import { FileText, Sparkles, MessageSquareText, Wrench } from "lucide-react";
+import { Sparkles, MessageSquareText, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { Skill } from "@/types/skill";
@@ -57,9 +57,6 @@ export function SkillCard({ skill, hasPendingSuggestion }: SkillCardProps) {
           <TypeIcon size={12} />
           {t(`type.${skill.type}` as const)}
         </Badge>
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
-          <FileText size={12} />v{skill.currentVersion}
-        </span>
       </div>
     </button>
   );
