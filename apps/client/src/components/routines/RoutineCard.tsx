@@ -7,6 +7,7 @@ import {
   Coins,
   Play,
   Bot,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
@@ -23,6 +24,12 @@ const SHOW_TOKEN_STATUSES: RoutineStatus[] = [
   "failed",
   "paused",
   "pending_action",
+  "stopped",
+  "timeout",
+];
+const TERMINAL_STATUSES: RoutineStatus[] = [
+  "completed",
+  "failed",
   "stopped",
   "timeout",
 ];
@@ -74,6 +81,12 @@ export function RoutineCard({
     SHOW_TOKEN_STATUSES.includes(routine.status) &&
     routine.tokenUsage != null &&
     routine.tokenUsage > 0;
+  const manualActionMode =
+    routine.status === "upcoming" || routine.status === "in_progress"
+      ? "start"
+      : TERMINAL_STATUSES.includes(routine.status)
+        ? "restart"
+        : null;
 
   // Body click navigates to the detail page; chevron toggles expansion.
   // The two are intentionally split so the user can preview active runs
@@ -143,14 +156,24 @@ export function RoutineCard({
             </span>
           </button>
           {/* Action buttons — visible on hover */}
-          <button
-            type="button"
-            onClick={handleStartClick}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
-            aria-label={t("detail.start", "Start")}
-          >
-            <Play size={14} className="text-muted-foreground" />
-          </button>
+          {manualActionMode && (
+            <button
+              type="button"
+              onClick={handleStartClick}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
+              aria-label={
+                manualActionMode === "restart"
+                  ? t("chatArea.rerun", "Rerun")
+                  : t("detail.start", "Start")
+              }
+            >
+              {manualActionMode === "restart" ? (
+                <RotateCcw size={14} className="text-muted-foreground" />
+              ) : (
+                <Play size={14} className="text-muted-foreground" />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSettingsClick}
@@ -185,11 +208,7 @@ export function RoutineCard({
       <ManualTriggerDialog
         routineId={routine.id}
         isOpen={showStartDialog}
-        mode={
-          ["completed", "failed", "stopped", "timeout"].includes(routine.status)
-            ? "restart"
-            : "start"
-        }
+        mode={manualActionMode ?? "start"}
         onClose={() => setShowStartDialog(false)}
       />
 

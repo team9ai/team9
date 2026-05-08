@@ -36,6 +36,8 @@ function isDotPath(path: string): boolean {
   return path.split("/").some((segment) => segment.startsWith("."));
 }
 
+const FOLDER_PLACEHOLDER_FILE = ".folder9keep";
+
 /**
  * Convert folder9's flat file list into a nested tree.
  *
@@ -61,9 +63,17 @@ export function buildFolderTree(entries: TreeEntryDto[]): FolderTreeNodeData[] {
     // Skip them rather than produce a corrupt tree.
     if (!entry.path || entry.path.endsWith("/")) continue;
     if (entry.path.split("/").some((s) => s === "")) continue;
-    if (isDotPath(entry.path)) continue;
 
     const parts = entry.path.split("/");
+    const isFolderPlaceholder =
+      parts[parts.length - 1] === FOLDER_PLACEHOLDER_FILE;
+    if (isFolderPlaceholder) {
+      addDirectoryPath(root, parts.slice(0, -1));
+      continue;
+    }
+
+    if (isDotPath(entry.path)) continue;
+
     let cursor = root;
     let accumulated = "";
 
@@ -99,6 +109,27 @@ export function buildFolderTree(entries: TreeEntryDto[]): FolderTreeNodeData[] {
   }
 
   return freeze(root);
+}
+
+function addDirectoryPath(root: Map<string, InnerNode>, parts: string[]) {
+  let cursor = root;
+  let accumulated = "";
+
+  for (const segment of parts) {
+    if (!segment || segment.startsWith(".")) return;
+    accumulated = accumulated ? `${accumulated}/${segment}` : segment;
+    let dir = cursor.get(segment);
+    if (!dir) {
+      dir = {
+        name: segment,
+        path: accumulated,
+        type: "dir",
+        children: new Map(),
+      };
+      cursor.set(segment, dir);
+    }
+    cursor = dir.children;
+  }
 }
 
 /**

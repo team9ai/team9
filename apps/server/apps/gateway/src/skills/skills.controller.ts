@@ -21,6 +21,7 @@ import {
   CreateVersionDto,
   ReviewVersionDto,
 } from './dto/index.js';
+import { FolderCommitDto } from '../routines/dto/folder-commit.dto.js';
 
 @Controller({
   path: 'skills',
@@ -70,6 +71,40 @@ export class SkillsController {
     @CurrentTenantId() tenantId: string,
   ) {
     return this.skillsService.delete(id, tenantId);
+  }
+
+  @Get(':id/folder/tree')
+  async getFolderTree(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Query('path') path?: string,
+    @Query('recursive') recursive?: string,
+  ) {
+    return this.skillsService.getSkillFolderTree(id, userId, tenantId, {
+      path,
+      recursive: recursive === 'true',
+    });
+  }
+
+  @Get(':id/folder/blob')
+  async getFolderBlob(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Query('path') path: string,
+  ) {
+    return this.skillsService.getSkillFolderBlob(id, userId, tenantId, path);
+  }
+
+  @Post(':id/folder/commit')
+  async commitFolder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: FolderCommitDto,
+  ) {
+    return this.skillsService.commitSkillFolder(id, userId, tenantId, dto);
   }
 
   @Get(':id/versions')

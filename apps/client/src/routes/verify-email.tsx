@@ -6,6 +6,7 @@ import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { getHttpErrorMessage } from "@/lib/http-error";
+import { buildDesktopDeepLink } from "@/constants/deep-link";
 import workspaceApi from "@/services/api/workspace";
 import { workspaceActions, appActions } from "@/stores";
 
@@ -87,7 +88,7 @@ function VerifyEmail() {
 
       // Try to wake up the desktop client via deep link.
       try {
-        window.location.href = "team9://auth-complete";
+        window.location.href = buildDesktopDeepLink("auth-complete");
       } catch {
         // Deep link not handled, continue in browser
       }

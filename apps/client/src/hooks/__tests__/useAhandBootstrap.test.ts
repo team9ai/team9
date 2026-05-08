@@ -10,8 +10,13 @@ vi.mock("@/services/ahand-api", () => ({
 }));
 const mockStart = vi.hoisted(() => vi.fn());
 const mockStop = vi.hoisted(() => vi.fn());
+const mockGetIdentity = vi.hoisted(() => vi.fn());
 vi.mock("@/services/ahand-tauri", () => ({
-  ahandTauri: { start: mockStart, stop: mockStop },
+  ahandTauri: {
+    getIdentity: mockGetIdentity,
+    start: mockStart,
+    stop: mockStop,
+  },
 }));
 const mockUseAppStore = vi.hoisted(() => vi.fn());
 vi.mock("@/stores/useAppStore", () => ({ useAppStore: mockUseAppStore }));
@@ -31,6 +36,7 @@ describe("useAhandBootstrap", () => {
       (sel: (s: { user: { id: string } | null }) => unknown) =>
         sel({ user: { id: "u1" } }),
     );
+    mockGetIdentity.mockResolvedValue({ deviceId: "dev-abc" });
   });
 
   it("does nothing in web env", () => {
@@ -65,6 +71,20 @@ describe("useAhandBootstrap", () => {
     await waitFor(() =>
       expect(useAhandStore.getState().usersEnabled["u1"]?.enabled).toBe(false),
     );
+    expect(mockStart).not.toHaveBeenCalled();
+  });
+
+  it("disables stale cache when local identity no longer matches cached device", async () => {
+    useAhandStore
+      .getState()
+      .setDeviceIdForUser("u1", "dev-old", true, "wss://hub.example.com");
+    mockGetIdentity.mockResolvedValue({ deviceId: "dev-new" });
+    renderHook(() => useAhandBootstrap());
+    await waitFor(() =>
+      expect(useAhandStore.getState().usersEnabled["u1"]?.enabled).toBe(false),
+    );
+    expect(mockList).not.toHaveBeenCalled();
+    expect(mockRefreshToken).not.toHaveBeenCalled();
     expect(mockStart).not.toHaveBeenCalled();
   });
 

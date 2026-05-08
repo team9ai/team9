@@ -5,6 +5,13 @@ import { describe, expect, it } from "vitest";
 
 type TauriConfig = {
   identifier?: string;
+  plugins?: {
+    "deep-link"?: {
+      desktop?: {
+        schemes?: string[];
+      };
+    };
+  };
 };
 
 const clientRoot = resolve(__dirname, "../../..");
@@ -31,5 +38,15 @@ describe("Tauri environment configs", () => {
       "com.weight-wave.team9-client.local",
     ]);
     expect(new Set(identifiers).size).toBe(identifiers.length);
+  });
+
+  it("declares a separate local deep-link scheme", () => {
+    expect(
+      readConfig("tauri.conf.json").plugins?.["deep-link"]?.desktop?.schemes,
+    ).toEqual(["team9"]);
+    expect(
+      readConfig("tauri.local.conf.json").plugins?.["deep-link"]?.desktop
+        ?.schemes,
+    ).toEqual(["team9-local"]);
   });
 });

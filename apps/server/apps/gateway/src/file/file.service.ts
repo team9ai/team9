@@ -108,6 +108,14 @@ export class FileService implements OnModuleInit {
 
     await this.storageService.ensureBucket(bucket);
 
+    try {
+      await this.storageService.setBucketCors(bucket);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to set CORS configuration on bucket ${bucket}: ${error}`,
+      );
+    }
+
     // Set lifecycle rule for auto-deleting pending uploads
     try {
       await this.storageService.setTagBasedLifecycleRule(bucket, {

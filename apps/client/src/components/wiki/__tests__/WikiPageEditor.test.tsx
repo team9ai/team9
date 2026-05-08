@@ -27,6 +27,7 @@ const folderEditorProps = vi.hoisted(() =>
 // receives. Tests inspect / reset this between cases.
 const slotState = vi.hoisted(() => ({
   lastBody: null as string | null,
+  contentOverride: null as string | null,
 }));
 
 vi.mock("@/components/folder9-editor/Folder9FolderEditor", () => ({
@@ -38,7 +39,9 @@ vi.mock("@/components/folder9-editor/Folder9FolderEditor", () => ({
     const slot = props.renderFile?.({
       path: props.initialPath ?? "index.md",
       editorKey: `mock:${props.folderId}:${props.initialPath ?? "index.md"}`,
-      content: `---\nicon: 🚀\ntitle: Home\n---\n\nbody from ${props.folderId}`,
+      content:
+        slotState.contentOverride ??
+        `---\nicon: 🚀\ntitle: Home\nsummary: Existing summary\n---\n\nbody from ${props.folderId}`,
       encoding: "text",
       readOnly: props.permission === "read",
       onChange: (next) => {
@@ -333,6 +336,7 @@ beforeEach(() => {
   imageUploadHook.upload.mockResolvedValue("attachments/x-uuid.png");
   proposeReviewProceedInputs.length = 0;
   slotState.lastBody = null;
+  slotState.contentOverride = null;
   workspaceMock.selectedWorkspaceId = "ws-1";
   currentUserMock.data = {
     id: "user-1",
@@ -616,6 +620,100 @@ describe("WikiPageEditor (wrapper around <Folder9FolderEditor>)", () => {
       const body = slotState.lastBody as string;
       expect(body).toContain("icon:");
       expect(body).toContain("edited body");
+    });
+
+    it("shows the summary from frontmatter without AI edit controls", () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+
+      expect(screen.getByTestId("wiki-page-ai-metadata")).toBeInTheDocument();
+      expect(screen.queryByTestId("wiki-page-ai-autoupdate")).toBeNull();
+      expect(screen.queryByRole("switch")).toBeNull();
+      expect(screen.queryByText(/allow ai edits|允许 ai 修改/i)).toBeNull();
+      expect(screen.getByTestId("wiki-page-summary")).toHaveValue(
+        "Existing summary",
+      );
+    });
+
+    it("shows only an add-summary button when summary is empty, then expands the editor on click", async () => {
+      slotState.contentOverride =
+        '---\nicon: 🚀\ntitle: Home\nsummary: ""\n---\n\nbody';
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+
+      expect(screen.queryByTestId("wiki-page-summary")).toBeNull();
+      const add = screen.getByRole("button", { name: /add summary|添加摘要/i });
+      expect(add).toBeInTheDocument();
+
+      await click(add);
+
+      expect(screen.getByTestId("wiki-page-summary")).toHaveFocus();
+    });
+
+    it("collapses back to add-summary when switching to another empty-summary page", async () => {
+      slotState.contentOverride =
+        '---\nicon: 🚀\ntitle: Home\nsummary: ""\n---\n\nbody';
+      const { rerender } = render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="first/index.md9"
+          serverPage={{ ...basePage, path: "first/index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+
+      await click(
+        screen.getByRole("button", { name: /add summary|添加摘要/i }),
+      );
+      expect(screen.getByTestId("wiki-page-summary")).toBeInTheDocument();
+
+      rerender(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="second/index.md9"
+          serverPage={{ ...basePage, path: "second/index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+
+      expect(screen.queryByTestId("wiki-page-summary")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: /add summary|添加摘要/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("serializes summary edits back into frontmatter", async () => {
+      render(
+        <WikiPageEditor
+          wikiId="wiki-1"
+          path="index.md9"
+          serverPage={{ ...basePage, path: "index.md9" }}
+          wiki={baseWiki}
+        />,
+      );
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId("wiki-page-summary"), {
+          target: { value: "Short AI context" },
+        });
+      });
+
+      expect(slotState.lastBody).not.toBeNull();
+      expect(slotState.lastBody).not.toContain("aiAutoUpdate");
+      expect(slotState.lastBody).toContain("summary: Short AI context");
+      expect(slotState.lastBody).toContain("body from wiki-1");
     });
 
     it("body edits while read-only do not bubble through onChange", async () => {

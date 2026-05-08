@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Plus,
   Settings,
+  Upload,
 } from "lucide-react";
 import { useWikiTree } from "@/hooks/useWikiTree";
 import { queryClient } from "@/lib/query-client";
@@ -46,6 +47,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useArchiveWiki } from "@/hooks/useWikis";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import i18n from "@/i18n";
@@ -101,6 +111,36 @@ function uniqueFolderIndexPath(
   return `${folderPath}-${Date.now()}${suffix}`;
 }
 
+function bytesToBase64(bytes: ArrayBuffer): string {
+  const view = new Uint8Array(bytes);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < view.length; i += chunkSize) {
+    const chunk = view.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  return bytesToBase64(await file.arrayBuffer());
+}
+
+function uploadPathForFile(file: File): string {
+  const relativePath =
+    typeof (file as File & { webkitRelativePath?: string })
+      .webkitRelativePath === "string"
+      ? (file as File & { webkitRelativePath: string }).webkitRelativePath
+      : "";
+  const rawPath = relativePath.trim() || file.name;
+  return rawPath
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")
+    .filter(Boolean)
+    .join("/");
+}
+
 /**
  * One wiki row in the sub-sidebar. The wiki tree is lazy-loaded — the
  * `useWikiTree` query is disabled until the user expands this row, so
@@ -140,8 +180,15 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isCreatingFile, setIsCreatingFile] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedUploadFiles, setSelectedUploadFiles] = useState<File[]>([]);
+  const [uploadProposalId, setUploadProposalId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const archiveWiki = useArchiveWiki();
   const isArchiving = archiveWiki.isPending;
@@ -172,6 +219,10 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
         (entries ?? []).filter((e) => e.type === "file").map((e) => e.path),
       ),
     [entries],
+  );
+  const selectedUploadPaths = useMemo(
+    () => selectedUploadFiles.map(uploadPathForFile).filter(Boolean),
+    [selectedUploadFiles],
   );
 
   // Note: a second invocation while the first is still pending is
@@ -224,7 +275,7 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
     path: string,
     content: string,
     encoding: "text" | "base64",
-  ) => {
+  ): Promise<boolean> => {
     setIsCreatingFile(true);
     try {
       await wikisApi.commit(wiki.id, {
@@ -232,8 +283,10 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
         files: [{ path, content, encoding, action: "create" }],
       });
       refreshAfterCreate(path);
+      return true;
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Create failed");
+      return false;
     } finally {
       setIsCreatingFile(false);
     }
@@ -241,14 +294,87 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
 
   const handleCreatePage = () => {
     if (isCreatingFile) return;
-    const input = window.prompt(t("listItem.newPagePrompt"), "untitled");
-    if (input === null) return;
-    const normalized = normalizePageFolderIndexPath(input);
+    const normalized = normalizePageFolderIndexPath("untitled");
     if (!normalized) return;
     const path = uniqueFolderIndexPath(normalized, existingPaths);
     const pathSegments = path.split("/");
     const title = pathSegments[pathSegments.length - 2] ?? "untitled";
-    void createFile(path, `# ${stripWikiPageExtension(title)}\n\n`, "text");
+    void createFile(
+      path,
+      `---\nsummary: ""\n---\n\n# ${stripWikiPageExtension(title)}\n\n`,
+      "text",
+    );
+  };
+
+  const handleCreateChildPage = (parentPath: string) => {
+    if (isCreatingFile) return;
+    const normalizedParent = parentPath.trim().replace(/^\/+|\/+$/g, "");
+    const normalized = normalizePageFolderIndexPath(
+      normalizedParent ? `${normalizedParent}/untitled` : "untitled",
+    );
+    if (!normalized) return;
+    const path = uniqueFolderIndexPath(normalized, existingPaths);
+    const pathSegments = path.split("/");
+    const title = pathSegments[pathSegments.length - 2] ?? "untitled";
+    void createFile(
+      path,
+      `---\nsummary: ""\n---\n\n# ${stripWikiPageExtension(title)}\n\n`,
+      "text",
+    );
+  };
+
+  const handleOpenUploadDialog = () => {
+    setSelectedUploadFiles([]);
+    setUploadProposalId(null);
+    setUploadError(null);
+    setShowUploadDialog(true);
+  };
+
+  const handleUploadFilesSelected = (files: FileList | null) => {
+    const nextFiles = Array.from(files ?? []);
+    setSelectedUploadFiles((current) => {
+      const byPath = new Map(
+        current.map((file) => [uploadPathForFile(file), file]),
+      );
+      for (const file of nextFiles) {
+        byPath.set(uploadPathForFile(file), file);
+      }
+      return Array.from(byPath.values());
+    });
+    setUploadProposalId(null);
+    setUploadError(null);
+  };
+
+  const handleUploadSubmit = async () => {
+    if (selectedUploadFiles.length === 0 || isUploading) return;
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const files = await Promise.all(
+        selectedUploadFiles.map(async (file) => ({
+          path: uploadPathForFile(file),
+          content: await fileToBase64(file),
+          encoding: "base64" as const,
+          action: "create" as const,
+        })),
+      );
+      const result = await wikisApi.commit(wiki.id, {
+        message: `Upload ${files.length} ${files.length === 1 ? "file" : "files"}`,
+        files,
+        propose: true,
+      });
+      setUploadProposalId(result.proposal?.id ?? result.commit.sha);
+      void queryClient.invalidateQueries({
+        queryKey: wikiKeys.proposals(wiki.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: wikiKeys.pendingCounts(),
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -261,7 +387,8 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
       <div
         className={cn(
           "flex items-center w-full hover:bg-muted/50",
-          isRootDocumentSelected && "bg-primary/10 text-primary font-medium",
+          isRootDocumentSelected &&
+            "bg-[var(--nav-active)] text-[var(--nav-foreground-strong)] font-medium",
         )}
       >
         <button
@@ -295,17 +422,41 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
           )}
           <span className="truncate">{rootTitle}</span>
         </button>
-        <button
-          type="button"
-          aria-label={t("listItem.newPage")}
-          title={t("listItem.newPage")}
-          data-testid={`wiki-list-item-create-${wiki.id}`}
-          disabled={isCreatingFile}
-          onClick={handleCreatePage}
-          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground opacity-0 group-hover/wiki-row:text-foreground group-hover/wiki-row:opacity-100 hover:bg-muted hover:text-foreground focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Plus size={14} />
-        </button>
+        <DropdownMenu open={createMenuOpen} onOpenChange={setCreateMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("listItem.createMenuLabel", { name: rootTitle })}
+              title={t("listItem.createMenuLabel", { name: rootTitle })}
+              data-testid={`wiki-list-item-create-${wiki.id}`}
+              disabled={isCreatingFile}
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded text-muted-foreground group-hover/wiki-row:text-foreground hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                createMenuOpen
+                  ? "opacity-100"
+                  : "opacity-0 group-hover/wiki-row:opacity-100 focus-visible:opacity-100",
+              )}
+            >
+              <Plus size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem
+              data-testid={`wiki-list-item-create-page-${wiki.id}`}
+              onSelect={handleCreatePage}
+            >
+              <Plus size={14} className="mr-2" />
+              {t("listItem.newPage")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`wiki-list-item-upload-${wiki.id}`}
+              onSelect={handleOpenUploadDialog}
+            >
+              <Upload size={14} className="mr-2" />
+              {t("listItem.uploadFile")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
@@ -350,8 +501,10 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
             <WikiTreeNode
               key={node.path}
               node={node}
+              wikiId={wiki.id}
               wikiSlug={wiki.slug}
               depth={1}
+              onCreatePage={handleCreateChildPage}
             />
           ))}
         </div>
@@ -361,6 +514,103 @@ export function WikiListItem({ wiki }: WikiListItemProps) {
         onOpenChange={setShowSettings}
         wiki={wiki}
       />
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent
+          className="sm:max-w-lg"
+          data-testid={`wiki-list-item-upload-dialog-${wiki.id}`}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("listItem.uploadFile")}</DialogTitle>
+            <DialogDescription>
+              {t("listItem.uploadDescription", {
+                defaultValue:
+                  "Upload files into a pending Wiki proposal, then let AI update related pages marked for automatic updates.",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-center"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                data-testid={`wiki-list-item-upload-picker-${wiki.id}`}
+              >
+                <Upload size={16} className="mr-2" />
+                {t("listItem.selectUploadItems", {
+                  defaultValue: "Select files or folders",
+                })}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                data-testid={`wiki-list-item-upload-file-input-${wiki.id}`}
+                onChange={(e) => {
+                  handleUploadFilesSelected(e.target.files);
+                  e.currentTarget.value = "";
+                }}
+              />
+            </div>
+            {selectedUploadPaths.length > 0 && (
+              <div
+                className="max-h-32 overflow-auto rounded border bg-muted/20 p-2 text-xs text-muted-foreground"
+                data-testid={`wiki-list-item-upload-selection-${wiki.id}`}
+              >
+                {selectedUploadPaths.map((path) => (
+                  <div key={path} className="truncate">
+                    {path}
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadProposalId && (
+              <div
+                className="rounded border border-primary/20 bg-primary/5 p-3 text-sm text-primary"
+                data-testid={`wiki-list-item-upload-ai-status-${wiki.id}`}
+              >
+                {t("listItem.uploadAiStatus", {
+                  defaultValue:
+                    "Proposal {{proposalId}} created. Related md9 pages can be updated from their summaries.",
+                  proposalId: uploadProposalId,
+                })}
+              </div>
+            )}
+            {uploadError && (
+              <div
+                className="rounded border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
+                data-testid={`wiki-list-item-upload-error-${wiki.id}`}
+              >
+                {uploadError}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowUploadDialog(false)}
+              disabled={isUploading}
+              data-testid={`wiki-list-item-upload-cancel-${wiki.id}`}
+            >
+              {t("archive.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleUploadSubmit()}
+              disabled={selectedUploadFiles.length === 0 || isUploading}
+              data-testid={`wiki-list-item-upload-submit-${wiki.id}`}
+            >
+              {isUploading
+                ? t("listItem.uploading", { defaultValue: "Uploading..." })
+                : t("listItem.uploadFile")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialog
         open={showArchiveConfirm}
         onOpenChange={setShowArchiveConfirm}

@@ -7,7 +7,10 @@ const mockUseWikis = vi.hoisted(() => vi.fn());
 const mockUseSubmittedProposal = vi.hoisted(() => vi.fn());
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockCommit = vi.hoisted(() => vi.fn());
+const mockGetTree = vi.hoisted(() => vi.fn());
+const mockGetPage = vi.hoisted(() => vi.fn());
 const mockSetSubmittedProposal = vi.hoisted(() => vi.fn());
+const mockSetSelectedPage = vi.hoisted(() => vi.fn());
 const mockUploadCover = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useWikiPage", () => ({
@@ -16,6 +19,11 @@ vi.mock("@/hooks/useWikiPage", () => ({
 
 vi.mock("@/hooks/useWikis", () => ({
   useWikis: (...args: unknown[]) => mockUseWikis(...args),
+  wikiKeys: {
+    page: (id: string, path: string) => ["wikis", id, "page", path],
+    pages: (id: string) => ["wikis", id, "page"],
+    trees: (id: string) => ["wikis", id, "tree"],
+  },
 }));
 
 vi.mock("@/hooks/useWikiImageUpload", () => ({
@@ -31,6 +39,7 @@ vi.mock("@/stores/useWikiStore", () => ({
   wikiActions: {
     setSubmittedProposal: (...args: unknown[]) =>
       mockSetSubmittedProposal(...args),
+    setSelectedPage: (...args: unknown[]) => mockSetSelectedPage(...args),
   },
 }));
 
@@ -41,6 +50,8 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/services/api/wikis", () => ({
   wikisApi: {
     commit: (...args: unknown[]) => mockCommit(...args),
+    getTree: (...args: unknown[]) => mockGetTree(...args),
+    getPage: (...args: unknown[]) => mockGetPage(...args),
   },
 }));
 
@@ -168,10 +179,15 @@ beforeEach(() => {
   mockUseSubmittedProposal.mockReturnValue(null);
   mockNavigate.mockReset();
   mockCommit.mockReset();
+  mockGetTree.mockReset();
+  mockGetPage.mockReset();
   mockSetSubmittedProposal.mockReset();
+  mockSetSelectedPage.mockReset();
   mockUploadCover.mockReset();
   mockUploadCover.mockResolvedValue("covers/uploaded.png");
   mockCommit.mockResolvedValue({ commit: { sha: "sha-1" }, proposal: null });
+  mockGetTree.mockResolvedValue([]);
+  mockGetPage.mockRejectedValue(new Error("unexpected getPage call"));
   vi.spyOn(window, "alert").mockImplementation(() => {});
 });
 
@@ -298,6 +314,83 @@ describe("WikiPageView", () => {
             action: "update",
           },
         ],
+      });
+    });
+  });
+
+  it("renames a folder index page by moving the underlying folder9 paths", async () => {
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        ...page,
+        path: "untitled-2/index.md9",
+        content: "Body",
+        frontmatter: { title: "untitled-2", icon: "📄" },
+      },
+      isLoading: false,
+    });
+    mockUseWikis.mockReturnValue({ data: [wiki], isLoading: false });
+    mockGetTree.mockResolvedValue([
+      {
+        name: "index.md9",
+        path: "untitled-2/index.md9",
+        type: "file",
+        size: 10,
+      },
+      {
+        name: "child.md9",
+        path: "untitled-2/child.md9",
+        type: "file",
+        size: 10,
+      },
+    ]);
+    mockGetPage.mockResolvedValue({
+      path: "untitled-2/child.md9",
+      content: "Child body",
+      encoding: "text",
+      frontmatter: { title: "Child" },
+      lastCommit: null,
+    });
+
+    render(<WikiPageView wikiId="wiki-1" path="untitled-2/index.md9" />);
+
+    fireEvent.click(screen.getByTestId("header-stub"));
+
+    await waitFor(() => {
+      expect(mockCommit).toHaveBeenCalledWith("wiki-1", {
+        message: "Rename untitled-2 to Renamed",
+        files: [
+          {
+            path: "Renamed/index.md9",
+            content: "---\ntitle: Renamed\nicon: 🎨\n---\n\nBody",
+            encoding: "text",
+            action: "create",
+          },
+          {
+            path: "Renamed/child.md9",
+            content: "---\ntitle: Child\n---\n\nChild body",
+            encoding: "text",
+            action: "create",
+          },
+          {
+            path: "untitled-2/index.md9",
+            content: "",
+            action: "delete",
+          },
+          {
+            path: "untitled-2/child.md9",
+            content: "",
+            action: "delete",
+          },
+        ],
+      });
+    });
+    expect(window.alert).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockSetSelectedPage).toHaveBeenCalledWith("Renamed/index.md9");
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/wiki/$wikiSlug/$",
+        params: { wikiSlug: "handbook", _splat: "Renamed/index.md9" },
+        replace: true,
       });
     });
   });

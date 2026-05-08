@@ -50,7 +50,7 @@ export class ExecutorService {
   /**
    * Trigger a full execution lifecycle for the given routine.
    *
-   * 1. CAS: claim the routine atomically (must be first — prevents duplicate executions)
+   * 1. CAS: claim the routine atomically, or reuse an already-running routine for concurrent runs
    * 2. Create task channel (type='task')
    * 3. Fetch document content (if linked)
    * 4. Create execution record in DB (with routine version snapshot)
@@ -69,7 +69,7 @@ export class ExecutorService {
       documentVersionId?: string;
     },
   ): Promise<boolean> {
-    // ── 1. CAS: claim the routine atomically (must be first — prevents duplicate executions) ──
+    // ── 1. CAS: claim the routine atomically, or reuse an active routine for concurrent runs ──
     const claimed = await this.db
       .update(schema.routines)
       .set({ status: 'in_progress', updatedAt: new Date() })
@@ -91,16 +91,39 @@ export class ExecutorService {
         creatorId: schema.routines.creatorId,
         title: schema.routines.title,
         version: schema.routines.version,
+        status: schema.routines.status,
       });
 
-    if (claimed.length === 0) {
+    let routine = claimed[0];
+
+    if (!routine) {
+      const [existingRoutine] = await this.db
+        .select({
+          id: schema.routines.id,
+          botId: schema.routines.botId,
+          tenantId: schema.routines.tenantId,
+          documentId: schema.routines.documentId,
+          creatorId: schema.routines.creatorId,
+          title: schema.routines.title,
+          version: schema.routines.version,
+          status: schema.routines.status,
+        })
+        .from(schema.routines)
+        .where(eq(schema.routines.id, routineId))
+        .limit(1);
+
+      if (existingRoutine?.status === 'in_progress') {
+        routine = existingRoutine;
+      }
+    }
+
+    if (!routine) {
       this.logger.warn(
-        `Routine ${routineId} cannot start execution — status not eligible or already active`,
+        `Routine ${routineId} cannot start execution — status not eligible`,
       );
       return false;
     }
 
-    const routine = claimed[0];
     this.logger.log(
       `Starting execution for routine ${routineId} ("${routine.title}")`,
     );

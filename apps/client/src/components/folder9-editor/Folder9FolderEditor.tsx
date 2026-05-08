@@ -6,12 +6,28 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import {
+  AlertTriangle,
+  FilePlus2,
+  FolderPlus,
+  Loader2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { DocumentEditor } from "@/components/documents/DocumentEditor";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useFolderDraft } from "@/hooks/useFolderDraft";
-import { getHttpErrorStatus } from "@/lib/http-error";
+import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import { buildFolderTree, type FolderTreeNodeData } from "@/lib/folder-tree";
 import i18n from "@/i18n";
 import { FolderStatusBar } from "./FolderStatusBar";
@@ -158,6 +174,13 @@ export interface Folder9FolderEditorProps {
    * SKILL editor, standalone usage) keep the built-in sidebar.
    */
   hideTree?: boolean;
+
+  /**
+   * Which side should host the built-in file tree. Defaults to the
+   * original left-side layout; skills use the right-side layout to keep
+   * the markdown body in the primary reading column.
+   */
+  treePosition?: "left" | "right";
 }
 
 /**
@@ -171,12 +194,104 @@ export interface ProposeReviewInput {
 
 const FILE_QUERY_KEY = "folder9-folder";
 const AUTO_SAVE_DELAY_MS = 800;
+const FOLDER_PLACEHOLDER_FILE = ".folder9keep";
+
+type CreateEntryKind = "file" | "folder";
+type FolderEntryKind = "file" | "dir";
+
+const INTERNAL_FILE_DRAG_TYPE = "application/x-team9-folder-file";
+const INTERNAL_ENTRY_DRAG_TYPE = "application/x-team9-folder-entry";
 
 function commitErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
   if (status === 409) return i18n.t("wiki:editor.errors.saveConflict");
   if (status === 403) return i18n.t("wiki:editor.errors.saveForbidden");
   return i18n.t("wiki:editor.errors.saveFailed");
+}
+
+function normalizeFolderPath(path: string): string {
+  return path.replace(/^\/+/, "").replace(/\/+$/, "").replace(/\/+/g, "/");
+}
+
+function fileNameFromPath(path: string): string {
+  const normalized = normalizeFolderPath(path);
+  const parts = normalized.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+}
+
+function composeUserPath(input: string, baseDir: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  const normalized = normalizeFolderPath(baseDir ? `${baseDir}/${raw}` : raw);
+  const parts = normalized.split("/").filter(Boolean);
+  if (
+    parts.length === 0 ||
+    parts.some((part) => part === "." || part === "..")
+  ) {
+    return null;
+  }
+  return parts.join("/");
+}
+
+function isProbablyTextFile(file: File): boolean {
+  if (file.type.startsWith("text/")) return true;
+  return /\.(md|mdx|txt|json|ya?ml|toml|csv|tsv|xml|html?|css|scss|js|jsx|ts|tsx|mjs|cjs|py|rb|go|rs|java|kt|swift|sh|bash|zsh|sql|env|gitignore)$/i.test(
+    file.name,
+  );
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Read failed"));
+    reader.readAsText(file);
+  });
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const parts = result.split(",");
+      resolve(result.includes(",") ? parts[parts.length - 1] : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readLocalFileForCommit(
+  file: File,
+): Promise<{ content: string; encoding: "text" | "base64" }> {
+  if (isProbablyTextFile(file)) {
+    return { content: await readFileAsText(file), encoding: "text" };
+  }
+  return { content: await readFileAsBase64(file), encoding: "base64" };
+}
+
+function readInternalDrag(
+  dataTransfer: DataTransfer,
+): { path: string; type: FolderEntryKind } | null {
+  const raw = dataTransfer.getData(INTERNAL_ENTRY_DRAG_TYPE);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { path?: unknown; type?: unknown };
+      if (
+        typeof parsed.path === "string" &&
+        (parsed.type === "file" || parsed.type === "dir")
+      ) {
+        return { path: parsed.path, type: parsed.type };
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  const legacyFilePath = dataTransfer.getData(INTERNAL_FILE_DRAG_TYPE);
+  if (legacyFilePath) return { path: legacyFilePath, type: "file" };
+  return null;
 }
 
 /**
@@ -219,6 +334,7 @@ export function Folder9FolderEditor({
   imageUpload,
   onProposeReview,
   hideTree = false,
+  treePosition = "left",
 }: Folder9FolderEditorProps) {
   const { t } = useTranslation("wiki");
   const queryClient = useQueryClient();
@@ -254,6 +370,16 @@ export function Folder9FolderEditor({
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(
     () => new Set(),
   );
+  const [createEntryKind, setCreateEntryKind] =
+    useState<CreateEntryKind | null>(null);
+  const [createEntryName, setCreateEntryName] = useState("");
+  const [createEntryError, setCreateEntryError] = useState<string | null>(null);
+  const [createEntryBaseDir, setCreateEntryBaseDir] = useState("");
+  const [treeOperationLabel, setTreeOperationLabel] = useState<string | null>(
+    null,
+  );
+  const isTreeOperationPending = treeOperationLabel !== null;
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedPath(initialPath ?? null);
@@ -331,6 +457,19 @@ export function Folder9FolderEditor({
   const lastAutoSavedSignatureRef = useRef<string | null>(null);
   const failedAutoSaveSignatureRef = useRef<string | null>(null);
   const latestSelectedPathRef = useRef<string | null>(selectedPath);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetDirectoryRef = useRef<string>("");
+
+  const activeDirectoryPath = useMemo(() => {
+    if (!selectedPath) return "";
+    const normalized = normalizeFolderPath(selectedPath);
+    const parts = normalized.split("/").filter(Boolean);
+    if (parts[parts.length - 1] === FOLDER_PLACEHOLDER_FILE) {
+      return parts.slice(0, -1).join("/");
+    }
+    if (parts.length <= 1) return "";
+    return parts.slice(0, -1).join("/");
+  }, [selectedPath]);
 
   useEffect(() => {
     latestSelectedPathRef.current = selectedPath;
@@ -478,10 +617,12 @@ export function Folder9FolderEditor({
 
   const commit = useMutation<CommitResult, unknown, CommitRequest>({
     mutationFn: (req) => api.commit(req),
-    onSuccess: (_res, variables) => {
+    onSuccess: async (_res, variables) => {
       // Generic invalidation: the tree may have grown / shrunk; every
       // affected blob is now stale.
-      void queryClient.invalidateQueries({ queryKey: treeKey });
+      const invalidations: Promise<unknown>[] = [
+        queryClient.invalidateQueries({ queryKey: treeKey }),
+      ];
       for (const file of variables.files) {
         if (file.action !== "delete") {
           queryClient.setQueryData<BlobDto>(
@@ -493,10 +634,13 @@ export function Folder9FolderEditor({
             }),
           );
         }
-        void queryClient.invalidateQueries({
-          queryKey: [FILE_QUERY_KEY, folderId, "blob", file.path],
-        });
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: [FILE_QUERY_KEY, folderId, "blob", file.path],
+          }),
+        );
       }
+      await Promise.all(invalidations);
     },
   });
 
@@ -505,6 +649,362 @@ export function Folder9FolderEditor({
   // toast component lands.
   function notify(message: string) {
     window.alert(message);
+  }
+
+  async function commitFiles(
+    message: string,
+    files: CommitRequest["files"],
+    options: { pendingLabel?: string } = {},
+  ): Promise<boolean> {
+    if (
+      readOnly ||
+      commit.isPending ||
+      isTreeOperationPending ||
+      files.length === 0
+    ) {
+      return false;
+    }
+    const propose = isReview;
+    if (options.pendingLabel) setTreeOperationLabel(options.pendingLabel);
+    try {
+      await commit.mutateAsync({ message, files, propose });
+      if (!propose) {
+        notify(t("editor.notifySaved"));
+      } else {
+        notify(t("editor.notifySubmitted"));
+      }
+      return true;
+    } catch (error) {
+      notify(commitErrorMessage(error));
+      return false;
+    } finally {
+      if (options.pendingLabel) setTreeOperationLabel(null);
+    }
+  }
+
+  function openCreateEntryDialog(
+    kind: CreateEntryKind,
+    baseDir = activeDirectoryPath,
+  ) {
+    if (readOnly || commit.isPending || isTreeOperationPending) return;
+    setCreateEntryKind(kind);
+    setCreateEntryBaseDir(normalizeFolderPath(baseDir));
+    setCreateEntryName(kind === "file" ? "untitled.md" : "new-folder");
+    setCreateEntryError(null);
+  }
+
+  async function submitCreateEntry(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!createEntryKind || readOnly || commit.isPending) return;
+
+    if (createEntryKind === "file") {
+      const path = composeUserPath(createEntryName, createEntryBaseDir);
+      if (!path || path.endsWith("/")) {
+        setCreateEntryError(
+          t("tree.invalidPath", { defaultValue: "Invalid path" }),
+        );
+        return;
+      }
+
+      const didCommit = await commitFiles(
+        `Create ${path}`,
+        [{ path, content: "", encoding: "text", action: "create" }],
+        {
+          pendingLabel: t("tree.creatingFile", {
+            defaultValue: "Creating file...",
+          }),
+        },
+      );
+      if (didCommit) {
+        setSelectedPath(path);
+        setCreateEntryKind(null);
+      }
+      return;
+    }
+
+    const folderPath = composeUserPath(createEntryName, createEntryBaseDir);
+    if (!folderPath) {
+      setCreateEntryError(
+        t("tree.invalidPath", { defaultValue: "Invalid path" }),
+      );
+      return;
+    }
+    const placeholderPath = `${folderPath}/${FOLDER_PLACEHOLDER_FILE}`;
+    const didCommit = await commitFiles(
+      `Create ${folderPath}`,
+      [
+        {
+          path: placeholderPath,
+          content: "",
+          encoding: "text",
+          action: "create",
+        },
+      ],
+      {
+        pendingLabel: t("tree.creatingFolder", {
+          defaultValue: "Creating folder...",
+        }),
+      },
+    );
+    if (!didCommit) return;
+    setExpandedDirs((prev) => {
+      const next = new Set(prev);
+      const parts = folderPath.split("/");
+      for (let i = 1; i <= parts.length; i += 1) {
+        next.add(parts.slice(0, i).join("/"));
+      }
+      return next;
+    });
+    setCreateEntryKind(null);
+  }
+
+  function handleUploadClick(baseDir = activeDirectoryPath) {
+    if (readOnly || commit.isPending || isTreeOperationPending) return;
+    uploadTargetDirectoryRef.current = normalizeFolderPath(baseDir);
+    uploadInputRef.current?.click();
+  }
+
+  async function uploadFilesToDirectory(files: File[], baseDir: string) {
+    const targetDir = normalizeFolderPath(baseDir);
+    const changes: CommitRequest["files"] = [];
+
+    for (const file of files) {
+      const path = composeUserPath(file.name, targetDir);
+      if (!path) {
+        throw new Error(
+          t("tree.invalidPath", { defaultValue: "Invalid path" }),
+        );
+      }
+      const payload = await readLocalFileForCommit(file);
+      changes.push({
+        path,
+        content: payload.content,
+        encoding: payload.encoding,
+        action: "create",
+      });
+    }
+
+    const didCommit = await commitFiles(
+      files.length === 1
+        ? `Upload ${files[0].name}`
+        : `Upload ${files.length} files`,
+      changes,
+      {
+        pendingLabel: t("tree.uploading", { defaultValue: "Uploading..." }),
+      },
+    );
+    if (didCommit && changes[0]) setSelectedPath(changes[0].path);
+  }
+
+  async function handleUploadFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (
+      readOnly ||
+      commit.isPending ||
+      isTreeOperationPending ||
+      files.length === 0
+    ) {
+      return;
+    }
+
+    try {
+      await uploadFilesToDirectory(files, uploadTargetDirectoryRef.current);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      uploadTargetDirectoryRef.current = "";
+    }
+  }
+
+  function handleDropFilesInDirectory(baseDir: string, files: File[]) {
+    if (
+      readOnly ||
+      commit.isPending ||
+      isTreeOperationPending ||
+      files.length === 0
+    ) {
+      return;
+    }
+    void uploadFilesToDirectory(files, baseDir).catch((error: unknown) => {
+      notify(error instanceof Error ? error.message : "Upload failed");
+    });
+  }
+
+  async function readBlobForMove(path: string): Promise<BlobDto> {
+    return (
+      queryClient.getQueryData<BlobDto>([
+        FILE_QUERY_KEY,
+        folderId,
+        "blob",
+        path,
+      ]) ?? (await api.fetchBlob(path))
+    );
+  }
+
+  function expandDirectoryPath(dirPath: string) {
+    setExpandedDirs((prev) => {
+      const next = new Set(prev);
+      const parts = normalizeFolderPath(dirPath).split("/").filter(Boolean);
+      for (let i = 1; i <= parts.length; i += 1) {
+        next.add(parts.slice(0, i).join("/"));
+      }
+      return next;
+    });
+  }
+
+  async function moveEntryToDirectory(
+    sourcePath: string,
+    sourceType: FolderEntryKind,
+    baseDir: string,
+  ) {
+    if (readOnly || commit.isPending || isTreeOperationPending) return;
+    const normalizedSource = normalizeFolderPath(sourcePath);
+    const fileName = fileNameFromPath(normalizedSource);
+    const targetDir = normalizeFolderPath(baseDir);
+    if (!fileName) return;
+
+    try {
+      let targetPath = composeUserPath(fileName, targetDir);
+      const changes: CommitRequest["files"] = [];
+
+      if (sourceType === "file") {
+        if (!targetPath || targetPath === normalizedSource) return;
+        const sourceBlob =
+          selectedPath === normalizedSource && blobQuery.data
+            ? {
+                content: body,
+                encoding: blobQuery.data.encoding,
+              }
+            : await readBlobForMove(normalizedSource);
+        changes.push(
+          {
+            path: targetPath,
+            content: sourceBlob.content,
+            encoding: sourceBlob.encoding,
+            action: "create",
+          },
+          {
+            path: normalizedSource,
+            content: "",
+            encoding: "text",
+            action: "delete",
+          },
+        );
+      } else {
+        if (
+          !targetPath ||
+          targetPath === normalizedSource ||
+          targetDir === normalizedSource ||
+          targetDir.startsWith(`${normalizedSource}/`)
+        ) {
+          return;
+        }
+
+        const sourcePrefix = `${normalizedSource}/`;
+        const sourceEntries = (treeQuery.data ?? []).filter(
+          (entry) =>
+            entry.type === "file" &&
+            normalizeFolderPath(entry.path).startsWith(sourcePrefix),
+        );
+        if (sourceEntries.length === 0) return;
+
+        for (const entry of sourceEntries) {
+          const sourceFilePath = normalizeFolderPath(entry.path);
+          const relativePath = sourceFilePath
+            .slice(sourcePrefix.length)
+            .replace(/^\/+/, "");
+          const destinationPath = `${targetPath}/${relativePath}`;
+          const sourceBlob =
+            selectedPath === sourceFilePath && blobQuery.data
+              ? {
+                  content: body,
+                  encoding: blobQuery.data.encoding,
+                }
+              : await readBlobForMove(sourceFilePath);
+          changes.push(
+            {
+              path: destinationPath,
+              content: sourceBlob.content,
+              encoding: sourceBlob.encoding,
+              action: "create",
+            },
+            {
+              path: sourceFilePath,
+              content: "",
+              encoding: "text",
+              action: "delete",
+            },
+          );
+        }
+      }
+
+      const didCommit = await commitFiles(
+        `Move ${normalizedSource} to ${targetPath}`,
+        changes,
+        { pendingLabel: t("tree.moving", { defaultValue: "Moving..." }) },
+      );
+      if (!didCommit) return;
+
+      if (
+        selectedPath === normalizedSource ||
+        selectedPath?.startsWith(`${normalizedSource}/`)
+      ) {
+        const selectedRelative = selectedPath
+          .slice(normalizedSource.length)
+          .replace(/^\/+/, "");
+        targetPath = selectedRelative
+          ? `${targetPath}/${selectedRelative}`
+          : targetPath;
+        clearDraft();
+        setSelectedPath(targetPath);
+      }
+      expandDirectoryPath(targetDir);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Move failed");
+    }
+  }
+
+  function canDropOnRoot(e: React.DragEvent<HTMLElement>): boolean {
+    if (readOnly || commit.isPending || isTreeOperationPending) return false;
+    const types = Array.from(e.dataTransfer.types);
+    return (
+      (types.includes("Files") && !!handleDropFilesInDirectory) ||
+      types.includes(INTERNAL_ENTRY_DRAG_TYPE) ||
+      types.includes(INTERNAL_FILE_DRAG_TYPE)
+    );
+  }
+
+  function handleRootDragOver(e: React.DragEvent<HTMLElement>) {
+    if (!canDropOnRoot(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = Array.from(e.dataTransfer.types).includes(
+      "Files",
+    )
+      ? "copy"
+      : "move";
+    setDropTargetKey("root");
+  }
+
+  function handleRootDragLeave(e: React.DragEvent<HTMLElement>) {
+    const related = e.relatedTarget;
+    if (related instanceof Node && e.currentTarget.contains(related)) return;
+    setDropTargetKey(null);
+  }
+
+  function handleRootDrop(e: React.DragEvent<HTMLElement>) {
+    if (!canDropOnRoot(e)) return;
+    e.preventDefault();
+    setDropTargetKey(null);
+
+    const internal = readInternalDrag(e.dataTransfer);
+    if (internal) {
+      void moveEntryToDirectory(internal.path, internal.type, "");
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length > 0) handleDropFilesInDirectory("", files);
   }
 
   const runCommit = useCallback(
@@ -568,6 +1068,7 @@ export function Folder9FolderEditor({
   const handleSave = useCallback(() => {
     if (readOnly) return;
     if (commit.isPending) return;
+    if (isTreeOperationPending) return;
     if (!selectedPath) return;
     if (!isDirty) return;
     if (isReview && onProposeReview) {
@@ -580,6 +1081,7 @@ export function Folder9FolderEditor({
   }, [
     readOnly,
     commit.isPending,
+    isTreeOperationPending,
     isDirty,
     isReview,
     onProposeReview,
@@ -601,6 +1103,7 @@ export function Folder9FolderEditor({
       !selectedPath ||
       !isDirty ||
       commit.isPending ||
+      isTreeOperationPending ||
       !hasLocalEditRef.current
     ) {
       return;
@@ -633,6 +1136,7 @@ export function Folder9FolderEditor({
     commit.isPending,
     isDirty,
     isReview,
+    isTreeOperationPending,
     readOnly,
     runCommit,
     selectedPath,
@@ -655,40 +1159,109 @@ export function Folder9FolderEditor({
 
   const canSave = !readOnly;
 
+  const treePanel = !hideTree ? (
+    <aside
+      data-testid="folder9-folder-tree"
+      className={`w-64 shrink-0 border-border overflow-auto ${
+        treePosition === "right" ? "border-l" : "border-r"
+      } ${dropTargetKey === "root" ? "bg-primary/5 ring-1 ring-inset ring-primary/20" : ""}`}
+      role="tree"
+      aria-label={t("page.title", { defaultValue: "Folder" })}
+      onDragOver={handleRootDragOver}
+      onDragLeave={handleRootDragLeave}
+      onDrop={handleRootDrop}
+    >
+      {!readOnly && (
+        <div className="flex items-center gap-1 p-2 border-b border-border">
+          <button
+            type="button"
+            aria-label={t("tree.newFile", { defaultValue: "New file" })}
+            title={t("tree.newFile", { defaultValue: "New file" })}
+            onClick={() => openCreateEntryDialog("file", activeDirectoryPath)}
+            disabled={commit.isPending || isTreeOperationPending}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            <FilePlus2 size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label={t("tree.newFolder", { defaultValue: "New folder" })}
+            title={t("tree.newFolder", { defaultValue: "New folder" })}
+            onClick={() => openCreateEntryDialog("folder", activeDirectoryPath)}
+            disabled={commit.isPending || isTreeOperationPending}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            <FolderPlus size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label={t("tree.uploadFile", { defaultValue: "Upload file" })}
+            title={t("tree.uploadFile", { defaultValue: "Upload file" })}
+            onClick={() => handleUploadClick(activeDirectoryPath)}
+            disabled={commit.isPending || isTreeOperationPending}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            <Upload size={15} />
+          </button>
+          <input
+            ref={uploadInputRef}
+            data-testid="folder9-folder-upload-input"
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => void handleUploadFiles(e)}
+          />
+        </div>
+      )}
+      {treeQuery.isLoading && (
+        <div className="p-3 text-xs text-muted-foreground">
+          {t("page.loading", { defaultValue: "Loading…" })}
+        </div>
+      )}
+      {treeOperationLabel && (
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted-foreground">
+          <Loader2 size={13} className="animate-spin" />
+          <span>{treeOperationLabel}</span>
+        </div>
+      )}
+      {!treeQuery.isLoading &&
+        treeData.map((node: FolderTreeNodeData) => (
+          <FolderTreeNode
+            key={node.path}
+            node={node}
+            depth={0}
+            selectedPath={selectedPath}
+            expandedDirs={expandedDirs}
+            onSelect={handleSelect}
+            onToggleExpand={handleToggleExpand}
+            readOnly={readOnly || isTreeOperationPending}
+            onCreateFileInDirectory={(dirPath) =>
+              openCreateEntryDialog("file", dirPath)
+            }
+            onCreateFolderInDirectory={(dirPath) =>
+              openCreateEntryDialog("folder", dirPath)
+            }
+            onUploadInDirectory={(dirPath) => handleUploadClick(dirPath)}
+            onDropFilesInDirectory={handleDropFilesInDirectory}
+            onMoveEntryToDirectory={(sourcePath, sourceType, dirPath) =>
+              void moveEntryToDirectory(sourcePath, sourceType, dirPath)
+            }
+            dropTargetKey={dropTargetKey}
+            onDropTargetChange={setDropTargetKey}
+          />
+        ))}
+    </aside>
+  ) : null;
+
   return (
     <div data-testid="folder9-folder-editor" className="flex h-full min-h-0">
-      {!hideTree && (
-        <aside
-          data-testid="folder9-folder-tree"
-          className="w-64 shrink-0 border-r border-border overflow-auto"
-          role="tree"
-          aria-label={t("page.title", { defaultValue: "Folder" })}
-        >
-          {treeQuery.isLoading && (
-            <div className="p-3 text-xs text-muted-foreground">
-              {t("page.loading", { defaultValue: "Loading…" })}
-            </div>
-          )}
-          {!treeQuery.isLoading &&
-            treeData.map((node: FolderTreeNodeData) => (
-              <FolderTreeNode
-                key={node.path}
-                node={node}
-                depth={0}
-                selectedPath={selectedPath}
-                expandedDirs={expandedDirs}
-                onSelect={handleSelect}
-                onToggleExpand={handleToggleExpand}
-              />
-            ))}
-        </aside>
-      )}
+      {treePosition === "left" && treePanel}
 
       <div className="flex-1 flex flex-col min-h-0">
         <FolderStatusBar
           lastSavedAt={null}
           isDirty={isDirty}
-          isSaving={commit.isPending}
+          isSaving={commit.isPending || isTreeOperationPending}
           canSave={canSave}
           onSave={handleSave}
         />
@@ -740,6 +1313,13 @@ export function Folder9FolderEditor({
               onChange={handleBodyChange}
               renderFile={renderFile}
             />
+          ) : selectedPath && blobQuery.isError ? (
+            <div className="p-4 text-xs text-destructive">
+              {getHttpErrorMessage(blobQuery.error) ||
+                t("page.loadError", {
+                  defaultValue: "Failed to load this file.",
+                })}
+            </div>
           ) : selectedPath ? (
             <div className="p-4 text-xs text-muted-foreground">
               {t("page.loading", { defaultValue: "Loading…" })}
@@ -756,6 +1336,77 @@ export function Folder9FolderEditor({
           )}
         </div>
       </div>
+
+      {treePosition === "right" && treePanel}
+
+      <Dialog
+        open={createEntryKind !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreateEntryKind(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form
+            onSubmit={(e) => void submitCreateEntry(e)}
+            className="space-y-4"
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {createEntryKind === "folder"
+                  ? t("tree.newFolder", { defaultValue: "New folder" })
+                  : t("tree.newFile", { defaultValue: "New file" })}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <label
+                className="text-sm font-medium"
+                htmlFor="folder9-entry-name"
+              >
+                {t("tree.name", { defaultValue: "Name" })}
+              </label>
+              <Input
+                id="folder9-entry-name"
+                value={createEntryName}
+                onChange={(e) => {
+                  setCreateEntryName(e.target.value);
+                  setCreateEntryError(null);
+                }}
+                autoFocus
+              />
+              {createEntryBaseDir && (
+                <div className="text-xs text-muted-foreground">
+                  {createEntryBaseDir}/
+                </div>
+              )}
+              {createEntryError && (
+                <div className="text-xs text-destructive">
+                  {createEntryError}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateEntryKind(null)}
+                disabled={commit.isPending || isTreeOperationPending}
+              >
+                {t("common.cancel", { defaultValue: "Cancel" })}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  commit.isPending ||
+                  isTreeOperationPending ||
+                  createEntryName.trim().length === 0
+                }
+              >
+                {t("common.create", { defaultValue: "Create" })}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

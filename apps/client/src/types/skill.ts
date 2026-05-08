@@ -17,6 +17,7 @@ export interface Skill {
   description: string | null;
   type: SkillType;
   icon: string | null;
+  folderId: string | null;
   currentVersion: number;
   pendingSuggestionsCount: number;
   creatorId: string;
@@ -65,7 +66,7 @@ export interface SkillVersionDetail extends SkillVersion {
 export interface CreateSkillDto {
   name: string;
   description?: string;
-  type: SkillType;
+  type?: SkillType;
   icon?: string;
   files?: { path: string; content: string }[];
 }

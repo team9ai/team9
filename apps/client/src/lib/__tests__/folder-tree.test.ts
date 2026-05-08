@@ -52,6 +52,18 @@ describe("buildFolderTree", () => {
     expect(tree.map((n) => n.path)).toEqual(["real.md"]);
   });
 
+  it("shows a directory represented only by the folder placeholder file", () => {
+    const tree = buildFolderTree([file("docs/.folder9keep")]);
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0]).toMatchObject({
+      name: "docs",
+      path: "docs",
+      type: "dir",
+      children: [],
+    });
+  });
+
   it("skips non-file entries", () => {
     const tree = buildFolderTree([
       { name: "scripts", path: "scripts", type: "dir", size: 0 },

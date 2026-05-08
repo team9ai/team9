@@ -298,6 +298,27 @@ describe("RoutinesSidebar", () => {
     });
   });
 
+  it("exposes the manual start action for an active routine", async () => {
+    mockList.mockResolvedValue([
+      {
+        id: "r-active-start",
+        title: "Already running",
+        status: "in_progress",
+        createdAt: new Date().toISOString(),
+        botId: "bot-1",
+        tokenUsage: 0,
+        creationChannelId: null,
+      },
+    ]);
+    mockGetExecutions.mockResolvedValue([]);
+
+    renderSidebar({ selectedRoutineId: null, selectedExecutionId: null });
+
+    await screen.findByText("Already running");
+
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
+  });
+
   it("clicking the chevron toggles expansion only — no navigate", async () => {
     mockList.mockResolvedValue([
       {

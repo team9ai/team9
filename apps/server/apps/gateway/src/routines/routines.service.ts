@@ -2128,7 +2128,7 @@ export class RoutinesService {
 
   private validateStatusTransition(currentStatus: string, action: string) {
     const allowed: Record<string, string[]> = {
-      start: ['upcoming'],
+      start: ['upcoming', 'in_progress'],
       pause: ['in_progress'],
       resume: ['paused'],
       stop: ['in_progress', 'paused', 'pending_action'],

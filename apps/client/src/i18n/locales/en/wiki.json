@@ -93,7 +93,13 @@
     "newPagePrompt": "Page path",
     "newFolder": "New folder",
     "newFolderPrompt": "Folder path",
-    "uploadFile": "Upload file"
+    "uploadFile": "Upload",
+    "uploadDescription": "Upload files into a pending Wiki proposal, then let AI update related pages marked for automatic updates.",
+    "selectUploadItems": "Select files or folders",
+    "selectFiles": "Select files",
+    "selectFolder": "Select folder",
+    "uploading": "Uploading...",
+    "uploadAiStatus": "Proposal {{proposalId}} created. Related md9 pages can be updated from their summaries."
   },
   "archive": {
     "title": "Archive this Wiki?",
@@ -122,6 +128,9 @@
     "notifySaved": "Saved",
     "notifySubmitted": "Submitted for review",
     "notifyUploadFailed": "Upload failed",
+    "addSummary": "Add summary",
+    "summaryLabel": "Summary",
+    "summaryPlaceholder": "Page summary for AI and teammates",
     "errors": {
       "saveConflict": "Save failed: the page has changed on the server. Reload and reapply your edits.",
       "saveForbidden": "Save failed: you don't have permission to update this page.",

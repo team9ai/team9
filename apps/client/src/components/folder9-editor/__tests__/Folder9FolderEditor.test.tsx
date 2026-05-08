@@ -1197,6 +1197,27 @@ describe("Folder9FolderEditor — image upload integration", () => {
 });
 
 describe("Folder9FolderEditor — hideTree prop", () => {
+  it("can render the tree sidebar on the right", async () => {
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps({ treePosition: "right" })} />
+      </Wrapper>,
+    );
+
+    const editor = screen.getByTestId("folder9-folder-editor");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("treeitem", { name: /SKILL\.md/ }),
+      ).toBeInTheDocument(),
+    );
+
+    expect(editor.lastElementChild).toBe(
+      screen.getByTestId("folder9-folder-tree"),
+    );
+  });
+
   it("renders the tree sidebar by default (hideTree omitted)", async () => {
     const Wrapper = makeWrapper();
     render(
@@ -1284,6 +1305,139 @@ describe("Folder9FolderEditor — hideTree prop", () => {
     );
 
     await waitFor(() => expect(fetchTree).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("Folder9FolderEditor — tree file operations", () => {
+  it("creates a new file in the current directory and selects it", async () => {
+    const { api, commit, fetchBlob } = makeApi();
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "docs/intro.md",
+            treePosition: "right",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("folder9-folder-tree");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: /new file/i,
+        }),
+      );
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "notes.md" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /create/i }));
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Create docs/notes.md",
+        files: [
+          {
+            path: "docs/notes.md",
+            content: "",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+        propose: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(fetchBlob).toHaveBeenCalledWith("docs/notes.md"),
+    );
+  });
+
+  it("creates a new folder through a hidden placeholder file", async () => {
+    const { api, commit } = makeApi();
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor {...baseProps({ api, treePosition: "right" })} />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("folder9-folder-tree");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: /new folder/i,
+        }),
+      );
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "guides" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /create/i }));
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Create guides",
+        files: [
+          {
+            path: "guides/.folder9keep",
+            content: "",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+        propose: false,
+      }),
+    );
+  });
+
+  it("uploads local files into the current directory", async () => {
+    const { api, commit } = makeApi();
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "docs/intro.md",
+            treePosition: "right",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("folder9-folder-upload-input");
+    fireEvent.click(screen.getByRole("button", { name: /upload file/i }));
+    const input = screen.getByTestId("folder9-folder-upload-input");
+    const file = new File(["hello"], "upload.txt", { type: "text/plain" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Upload upload.txt",
+        files: [
+          {
+            path: "docs/upload.txt",
+            content: "hello",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+        propose: false,
+      }),
+    );
   });
 });
 
