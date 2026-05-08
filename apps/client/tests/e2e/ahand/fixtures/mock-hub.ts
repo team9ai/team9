@@ -154,6 +154,20 @@ export async function installMockHub(
         window as unknown as { __ahandTestHarness: AhandHarness }
       ).__ahandTestHarness = harness;
 
+      // If the test seeded a daemon device_id, mirror it into the local
+      // identity so `ahand_get_identity()` returns the same value the test
+      // pre-seeds into Zustand `usersEnabled[user].deviceId`. The
+      // `useAhandBootstrap.resume()` defensive check (compare local
+      // identity to cached deviceId) drops the cache on mismatch — without
+      // this seed the harness would return a hash-derived UUID and resume
+      // would bail before the device list loads.
+      if (initialStatus.device_id) {
+        harness.identityByUser[u.id] = {
+          deviceId: initialStatus.device_id,
+          publicKeyB64: btoa(`pk-${initialStatus.device_id}`),
+        };
+      }
+
       // Tauri runtime presence flags. Mirrors the surface that
       // `@tauri-apps/api/mocks::mockIPC()` installs — we inline the logic
       // because `page.addInitScript` can't import from node_modules.
