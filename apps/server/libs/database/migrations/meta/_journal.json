@@ -421,6 +421,20 @@
       "when": 1778112000000,
       "tag": "0059_skills_folder9_light_folder",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1778256000000,
+      "tag": "0060_add_skills_agent_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1778256000001,
+      "tag": "0061_drop_skill_versions_skill_files",
+      "breakpoints": true
     }
   ]
 }
