@@ -49,6 +49,7 @@ function createDbMock() {
 function createStorageMock() {
   return {
     ensureBucket: jest.fn<any>().mockResolvedValue(undefined),
+    setBucketCors: jest.fn<any>().mockResolvedValue(undefined),
     setTagBasedLifecycleRule: jest.fn<any>().mockResolvedValue(undefined),
     createPresignedUpload: jest.fn<any>().mockResolvedValue({
       key: 'uploads/file.txt',
@@ -141,6 +142,7 @@ describe('FileService', () => {
     await service.createPresignedUpload('ws-1', dto);
 
     expect(storage.ensureBucket).toHaveBeenCalledTimes(1);
+    expect(storage.setBucketCors).toHaveBeenCalledTimes(1);
     expect(storage.setTagBasedLifecycleRule).toHaveBeenCalledTimes(1);
     expect(storage.createPresignedUpload).toHaveBeenCalledWith(
       'files-bucket',

@@ -28,7 +28,8 @@ export class CreateSkillDto {
   description?: string;
 
   @IsIn(['claude_code_skill', 'prompt_template', 'general'] as const)
-  type: SkillType;
+  @IsOptional()
+  type?: SkillType;
 
   @IsString()
   @MaxLength(64)

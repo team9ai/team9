@@ -573,6 +573,13 @@ describe('MessagesService', () => {
         where: jest.fn<any>().mockReturnValue(whereReturnValue),
       }),
     });
+    const fileService = {
+      createAttachmentPublicUrl: jest.fn<any>(async (key: string) => ({
+        url: `https://signed.example.com/${key}`,
+        expiresAt: new Date('2026-04-02T18:30:00.000Z'),
+      })),
+    };
+    (service as any).fileService = fileService;
 
     db.select
       .mockReturnValueOnce(
@@ -597,8 +604,14 @@ describe('MessagesService', () => {
         clientMsgId: 'client-1',
         sender: null,
         attachments: expect.arrayContaining([
-          expect.objectContaining({ id: 'att-1' }),
-          expect.objectContaining({ id: 'att-2' }),
+          expect.objectContaining({
+            id: 'att-1',
+            publicUrl: 'https://signed.example.com/file-key',
+          }),
+          expect.objectContaining({
+            id: 'att-2',
+            publicUrl: 'https://signed.example.com/image-key',
+          }),
         ]),
         reactions: [
           {
@@ -642,6 +655,12 @@ describe('MessagesService', () => {
         ],
         metadata: { source: 'test' },
       }),
+    );
+    expect(fileService.createAttachmentPublicUrl).toHaveBeenCalledWith(
+      'file-key',
+    );
+    expect(fileService.createAttachmentPublicUrl).toHaveBeenCalledWith(
+      'image-key',
     );
   });
 

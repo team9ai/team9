@@ -108,6 +108,14 @@ export class FileService implements OnModuleInit {
 
     await this.storageService.ensureBucket(bucket);
 
+    try {
+      await this.storageService.setBucketCors(bucket);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to set CORS configuration on bucket ${bucket}: ${error}`,
+      );
+    }
+
     // Set lifecycle rule for auto-deleting pending uploads
     try {
       await this.storageService.setTagBasedLifecycleRule(bucket, {
@@ -343,6 +351,25 @@ export class FileService implements OnModuleInit {
       expiresIn,
     );
 
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    return { url, expiresAt };
+  }
+
+  /**
+   * Create a short-lived URL for an attachment that already belongs to a
+   * message response the caller is authorized to read.
+   */
+  async createAttachmentPublicUrl(
+    key: string,
+    expiresIn = DEFAULT_DOWNLOAD_EXPIRES_IN,
+  ): Promise<DownloadUrlResult> {
+    const bucket = this.getBucketName();
+    const url = await this.storageService.createPresignedDownload(
+      bucket,
+      key,
+      expiresIn,
+    );
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     return { url, expiresAt };

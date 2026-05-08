@@ -348,10 +348,10 @@ export function MainSidebar() {
                   <TooltipTrigger asChild>
                     <div
                       className={cn(
-                        "cursor-pointer transition-all duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
+                        "cursor-pointer transition-[width,height,opacity,box-shadow] duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
                         getSeededAvatarGradient(workspace.id),
                         isSelected
-                          ? "w-11 h-11 rounded-lg text-base shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+                          ? "w-11 h-11 rounded-xl text-base shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
                           : "w-9 h-9 rounded-full text-sm opacity-50 hover:opacity-90 hover:w-10 hover:h-10",
                       )}
                       onClick={() => setSelectedWorkspaceId(workspace.id)}

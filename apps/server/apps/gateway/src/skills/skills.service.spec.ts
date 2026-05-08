@@ -112,6 +112,11 @@ describe('SkillsService', () => {
     update: jest.Mock;
     delete: jest.Mock;
   };
+  let folder9Client: {
+    createFolder: jest.Mock;
+    createToken: jest.Mock;
+    commit: jest.Mock;
+  };
   let service: InstanceType<typeof SkillsService>;
 
   beforeEach(() => {
@@ -142,13 +147,26 @@ describe('SkillsService', () => {
       delete: jest.fn(() => createDeleteBuilder(deleteResults)),
     };
 
-    service = new SkillsService(db as never);
+    folder9Client = {
+      createFolder: jest.fn(async () => ({ id: 'folder-1' })),
+      createToken: jest.fn(async () => ({ token: 'folder-token-1' })),
+      commit: jest.fn(async () => ({ commit: 'commit-1', branch: 'main' })),
+    };
+
+    service = new SkillsService(db as never, folder9Client as never);
   });
 
-  it('creates a skill without files and keeps currentVersion at zero', async () => {
+  it('creates a light folder skill with a default skill.md', async () => {
     insertPlans.push({
       terminal: 'returning',
-      result: [{ id: 'skill-1', name: 'Skill A', currentVersion: 0 }],
+      result: [
+        {
+          id: 'skill-1',
+          name: 'Skill A',
+          currentVersion: 0,
+          folderId: 'folder-1',
+        },
+      ],
     });
 
     await expect(
@@ -156,8 +174,7 @@ describe('SkillsService', () => {
         {
           name: 'Skill A',
           description: 'desc',
-          type: 'prompt',
-        } as never,
+        },
         'user-1',
         'tenant-1',
       ),
@@ -165,81 +182,101 @@ describe('SkillsService', () => {
       id: 'skill-1',
       name: 'Skill A',
       currentVersion: 0,
+      folderId: 'folder-1',
     });
 
+    expect(folder9Client.createFolder).toHaveBeenCalledWith('tenant-1', {
+      name: 'Skill A',
+      type: 'light',
+      owner_type: 'workspace',
+      owner_id: 'tenant-1',
+      approval_mode: 'auto',
+      metadata: { team9_kind: 'skill', team9_skill_id: 'uuid-1' },
+    });
+    expect(folder9Client.createToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        folder_id: 'folder-1',
+        permission: 'write',
+        created_by: 'user:user-1',
+      }),
+    );
+    expect(folder9Client.commit).toHaveBeenCalledWith(
+      'tenant-1',
+      'folder-1',
+      'folder-token-1',
+      {
+        message: 'Initialize skill',
+        files: [
+          {
+            path: 'skill.md',
+            content: expect.stringContaining('# Skill A'),
+            action: 'create',
+          },
+        ],
+      },
+    );
     expect(insertValues[0]).toEqual(
       expect.objectContaining({
         id: 'uuid-1',
         tenantId: 'tenant-1',
         name: 'Skill A',
         description: 'desc',
-        type: 'prompt',
+        type: 'general',
         currentVersion: 0,
+        folderId: 'folder-1',
         creatorId: 'user-1',
       }),
     );
   });
 
-  it('creates an initial published version when files are provided', async () => {
-    insertPlans.push(
-      {
-        terminal: 'returning',
-        result: [{ id: 'skill-1', name: 'Skill A', currentVersion: 1 }],
-      },
-      { terminal: 'values' },
-      { terminal: 'values' },
-      {
-        terminal: 'returning',
-        result: [{ id: 'version-1', skillId: 'uuid-1', version: 1 }],
-      },
-    );
+  it('seeds uploaded files into the light folder without creating DB file versions', async () => {
+    insertPlans.push({
+      terminal: 'returning',
+      result: [
+        {
+          id: 'skill-1',
+          name: 'Skill A',
+          currentVersion: 0,
+          folderId: 'folder-1',
+        },
+      ],
+    });
 
     await service.create(
       {
         name: 'Skill A',
-        type: 'prompt',
         files: [
           { path: 'README.md', content: 'hello' },
           { path: 'prompt.txt', content: 'world' },
         ],
-      } as never,
+      },
       'user-1',
       'tenant-1',
     );
 
     expect(insertValues[0]).toEqual(
       expect.objectContaining({
-        currentVersion: 1,
+        currentVersion: 0,
+        folderId: 'folder-1',
       }),
     );
-    expect(insertValues[1]).toEqual(
-      expect.objectContaining({
-        skillId: 'uuid-1',
-        path: 'README.md',
-        content: 'hello',
-        size: 5,
-      }),
-    );
-    expect(insertValues[2]).toEqual(
-      expect.objectContaining({
-        skillId: 'uuid-1',
-        path: 'prompt.txt',
-        content: 'world',
-        size: 5,
-      }),
-    );
-    expect(insertValues[3]).toEqual(
-      expect.objectContaining({
-        skillId: 'uuid-1',
-        version: 1,
-        status: 'published',
-        message: 'Initial version',
-        creatorId: 'user-1',
-        fileManifest: [
-          { path: 'README.md', fileId: 'uuid-2' },
-          { path: 'prompt.txt', fileId: 'uuid-3' },
+    expect(insertValues).toHaveLength(1);
+    expect(folder9Client.commit).toHaveBeenCalledWith(
+      'tenant-1',
+      'folder-1',
+      'folder-token-1',
+      {
+        message: 'Initialize skill',
+        files: [
+          {
+            path: 'skill.md',
+            content: expect.stringContaining('# Skill A'),
+            action: 'create',
+          },
+          { path: 'README.md', content: 'hello', action: 'create' },
+          { path: 'prompt.txt', content: 'world', action: 'create' },
         ],
-      }),
+      },
     );
   });
 

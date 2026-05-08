@@ -27,7 +27,7 @@ export class HiveStrategy implements ExecutionStrategy {
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.routineId,
+      context.executionId,
     );
 
     // The execute() path requires folderId + folder9Token: the agent
@@ -43,6 +43,29 @@ export class HiveStrategy implements ExecutionStrategy {
         `HiveStrategy.execute requires folderId + folder9Token for routine ${context.routineId}`,
       );
     }
+
+    if (!context.userId) {
+      throw new Error(
+        `HiveStrategy.execute requires userId for routine ${context.routineId}`,
+      );
+    }
+
+    await this.clawHiveService.createSession(
+      agentId,
+      {
+        userId: context.userId,
+        sessionId,
+        team9Context: {
+          source: 'team9',
+          scopeType: 'routine',
+          scopeId: context.executionId,
+          routineId: context.routineId,
+          executionId: context.executionId,
+          channelId: context.channelId,
+        },
+      },
+      context.tenantId,
+    );
 
     await this.clawHiveService.sendInput(
       sessionId,
@@ -70,7 +93,7 @@ export class HiveStrategy implements ExecutionStrategy {
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.routineId,
+      context.executionId,
     );
     try {
       await this.clawHiveService.interruptSession(sessionId, context.tenantId);
@@ -93,7 +116,7 @@ export class HiveStrategy implements ExecutionStrategy {
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.routineId,
+      context.executionId,
     );
     await this.clawHiveService.sendInput(
       sessionId,
@@ -118,7 +141,7 @@ export class HiveStrategy implements ExecutionStrategy {
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.routineId,
+      context.executionId,
     );
     await this.clawHiveService.deleteSession(sessionId, context.tenantId);
   }
@@ -126,9 +149,9 @@ export class HiveStrategy implements ExecutionStrategy {
   private buildSessionId(
     tenantId: string,
     agentId: string,
-    routineId: string,
+    executionId: string,
   ): string {
-    return `team9/${tenantId}/${agentId}/task/${routineId}`;
+    return `team9/${tenantId}/${agentId}/routine/${executionId}`;
   }
 
   private async resolveHiveConfig(botId: string): Promise<{ agentId: string }> {

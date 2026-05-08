@@ -189,6 +189,29 @@ describe('ExecutorService', () => {
     expect(mockDb.insert).not.toHaveBeenCalled();
   });
 
+  it('should create another execution when the routine is already in progress', async () => {
+    // CAS misses because the routine is already active. A manual/scheduled
+    // trigger should still create an additional run for the same routine.
+    returningResultQueue = [[]];
+    selectResultQueue = [
+      [{ ...sampleTask, status: 'in_progress' }],
+      [sampleBot],
+    ];
+    service.registerStrategy('system', mockStrategy);
+
+    await expect(service.triggerExecution('task-001')).resolves.toBe(true);
+
+    const executionInsert = insertValues.find(
+      (v) => v.routineVersion !== undefined,
+    );
+    expect(executionInsert).toMatchObject({
+      routineId: 'task-001',
+      routineVersion: sampleTask.version,
+      status: 'in_progress',
+    });
+    expect(mockStrategy.execute).toHaveBeenCalled();
+  });
+
   // ── Task has no bot ────────────────────────────────────────────────
 
   it('should return early when task has no botId', async () => {
@@ -355,6 +378,18 @@ describe('ExecutorService', () => {
 
     expect(mockStrategy.execute).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-xyz' }),
+    );
+  });
+
+  it('should pass the routine creator as userId in ExecutionContext', async () => {
+    returningResultQueue = [[{ ...sampleTask, creatorId: 'creator-xyz' }]];
+    selectResultQueue = [[sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001');
+
+    expect(mockStrategy.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'creator-xyz' }),
     );
   });
 

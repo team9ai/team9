@@ -34,6 +34,12 @@ export function useAhandBootstrap() {
 
 async function resume(userId: string, cachedDeviceId: string): Promise<void> {
   try {
+    const localIdentity = await ahandTauri.getIdentity(userId);
+    if (localIdentity.deviceId !== cachedDeviceId) {
+      useAhandStore.getState().setDeviceIdForUser(userId, null, false);
+      return;
+    }
+
     const devices = await ahandApi.list({ includeOffline: true });
     const row = devices.find((d) => d.hubDeviceId === cachedDeviceId);
     if (!row) {

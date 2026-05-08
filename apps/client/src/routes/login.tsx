@@ -24,6 +24,7 @@ import {
 } from "@/analytics/posthog/capture";
 import { EVENTS } from "@/analytics/posthog/events";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
+import { buildDesktopDeepLink } from "@/constants/deep-link";
 
 const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -607,10 +608,18 @@ function WebLoginView() {
     });
   };
 
+  const handleOpenDesktopApp = useCallback(() => {
+    if (!desktopSessionId) return;
+    window.location.href = buildDesktopDeepLink(
+      "auth-complete",
+      `sessionId=${desktopSessionId}`,
+    );
+  }, [desktopSessionId]);
+
   useEffect(() => {
     if (authState === "authenticated" && desktopSessionId) {
       const redirect = () => {
-        window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+        handleOpenDesktopApp();
       };
 
       import("posthog-js")
@@ -624,7 +633,7 @@ function WebLoginView() {
         .then(redirect)
         .catch(redirect);
     }
-  }, [authState, desktopSessionId]);
+  }, [authState, desktopSessionId, handleOpenDesktopApp]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -822,6 +831,13 @@ function WebLoginView() {
           <p className="text-foreground font-medium text-lg mb-2">
             {t("clickOpenDesktopApp")}
           </p>
+          <Button
+            type="button"
+            onClick={handleOpenDesktopApp}
+            className="mt-4 mb-3"
+          >
+            {t("openDesktopApp")}
+          </Button>
           <p className="text-sm text-muted-foreground">
             {t("notWorkingHint")}{" "}
             <button

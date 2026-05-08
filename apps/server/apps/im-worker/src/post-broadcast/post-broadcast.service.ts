@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -20,8 +20,10 @@ import {
   type ReplyNotificationTask,
   type DMNotificationTask,
   type ParsedMention,
+  env,
 } from '@team9/shared';
 import { ClawHiveService } from '@team9/claw-hive';
+import { StorageService } from '@team9/storage';
 import { appMetrics } from '@team9/observability';
 import { MessageRouterService } from '../message/message-router.service.js';
 import { SequenceService } from '../sequence/sequence.service.js';
@@ -59,10 +61,43 @@ export class PostBroadcastService {
     private readonly clawHiveService: ClawHiveService,
     private readonly routerService: MessageRouterService,
     private readonly sequenceService: SequenceService,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
 
   private isHumanAuthoredMessage(sender: schema.User): boolean {
     return sender.userType === 'human';
+  }
+
+  private async getAttachmentPublicUrl(
+    attachment: schema.MessageAttachment,
+  ): Promise<string> {
+    if (!attachment.fileKey || !this.storageService) {
+      return attachment.fileUrl;
+    }
+
+    try {
+      return await this.storageService.createPresignedDownload(
+        env.S3_BUCKET,
+        attachment.fileKey,
+        8 * 3600,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create publicUrl for attachment ${attachment.id}: ${error}`,
+      );
+      return attachment.fileUrl;
+    }
+  }
+
+  private async withAttachmentPublicUrls(
+    attachments: schema.MessageAttachment[],
+  ): Promise<Array<schema.MessageAttachment & { publicUrl: string }>> {
+    return Promise.all(
+      attachments.map(async (attachment) => ({
+        ...attachment,
+        publicUrl: await this.getAttachmentPublicUrl(attachment),
+      })),
+    );
   }
 
   /**
@@ -750,6 +785,7 @@ export class PostBroadcastService {
 
       const tenantId = channel.tenantId ?? '';
       const timestamp = new Date().toISOString();
+      const eventAttachments = await this.withAttachmentPublicUrls(attachments);
 
       for (const bot of targetBots) {
         const agentId = bot.managedMeta!.agentId!;
@@ -818,7 +854,7 @@ export class PostBroadcastService {
           displayName: sender.displayName,
         };
 
-        const hasAttachments = attachments.length > 0;
+        const hasAttachments = eventAttachments.length > 0;
         const isFileMessage =
           hasAttachments &&
           (message.type === 'file' || message.type === 'image');
@@ -834,10 +870,11 @@ export class PostBroadcastService {
                 sender: senderPayload,
                 location,
                 file: {
-                  name: attachments[0].fileName,
-                  size: attachments[0].fileSize,
-                  mimeType: attachments[0].mimeType,
-                  url: attachments[0].fileUrl,
+                  name: eventAttachments[0].fileName,
+                  size: eventAttachments[0].fileSize,
+                  mimeType: eventAttachments[0].mimeType,
+                  url: eventAttachments[0].publicUrl,
+                  publicUrl: eventAttachments[0].publicUrl,
                 },
                 ...(trackingChannelId ? { trackingChannelId } : {}),
                 team9Context,
@@ -854,11 +891,12 @@ export class PostBroadcastService {
                 location,
                 ...(hasAttachments
                   ? {
-                      attachments: attachments.map((a) => ({
+                      attachments: eventAttachments.map((a) => ({
                         name: a.fileName,
                         size: a.fileSize,
                         mimeType: a.mimeType,
-                        url: a.fileUrl,
+                        url: a.publicUrl,
+                        publicUrl: a.publicUrl,
                       })),
                     }
                   : {}),

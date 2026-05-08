@@ -1,9 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Folder9FolderEditor,
   type Folder9RenderFileArgs,
   type ProposeReviewInput,
 } from "@/components/folder9-editor/Folder9FolderEditor";
+import { Textarea } from "@/components/ui/textarea";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWikiImageUpload } from "@/hooks/useWikiImageUpload";
 import { wikiKeys } from "@/hooks/useWikis";
@@ -182,6 +184,7 @@ export function WikiPageEditor({
     }
     return (
       <WikiMarkdownFile
+        key={args.editorKey}
         editorKey={args.editorKey}
         content={args.content}
         readOnly={args.readOnly}
@@ -257,6 +260,7 @@ function WikiMarkdownFile({
   readOnly,
   onChange,
 }: WikiMarkdownFileProps) {
+  const { t } = useTranslation("wiki");
   // `parseFrontmatter` is forgiving: missing / malformed frontmatter
   // collapses to `{}`. We fall back to the raw content as the body
   // in that case so users can still edit markdown that was authored
@@ -271,6 +275,39 @@ function WikiMarkdownFile({
 
   const frontmatter = parsed.frontmatter;
   const body = parsed.body;
+  const summary =
+    typeof frontmatter.summary === "string" ? frontmatter.summary : "";
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(
+    summary.trim().length > 0,
+  );
+  const summaryRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (summary.trim().length > 0 && !isSummaryExpanded) {
+      setIsSummaryExpanded(true);
+    }
+  }, [isSummaryExpanded, summary]);
+
+  useEffect(() => {
+    if (isSummaryExpanded && summary.trim().length === 0) {
+      summaryRef.current?.focus();
+    }
+  }, [isSummaryExpanded, summary]);
+
+  const commitFrontmatter = useCallback(
+    (nextFrontmatter: Record<string, unknown>) => {
+      if (readOnly) return;
+      onChange(serializeFrontmatter({ frontmatter: nextFrontmatter, body }));
+    },
+    [body, onChange, readOnly],
+  );
+
+  const handleSummaryChange = useCallback(
+    (nextSummary: string) => {
+      commitFrontmatter({ ...frontmatter, summary: nextSummary });
+    },
+    [commitFrontmatter, frontmatter],
+  );
 
   const handleBodyChange = useCallback(
     (md: string) => {
@@ -283,6 +320,40 @@ function WikiMarkdownFile({
 
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div
+        data-testid="wiki-page-ai-metadata"
+        className="border-b bg-background py-3"
+      >
+        <div className="flex flex-col gap-3">
+          {isSummaryExpanded ? (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t("editor.summaryLabel")}
+              </span>
+              <Textarea
+                ref={summaryRef}
+                data-testid="wiki-page-summary"
+                value={summary}
+                disabled={readOnly}
+                rows={2}
+                placeholder={t("editor.summaryPlaceholder")}
+                className="min-h-12 resize-none text-sm"
+                onChange={(event) => handleSummaryChange(event.target.value)}
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              data-testid="wiki-page-add-summary"
+              disabled={readOnly}
+              onClick={() => setIsSummaryExpanded(true)}
+              className="w-fit text-sm text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t("editor.addSummary")}
+            </button>
+          )}
+        </div>
+      </div>
       <div className="flex-1 min-h-0">
         <DocumentEditor
           key={editorKey}

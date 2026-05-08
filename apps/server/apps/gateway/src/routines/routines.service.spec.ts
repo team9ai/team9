@@ -1424,7 +1424,7 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
 
-    it('rejects start when the task is not upcoming', async () => {
+    it('publishes start commands when the task is already in progress', async () => {
       db.limit.mockResolvedValueOnce([
         {
           ...BASE_TASK,
@@ -1437,9 +1437,19 @@ describe('RoutinesService — TaskCast integration', () => {
         service.start('task-1', 'user-1', 'tenant-1', {
           message: 'kick off',
         } as never),
-      ).rejects.toThrow('Cannot start routine in in_progress status');
+      ).resolves.toEqual({ success: true });
 
-      expect(amqpConnection.publish).not.toHaveBeenCalled();
+      expect(amqpConnection.publish).toHaveBeenCalledWith(
+        RABBITMQ_EXCHANGES.TASK_COMMANDS,
+        RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
+        expect.objectContaining({
+          type: 'start',
+          routineId: 'task-1',
+          userId: 'user-1',
+          message: 'kick off',
+        }),
+        { persistent: true },
+      );
     });
   });
 

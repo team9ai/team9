@@ -2,13 +2,14 @@ import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Zap } from "lucide-react";
+import { buildDesktopDeepLink } from "@/constants/deep-link";
 
 export function WebCtaCard() {
   const { t } = useTranslation("ahand");
 
   function openDesktopApp() {
     const start = Date.now();
-    window.location.href = "team9://devices";
+    window.location.href = buildDesktopDeepLink("devices");
     setTimeout(() => {
       if (Date.now() - start < 800 && !document.hidden) {
         toast.info(t("noAppInstalledHint"));

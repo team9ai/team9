@@ -170,6 +170,7 @@ export interface MessageAttachment {
   fileKey: string | null;
   fileName: string;
   fileUrl: string;
+  publicUrl?: string | null;
   fileSize: number;
   mimeType: string;
   thumbnailUrl?: string;

@@ -5,9 +5,16 @@ import { useWikiStore } from "@/stores/useWikiStore";
 import type { WikiTreeNodeData } from "@/lib/wiki-tree";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockUseWikiPage = vi.hoisted(() => vi.fn());
+const mockCreatePage = vi.hoisted(() => vi.fn());
+const mockDeletePage = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+}));
+
+vi.mock("@/hooks/useWikiPage", () => ({
+  useWikiPage: (...args: unknown[]) => mockUseWikiPage(...args),
 }));
 
 function fileNode(
@@ -27,6 +34,10 @@ function dirNode(
 describe("WikiTreeNode", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
+    mockUseWikiPage.mockReset();
+    mockUseWikiPage.mockReturnValue({ data: undefined });
+    mockCreatePage.mockReset();
+    mockDeletePage.mockReset();
     act(() => {
       useWikiStore.getState().reset();
     });
@@ -178,6 +189,150 @@ describe("WikiTreeNode", () => {
     });
   });
 
+  it("selects the folder document immediately when clicking a directory with index.md9", () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    fireEvent.click(screen.getByRole("treeitem", { name: /api/ }));
+
+    expect(useWikiStore.getState().selectedWikiId).toBe("wiki-public");
+    expect(useWikiStore.getState().selectedPagePath).toBe("api/index.md9");
+  });
+
+  it("renders create and actions buttons for tree rows", () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+        onCreatePage={mockCreatePage}
+      />,
+    );
+
+    expect(screen.getByTestId("wiki-tree-node-create-api")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("wiki-tree-node-actions-api"),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the plus button to create a child page under that tree node", () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+        onCreatePage={mockCreatePage}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("wiki-tree-node-create-api"));
+
+    expect(mockCreatePage).toHaveBeenCalledWith("api");
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("opens a right-click menu with page actions for tree rows", async () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+        onCreatePage={mockCreatePage}
+        onDeletePage={mockDeletePage}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /api/ }));
+
+    expect(
+      await screen.findByTestId("wiki-tree-node-context-create-api"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("wiki-tree-node-context-delete-api"),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the right-click delete action on the folder document path", async () => {
+    render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+        onCreatePage={mockCreatePage}
+        onDeletePage={mockDeletePage}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /api/ }));
+    fireEvent.click(
+      await screen.findByTestId("wiki-tree-node-context-delete-api"),
+    );
+
+    expect(mockDeletePage).toHaveBeenCalledWith("api/index.md9");
+  });
+
+  it("treats an index-only folder as a page row without expanding it", () => {
+    const { container } = render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+    const row = screen.getByRole("treeitem", { name: /api/ });
+
+    expect(row).not.toHaveAttribute("aria-expanded");
+    expect(container.querySelector(".lucide-chevron-right")).toBeNull();
+    expect(container.querySelector(".lucide-chevron-down")).toBeNull();
+
+    fireEvent.click(row);
+
+    expect(useWikiStore.getState().expandedDirectories.has("api")).toBe(false);
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/wiki/$wikiSlug/$",
+      params: { wikiSlug: "public", _splat: "api/index.md9" },
+    });
+  });
+
+  it("uses the folder document emoji icon instead of a folder icon", () => {
+    mockUseWikiPage.mockReturnValue({
+      data: {
+        path: "api/index.md9",
+        content: "",
+        encoding: "text",
+        frontmatter: { icon: "📘" },
+        lastCommit: null,
+      },
+    });
+    const { container } = render(
+      <WikiTreeNode
+        node={dirNode("api", [fileNode("api/index.md9")])}
+        wikiId="wiki-public"
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+
+    expect(
+      screen.getByRole("treeitem", { name: /📘.*api/ }),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".lucide-folder")).toBeNull();
+    expect(mockUseWikiPage).toHaveBeenCalledWith(
+      "wiki-public",
+      "api/index.md9",
+    );
+  });
+
   it("prefers index.md9 over legacy index.md when both exist", () => {
     render(
       <WikiTreeNode
@@ -259,19 +414,26 @@ describe("WikiTreeNode", () => {
       />,
     );
 
-    expect(screen.getByRole("treeitem", { name: /api/ }).className).toMatch(
-      /bg-primary/,
+    const row = screen.getByTestId("wiki-tree-node-row-api");
+    expect(row).toHaveClass(
+      "bg-[var(--nav-active)]",
+      "text-[var(--nav-foreground-strong)]",
+      "font-medium",
     );
+    expect(row).not.toHaveClass("bg-primary/10", "text-primary");
   });
 
-  it("expands (not toggles) a directory with index.md9 so repeated clicks never collapse it", () => {
+  it("expands (not toggles) an indexed directory with visible children so repeated clicks never collapse it", () => {
     // Regression guard against the toggle+navigate race: if clicks toggled
     // the dir, the second click would collapse it after navigating — and the
     // splat route's auto-expand would then re-open, producing a flicker.
     // Using `expandDirectory` keeps the dir open across repeated clicks.
     render(
       <WikiTreeNode
-        node={dirNode("api", [fileNode("api/index.md9")])}
+        node={dirNode("api", [
+          fileNode("api/index.md9"),
+          fileNode("api/overview.md9"),
+        ])}
         wikiSlug="public"
         depth={0}
       />,
@@ -334,9 +496,34 @@ describe("WikiTreeNode", () => {
         depth={0}
       />,
     );
+    const row = screen.getByTestId("wiki-tree-node-row-api/auth.md");
+    expect(row).toHaveClass(
+      "bg-[var(--nav-active)]",
+      "text-[var(--nav-foreground-strong)]",
+      "font-medium",
+    );
+    expect(row).not.toHaveClass("bg-primary/10", "text-primary");
+  });
+
+  it("does not highlight a same-path file from a different selected wiki", () => {
+    act(() => {
+      useWikiStore.getState().setSelectedWiki("wiki-other");
+      useWikiStore.getState().setSelectedPage("api/auth.md");
+    });
+    render(
+      <WikiTreeNode
+        node={fileNode("api/auth.md")}
+        wikiId="wiki-current"
+        wikiSlug="public"
+        depth={0}
+      />,
+    );
+
+    const row = screen.getByRole("treeitem", { name: /auth\.md/ });
+    expect(row).not.toHaveAttribute("aria-selected");
     expect(
-      screen.getByRole("treeitem", { name: /auth\.md/ }).className,
-    ).toMatch(/bg-primary/);
+      screen.getByTestId("wiki-tree-node-row-api/auth.md"),
+    ).not.toHaveClass("bg-[var(--nav-active)]");
   });
 
   it("does not highlight a non-matching file", () => {
@@ -351,8 +538,8 @@ describe("WikiTreeNode", () => {
       />,
     );
     expect(
-      screen.getByRole("treeitem", { name: /auth\.md/ }).className,
-    ).not.toMatch(/bg-primary/);
+      screen.getByTestId("wiki-tree-node-row-api/auth.md"),
+    ).not.toHaveClass("bg-[var(--nav-active)]");
   });
 
   it("does not highlight a directory even when its path matches selectedPagePath", () => {

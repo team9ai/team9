@@ -118,7 +118,8 @@ export const env = {
   get S3_CORS_ORIGINS() {
     return process.env.S3_CORS_ORIGINS || '';
   },
-  // Public base URL for serving S3 files (e.g. CloudFront custom domain).
+  // Public base URL for serving S3 files. For private file presigned URLs,
+  // this must be an externally reachable S3-compatible endpoint.
   // Falls back to S3_ENDPOINT for backward compatibility (MinIO local dev).
   get S3_PUBLIC_URL() {
     return process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT || undefined;

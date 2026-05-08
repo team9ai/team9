@@ -93,7 +93,15 @@
     "newPagePrompt": "页面路径",
     "newFolder": "新建文件夹",
     "newFolderPrompt": "文件夹路径",
-    "uploadFile": "上传文件"
+    "deletePage": "删除",
+    "deletePageConfirm": "确定删除 {{path}} 吗？此操作无法撤销。",
+    "uploadFile": "上传",
+    "uploadDescription": "将文件上传为待审核的知识库变更草稿，然后由 AI 更新已开启自动更新的相关页面。",
+    "selectUploadItems": "选择文件或文件夹",
+    "selectFiles": "选择文件",
+    "selectFolder": "选择文件夹",
+    "uploading": "上传中...",
+    "uploadAiStatus": "已创建变更草稿 {{proposalId}}。可根据页面摘要更新相关 md9 页面。"
   },
   "archive": {
     "title": "归档此知识库？",
@@ -122,6 +130,9 @@
     "notifySaved": "已保存",
     "notifySubmitted": "已提交审核",
     "notifyUploadFailed": "上传失败",
+    "addSummary": "添加摘要",
+    "summaryLabel": "摘要",
+    "summaryPlaceholder": "给 AI 和团队看的页面摘要",
     "errors": {
       "saveConflict": "保存失败：该页面已在服务器上被修改。请刷新并重新应用你的修改。",
       "saveForbidden": "保存失败：你没有更新此页面的权限。",

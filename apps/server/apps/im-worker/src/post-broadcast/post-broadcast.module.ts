@@ -3,6 +3,7 @@ import { DatabaseModule } from '@team9/database';
 import { RedisModule } from '@team9/redis';
 import { RabbitmqModule } from '@team9/rabbitmq';
 import { ClawHiveModule } from '@team9/claw-hive';
+import { StorageModule } from '@team9/storage';
 import { MessageModule } from '../message/message.module.js';
 import { SequenceModule } from '../sequence/sequence.module.js';
 import { PostBroadcastService } from './post-broadcast.service.js';
@@ -23,6 +24,7 @@ import { PostBroadcastService } from './post-broadcast.service.js';
     RedisModule,
     RabbitmqModule,
     ClawHiveModule,
+    StorageModule,
     MessageModule,
     SequenceModule,
   ],

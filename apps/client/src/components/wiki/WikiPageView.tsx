@@ -7,9 +7,14 @@ import { useWikiPage } from "@/hooks/useWikiPage";
 import { useWikis, wikiKeys } from "@/hooks/useWikis";
 import { queryClient } from "@/lib/query-client";
 import { serializeFrontmatter } from "@/lib/wiki-frontmatter";
-import { DEFAULT_WIKI_INDEX_PATH } from "@/lib/wiki-paths";
+import {
+  DEFAULT_WIKI_INDEX_FILENAME,
+  DEFAULT_WIKI_INDEX_PATH,
+  LEGACY_WIKI_INDEX_FILENAME,
+} from "@/lib/wiki-paths";
 import { wikisApi } from "@/services/api/wikis";
 import { useSubmittedProposal, wikiActions } from "@/stores/useWikiStore";
+import type { CommitFileInput, PageDto, TreeEntryDto } from "@/types/wiki";
 import { WikiCover } from "./WikiCover";
 import { WikiEmptyState } from "./WikiEmptyState";
 import { WikiPageHeader } from "./WikiPageHeader";
@@ -19,6 +24,190 @@ import { WikiProposalBanner } from "./WikiProposalBanner";
 export interface WikiPageViewProps {
   wikiId: string;
   path: string;
+}
+
+function isFolderIndexPath(path: string): boolean {
+  const parts = path.split("/");
+  if (parts.length < 2) return false;
+  const filename = parts[parts.length - 1];
+  return (
+    filename === DEFAULT_WIKI_INDEX_FILENAME ||
+    filename === LEGACY_WIKI_INDEX_FILENAME
+  );
+}
+
+function getTitleText(frontmatter: Record<string, unknown>): string {
+  return typeof frontmatter.title === "string" ? frontmatter.title.trim() : "";
+}
+
+function sanitizeFolderSegment(title: string): string {
+  return title
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .split("")
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join("")
+    .replace(/\s+/g, " ")
+    .replace(/-+/g, "-")
+    .replace(/^\.+$/g, "")
+    .replace(/^-+/, "")
+    .trim();
+}
+
+function getFolderRenameTarget(
+  path: string,
+  nextFrontmatter: Record<string, unknown>,
+  currentFrontmatter: Record<string, unknown>,
+): { oldPrefix: string; newPrefixBase: string } | null {
+  if (!isFolderIndexPath(path)) return null;
+
+  const nextTitle = getTitleText(nextFrontmatter);
+  if (!nextTitle || nextTitle === getTitleText(currentFrontmatter)) {
+    return null;
+  }
+
+  const nextSegment = sanitizeFolderSegment(nextTitle);
+  if (!nextSegment) return null;
+
+  const parts = path.split("/");
+  parts.pop();
+  const oldSegment = parts[parts.length - 1];
+  if (nextSegment === oldSegment) return null;
+
+  const parentPrefix = parts.slice(0, -1).join("/");
+  const oldPrefix = parts.join("/");
+  const newPrefixBase = parentPrefix
+    ? `${parentPrefix}/${nextSegment}`
+    : nextSegment;
+
+  return { oldPrefix, newPrefixBase };
+}
+
+function isUnderPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+function uniqueRenamePrefix(
+  tree: TreeEntryDto[],
+  oldPrefix: string,
+  newPrefixBase: string,
+  oldFilePaths: string[],
+): string {
+  const existingPaths = new Set(
+    tree.filter((entry) => entry.type === "file").map((entry) => entry.path),
+  );
+  const slashIndex = newPrefixBase.lastIndexOf("/");
+  const parentPrefix =
+    slashIndex === -1 ? "" : newPrefixBase.slice(0, slashIndex);
+  const baseSegment =
+    slashIndex === -1 ? newPrefixBase : newPrefixBase.slice(slashIndex + 1);
+
+  for (let suffix = 0; suffix < 1000; suffix += 1) {
+    const candidateSegment =
+      suffix === 0 ? baseSegment : `${baseSegment}-${suffix + 1}`;
+    const candidatePrefix = parentPrefix
+      ? `${parentPrefix}/${candidateSegment}`
+      : candidateSegment;
+    const hasConflict = oldFilePaths.some((oldPath) => {
+      const nextPath = `${candidatePrefix}${oldPath.slice(oldPrefix.length)}`;
+      return existingPaths.has(nextPath) && !isUnderPrefix(nextPath, oldPrefix);
+    });
+    if (!hasConflict) return candidatePrefix;
+  }
+
+  throw new Error("Could not find an available folder name");
+}
+
+function pageToCreateFile(path: string, page: PageDto): CommitFileInput {
+  if (page.encoding === "base64") {
+    return {
+      path,
+      content: page.content,
+      encoding: "base64",
+      action: "create",
+    };
+  }
+
+  return {
+    path,
+    content: serializeFrontmatter({
+      frontmatter: page.frontmatter,
+      body: page.content,
+    }),
+    encoding: "text",
+    action: "create",
+  };
+}
+
+async function buildFolderRenameFiles({
+  wikiId,
+  path,
+  page,
+  nextFrontmatter,
+  oldPrefix,
+  newPrefixBase,
+}: {
+  wikiId: string;
+  path: string;
+  page: PageDto;
+  nextFrontmatter: Record<string, unknown>;
+  oldPrefix: string;
+  newPrefixBase: string;
+}): Promise<{ files: CommitFileInput[]; newPrefix: string; newPath: string }> {
+  const tree = await wikisApi.getTree(wikiId, { path: "/", recursive: true });
+  const oldFilePaths = tree
+    .filter(
+      (entry) => entry.type === "file" && isUnderPrefix(entry.path, oldPrefix),
+    )
+    .map((entry) => entry.path)
+    .sort((a, b) => {
+      if (a === path) return -1;
+      if (b === path) return 1;
+      return a.localeCompare(b);
+    });
+
+  if (!oldFilePaths.includes(path)) {
+    oldFilePaths.unshift(path);
+  }
+
+  const newPrefix = uniqueRenamePrefix(
+    tree,
+    oldPrefix,
+    newPrefixBase,
+    oldFilePaths,
+  );
+  const newPath = `${newPrefix}${path.slice(oldPrefix.length)}`;
+  const createFiles: CommitFileInput[] = [];
+
+  for (const oldPath of oldFilePaths) {
+    const nextPath = `${newPrefix}${oldPath.slice(oldPrefix.length)}`;
+    if (oldPath === path) {
+      createFiles.push({
+        path: nextPath,
+        content: serializeFrontmatter({
+          frontmatter: nextFrontmatter,
+          body: page.content,
+        }),
+        encoding: "text",
+        action: "create",
+      });
+      continue;
+    }
+
+    const childPage = await wikisApi.getPage(wikiId, oldPath);
+    createFiles.push(pageToCreateFile(nextPath, childPage));
+  }
+
+  const deleteFiles: CommitFileInput[] = oldFilePaths.map((oldPath) => ({
+    path: oldPath,
+    content: "",
+    action: "delete",
+  }));
+
+  return { files: [...createFiles, ...deleteFiles], newPrefix, newPath };
 }
 
 /**
@@ -69,26 +258,74 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
         body: page.content,
       });
       try {
-        const result = await wikisApi.commit(wikiId, {
-          message: `Update ${path}`,
-          files: [
-            {
+        const renameTarget = getFolderRenameTarget(
+          path,
+          nextFrontmatter,
+          page.frontmatter,
+        );
+        const commitInput = renameTarget
+          ? await buildFolderRenameFiles({
+              wikiId,
               path,
-              content: nextSource,
-              encoding: "text",
-              action: "update",
-            },
-          ],
-        });
-        queryClient.setQueryData(wikiKeys.page(wikiId, path), {
-          ...page,
-          frontmatter: nextFrontmatter,
-        });
-        void queryClient.invalidateQueries({
-          queryKey: wikiKeys.page(wikiId, path),
-        });
+              page,
+              nextFrontmatter,
+              oldPrefix: renameTarget.oldPrefix,
+              newPrefixBase: renameTarget.newPrefixBase,
+            })
+          : null;
+        const result = await wikisApi.commit(
+          wikiId,
+          commitInput
+            ? {
+                message: `Rename ${renameTarget!.oldPrefix} to ${commitInput.newPrefix}`,
+                files: commitInput.files,
+              }
+            : {
+                message: `Update ${path}`,
+                files: [
+                  {
+                    path,
+                    content: nextSource,
+                    encoding: "text",
+                    action: "update",
+                  },
+                ],
+              },
+        );
         if (result.proposal) {
           wikiActions.setSubmittedProposal(wikiId, path, result.proposal.id);
+        } else if (commitInput) {
+          queryClient.setQueryData(wikiKeys.page(wikiId, commitInput.newPath), {
+            ...page,
+            path: commitInput.newPath,
+            frontmatter: nextFrontmatter,
+          });
+          queryClient.removeQueries({
+            queryKey: wikiKeys.page(wikiId, path),
+            exact: true,
+          });
+          void queryClient.invalidateQueries({
+            queryKey: wikiKeys.trees(wikiId),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: wikiKeys.pages(wikiId),
+          });
+          wikiActions.setSelectedPage(commitInput.newPath);
+          if (wiki?.slug) {
+            void navigate({
+              to: "/wiki/$wikiSlug/$",
+              params: { wikiSlug: wiki.slug, _splat: commitInput.newPath },
+              replace: true,
+            });
+          }
+        } else {
+          queryClient.setQueryData(wikiKeys.page(wikiId, path), {
+            ...page,
+            frontmatter: nextFrontmatter,
+          });
+          void queryClient.invalidateQueries({
+            queryKey: wikiKeys.page(wikiId, path),
+          });
         }
       } catch (error) {
         window.alert(error instanceof Error ? error.message : "Save failed");
@@ -96,7 +333,7 @@ export function WikiPageView({ wikiId, path }: WikiPageViewProps) {
         setIsSavingMetadata(false);
       }
     },
-    [canEditMetadata, page, path, wikiId],
+    [canEditMetadata, navigate, page, path, wiki?.slug, wikiId],
   );
 
   const handleCoverChange = useCallback(

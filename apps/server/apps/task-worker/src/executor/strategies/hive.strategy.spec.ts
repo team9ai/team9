@@ -16,6 +16,9 @@ mockDb.where.mockReturnValue(mockDb);
 // ── ClawHiveService mock ───────────────────────────────────────────────
 
 const mockClawHive = {
+  createSession: jest.fn<any>().mockResolvedValue({
+    sessionId: 'team9/tenant-abc/my-agent/routine/exec-001',
+  }),
   sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
   interruptSession: jest.fn<any>().mockResolvedValue(undefined),
   deleteSession: jest.fn<any>().mockResolvedValue(undefined),
@@ -33,7 +36,8 @@ const baseContext: ExecutionContext = {
   folder9Token: 'token-xyz',
   taskcastTaskId: 'agent_task_exec_exec-001',
   tenantId: 'tenant-abc',
-};
+  userId: 'user-001',
+} as ExecutionContext & { userId: string };
 
 function makeBot(agentId: string) {
   return { managedMeta: { agentId } };
@@ -62,11 +66,27 @@ describe('HiveStrategy', () => {
   // ── execute() ──────────────────────────────────────────────────────
 
   describe('execute()', () => {
-    it('calls sendInput with team9:task.start and correct session ID', async () => {
+    it('creates an agent-bound routine session before sending team9:task.start', async () => {
       await strategy.execute(baseContext);
 
+      expect(mockClawHive.createSession).toHaveBeenCalledWith(
+        'my-agent',
+        expect.objectContaining({
+          userId: 'user-001',
+          sessionId: 'team9/tenant-abc/my-agent/routine/exec-001',
+          team9Context: expect.objectContaining({
+            source: 'team9',
+            scopeType: 'routine',
+            scopeId: 'exec-001',
+            routineId: 'task-001',
+            executionId: 'exec-001',
+            channelId: 'ch-task-001',
+          }),
+        }),
+        'tenant-abc',
+      );
       expect(mockClawHive.sendInput).toHaveBeenCalledWith(
-        'team9/tenant-abc/my-agent/task/task-001',
+        'team9/tenant-abc/my-agent/routine/exec-001',
         expect.objectContaining({
           type: 'team9:task.start',
           source: 'team9',
@@ -95,6 +115,7 @@ describe('HiveStrategy', () => {
       await expect(strategy.execute(baseContext)).rejects.toThrow(
         'Hive agentId not configured for bot bot-001',
       );
+      expect(mockClawHive.createSession).not.toHaveBeenCalled();
       expect(mockClawHive.sendInput).not.toHaveBeenCalled();
     });
 
@@ -146,7 +167,7 @@ describe('HiveStrategy', () => {
       await strategy.pause(baseContext);
 
       expect(mockClawHive.interruptSession).toHaveBeenCalledWith(
-        'team9/tenant-abc/my-agent/task/task-001',
+        'team9/tenant-abc/my-agent/routine/exec-001',
         'tenant-abc',
       );
     });
@@ -180,7 +201,7 @@ describe('HiveStrategy', () => {
       await strategy.resume({ ...baseContext, message: 'Please continue' });
 
       expect(mockClawHive.sendInput).toHaveBeenCalledWith(
-        'team9/tenant-abc/my-agent/task/task-001',
+        'team9/tenant-abc/my-agent/routine/exec-001',
         expect.objectContaining({
           type: 'team9:task.resume',
           payload: expect.objectContaining({
@@ -210,7 +231,7 @@ describe('HiveStrategy', () => {
       await strategy.stop(baseContext);
 
       expect(mockClawHive.deleteSession).toHaveBeenCalledWith(
-        'team9/tenant-abc/my-agent/task/task-001',
+        'team9/tenant-abc/my-agent/routine/exec-001',
         'tenant-abc',
       );
     });

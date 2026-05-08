@@ -191,7 +191,7 @@ describe("FolderTreeNode", () => {
     );
     expect(
       screen.getByRole("treeitem", { name: /auth\.md/ }).className,
-    ).not.toMatch(/bg-primary/);
+    ).not.toMatch(/border-l-primary/);
   });
 
   it("does not highlight a directory even when its path matches selectedPath", () => {
@@ -207,11 +207,11 @@ describe("FolderTreeNode", () => {
       />,
     );
     expect(screen.getByRole("treeitem", { name: /api/ }).className).not.toMatch(
-      /bg-primary/,
+      /border-l-primary/,
     );
   });
 
-  it("highlights the active file with the primary background", () => {
+  it("highlights the active file with a subtle row and primary left edge", () => {
     render(
       <FolderTreeNode
         node={fileNode("api/auth.md")}
@@ -224,7 +224,156 @@ describe("FolderTreeNode", () => {
     );
     expect(
       screen.getByRole("treeitem", { name: /auth\.md/ }).className,
-    ).toMatch(/bg-primary/);
+    ).toMatch(/border-l-primary/);
+  });
+
+  it("makes file rows draggable and writes their path to dataTransfer", () => {
+    const setData = vi.fn();
+    render(
+      <FolderTreeNode
+        node={fileNode("api/auth.md")}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set()}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByRole("treeitem", { name: /auth\.md/ });
+    expect(row).toHaveAttribute("draggable", "true");
+    fireEvent.dragStart(row, {
+      dataTransfer: {
+        effectAllowed: "none",
+        setData,
+      },
+    });
+
+    expect(setData).toHaveBeenCalledWith(
+      "application/x-team9-folder-entry",
+      JSON.stringify({ path: "api/auth.md", type: "file" }),
+    );
+    expect(setData).toHaveBeenCalledWith(
+      "application/x-team9-folder-file",
+      "api/auth.md",
+    );
+    expect(setData).toHaveBeenCalledWith("text/plain", "api/auth.md");
+  });
+
+  it("makes directory rows draggable and writes their path to dataTransfer", () => {
+    const setData = vi.fn();
+    render(
+      <FolderTreeNode
+        node={dirNode("api")}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set()}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByRole("treeitem", { name: /api/ });
+    expect(row).toHaveAttribute("draggable", "true");
+    fireEvent.dragStart(row, {
+      dataTransfer: {
+        effectAllowed: "none",
+        setData,
+      },
+    });
+
+    expect(setData).toHaveBeenCalledWith(
+      "application/x-team9-folder-entry",
+      JSON.stringify({ path: "api", type: "dir" }),
+    );
+    expect(setData).not.toHaveBeenCalledWith(
+      "application/x-team9-folder-file",
+      "api",
+    );
+    expect(setData).toHaveBeenCalledWith("text/plain", "api");
+  });
+
+  it("moves an internal file when dropped on a directory", () => {
+    const onMoveFileToDirectory = vi.fn();
+    render(
+      <FolderTreeNode
+        node={dirNode("docs")}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set()}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+        onMoveFileToDirectory={onMoveFileToDirectory}
+      />,
+    );
+
+    fireEvent.drop(screen.getByRole("treeitem", { name: /docs/ }), {
+      dataTransfer: {
+        getData: (type: string) =>
+          type === "application/x-team9-folder-file" ? "api/auth.md" : "",
+        files: [],
+      },
+    });
+
+    expect(onMoveFileToDirectory).toHaveBeenCalledWith("api/auth.md", "docs");
+  });
+
+  it("moves an internal folder when dropped on a directory", () => {
+    const onMoveEntryToDirectory = vi.fn();
+    render(
+      <FolderTreeNode
+        node={dirNode("archive")}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set()}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+        onMoveEntryToDirectory={onMoveEntryToDirectory}
+      />,
+    );
+
+    fireEvent.drop(screen.getByRole("treeitem", { name: /archive/ }), {
+      dataTransfer: {
+        getData: (type: string) =>
+          type === "application/x-team9-folder-entry"
+            ? JSON.stringify({ path: "docs", type: "dir" })
+            : "",
+        files: [],
+      },
+    });
+
+    expect(onMoveEntryToDirectory).toHaveBeenCalledWith(
+      "docs",
+      "dir",
+      "archive",
+    );
+  });
+
+  it("drops internal entries into an expanded directory group", () => {
+    const onMoveEntryToDirectory = vi.fn();
+    render(
+      <FolderTreeNode
+        node={dirNode("api", [fileNode("api/index.md")])}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set(["api"])}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+        onMoveEntryToDirectory={onMoveEntryToDirectory}
+      />,
+    );
+
+    fireEvent.drop(screen.getByRole("group"), {
+      dataTransfer: {
+        getData: (type: string) =>
+          type === "application/x-team9-folder-entry"
+            ? JSON.stringify({ path: "docs", type: "dir" })
+            : "",
+        files: [],
+      },
+    });
+
+    expect(onMoveEntryToDirectory).toHaveBeenCalledWith("docs", "dir", "api");
   });
 
   it("applies depth-based paddingLeft as an inline style", () => {
@@ -337,7 +486,7 @@ describe("FolderTreeNode", () => {
     expect(container.querySelector(".lucide-chevron-down")).toBeNull();
   });
 
-  it("renders nothing for the children-wrapper when dir is expanded but empty", () => {
+  it("keeps an empty expanded group as a drop target without extra rows", () => {
     const { container } = render(
       <FolderTreeNode
         node={dirNode("api")}
@@ -348,6 +497,7 @@ describe("FolderTreeNode", () => {
         onToggleExpand={vi.fn()}
       />,
     );
+    expect(screen.getByRole("group")).toBeInTheDocument();
     expect(container.querySelectorAll("[role='treeitem']")).toHaveLength(1);
   });
 });

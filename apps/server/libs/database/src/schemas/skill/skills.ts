@@ -28,6 +28,12 @@ export const skills = pgTable(
     description: text('description'),
     type: skillTypeEnum('type').notNull(),
     icon: varchar('icon', { length: 64 }),
+    /**
+     * Forward link to the folder9 light folder that stores the skill's
+     * `skill.md` plus any supporting files. Nullable for legacy rows created
+     * before the skill-library folder9 migration.
+     */
+    folderId: uuid('folder_id'),
     currentVersion: integer('current_version').default(0).notNull(),
     creatorId: uuid('creator_id')
       .references(() => users.id)
