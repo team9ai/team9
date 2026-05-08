@@ -74,14 +74,36 @@ No new websocket events in this scope. When proposal/review for skills returns (
 
 Two new pieces in `team9-agent-pi`:
 
-- `WorkspaceSkillsProvider` (in `agent-components/src/components/skill/`): a session-singleton `ISkillProvider` registered once at `onSessionStart`. Its `search()` calls `GET /v1/bot/skills`; its `resolve(name)` calls `GET /v1/bot/skills/:id/folder/blob?path=skill.md` (folder9 token minted server-side; agent does **not** need a folder9 token for read-only SKILL.md hydration). The provider parses frontmatter and returns a `TieredSkill` shaped like `MountedFolderSkillProvider` does.
+- `WorkspaceSkillsProvider` (in `agent-components/src/components/skill/`): a session-singleton `ISkillProvider` registered once at `onSessionStart`. Its `search()` calls `GET /v1/bot/skills`; its `resolve(name)` calls `GET /v1/bot/skills/:id/folder/blob?path=skill.md` (folder9 token minted server-side; agent does **not** need a folder9 token for read-only SKILL.md hydration). The provider parses frontmatter and returns a `TieredSkill` shaped like `MountedFolderSkillProvider` does, **with two extra labels** so the agent sees source and writability per skill (see §2.6 for how these surface in the prompt):
+  - `source: 'workspace'`
+  - `agentAccess: 'read' | 'write'` (mirroring the value returned by the gateway; `'none'` skills are pre-filtered upstream and never reach the provider)
+    All other built-in providers (`MountedFolderSkillProvider`, `MemorySkillProvider`, `register-source-code-skills`, etc.) carry `source: 'bundled'` and an implicit `agentAccess: 'read'` — bundled skills are immutable from the agent's perspective.
 - Two new LLM tools, owned by a new dedicated component `Team9SkillsComponent` (typeKey `team9-skills`). Hard dependencies: `team9` (for `Team9FolderTokenApi`), `folder9` (for `Folder9DependencyApi.applyMount`), `host` (for the bash backend used by mounts), `skill-tier` (for provider registration). The new component is also where `WorkspaceSkillsProvider` is constructed and registered — keeping all skill-library agent surface in one component rather than swelling `Team9Component`. Tools:
   - `create_workspace_skill { name, description?, type?, icon? }` — calls `POST /v1/bot/skills`. Returns the new `skillId` and `folderId`. The tool optionally chains an immediate `mount_workspace_skill` so the agent can keep editing without a second round.
   - `mount_workspace_skill { skillId, permission: 'read' | 'write', mountPath? }` — calls `Team9FolderTokenApi.issueFolderToken({ logicalKey: 'workspace.skill', folderId: <skill.folderId>, permission })`, then `Folder9DependencyApi.applyMount({ externallyManagedToken: true, mountPath: mountPath ?? '/workspace/skill/<id>/' })`. Once mounted, the agent uses the existing `edit_file` / `submit_changes` flow (commits go straight to HEAD; no proposal in this scope). If the gateway denies token issuance (skill is `'none'` for this agent, or `'read'` skill requested with `permission: 'write'`), the tool returns a structured ToolResult error naming the reason ("skill is hidden from agents" / "skill is read-only for agents") so the LLM can recover.
 
 Reused (no changes): `search_skills`, `load_skills`, `unload_skills`, `invoke_skill`, `unmount_folder9`, `edit_file`, `submit_changes`, `mount_folder9` (kept for PSK-direct admin/local cases).
 
-### 2.5 SkillTierDependencyApi
+### 2.5 Skill source + permission surfaced to the LLM
+
+The agent must see, on every skill it interacts with:
+
+1. **Source** (`bundled` | `workspace`) — so it knows whether the skill is system-immutable or user-defined.
+2. **agentAccess** (`read` | `write`) — for workspace skills, whether `mount_workspace_skill { permission: 'write' }` will succeed.
+
+The `skill-tier-xml.ts` renderer (which produces the `<skill_tier>` block injected into the system prompt) is extended to render these as attributes / fields on each skill entry. Search-tool result rendering (`search_skills` ToolResult) likewise carries them per row, so the agent sees source + access without having to re-invoke `invoke_skill`.
+
+`Team9SkillsComponent` adds a small **static guidance block** to the system prompt (via `contextInjection` in `onBeforePrompt`). The block explains:
+
+- **Bundled skills** (`source="bundled"`) come from system code. They are always read-only from the agent's perspective and **cannot be modified** — `mount_workspace_skill` does not apply to them. If the user asks the agent to modify a bundled skill, the agent should explain this and suggest the user either (a) copy its content into a new workspace skill the agent can edit, or (b) take it up with the maintainers of the system bundle.
+- **Workspace skills** (`source="workspace"`) are user-defined and respect `agentAccess`:
+  - `agentAccess="read"`: agent can `load_skills` / `invoke_skill` / mount with `permission: 'read'`. Mounting with `permission: 'write'` will fail. **If the user asks the agent to modify a `read` skill, the agent should explain the restriction and prompt the user to bump permission to `write` on the skill detail page (or perform the edit themselves via the UI).**
+  - `agentAccess="write"`: agent can read and write freely.
+- **Hidden skills** (`agentAccess="none"`): never appear in `search_skills` at all. **If the user references a skill by name and `search_skills` cannot find it, the agent should consider that the skill may be hidden from agents and ask the user to grant access on that skill's detail page** (rather than giving up or guessing).
+
+The block is short (~10 lines) and lives in a single helper so it stays in sync with the access matrix above.
+
+### 2.6 SkillTierDependencyApi
 
 Add `unregisterProvider(providerId: string)` to `SkillTierDependencyApi`. Implementation:
 
@@ -130,6 +152,9 @@ Add `unregisterProvider(providerId: string)` to `SkillTierDependencyApi`. Implem
 - Add `bot-skills.controller.spec.ts` covering the four bot endpoints (`list`, `getById`, `getFolderBlob`, `create`), tenant scoping, bot-auth path, and the `agentAccess` filter (`'none'` skills excluded from list and 403 on getById/blob).
 - Add `agent-access.service.spec.ts` (or equivalent) covering `resolveSkillAgentAccess`: per-skill default returned correctly; placeholder for future per-agent override behavior.
 - Add gateway tests for the new `'workspace.skill'` `logicalKey` branch in `folder-token.service.spec.ts`. Cover the full access matrix: `'none'` deny, `'read'`+`'read'` allow, `'read'`+`'write'` deny, `'write'`+`'read'` allow, `'write'`+`'write'` allow, cross-tenant deny, unknown folderId deny.
+- `WorkspaceSkillsProvider.test.ts`: search results carry `source: 'workspace'` and the row's `agentAccess`; `'none'` skills (if accidentally returned by the gateway) are filtered defensively.
+- `skill-tier-xml.test.ts`: rendered XML includes `source` and `agentAccess` attributes on every skill entry; bundled skills render with `source="bundled" agentAccess="read"`.
+- `Team9SkillsComponent.test.ts`: `onBeforePrompt` injects the static skill-source/permission guidance block; the block text mentions all three recovery paths (bundled-can't-edit, read-only ask-for-bump, hidden-ask-for-grant).
 - Frontend: `AgentAccessControl.tsx` renders three states; selecting one fires the right `update` mutation. `CreateSkillDialog.tsx` defaults to `'read'`.
 
 ## 4. Lifecycle Walkthroughs
@@ -142,11 +167,13 @@ LLM → search_skills{ query: "deploy ..." }
        └─ for each provider, provider.search(query)
             └─ WorkspaceSkillsProvider.search(query)
                  └─ http.get('/v1/bot/skills', { params: { type? } })
-                 └─ rank by name+description+frontmatter, return top-N
-       └─ aggregate, return ranked list
+                 └─ rank by name+description+frontmatter
+                 └─ tag each result with { source: 'workspace', agentAccess: <row> }
+            └─ source-code / bundled providers tag with { source: 'bundled', agentAccess: 'read' }
+       └─ aggregate, return ranked list (each row carries source + agentAccess)
 ```
 
-No folder9 token, no mount. Just metadata over HTTP via the bot namespace.
+No folder9 token, no mount. Just metadata over HTTP via the bot namespace. Hidden (`'none'`) workspace skills never reach this point — the gateway list endpoint already filtered them.
 
 ### 4.2 Agent loads a skill into context
 
