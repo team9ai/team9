@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 let uuidCounter = 0;
 jest.unstable_mockModule('uuid', () => ({
@@ -524,5 +524,204 @@ describe('SkillsService', () => {
     await expect(
       service.update('missing-id', { name: 'X' }, tenantId),
     ).rejects.toThrow(new NotFoundException('Skill not found'));
+  });
+
+  // ── listForAgent ───────────────────────────────────────────────────────────
+
+  describe('listForAgent', () => {
+    it('returns only skills with agentAccess !== none', async () => {
+      const visible = [
+        { id: 'skill-1', name: 'One', agentAccess: 'read' },
+        { id: 'skill-2', name: 'Two', agentAccess: 'write' },
+      ];
+      selectPlans.push({ terminal: 'orderBy', result: visible });
+
+      const result = await service.listForAgent(tenantId);
+      expect(result).toEqual(visible);
+    });
+
+    it('returns empty list when no accessible skills exist', async () => {
+      selectPlans.push({ terminal: 'orderBy', result: [] });
+
+      await expect(service.listForAgent(tenantId)).resolves.toEqual([]);
+    });
+
+    it('applies name filter (substring search)', async () => {
+      const filtered = [{ id: 'skill-1', name: 'Deploy', agentAccess: 'read' }];
+      selectPlans.push({ terminal: 'orderBy', result: filtered });
+
+      const result = await service.listForAgent(tenantId, { name: 'deploy' });
+      expect(result).toEqual(filtered);
+    });
+
+    it('applies type filter', async () => {
+      const filtered = [
+        {
+          id: 'skill-1',
+          name: 'Code Skill',
+          agentAccess: 'read',
+          type: 'claude_code_skill',
+        },
+      ];
+      selectPlans.push({ terminal: 'orderBy', result: filtered });
+
+      const result = await service.listForAgent(tenantId, {
+        type: 'claude_code_skill',
+      });
+      expect(result).toEqual(filtered);
+    });
+
+    it('applies both type and name filters together', async () => {
+      const filtered = [
+        {
+          id: 'skill-1',
+          name: 'Deploy Script',
+          agentAccess: 'write',
+          type: 'general',
+        },
+      ];
+      selectPlans.push({ terminal: 'orderBy', result: filtered });
+
+      const result = await service.listForAgent(tenantId, {
+        type: 'general',
+        name: 'deploy',
+      });
+      expect(result).toEqual(filtered);
+    });
+  });
+
+  // ── getByIdForAgent ────────────────────────────────────────────────────────
+
+  describe('getByIdForAgent', () => {
+    it('returns skill when agentAccess is read', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [{ id: 'skill-1', name: 'Skill A', agentAccess: 'read' }],
+      });
+
+      await expect(
+        service.getByIdForAgent('skill-1', tenantId),
+      ).resolves.toEqual({
+        id: 'skill-1',
+        name: 'Skill A',
+        agentAccess: 'read',
+      });
+    });
+
+    it('returns skill when agentAccess is write', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [{ id: 'skill-1', name: 'Skill A', agentAccess: 'write' }],
+      });
+
+      await expect(
+        service.getByIdForAgent('skill-1', tenantId),
+      ).resolves.toEqual({
+        id: 'skill-1',
+        name: 'Skill A',
+        agentAccess: 'write',
+      });
+    });
+
+    it('throws ForbiddenException when agentAccess is none', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [{ id: 'skill-1', name: 'Hidden', agentAccess: 'none' }],
+      });
+
+      await expect(
+        service.getByIdForAgent('skill-1', tenantId),
+      ).rejects.toThrow(new ForbiddenException('Skill is hidden from agents'));
+    });
+
+    it('throws NotFoundException when skill does not exist', async () => {
+      selectPlans.push({ terminal: 'limit', result: [] });
+
+      await expect(
+        service.getByIdForAgent('missing', tenantId),
+      ).rejects.toThrow(new NotFoundException('Skill not found'));
+    });
+  });
+
+  // ── getFolderBlobForAgent ──────────────────────────────────────────────────
+
+  describe('getFolderBlobForAgent', () => {
+    it('throws ForbiddenException when agentAccess is none', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [
+          {
+            id: 'skill-1',
+            name: 'Hidden',
+            agentAccess: 'none',
+            folderId: 'folder-1',
+          },
+        ],
+      });
+
+      await expect(
+        service.getFolderBlobForAgent('skill-1', userId, tenantId, 'skill.md'),
+      ).rejects.toThrow(new ForbiddenException('Skill is hidden from agents'));
+    });
+
+    it('throws BadRequestException when path is empty', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [
+          {
+            id: 'skill-1',
+            name: 'Visible',
+            agentAccess: 'read',
+            folderId: 'folder-1',
+          },
+        ],
+      });
+
+      await expect(
+        service.getFolderBlobForAgent('skill-1', userId, tenantId, ''),
+      ).rejects.toThrow(/path/);
+    });
+
+    it('returns blob response when skill is accessible and path is valid', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [
+          {
+            id: 'skill-1',
+            name: 'Visible',
+            agentAccess: 'read',
+            folderId: 'folder-1',
+          },
+        ],
+      });
+
+      // Create a proper standalone ArrayBuffer (not a shared pool slice)
+      const text = '# Skill Content';
+      const rawContent = Buffer.from(text).buffer.slice(0);
+      folder9Client.createToken.mockResolvedValueOnce({ token: 'read-token' });
+      folder9Client.getRaw = jest.fn(async () => rawContent);
+
+      const result = await service.getFolderBlobForAgent(
+        'skill-1',
+        userId,
+        tenantId,
+        'skill.md',
+      );
+
+      expect(result).toMatchObject({
+        path: 'skill.md',
+        size: expect.any(Number),
+        content: expect.any(String),
+      });
+      expect(['text', 'base64']).toContain(
+        (result as { encoding: string }).encoding,
+      );
+      expect(folder9Client.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'folder-1',
+          permission: 'read',
+        }),
+      );
+    });
   });
 });

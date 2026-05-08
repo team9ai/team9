@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { TextDecoder } from 'node:util';
 import { v7 as uuidv7 } from 'uuid';
@@ -11,6 +12,8 @@ import {
   eq,
   and,
   desc,
+  ne,
+  ilike,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -128,6 +131,62 @@ export class SkillsService {
     }
     await this.db.delete(schema.skills).where(eq(schema.skills.id, skillId));
     return { success: true };
+  }
+
+  async listForAgent(
+    tenantId: string,
+    filters: { type?: SkillType; name?: string } = {},
+  ) {
+    const conditions = [
+      eq(schema.skills.tenantId, tenantId),
+      ne(schema.skills.agentAccess, 'none'),
+    ];
+    if (filters.type) conditions.push(eq(schema.skills.type, filters.type));
+    if (filters.name) {
+      conditions.push(ilike(schema.skills.name, `%${filters.name}%`));
+    }
+    return this.db
+      .select()
+      .from(schema.skills)
+      .where(and(...conditions))
+      .orderBy(desc(schema.skills.createdAt));
+  }
+
+  async getByIdForAgent(skillId: string, tenantId: string) {
+    const skill = await this.getSkillOrThrow(skillId, tenantId);
+    if (skill.agentAccess === 'none') {
+      throw new ForbiddenException('Skill is hidden from agents');
+    }
+    return skill;
+  }
+
+  async getFolderBlobForAgent(
+    skillId: string,
+    userId: string,
+    tenantId: string,
+    path: string,
+  ): Promise<Folder9BlobResponse> {
+    const skill = await this.getSkillOrThrow(skillId, tenantId);
+    if (skill.agentAccess === 'none') {
+      throw new ForbiddenException('Skill is hidden from agents');
+    }
+    if (!path || typeof path !== 'string' || path.trim().length === 0) {
+      throw new BadRequestException('path query parameter is required');
+    }
+    const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
+    const token = await this.mintSkillFolderToken(
+      folderId,
+      userId,
+      'read',
+      SkillsService.READ_TOKEN_TTL_MS,
+    );
+    const raw = await this.folder9Client.getRaw(
+      tenantId,
+      folderId,
+      token,
+      path,
+    );
+    return this.toBlobResponse(path, raw);
   }
 
   async getSkillFolderTree(
