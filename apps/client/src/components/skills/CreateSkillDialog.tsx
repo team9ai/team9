@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateSkill } from "@/hooks/useSkills";
 import { getHttpErrorMessage } from "@/lib/http-error";
+import type { SkillAgentAccess } from "@/types/skill";
+import { AgentAccessControl } from "./AgentAccessControl";
 
 interface CreateSkillDialogProps {
   isOpen: boolean;
@@ -25,10 +27,12 @@ export function CreateSkillDialog({ isOpen, onClose }: CreateSkillDialogProps) {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [agentAccess, setAgentAccess] = useState<SkillAgentAccess>("read");
 
   function handleClose() {
     setName("");
     setDescription("");
+    setAgentAccess("read");
     createMutation.reset();
     onClose();
   }
@@ -39,6 +43,7 @@ export function CreateSkillDialog({ isOpen, onClose }: CreateSkillDialogProps) {
         name: name.trim(),
         description: description.trim() || undefined,
         type: "general",
+        agentAccess,
       },
       { onSuccess: handleClose },
     );
@@ -75,6 +80,8 @@ export function CreateSkillDialog({ isOpen, onClose }: CreateSkillDialogProps) {
               className="resize-none"
             />
           </div>
+
+          <AgentAccessControl value={agentAccess} onChange={setAgentAccess} />
 
           {createMutation.isError && (
             <p className="text-sm text-destructive">

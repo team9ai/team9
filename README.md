@@ -75,7 +75,7 @@ _Works great for solo power users too._
 - [ ] Google Workspace & Gmail Integration
 - [ ] WhatsApp, Telegram & Feishu Integration
 - [ ] Scheduled Tasks
-- [ ] Skills
+- [x] Skills
 - [ ] Model Switching
 - [ ] Open-source self-hosted deployment _(26 Q3-Q4)_
 

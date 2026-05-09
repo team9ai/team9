@@ -22,10 +22,16 @@ import {
   type Folder9Permission,
 } from "@/components/folder9-editor/Folder9FolderEditor";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { useDeleteSkill, useSkill, useSkills } from "@/hooks/useSkills";
+import {
+  useDeleteSkill,
+  useSkill,
+  useSkills,
+  useUpdateSkill,
+} from "@/hooks/useSkills";
 import { skillFolderApi } from "@/services/api/folder9-folder";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { cn } from "@/lib/utils";
+import { AgentAccessControl } from "./AgentAccessControl";
 import { CreateSkillDialog } from "./CreateSkillDialog";
 import type { Skill } from "@/types/skill";
 
@@ -241,6 +247,7 @@ function SkillFolderPanel({ skillId }: { skillId: string }) {
     useCurrentUser();
   const workspaceId = useSelectedWorkspaceId();
   const deleteSkill = useDeleteSkill();
+  const updateSkill = useUpdateSkill(skillId);
 
   const api = useMemo(() => skillFolderApi(skillId), [skillId]);
   const permission: Folder9Permission = currentUser ? "write" : "read";
@@ -294,6 +301,14 @@ function SkillFolderPanel({ skillId }: { skillId: string }) {
         >
           <Trash2 size={17} />
         </Button>
+      </div>
+
+      <div className="px-6 py-3 border-b border-border">
+        <AgentAccessControl
+          value={skill.agentAccess}
+          onChange={(next) => updateSkill.mutate({ agentAccess: next })}
+          disabled={updateSkill.isPending}
+        />
       </div>
 
       <div className="flex-1 min-h-0">

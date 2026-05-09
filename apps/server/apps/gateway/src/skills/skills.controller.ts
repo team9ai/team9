@@ -9,18 +9,12 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
-  ParseIntPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { SkillType } from '@team9/database/schemas';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { SkillsService } from './skills.service.js';
-import {
-  CreateSkillDto,
-  UpdateSkillDto,
-  CreateVersionDto,
-  ReviewVersionDto,
-} from './dto/index.js';
+import { CreateSkillDto, UpdateSkillDto } from './dto/index.js';
 import { FolderCommitDto } from '../routines/dto/folder-commit.dto.js';
 
 @Controller({
@@ -37,7 +31,9 @@ export class SkillsController {
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.skillsService.create(dto, userId, tenantId);
+    return this.skillsService.create(dto, userId, tenantId, {
+      agentAccess: 'read',
+    });
   }
 
   @Get()
@@ -105,42 +101,5 @@ export class SkillsController {
     @Body() dto: FolderCommitDto,
   ) {
     return this.skillsService.commitSkillFolder(id, userId, tenantId, dto);
-  }
-
-  @Get(':id/versions')
-  async listVersions(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentTenantId() tenantId: string,
-  ) {
-    return this.skillsService.listVersions(id, tenantId);
-  }
-
-  @Get(':id/versions/:version')
-  async getVersion(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('version', ParseIntPipe) version: number,
-    @CurrentTenantId() tenantId: string,
-  ) {
-    return this.skillsService.getVersion(id, version, tenantId);
-  }
-
-  @Post(':id/versions')
-  async createVersion(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateVersionDto,
-    @CurrentUser('sub') userId: string,
-    @CurrentTenantId() tenantId: string,
-  ) {
-    return this.skillsService.createVersion(id, dto, userId, tenantId);
-  }
-
-  @Patch(':id/versions/:version')
-  async reviewVersion(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Param('version', ParseIntPipe) version: number,
-    @Body() dto: ReviewVersionDto,
-    @CurrentTenantId() tenantId: string,
-  ) {
-    return this.skillsService.reviewVersion(id, version, dto.action, tenantId);
   }
 }

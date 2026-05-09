@@ -19,6 +19,7 @@ import {
   type Folder9CreateTokenResponse,
   type Folder9Permission,
 } from '../wikis/types/folder9.types.js';
+import { SkillAgentAccessService } from '../skills/agent-access.service.js';
 import { FolderTokenRequestDto } from './dto/folder-token-request.dto.js';
 import { parseSessionShape } from './parse-session-shape.js';
 
@@ -50,6 +51,7 @@ const KNOWN_LOGICAL_KEYS = new Set([
   'routine.document',
   'user.tmp',
   'user.home',
+  'workspace.skill',
 ]);
 
 /**
@@ -67,6 +69,10 @@ const KNOWN_LOGICAL_KEYS = new Set([
  *   same tenant as the routine, the routine's `folderId` matches the
  *   request's `folderId`, and the requested permission is `read` or
  *   `write` (no `propose`/`admin` for routines in v1).
+ * - `workspace.skill`: verifies `folderId` belongs to a `skills` row in
+ *   the caller's tenant, then applies the per-skill `agentAccess` matrix:
+ *   `none` → 403 for any permission; `read` → allows `read` only; `write`
+ *   → allows `read` and `write`. Decision delegated to `SkillAgentAccessService`.
  * - `session.{tmp,home}`, `agent.{tmp,home}`, `user.{tmp,home}`,
  *   `routine.{tmp,home}`: real authz against `workspace_folder_mounts`
  *   plus logicalKey-specific ownership. Every non-document logicalKey
@@ -126,6 +132,7 @@ export class FolderTokenService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly folder9Client: Folder9ClientService,
+    private readonly skillAccess: SkillAgentAccessService,
   ) {}
 
   /**
@@ -196,6 +203,14 @@ export class FolderTokenService {
       }
       const routine = await this.authorizeRoutineDocument(req);
       scopeId = routine.id;
+    } else if (req.logicalKey === 'workspace.skill') {
+      if (req.permission === 'propose') {
+        throw new ForbiddenException(
+          `permission=${req.permission} is not supported for workspace.skill in v1`,
+        );
+      }
+      const skillId = await this.authorizeWorkspaceSkill(req, callerBotUserId);
+      scopeId = skillId;
     } else {
       // session.*, agent.*, user.*, routine.{tmp,home}: real authz
       // delegated to a single helper that combines the
@@ -310,6 +325,67 @@ export class FolderTokenService {
     }
 
     return routine;
+  }
+
+  /**
+   * Verify the caller is allowed to mint a token for
+   * `logicalKey === "workspace.skill"`. Returns the resolved skill id
+   * so the caller can use it as the audit `scopeId`.
+   *
+   * Authz checks (in order):
+   * 1. A `skills` row exists where `folderId === req.folderId` AND
+   *    `tenantId === req.workspaceId`. Mismatch (cross-tenant or unknown
+   *    folder) → ForbiddenException.
+   * 2. `SkillAgentAccessService.resolve(skillId, callerBotUserId,
+   *    workspaceId)` determines the effective access level.
+   * 3. `'none'` → 403 ("Skill is hidden from this agent").
+   * 4. `'read'` + `permission === 'write'` → 403
+   *    ("Skill is read-only for this agent").
+   * 5. `'write'` allows both `'read'` and `'write'` tokens.
+   *
+   * `propose` and `admin` are rejected BEFORE reaching this helper
+   * (by the caller in `issueToken`), so only `'read'` and `'write'`
+   * permissions arrive here.
+   */
+  private async authorizeWorkspaceSkill(
+    req: FolderTokenRequestDto,
+    callerBotUserId: string,
+  ): Promise<string> {
+    const rows = await this.db
+      .select({ id: schema.skills.id })
+      .from(schema.skills)
+      .where(
+        and(
+          eq(schema.skills.folderId, req.folderId),
+          eq(schema.skills.tenantId, req.workspaceId),
+        ),
+      )
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) {
+      throw new ForbiddenException(
+        'folderId does not belong to any skill in this workspace',
+      );
+    }
+
+    const access = await this.skillAccess.resolve(
+      row.id,
+      callerBotUserId,
+      req.workspaceId,
+    );
+
+    if (access === 'none') {
+      throw new ForbiddenException('Skill is hidden from this agent');
+    }
+
+    if (access === 'read' && req.permission === 'write') {
+      throw new ForbiddenException(
+        'Skill is read-only for this agent; cannot mint a write token',
+      );
+    }
+
+    return row.id;
   }
 
   private resolveTtlMs(
