@@ -40,6 +40,11 @@
   "yesterday": "어제",
   "copy": "복사",
   "copied": "복사됨",
+  "imagePreview": {
+    "download": "다운로드",
+    "openInNewTab": "새 탭에서 열기",
+    "copyFailed": "이미지를 복사할 수 없습니다"
+  },
   "selected": "선택됨",
   "warning": "경고:",
   "seconds": "초",
