@@ -278,8 +278,8 @@ The gateway's `'workspace.skill'` logicalKey branch joins on `skills.folderId ==
 
 Single deploy, no feature flag. Sequencing matters within the deploy:
 
-1. Add `'workspace.skill'` logicalKey + new endpoints to gateway.
-2. Add `WorkspaceSkillsProvider`, `create_workspace_skill`, `mount_workspace_skill`, `unregisterProvider` to agent-pi packages. Bump claw-hive package versions consumed by gateway (the agent images redeploy on the next routine run).
+1. Add `'workspace.skill'` logicalKey + new endpoints to gateway. **Gateway must deploy first** — it accepts `'workspace.skill'` as a string literal with no compile-time dependency on `@team9claw/claw-hive-types` (see `folder-token-request.dto.ts`). If agent-pi deploys first, runtime calls return 403 "Unknown logicalKey" until the gateway catches up.
+2. Add `WorkspaceSkillsProvider`, `create_workspace_skill`, `mount_workspace_skill`, `unregisterProvider` to agent-pi packages and deploy after the gateway is live. Package version bumps are for hygiene only — the gateway does not import `@team9claw/claw-hive-types` (the agent images redeploy on the next routine run).
 3. Drop the legacy DB tables and code in the same gateway deploy. Two migrations: `add_skills_agent_access` (creates the new enum + column with default `'read'`, backfilling existing rows) and `drop_skill_versions_skill_files` (removes the legacy tables + `currentVersion` column + version-status enum). No pre-migration reconciliation needed: the suggestion flow has not been exercised in production. Confirm before running with a quick `SELECT COUNT(*) FROM skill_versions` sanity check.
 4. Frontend deploy lands the skills.ts / useSkills.ts cleanup and SuggestionReviewPanel removal. Old clients pointing at deleted `/versions` routes get 404 — acceptable because the new client should be deployed within minutes.
 
