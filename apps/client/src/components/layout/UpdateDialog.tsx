@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useDesktopUpdater } from "@/hooks/useDesktopUpdater";
 import type { DownloadProgress } from "@/hooks/useDesktopUpdater";
 
-const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
