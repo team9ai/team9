@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "Arquivos",
-    "versions": "Versões",
     "loadError": "Falha ao carregar habilidade",
     "noFiles": "Ainda não há arquivos",
     "uploadFile": "Enviar arquivo",
@@ -50,28 +49,6 @@
     "rename": "Renomear",
     "selectFile": "Selecione um arquivo para visualizar",
     "review": "Revisar"
-  },
-  "version": {
-    "current": "Atual",
-    "version": "v{{version}}",
-    "publishedBy": "Publicado por {{name}}",
-    "suggestedBy": "Sugerido por {{name}}",
-    "approve": "Aprovar",
-    "reject": "Rejeitar",
-    "pendingSuggestion": "A IA sugeriu alterações",
-    "pendingSuggestionDescription": "Revise as alterações propostas abaixo",
-    "approved": "Aprovada",
-    "rejected": "Rejeitada",
-    "noVersions": "Ainda não há versões",
-    "saveVersion": "Salvar como nova versão",
-    "versionMessage": "Descrição da versão",
-    "versionMessagePlaceholder": "O que mudou?"
-  },
-  "status": {
-    "published": "Publicada",
-    "suggested": "Sugerida",
-    "rejected": "Rejeitada",
-    "draft": "Rascunho"
   },
   "type": {
     "claude_code_skill": "Habilidade Claude Code",
@@ -160,5 +137,20 @@
     "claudeCodeSkillDescription": "Habilidade em markdown com frontmatter para o Claude Code",
     "promptTemplate": "Template de prompt",
     "promptTemplateDescription": "Prompt reutilizável com marcadores de variáveis"
+  },
+  "agentAccess": {
+    "label": "Agent access",
+    "none": {
+      "title": "Hidden",
+      "help": "Agents in this workspace cannot see or use this skill."
+    },
+    "read": {
+      "title": "Read-only",
+      "help": "Agents can find and use this skill but cannot edit its files."
+    },
+    "write": {
+      "title": "Read & write",
+      "help": "Agents can both use and edit this skill."
+    }
   }
 }

@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "파일",
-    "versions": "버전",
     "loadError": "스킬을 불러오지 못했습니다",
     "noFiles": "파일이 없습니다",
     "uploadFile": "파일 업로드",
@@ -50,28 +49,6 @@
     "rename": "이름 변경",
     "selectFile": "파일을 선택하여 보기",
     "review": "리뷰"
-  },
-  "version": {
-    "current": "현재",
-    "version": "v{{version}}",
-    "publishedBy": "{{name}}이(가) 게시",
-    "suggestedBy": "{{name}}이(가) 제안",
-    "approve": "승인",
-    "reject": "거부",
-    "pendingSuggestion": "AI가 변경을 제안했습니다",
-    "pendingSuggestionDescription": "아래의 변경 제안을 검토하세요",
-    "approved": "승인됨",
-    "rejected": "거부됨",
-    "noVersions": "아직 버전이 없습니다",
-    "saveVersion": "새 버전으로 저장",
-    "versionMessage": "버전 설명",
-    "versionMessagePlaceholder": "무엇이 변경되었나요?"
-  },
-  "status": {
-    "published": "게시됨",
-    "suggested": "제안됨",
-    "rejected": "거부됨",
-    "draft": "초안"
   },
   "type": {
     "claude_code_skill": "Claude Code 스킬",
@@ -160,5 +137,20 @@
     "claudeCodeSkillDescription": "프론트매터가 포함된 Markdown 스킬 파일",
     "promptTemplate": "프롬프트 템플릿",
     "promptTemplateDescription": "변수 플레이스홀더가 포함된 재사용 가능한 프롬프트"
+  },
+  "agentAccess": {
+    "label": "Agent access",
+    "none": {
+      "title": "Hidden",
+      "help": "Agents in this workspace cannot see or use this skill."
+    },
+    "read": {
+      "title": "Read-only",
+      "help": "Agents can find and use this skill but cannot edit its files."
+    },
+    "write": {
+      "title": "Read & write",
+      "help": "Agents can both use and edit this skill."
+    }
   }
 }

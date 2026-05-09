@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@team9/database';
 import { AuthModule } from '../auth/auth.module.js';
 import { WikisModule } from '../wikis/wikis.module.js';
+import { SkillsModule } from '../skills/skills.module.js';
 import { BotAgentOwnership } from './bot-agent-ownership.service.js';
 import { FolderMapBuilder } from './folder-map-builder.service.js';
 import { FolderMapController } from './folder-map.controller.js';
@@ -24,7 +25,7 @@ import { FolderTokenService } from './folder-token.service.js';
  * guard stack (`AuthGuard`) used by the controllers.
  */
 @Module({
-  imports: [DatabaseModule, AuthModule, WikisModule],
+  imports: [DatabaseModule, AuthModule, WikisModule, SkillsModule],
   controllers: [FolderTokenController, FolderMapController],
   providers: [
     FolderTokenService,

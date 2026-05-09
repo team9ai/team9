@@ -7,7 +7,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { SkillType } from '@team9/database/schemas';
+import type { SkillType, SkillAgentAccess } from '@team9/database/schemas';
 
 export class SkillFileDto {
   @IsString()
@@ -36,6 +36,11 @@ export class CreateSkillDto {
   @IsOptional()
   icon?: string;
 
+  @IsIn(['none', 'read', 'write'] as const)
+  @IsOptional()
+  agentAccess?: SkillAgentAccess;
+
+  // Initial files retained — used by import flows.
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SkillFileDto)

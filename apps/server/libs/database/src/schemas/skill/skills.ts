@@ -4,7 +4,6 @@ import {
   uuid,
   varchar,
   text,
-  integer,
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
@@ -15,6 +14,12 @@ export const skillTypeEnum = pgEnum('skill__type', [
   'claude_code_skill',
   'prompt_template',
   'general',
+]);
+
+export const skillAgentAccessEnum = pgEnum('skill__agent_access', [
+  'none',
+  'read',
+  'write',
 ]);
 
 export const skills = pgTable(
@@ -34,7 +39,7 @@ export const skills = pgTable(
      * before the skill-library folder9 migration.
      */
     folderId: uuid('folder_id'),
-    currentVersion: integer('current_version').default(0).notNull(),
+    agentAccess: skillAgentAccessEnum('agent_access').default('read').notNull(),
     creatorId: uuid('creator_id')
       .references(() => users.id)
       .notNull(),
@@ -47,3 +52,4 @@ export const skills = pgTable(
 export type Skill = typeof skills.$inferSelect;
 export type NewSkill = typeof skills.$inferInsert;
 export type SkillType = (typeof skillTypeEnum.enumValues)[number];
+export type SkillAgentAccess = (typeof skillAgentAccessEnum.enumValues)[number];

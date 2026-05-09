@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:subagent-driven-development (recommended) or superpowers-extended-cc:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status: Implemented** (branch `feat/folder9-skills-agent-crud`, 2026-05-09)
+
 **Goal:** Drop the legacy `skill_versions` / `skill_files` tables, add a per-skill `agentAccess` permission axis, and bridge the workspace skill library into the claw-hive agent runtime so agents can search / mount / create / modify tenant skills.
 
 **Architecture:** Folder9 light folder is the only file store; commits go straight to HEAD (`approval_mode: 'auto'`). Agent CRUD lives in a new `Team9SkillsComponent` with two new LLM tools (`create_workspace_skill`, `mount_workspace_skill`) and a new `WorkspaceSkillsProvider` for `search_skills`/`load_skills`. Permission decisions are centralized in a `resolveSkillAgentAccess(skillId, botUserId)` helper on the gateway and surfaced to the LLM via skill-tier XML attributes plus a static guidance block.
@@ -15,7 +17,7 @@
 - team9 (`/Users/winrey/Projects/weightwave/team9`) — DB schema, gateway, frontend
 - team9-agent-pi (`/Users/winrey/Projects/weightwave/team9-agent-pi`) — runtime types, components, providers
 
-**Sequencing constraint:** Tasks 7–11 in agent-pi must be published before Task 6 (gateway folder-token.service `'workspace.skill'` branch) deploys, because the gateway will reference the new `Team9LogicalMountKey` value `'workspace.skill'` exported from `@team9claw/claw-hive-types`. Plan order keeps gateway and agent-pi work parallel-able where possible; the package version bump (Task 11) is the synchronization point.
+**Sequencing constraint:** Gateway PR (this repo, #105) must deploy BEFORE agent-pi PR (#115) in any environment. The gateway accepts `'workspace.skill'` as a string-typed `logicalKey` literal — there is no compile-time dependency on `@team9claw/claw-hive-types` (per the explicit comment in `apps/server/apps/gateway/src/folder9/dto/folder-token-request.dto.ts`). If agent-pi deploys first, runtime calls return 403 "Unknown logicalKey" until the gateway catches up.
 
 ---
 
@@ -3277,8 +3279,8 @@ git commit -m "feat(client/skills): delete SuggestionReviewPanel"
 
 The plan tasks land in this order during a single deploy. Sequencing:
 
-1. Tasks 0–4 (gateway-only schema + service + bot controller) deploy first — backwards compatible because the agent-pi side is not yet using `'workspace.skill'`. Frontend may surface 404s if it tries the version routes; pair with frontend deploy.
-2. Task 5 (workspace.skill logicalKey) **must not deploy until** Task 11 publishes new agent-pi packages with the `'workspace.skill'` literal. In dev, this is automatic via workspace links; in CI/prod, sequence package publish → bump pin → deploy.
+1. Gateway (this repo, PR #105) deploys first — Tasks 0–5 are backwards compatible because the agent-pi side is not yet issuing `'workspace.skill'` requests. Frontend may surface 404s if it tries the legacy version routes; pair with frontend deploy.
+2. Agent-pi (PR #115) deploys after the gateway is live. The gateway accepts `'workspace.skill'` as a plain string literal (no compile-time dependency on `@team9claw/claw-hive-types`), so agent-pi package version bumps are for hygiene only — no consumer outside the agent-pi monorepo depends on the new `Team9LogicalMountKey` value. If agent-pi deploys first, runtime calls return 403 "Unknown logicalKey" until the gateway catches up.
 3. Tasks 6–10 (agent-pi runtime additions) ship in the agent image build that follows the next routine run.
 4. Tasks 12–14 (frontend) ship together with Task 0–4.
 

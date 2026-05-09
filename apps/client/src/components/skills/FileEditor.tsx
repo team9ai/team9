@@ -2,10 +2,13 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Pencil, Save, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { SkillFile } from "@/types/skill";
+interface FileEntry {
+  path: string;
+  content: string;
+}
 
 interface FileEditorProps {
-  file: SkillFile;
+  file: FileEntry;
   readOnly?: boolean;
   onSave?: (content: string) => void;
 }

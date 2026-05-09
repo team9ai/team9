@@ -93,6 +93,7 @@ The backend follows a modular NestJS architecture with two main applications:
   - WebSocket: Socket.io gateway for real-time events
 - **Workspace Module** ([apps/server/apps/gateway/src/workspace](apps/server/apps/gateway/src/workspace)): Multi-tenant workspace management
 - **Wikis Module** ([apps/server/apps/gateway/src/wikis](apps/server/apps/gateway/src/wikis)): folder9-backed knowledge base. `workspace_wikis` table tracks the per-workspace wiki catalog with per-role permissions (human/agent × read/propose/write) and `auto`/`review` approval modes. Reviewable commits flow through folder9 proposals; webhook ingress (`/api/folder9/webhook`) rebroadcasts events to the workspace room.
+- **Skills Module** ([apps/server/apps/gateway/src/skills](apps/server/apps/gateway/src/skills)): folder9-backed skill library. `skills` table stores metadata + `folderId` pointer; files live exclusively in the folder9 light folder. Two access surfaces: `/v1/skills/...` (human/UI, JWT auth) and `/v1/bot/skills/...` (agent auth, filtered by `agentAccess`). A per-skill `agentAccess` enum (`none | read | write`) controls agent visibility/writability; permission decisions centralized in `SkillAgentAccessService`. Skill folders run `approval_mode: 'auto'`; the `'workspace.skill'` logicalKey on `POST /v1/bot/folder-token` gates agent write-mounts.
 - **Edition Module** ([apps/server/apps/gateway/src/edition](apps/server/apps/gateway/src/edition)): Dynamic feature loading for Community vs Enterprise editions
 
 **Edition System:**
@@ -105,6 +106,7 @@ The codebase supports Community and Enterprise editions via environment variable
   - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status, channel_property_definitions, message_properties, audit_logs, channel_views, channel_tabs
   - **tenant/**: tenants, tenant_members, workspace_invitations
   - **wiki/**: workspace_wikis (Team9 pointer to folder9-backed wikis with permission + approval mode)
+  - **skill/**: skills (folder9-backed skill library; `agentAccess` enum controls agent visibility/writability)
 - All migrations managed via `pnpm db:migrate`
 - Schema changes pushed via `pnpm db:push` (dev) or `pnpm db:generate` + `pnpm db:migrate` (prod)
 
@@ -251,4 +253,4 @@ Wiki System:
 - PostgreSQL (local or remote)
 - Redis (for caching/sessions)
 - RabbitMQ (for message queuing)
-- folder9 service (optional — required for Wiki feature; set `FOLDER9_API_URL`/`PSK`/`WEBHOOK_SECRET`)
+- folder9 service (optional — required for Wiki and Skills features; set `FOLDER9_API_URL`/`PSK`/`WEBHOOK_SECRET`)

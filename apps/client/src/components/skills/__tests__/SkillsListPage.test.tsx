@@ -25,8 +25,7 @@ const skill: Skill = {
   type: "claude_code_skill",
   icon: null,
   folderId: "folder-1",
-  currentVersion: 1,
-  pendingSuggestionsCount: 0,
+  agentAccess: "read",
   creatorId: "user-1",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
@@ -36,6 +35,7 @@ vi.mock("@/hooks/useSkills", () => ({
   useSkills: () => ({ data: [skill], isLoading: false }),
   useSkill: () => ({ data: skill, isLoading: false, error: null }),
   useDeleteSkill: () => ({ mutate: vi.fn() }),
+  useUpdateSkill: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({

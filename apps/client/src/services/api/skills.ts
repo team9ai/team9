@@ -2,13 +2,9 @@ import http from "../http";
 import type {
   Skill,
   SkillDetail,
-  SkillVersion,
-  SkillVersionDetail,
   SkillType,
   CreateSkillDto,
   UpdateSkillDto,
-  CreateVersionDto,
-  ReviewVersionDto,
 } from "@/types/skill";
 
 export interface SkillListParams {
@@ -38,43 +34,6 @@ export const skillsApi = {
 
   delete: async (id: string): Promise<void> => {
     await http.delete(`/v1/skills/${id}`);
-  },
-
-  // Versions
-  listVersions: async (id: string): Promise<SkillVersion[]> => {
-    const response = await http.get<SkillVersion[]>(
-      `/v1/skills/${id}/versions`,
-    );
-    return response.data;
-  },
-
-  getVersion: async (
-    id: string,
-    version: number,
-  ): Promise<SkillVersionDetail> => {
-    const response = await http.get<SkillVersionDetail>(
-      `/v1/skills/${id}/versions/${version}`,
-    );
-    return response.data;
-  },
-
-  createVersion: async (
-    id: string,
-    dto: CreateVersionDto,
-  ): Promise<SkillVersion> => {
-    const response = await http.post<SkillVersion>(
-      `/v1/skills/${id}/versions`,
-      dto,
-    );
-    return response.data;
-  },
-
-  reviewVersion: async (
-    id: string,
-    version: number,
-    dto: ReviewVersionDto,
-  ): Promise<void> => {
-    await http.patch(`/v1/skills/${id}/versions/${version}`, dto);
   },
 };
 

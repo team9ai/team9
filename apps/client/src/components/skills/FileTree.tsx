@@ -10,7 +10,11 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import type { SkillFile } from "@/types/skill";
+
+interface FileEntry {
+  path: string;
+  content: string;
+}
 
 interface TreeNode {
   name: string;
@@ -19,7 +23,7 @@ interface TreeNode {
   children: TreeNode[];
 }
 
-function buildTree(files: SkillFile[]): TreeNode[] {
+function buildTree(files: FileEntry[]): TreeNode[] {
   const root: TreeNode[] = [];
 
   for (const file of files) {
@@ -54,7 +58,7 @@ function buildTree(files: SkillFile[]): TreeNode[] {
 }
 
 interface FileTreeProps {
-  files: SkillFile[];
+  files: FileEntry[];
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   onNewFile?: () => void;
