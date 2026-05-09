@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "Файлы",
-    "versions": "Версии",
     "loadError": "Не удалось загрузить навык",
     "noFiles": "Файлов пока нет",
     "uploadFile": "Загрузить файл",
@@ -50,28 +49,6 @@
     "rename": "Переименовать",
     "selectFile": "Выберите файл для просмотра",
     "review": "Проверить"
-  },
-  "version": {
-    "current": "Текущая",
-    "version": "v{{version}}",
-    "publishedBy": "Опубликовано пользователем {{name}}",
-    "suggestedBy": "Предложено пользователем {{name}}",
-    "approve": "Одобрить",
-    "reject": "Отклонить",
-    "pendingSuggestion": "ИИ предложил изменения",
-    "pendingSuggestionDescription": "Проверьте предложенные изменения ниже",
-    "approved": "Одобрено",
-    "rejected": "Отклонено",
-    "noVersions": "Версий пока нет",
-    "saveVersion": "Сохранить как новую версию",
-    "versionMessage": "Описание версии",
-    "versionMessagePlaceholder": "Что изменилось?"
-  },
-  "status": {
-    "published": "Опубликовано",
-    "suggested": "Предложено",
-    "rejected": "Отклонено",
-    "draft": "Черновик"
   },
   "type": {
     "claude_code_skill": "Навык Claude Code",

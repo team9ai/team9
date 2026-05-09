@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "檔案",
-    "versions": "版本",
     "loadError": "載入技能失敗",
     "noFiles": "暫無檔案",
     "uploadFile": "上傳檔案",
@@ -50,28 +49,6 @@
     "rename": "重新命名",
     "selectFile": "選擇一個檔案檢視",
     "review": "審查"
-  },
-  "version": {
-    "current": "目前",
-    "version": "v{{version}}",
-    "publishedBy": "由 {{name}} 發佈",
-    "suggestedBy": "由 {{name}} 建議",
-    "approve": "核准",
-    "reject": "駁回",
-    "pendingSuggestion": "AI 建議了修改",
-    "pendingSuggestionDescription": "請檢視下方的修改建議",
-    "approved": "已核准",
-    "rejected": "已駁回",
-    "noVersions": "暫無版本",
-    "saveVersion": "儲存為新版本",
-    "versionMessage": "版本說明",
-    "versionMessagePlaceholder": "修改了什麼？"
-  },
-  "status": {
-    "published": "已發佈",
-    "suggested": "待審核",
-    "rejected": "已駁回",
-    "draft": "草稿"
   },
   "type": {
     "claude_code_skill": "Claude Code 技能",

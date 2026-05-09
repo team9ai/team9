@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "文件",
-    "versions": "版本",
     "loadError": "加载技能失败",
     "noFiles": "暂无文件",
     "uploadFile": "上传文件",
@@ -50,28 +49,6 @@
     "rename": "重命名",
     "selectFile": "选择一个文件查看",
     "review": "审查"
-  },
-  "version": {
-    "current": "当前",
-    "version": "v{{version}}",
-    "publishedBy": "由 {{name}} 发布",
-    "suggestedBy": "由 {{name}} 建议",
-    "approve": "批准",
-    "reject": "驳回",
-    "pendingSuggestion": "AI 建议了修改",
-    "pendingSuggestionDescription": "请查看下方的修改建议",
-    "approved": "已批准",
-    "rejected": "已驳回",
-    "noVersions": "暂无版本",
-    "saveVersion": "保存为新版本",
-    "versionMessage": "版本说明",
-    "versionMessagePlaceholder": "修改了什么？"
-  },
-  "status": {
-    "published": "已发布",
-    "suggested": "待审批",
-    "rejected": "已驳回",
-    "draft": "草稿"
   },
   "type": {
     "claude_code_skill": "Claude Code 技能",

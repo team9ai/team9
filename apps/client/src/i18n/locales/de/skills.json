@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "Dateien",
-    "versions": "Versionen",
     "loadError": "Fähigkeit konnte nicht geladen werden",
     "noFiles": "Noch keine Dateien",
     "uploadFile": "Datei hochladen",
@@ -50,28 +49,6 @@
     "rename": "Umbenennen",
     "selectFile": "Datei zum Anzeigen auswählen",
     "review": "Überprüfen"
-  },
-  "version": {
-    "current": "Aktuell",
-    "version": "v{{version}}",
-    "publishedBy": "Veröffentlicht von {{name}}",
-    "suggestedBy": "Vorgeschlagen von {{name}}",
-    "approve": "Genehmigen",
-    "reject": "Ablehnen",
-    "pendingSuggestion": "KI hat Änderungen vorgeschlagen",
-    "pendingSuggestionDescription": "Überprüfen Sie die vorgeschlagenen Änderungen unten",
-    "approved": "Genehmigt",
-    "rejected": "Abgelehnt",
-    "noVersions": "Noch keine Versionen",
-    "saveVersion": "Als neue Version speichern",
-    "versionMessage": "Versionsbeschreibung",
-    "versionMessagePlaceholder": "Was hat sich geändert?"
-  },
-  "status": {
-    "published": "Veröffentlicht",
-    "suggested": "Vorgeschlagen",
-    "rejected": "Abgelehnt",
-    "draft": "Entwurf"
   },
   "type": {
     "claude_code_skill": "Claude Code Fähigkeit",

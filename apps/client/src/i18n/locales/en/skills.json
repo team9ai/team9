@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "Files",
-    "versions": "Versions",
     "loadError": "Failed to load skill",
     "noFiles": "No files yet",
     "uploadFile": "Upload File",
@@ -50,28 +49,6 @@
     "rename": "Rename",
     "selectFile": "Select a file to view",
     "review": "Review"
-  },
-  "version": {
-    "current": "Current",
-    "version": "v{{version}}",
-    "publishedBy": "Published by {{name}}",
-    "suggestedBy": "Suggested by {{name}}",
-    "approve": "Approve",
-    "reject": "Reject",
-    "pendingSuggestion": "AI suggested changes",
-    "pendingSuggestionDescription": "Review the proposed changes below",
-    "approved": "Approved",
-    "rejected": "Rejected",
-    "noVersions": "No versions yet",
-    "saveVersion": "Save as New Version",
-    "versionMessage": "Version description",
-    "versionMessagePlaceholder": "What changed?"
-  },
-  "status": {
-    "published": "Published",
-    "suggested": "Suggested",
-    "rejected": "Rejected",
-    "draft": "Draft"
   },
   "type": {
     "claude_code_skill": "Claude Code Skill",

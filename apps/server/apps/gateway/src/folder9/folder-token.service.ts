@@ -69,6 +69,10 @@ const KNOWN_LOGICAL_KEYS = new Set([
  *   same tenant as the routine, the routine's `folderId` matches the
  *   request's `folderId`, and the requested permission is `read` or
  *   `write` (no `propose`/`admin` for routines in v1).
+ * - `workspace.skill`: verifies `folderId` belongs to a `skills` row in
+ *   the caller's tenant, then applies the per-skill `agentAccess` matrix:
+ *   `none` → 403 for any permission; `read` → allows `read` only; `write`
+ *   → allows `read` and `write`. Decision delegated to `SkillAgentAccessService`.
  * - `session.{tmp,home}`, `agent.{tmp,home}`, `user.{tmp,home}`,
  *   `routine.{tmp,home}`: real authz against `workspace_folder_mounts`
  *   plus logicalKey-specific ownership. Every non-document logicalKey

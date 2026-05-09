@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "ファイル",
-    "versions": "バージョン",
     "loadError": "スキルの読み込みに失敗しました",
     "noFiles": "ファイルはまだありません",
     "uploadFile": "ファイルをアップロード",
@@ -50,28 +49,6 @@
     "rename": "名前を変更",
     "selectFile": "ファイルを選択して表示",
     "review": "レビュー"
-  },
-  "version": {
-    "current": "現在",
-    "version": "v{{version}}",
-    "publishedBy": "{{name}} が公開",
-    "suggestedBy": "{{name}} が提案",
-    "approve": "承認",
-    "reject": "却下",
-    "pendingSuggestion": "AI が変更を提案",
-    "pendingSuggestionDescription": "以下の変更提案をレビューしてください",
-    "approved": "承認済み",
-    "rejected": "却下済み",
-    "noVersions": "バージョンはまだありません",
-    "saveVersion": "新しいバージョンとして保存",
-    "versionMessage": "バージョンの説明",
-    "versionMessagePlaceholder": "何が変わりましたか？"
-  },
-  "status": {
-    "published": "公開済み",
-    "suggested": "提案中",
-    "rejected": "却下済み",
-    "draft": "下書き"
   },
   "type": {
     "claude_code_skill": "Claude Code スキル",

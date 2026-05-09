@@ -1,7 +1,7 @@
 # Folder9-Only Skills + Agent CRUD — Design
 
 **Date:** 2026-05-09
-**Status:** Draft
+**Status:** Implemented
 **Author:** Claude (auto-mode brainstorming)
 
 ## 1. Background

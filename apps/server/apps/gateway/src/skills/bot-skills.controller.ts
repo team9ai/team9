@@ -17,6 +17,9 @@ import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.j
 import { SkillsService } from './skills.service.js';
 import { CreateSkillDto } from './dto/index.js';
 
+/**
+ * Agent-facing skill API — `/v1/bot/skills`. Every read filters `agentAccess !== 'none'`. See spec §2.2.
+ */
 @Controller({ path: 'bot/skills', version: '1' })
 @UseGuards(AuthGuard)
 export class BotSkillsController {

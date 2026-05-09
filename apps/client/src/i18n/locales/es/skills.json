@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "Archivos",
-    "versions": "Versiones",
     "loadError": "Error al cargar la habilidad",
     "noFiles": "Sin archivos aún",
     "uploadFile": "Subir archivo",
@@ -50,28 +49,6 @@
     "rename": "Renombrar",
     "selectFile": "Seleccione un archivo para ver",
     "review": "Revisar"
-  },
-  "version": {
-    "current": "Actual",
-    "version": "v{{version}}",
-    "publishedBy": "Publicado por {{name}}",
-    "suggestedBy": "Sugerido por {{name}}",
-    "approve": "Aprobar",
-    "reject": "Rechazar",
-    "pendingSuggestion": "Cambios sugeridos por IA",
-    "pendingSuggestionDescription": "Revise los cambios propuestos a continuación",
-    "approved": "Aprobado",
-    "rejected": "Rechazado",
-    "noVersions": "Sin versiones aún",
-    "saveVersion": "Guardar como nueva versión",
-    "versionMessage": "Descripción de la versión",
-    "versionMessagePlaceholder": "¿Qué cambió?"
-  },
-  "status": {
-    "published": "Publicado",
-    "suggested": "Sugerido",
-    "rejected": "Rechazado",
-    "draft": "Borrador"
   },
   "type": {
     "claude_code_skill": "Habilidad Claude Code",

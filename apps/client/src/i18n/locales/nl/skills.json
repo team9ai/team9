@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "Bestanden",
-    "versions": "Versies",
     "loadError": "Kan vaardigheid niet laden",
     "noFiles": "Nog geen bestanden",
     "uploadFile": "Bestand uploaden",
@@ -50,28 +49,6 @@
     "rename": "Hernoemen",
     "selectFile": "Selecteer een bestand om te bekijken",
     "review": "Beoordelen"
-  },
-  "version": {
-    "current": "Huidig",
-    "version": "v{{version}}",
-    "publishedBy": "Gepubliceerd door {{name}}",
-    "suggestedBy": "Voorgesteld door {{name}}",
-    "approve": "Goedkeuren",
-    "reject": "Afwijzen",
-    "pendingSuggestion": "AI-voorgestelde wijzigingen",
-    "pendingSuggestionDescription": "Bekijk de voorgestelde wijzigingen hieronder",
-    "approved": "Goedgekeurd",
-    "rejected": "Afgewezen",
-    "noVersions": "Nog geen versies",
-    "saveVersion": "Opslaan als nieuwe versie",
-    "versionMessage": "Versiebeschrijving",
-    "versionMessagePlaceholder": "Wat is er gewijzigd?"
-  },
-  "status": {
-    "published": "Gepubliceerd",
-    "suggested": "Voorgesteld",
-    "rejected": "Afgewezen",
-    "draft": "Concept"
   },
   "type": {
     "claude_code_skill": "Claude Code Skill",

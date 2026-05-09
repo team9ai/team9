@@ -34,7 +34,6 @@
   },
   "detail": {
     "files": "File",
-    "versions": "Versioni",
     "loadError": "Impossibile caricare la competenza",
     "noFiles": "Ancora nessun file",
     "uploadFile": "Carica file",
@@ -50,28 +49,6 @@
     "rename": "Rinomina",
     "selectFile": "Seleziona un file da visualizzare",
     "review": "Revisiona"
-  },
-  "version": {
-    "current": "Attuale",
-    "version": "v{{version}}",
-    "publishedBy": "Pubblicato da {{name}}",
-    "suggestedBy": "Suggerito da {{name}}",
-    "approve": "Approva",
-    "reject": "Rifiuta",
-    "pendingSuggestion": "Modifiche suggerite dall'AI",
-    "pendingSuggestionDescription": "Rivedi le modifiche proposte qui sotto",
-    "approved": "Approvato",
-    "rejected": "Rifiutato",
-    "noVersions": "Ancora nessuna versione",
-    "saveVersion": "Salva come nuova versione",
-    "versionMessage": "Descrizione della versione",
-    "versionMessagePlaceholder": "Cosa è cambiato?"
-  },
-  "status": {
-    "published": "Pubblicato",
-    "suggested": "Suggerito",
-    "rejected": "Rifiutato",
-    "draft": "Bozza"
   },
   "type": {
     "claude_code_skill": "Competenza Claude Code",

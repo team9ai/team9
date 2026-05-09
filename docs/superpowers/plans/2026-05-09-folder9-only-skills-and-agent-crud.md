@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:subagent-driven-development (recommended) or superpowers-extended-cc:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status: Implemented** (branch `feat/folder9-skills-agent-crud`, 2026-05-09)
+
 **Goal:** Drop the legacy `skill_versions` / `skill_files` tables, add a per-skill `agentAccess` permission axis, and bridge the workspace skill library into the claw-hive agent runtime so agents can search / mount / create / modify tenant skills.
 
 **Architecture:** Folder9 light folder is the only file store; commits go straight to HEAD (`approval_mode: 'auto'`). Agent CRUD lives in a new `Team9SkillsComponent` with two new LLM tools (`create_workspace_skill`, `mount_workspace_skill`) and a new `WorkspaceSkillsProvider` for `search_skills`/`load_skills`. Permission decisions are centralized in a `resolveSkillAgentAccess(skillId, botUserId)` helper on the gateway and surfaced to the LLM via skill-tier XML attributes plus a static guidance block.
