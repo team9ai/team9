@@ -139,17 +139,21 @@
     "promptTemplateDescription": "Reusable prompt with variable placeholders"
   },
   "agentAccess": {
-    "label": "Agent access",
+    "label": "Access",
+    "sectionTitle": "Agent permissions",
     "none": {
       "title": "Hidden",
+      "buttonTitle": "Hidden",
       "help": "Agents in this workspace cannot see or use this skill."
     },
     "read": {
       "title": "Read-only",
+      "buttonTitle": "Read",
       "help": "Agents can find and use this skill but cannot edit its files."
     },
     "write": {
       "title": "Read & write",
+      "buttonTitle": "Write",
       "help": "Agents can both use and edit this skill."
     }
   }

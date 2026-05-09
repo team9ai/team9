@@ -189,6 +189,14 @@
       "rejectFailed": "拒絕失敗，請重試。"
     }
   },
+  "tree": {
+    "newFile": "新增檔案",
+    "newFolder": "新增資料夾",
+    "uploadFile": "上傳檔案",
+    "delete": "刪除",
+    "deleteConfirm": "確定刪除 {{path}} 嗎？此操作無法復原。",
+    "deleting": "刪除中..."
+  },
   "errors": {
     "wikiNotFound": "Wiki 未找到 — 可能已被封存。",
     "boundaryMessage": "出現了一些問題 — 請重試。",

@@ -831,6 +831,66 @@ export function Folder9FolderEditor({
     });
   }
 
+  async function deleteEntry(path: string, type: FolderEntryKind) {
+    if (readOnly || commit.isPending || isTreeOperationPending) return;
+    const normalizedPath = normalizeFolderPath(path);
+    if (!normalizedPath) return;
+    const confirmed = window.confirm(
+      t("tree.deleteConfirm", {
+        path: normalizedPath,
+        defaultValue: `Delete ${normalizedPath}? This can't be undone.`,
+      }),
+    );
+    if (!confirmed) return;
+
+    const files =
+      type === "file"
+        ? [normalizedPath]
+        : (treeQuery.data ?? [])
+            .filter((entry) => {
+              if (entry.type !== "file") return false;
+              return normalizeFolderPath(entry.path).startsWith(
+                `${normalizedPath}/`,
+              );
+            })
+            .map((entry) => normalizeFolderPath(entry.path));
+    if (files.length === 0) return;
+
+    const didCommit = await commitFiles(
+      `Delete ${normalizedPath}`,
+      files.map((filePath) => ({
+        path: filePath,
+        content: "",
+        encoding: "text",
+        action: "delete",
+      })),
+      {
+        pendingLabel: t("tree.deleting", { defaultValue: "Deleting..." }),
+      },
+    );
+    if (!didCommit) return;
+
+    const deletedPrefix = `${normalizedPath}/`;
+    if (
+      selectedPath === normalizedPath ||
+      (type === "dir" && selectedPath?.startsWith(deletedPrefix))
+    ) {
+      clearDraft();
+      setSelectedPath(null);
+    }
+    if (type === "dir") {
+      setExpandedDirs((prev) => {
+        const next = new Set(prev);
+        for (const dirPath of prev) {
+          if (dirPath === normalizedPath || dirPath.startsWith(deletedPrefix)) {
+            next.delete(dirPath);
+          }
+        }
+        return next;
+      });
+    }
+  }
+
   async function readBlobForMove(path: string): Promise<BlobDto> {
     return (
       queryClient.getQueryData<BlobDto>([
@@ -1242,6 +1302,7 @@ export function Folder9FolderEditor({
               openCreateEntryDialog("folder", dirPath)
             }
             onUploadInDirectory={(dirPath) => handleUploadClick(dirPath)}
+            onDeleteEntry={(path, type) => void deleteEntry(path, type)}
             onDropFilesInDirectory={handleDropFilesInDirectory}
             onMoveEntryToDirectory={(sourcePath, sourceType, dirPath) =>
               void moveEntryToDirectory(sourcePath, sourceType, dirPath)

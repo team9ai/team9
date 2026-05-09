@@ -200,6 +200,14 @@
       "rejectFailed": "拒绝失败，请重试。"
     }
   },
+  "tree": {
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
+    "uploadFile": "上传文件",
+    "delete": "删除",
+    "deleteConfirm": "确定删除 {{path}} 吗？此操作无法撤销。",
+    "deleting": "删除中..."
+  },
   "errors": {
     "wikiNotFound": "Wiki 未找到 — 可能已被归档。",
     "boundaryMessage": "出现了一些问题 — 请重试。",

@@ -1,9 +1,19 @@
-import { ChevronDown, ChevronRight, FileText, Folder } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FilePlus2,
+  FileText,
+  Folder,
+  FolderPlus,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
@@ -44,6 +54,7 @@ export interface FolderTreeNodeProps {
   onCreateFileInDirectory?: (dirPath: string) => void;
   onCreateFolderInDirectory?: (dirPath: string) => void;
   onUploadInDirectory?: (dirPath: string) => void;
+  onDeleteEntry?: (path: string, type: "file" | "dir") => void;
   onDropFilesInDirectory?: (dirPath: string, files: File[]) => void;
   onMoveFileToDirectory?: (sourcePath: string, dirPath: string) => void;
   onMoveEntryToDirectory?: (
@@ -112,6 +123,7 @@ export function FolderTreeNode({
   onCreateFileInDirectory,
   onCreateFolderInDirectory,
   onUploadInDirectory,
+  onDeleteEntry,
   onDropFilesInDirectory,
   onMoveFileToDirectory,
   onMoveEntryToDirectory,
@@ -131,7 +143,8 @@ export function FolderTreeNode({
     !readOnly &&
     (onCreateFileInDirectory ||
       onCreateFolderInDirectory ||
-      onUploadInDirectory);
+      onUploadInDirectory ||
+      onDeleteEntry);
 
   const handleClick = () => {
     if (node.type === "dir") {
@@ -287,26 +300,45 @@ export function FolderTreeNode({
       {hasActions ? (
         <ContextMenu>
           <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
-          <ContextMenuContent className="w-40">
+          <ContextMenuContent className="w-44">
             {onCreateFileInDirectory && (
               <ContextMenuItem
                 onSelect={() => onCreateFileInDirectory(targetDirectory)}
+                className="gap-2"
               >
+                <FilePlus2 className="size-4 text-muted-foreground" />
                 {t("tree.newFile", { defaultValue: "New file" })}
               </ContextMenuItem>
             )}
             {onCreateFolderInDirectory && (
               <ContextMenuItem
                 onSelect={() => onCreateFolderInDirectory(targetDirectory)}
+                className="gap-2"
               >
+                <FolderPlus className="size-4 text-muted-foreground" />
                 {t("tree.newFolder", { defaultValue: "New folder" })}
               </ContextMenuItem>
             )}
             {onUploadInDirectory && (
               <ContextMenuItem
                 onSelect={() => onUploadInDirectory(targetDirectory)}
+                className="gap-2"
               >
+                <Upload className="size-4 text-muted-foreground" />
                 {t("tree.uploadFile", { defaultValue: "Upload file" })}
+              </ContextMenuItem>
+            )}
+            {onDeleteEntry &&
+              (onCreateFileInDirectory ||
+                onCreateFolderInDirectory ||
+                onUploadInDirectory) && <ContextMenuSeparator />}
+            {onDeleteEntry && (
+              <ContextMenuItem
+                onSelect={() => onDeleteEntry(node.path, node.type)}
+                className="gap-2 text-destructive focus:text-destructive"
+              >
+                <Trash2 className="size-4" />
+                {t("tree.delete", { defaultValue: "Delete" })}
               </ContextMenuItem>
             )}
           </ContextMenuContent>
@@ -339,6 +371,7 @@ export function FolderTreeNode({
               onCreateFileInDirectory={onCreateFileInDirectory}
               onCreateFolderInDirectory={onCreateFolderInDirectory}
               onUploadInDirectory={onUploadInDirectory}
+              onDeleteEntry={onDeleteEntry}
               onDropFilesInDirectory={onDropFilesInDirectory}
               onMoveFileToDirectory={onMoveFileToDirectory}
               onMoveEntryToDirectory={onMoveEntryToDirectory}

@@ -200,6 +200,14 @@
       "rejectFailed": "Reject failed. Please try again."
     }
   },
+  "tree": {
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "uploadFile": "Upload file",
+    "delete": "Delete",
+    "deleteConfirm": "Delete {{path}}? This can't be undone.",
+    "deleting": "Deleting..."
+  },
   "errors": {
     "wikiNotFound": "Wiki not found — it may have been archived.",
     "boundaryMessage": "Something went wrong — please try again.",
