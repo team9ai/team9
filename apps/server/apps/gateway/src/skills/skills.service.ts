@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { TextDecoder } from 'node:util';
 import { v7 as uuidv7 } from 'uuid';
@@ -11,17 +12,12 @@ import {
   eq,
   and,
   desc,
-  inArray,
+  ne,
+  ilike,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type {
-  SkillType,
-  SkillVersionStatus,
-  SkillFile,
-  SkillVersion,
-  SkillFileManifestEntry,
-} from '@team9/database/schemas';
+import type { SkillType, SkillAgentAccess } from '@team9/database/schemas';
 import { Folder9ClientService } from '../wikis/folder9-client.service.js';
 import type {
   Folder9BlobResponse,
@@ -30,11 +26,7 @@ import type {
   Folder9TreeEntry,
 } from '../wikis/types/folder9.types.js';
 import type { FolderCommitDto } from '../routines/dto/folder-commit.dto.js';
-import type {
-  CreateSkillDto,
-  UpdateSkillDto,
-  CreateVersionDto,
-} from './dto/index.js';
+import type { CreateSkillDto, UpdateSkillDto } from './dto/index.js';
 
 @Injectable()
 export class SkillsService {
@@ -48,7 +40,12 @@ export class SkillsService {
     private readonly folder9Client: Folder9ClientService,
   ) {}
 
-  async create(dto: CreateSkillDto, userId: string, tenantId: string) {
+  async create(
+    dto: CreateSkillDto,
+    userId: string,
+    tenantId: string,
+    defaults: { agentAccess: SkillAgentAccess } = { agentAccess: 'read' },
+  ) {
     const skillId = uuidv7();
     const files = this.ensureSkillMd(dto.files, dto.name, dto.description);
 
@@ -87,7 +84,7 @@ export class SkillsService {
         type: dto.type ?? 'general',
         icon: dto.icon ?? null,
         folderId: folder.id,
-        currentVersion: 0,
+        agentAccess: dto.agentAccess ?? defaults.agentAccess,
         creatorId: userId,
       })
       .returning();
@@ -98,83 +95,15 @@ export class SkillsService {
   async list(tenantId: string, type?: SkillType) {
     const conditions = [eq(schema.skills.tenantId, tenantId)];
     if (type) conditions.push(eq(schema.skills.type, type));
-
-    const skills = await this.db
+    return this.db
       .select()
       .from(schema.skills)
       .where(and(...conditions))
       .orderBy(desc(schema.skills.createdAt));
-
-    if (skills.length === 0) return [];
-
-    const skillIds = skills.map((s) => s.id);
-    const suggestions = await this.db
-      .select({ skillId: schema.skillVersions.skillId })
-      .from(schema.skillVersions)
-      .where(
-        and(
-          inArray(schema.skillVersions.skillId, skillIds),
-          eq(schema.skillVersions.status, 'suggested'),
-        ),
-      );
-
-    const countMap = new Map<string, number>();
-    for (const s of suggestions) {
-      countMap.set(s.skillId, (countMap.get(s.skillId) ?? 0) + 1);
-    }
-
-    return skills.map((s) => ({
-      ...s,
-      pendingSuggestionsCount: countMap.get(s.id) ?? 0,
-    }));
   }
 
   async getById(skillId: string, tenantId: string) {
-    const skill = await this.getSkillOrThrow(skillId, tenantId);
-
-    let files: SkillFile[] = [];
-    let currentVersionInfo: SkillVersion | null = null;
-
-    if (skill.currentVersion > 0) {
-      const [version] = await this.db
-        .select()
-        .from(schema.skillVersions)
-        .where(
-          and(
-            eq(schema.skillVersions.skillId, skillId),
-            eq(schema.skillVersions.version, skill.currentVersion),
-          ),
-        )
-        .limit(1);
-
-      if (version) {
-        currentVersionInfo = version;
-        const fileIds = version.fileManifest.map((f) => f.fileId);
-        if (fileIds.length > 0) {
-          files = await this.db
-            .select()
-            .from(schema.skillFiles)
-            .where(inArray(schema.skillFiles.id, fileIds));
-        }
-      }
-    }
-
-    const suggestions = await this.db
-      .select()
-      .from(schema.skillVersions)
-      .where(
-        and(
-          eq(schema.skillVersions.skillId, skillId),
-          eq(schema.skillVersions.status, 'suggested'),
-        ),
-      );
-
-    return {
-      ...skill,
-      currentVersionInfo,
-      files,
-      pendingSuggestions: suggestions,
-    };
+    return this.getSkillOrThrow(skillId, tenantId);
   }
 
   async update(skillId: string, dto: UpdateSkillDto, tenantId: string) {
@@ -184,6 +113,7 @@ export class SkillsService {
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.icon !== undefined) updateData.icon = dto.icon;
+    if (dto.agentAccess !== undefined) updateData.agentAccess = dto.agentAccess;
 
     const [updated] = await this.db
       .update(schema.skills)
@@ -196,11 +126,64 @@ export class SkillsService {
 
   async delete(skillId: string, tenantId: string) {
     const skill = await this.getSkillOrThrow(skillId, tenantId);
-    if (skill.folderId) {
-      await this.folder9Client.deleteFolder(tenantId, skill.folderId);
-    }
     await this.db.delete(schema.skills).where(eq(schema.skills.id, skillId));
+    if (skill.folderId) {
+      await this.folder9Client
+        .deleteFolder(tenantId, skill.folderId)
+        .catch((err) => {
+          // Best-effort: DB row is already gone; folder9 folder will be orphaned
+          // until manual cleanup. Log so ops can spot it.
+          console.warn(
+            `[SkillsService] folder9 deleteFolder failed after DB row removed for skill ${skillId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        });
+    }
     return { success: true };
+  }
+
+  async listForAgent(
+    tenantId: string,
+    filters: { type?: SkillType; name?: string } = {},
+  ) {
+    const conditions = [
+      eq(schema.skills.tenantId, tenantId),
+      ne(schema.skills.agentAccess, 'none'),
+    ];
+    if (filters.type) conditions.push(eq(schema.skills.type, filters.type));
+    if (filters.name) {
+      conditions.push(ilike(schema.skills.name, `%${filters.name}%`));
+    }
+    return this.db
+      .select()
+      .from(schema.skills)
+      .where(and(...conditions))
+      .orderBy(desc(schema.skills.createdAt));
+  }
+
+  async getByIdForAgent(skillId: string, tenantId: string) {
+    const skill = await this.getSkillOrThrow(skillId, tenantId);
+    if (skill.agentAccess === 'none') {
+      throw new ForbiddenException('Skill is hidden from agents');
+    }
+    return skill;
+  }
+
+  async getFolderBlobForAgent(
+    skillId: string,
+    userId: string,
+    tenantId: string,
+    path: string,
+  ): Promise<Folder9BlobResponse> {
+    const skill = await this.getSkillOrThrow(skillId, tenantId);
+    if (skill.agentAccess === 'none') {
+      throw new ForbiddenException('Skill is hidden from agents');
+    }
+    if (!path || typeof path !== 'string' || path.trim().length === 0) {
+      throw new BadRequestException('path query parameter is required');
+    }
+    return this.getSkillFolderBlobInternal(skill, userId, tenantId, path);
   }
 
   async getSkillFolderTree(
@@ -230,20 +213,7 @@ export class SkillsService {
       throw new BadRequestException('path query parameter is required');
     }
     const skill = await this.getSkillOrThrow(skillId, tenantId);
-    const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
-    const token = await this.mintSkillFolderToken(
-      folderId,
-      userId,
-      'read',
-      SkillsService.READ_TOKEN_TTL_MS,
-    );
-    const raw = await this.folder9Client.getRaw(
-      tenantId,
-      folderId,
-      token,
-      path,
-    );
-    return this.toBlobResponse(path, raw);
+    return this.getSkillFolderBlobInternal(skill, userId, tenantId, path);
   }
 
   async commitSkillFolder(
@@ -267,156 +237,26 @@ export class SkillsService {
     });
   }
 
-  async listVersions(skillId: string, tenantId: string) {
-    await this.getSkillOrThrow(skillId, tenantId);
-
-    return this.db
-      .select()
-      .from(schema.skillVersions)
-      .where(eq(schema.skillVersions.skillId, skillId))
-      .orderBy(desc(schema.skillVersions.version));
-  }
-
-  async getVersion(skillId: string, version: number, tenantId: string) {
-    await this.getSkillOrThrow(skillId, tenantId);
-
-    const [versionRow] = await this.db
-      .select()
-      .from(schema.skillVersions)
-      .where(
-        and(
-          eq(schema.skillVersions.skillId, skillId),
-          eq(schema.skillVersions.version, version),
-        ),
-      )
-      .limit(1);
-
-    if (!versionRow) throw new NotFoundException('Version not found');
-
-    const fileIds = versionRow.fileManifest.map((f) => f.fileId);
-    let files: SkillFile[] = [];
-    if (fileIds.length > 0) {
-      files = await this.db
-        .select()
-        .from(schema.skillFiles)
-        .where(inArray(schema.skillFiles.id, fileIds));
-    }
-
-    return { ...versionRow, files };
-  }
-
-  async createVersion(
-    skillId: string,
-    dto: CreateVersionDto,
+  private async getSkillFolderBlobInternal(
+    skill: schema.Skill,
     userId: string,
     tenantId: string,
-  ) {
-    const skill = await this.getSkillOrThrow(skillId, tenantId);
-    const nextVersion = skill.currentVersion + 1;
-
-    const version = await this.createVersionInternal(skillId, {
-      message: dto.message,
-      files: dto.files,
-      status: dto.status,
-      suggestedBy: dto.suggestedBy,
-      version: nextVersion,
-      creatorId: userId,
-    });
-
-    if (dto.status === 'published') {
-      await this.db
-        .update(schema.skills)
-        .set({ currentVersion: nextVersion, updatedAt: new Date() })
-        .where(eq(schema.skills.id, skillId));
-    }
-
-    return version;
-  }
-
-  async reviewVersion(
-    skillId: string,
-    version: number,
-    action: 'approve' | 'reject',
-    tenantId: string,
-  ) {
-    await this.getSkillOrThrow(skillId, tenantId);
-
-    const [versionRow] = await this.db
-      .select()
-      .from(schema.skillVersions)
-      .where(
-        and(
-          eq(schema.skillVersions.skillId, skillId),
-          eq(schema.skillVersions.version, version),
-        ),
-      )
-      .limit(1);
-
-    if (!versionRow) throw new NotFoundException('Version not found');
-    if (versionRow.status !== 'suggested') {
-      throw new BadRequestException('Only suggested versions can be reviewed');
-    }
-
-    if (action === 'approve') {
-      await this.db
-        .update(schema.skillVersions)
-        .set({ status: 'published' })
-        .where(eq(schema.skillVersions.id, versionRow.id));
-
-      await this.db
-        .update(schema.skills)
-        .set({ currentVersion: version, updatedAt: new Date() })
-        .where(eq(schema.skills.id, skillId));
-    } else {
-      await this.db
-        .update(schema.skillVersions)
-        .set({ status: 'rejected' })
-        .where(eq(schema.skillVersions.id, versionRow.id));
-    }
-
-    return { success: true };
-  }
-
-  private async createVersionInternal(
-    skillId: string,
-    opts: {
-      message?: string;
-      files: { path: string; content: string }[];
-      status: SkillVersionStatus;
-      suggestedBy?: string;
-      version: number;
-      creatorId: string;
-    },
-  ) {
-    const fileManifest: SkillFileManifestEntry[] = [];
-    for (const file of opts.files) {
-      const fileId = uuidv7();
-      await this.db.insert(schema.skillFiles).values({
-        id: fileId,
-        skillId,
-        path: file.path,
-        content: file.content,
-        size: Buffer.byteLength(file.content, 'utf8'),
-      });
-      fileManifest.push({ path: file.path, fileId });
-    }
-
-    const versionId = uuidv7();
-    const [version] = await this.db
-      .insert(schema.skillVersions)
-      .values({
-        id: versionId,
-        skillId,
-        version: opts.version,
-        message: opts.message ?? null,
-        status: opts.status,
-        fileManifest,
-        suggestedBy: opts.suggestedBy ?? null,
-        creatorId: opts.creatorId,
-      })
-      .returning();
-
-    return version;
+    path: string,
+  ): Promise<Folder9BlobResponse> {
+    const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
+    const token = await this.mintSkillFolderToken(
+      folderId,
+      userId,
+      'read',
+      SkillsService.READ_TOKEN_TTL_MS,
+    );
+    const raw = await this.folder9Client.getRaw(
+      tenantId,
+      folderId,
+      token,
+      path,
+    );
+    return this.toBlobResponse(path, raw);
   }
 
   private ensureSkillMd(
@@ -493,7 +333,7 @@ export class SkillsService {
         'write',
         SkillsService.WRITE_TOKEN_TTL_MS,
       );
-      const files = await this.getSkillFolderSeedFiles(skill);
+      const files = this.getSkillFolderSeedFiles(skill);
 
       await this.folder9Client.commit(tenantId, folder.id, token, {
         message: 'Initialize skill folder',
@@ -542,44 +382,9 @@ export class SkillsService {
     }
   }
 
-  private async getSkillFolderSeedFiles(
+  private getSkillFolderSeedFiles(
     skill: schema.Skill,
-  ): Promise<{ path: string; content: string }[]> {
-    if (skill.currentVersion > 0) {
-      const [version] = await this.db
-        .select()
-        .from(schema.skillVersions)
-        .where(
-          and(
-            eq(schema.skillVersions.skillId, skill.id),
-            eq(schema.skillVersions.version, skill.currentVersion),
-          ),
-        )
-        .limit(1);
-
-      if (version) {
-        const fileIds = version.fileManifest.map((file) => file.fileId);
-        if (fileIds.length > 0) {
-          const files = await this.db
-            .select()
-            .from(schema.skillFiles)
-            .where(inArray(schema.skillFiles.id, fileIds));
-          const byId = new Map(files.map((file) => [file.id, file]));
-          const restored = version.fileManifest
-            .map((entry) => byId.get(entry.fileId))
-            .filter((file): file is SkillFile => Boolean(file))
-            .map((file) => ({ path: file.path, content: file.content }));
-          if (restored.length > 0) {
-            return this.ensureSkillMd(
-              restored,
-              skill.name,
-              skill.description ?? undefined,
-            );
-          }
-        }
-      }
-    }
-
+  ): { path: string; content: string }[] {
     return this.ensureSkillMd(
       undefined,
       skill.name,

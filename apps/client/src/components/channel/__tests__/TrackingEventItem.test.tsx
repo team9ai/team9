@@ -155,6 +155,22 @@ describe("TrackingEventItem", () => {
     expect(screen.queryByText("Execution complete.")).not.toBeInTheDocument();
   });
 
+  it("keeps the English agent_end label on one line", () => {
+    render(
+      <TrackingEventItem
+        metadata={{
+          agentEventType: "agent_end",
+          status: "completed",
+        }}
+        content="Execution complete."
+      />,
+    );
+
+    const label = screen.getByText("Round ended");
+    expect(label).toHaveClass("whitespace-nowrap");
+    expect(label).not.toHaveClass("w-[72px]");
+  });
+
   it("renders zh-CN agent_end duration with hours and minutes", async () => {
     await changeLanguage("zh-CN");
 

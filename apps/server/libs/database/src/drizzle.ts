@@ -10,6 +10,7 @@ export {
   gte,
   sql,
   like,
+  ilike,
   desc,
   asc,
   isNull,

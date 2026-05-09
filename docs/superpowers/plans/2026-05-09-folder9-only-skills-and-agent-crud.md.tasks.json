@@ -1,0 +1,108 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-09-folder9-only-skills-and-agent-crud.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Drizzle migrations — drop legacy tables, add agentAccess",
+      "status": "pending",
+      "description": "**Goal:** Mutate the production schema to the terminal state in two atomic migrations.\n\n**Files:**\n- Create: apps/server/libs/database/migrations/<timestamp>_add_skills_agent_access.sql\n- Create: apps/server/libs/database/migrations/<timestamp>_drop_skill_versions_skill_files.sql\n- Modify: apps/server/libs/database/src/schemas/skill/skills.ts\n- Modify: apps/server/libs/database/src/schemas/skill/index.ts\n- Modify: apps/server/libs/database/src/schemas/skill/relations.ts\n- Delete: apps/server/libs/database/src/schemas/skill/skill-versions.ts\n- Delete: apps/server/libs/database/src/schemas/skill/skill-files.ts\n\n**Verify:** pnpm --filter @team9/database typecheck && pnpm db:generate -- --check\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/skill/skills.ts\",\"apps/server/libs/database/src/schemas/skill/index.ts\",\"apps/server/libs/database/src/schemas/skill/relations.ts\"],\"verifyCommand\":\"pnpm --filter @team9/database typecheck && pnpm db:generate -- --check\",\"acceptanceCriteria\":[\"skill__agent_access enum exists\",\"skills.agentAccess column NOT NULL default 'read'\",\"skill_versions and skill_files tables dropped\",\"skill_version__status enum dropped\",\"skills.currentVersion column dropped\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: SkillsService refactor — drop legacy methods, plumb agentAccess",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Strip every reference to skill_versions/skill_files/currentVersion out of SkillsService, accept and persist agentAccess on create/update/list/getById.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/skills/skills.service.ts\n- Modify: apps/server/apps/gateway/src/skills/dto/create-skill.dto.ts\n- Modify: apps/server/apps/gateway/src/skills/dto/update-skill.dto.ts\n- Modify: apps/server/apps/gateway/src/skills/dto/index.ts\n- Delete: apps/server/apps/gateway/src/skills/dto/create-version.dto.ts\n- Delete: apps/server/apps/gateway/src/skills/dto/review-version.dto.ts\n- Modify: apps/server/apps/gateway/src/skills/skills.service.spec.ts\n\n**Verify:** pnpm --filter gateway test src/skills/skills.service.spec.ts\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/skills/skills.service.ts\",\"apps/server/apps/gateway/src/skills/dto/create-skill.dto.ts\",\"apps/server/apps/gateway/src/skills/dto/update-skill.dto.ts\"],\"verifyCommand\":\"pnpm --filter gateway test src/skills/skills.service.spec.ts\",\"acceptanceCriteria\":[\"listVersions/getVersion/createVersion/reviewVersion gone\",\"create accepts agentAccess with caller default\",\"update accepts and persists agentAccess\",\"getById drops files field\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: SkillsController — drop version routes, surface agentAccess",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Remove the four version routes from SkillsController and verify CRUD continues to compile and pass.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/skills/skills.controller.ts\n- Modify: apps/server/apps/gateway/src/skills/skills.controller.spec.ts\n\n**Verify:** pnpm --filter gateway test src/skills/skills.controller.spec.ts\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/skills/skills.controller.ts\"],\"verifyCommand\":\"pnpm --filter gateway test src/skills/skills.controller.spec.ts\",\"acceptanceCriteria\":[\"no version routes remain\",\"POST /v1/skills passes agentAccess default 'read' to service\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: resolveSkillAgentAccess helper service",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Centralize the per-(skill, bot) access decision in one helper so both the bot controller and the folder-token branch call the same code path.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/skills/agent-access.service.ts\n- Create: apps/server/apps/gateway/src/skills/agent-access.service.spec.ts\n- Modify: apps/server/apps/gateway/src/skills/skills.module.ts\n\n**Verify:** pnpm --filter gateway test src/skills/agent-access.service.spec.ts\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/skills/agent-access.service.ts\",\"apps/server/apps/gateway/src/skills/skills.module.ts\"],\"verifyCommand\":\"pnpm --filter gateway test src/skills/agent-access.service.spec.ts\",\"acceptanceCriteria\":[\"resolve returns per-skill default\",\"missing or cross-tenant skill returns 'none'\",\"signature accepts botUserId for v2 override hook\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: BotSkillsController — agent-facing /v1/bot/skills",
+      "status": "pending",
+      "blockedBy": [1, 3],
+      "description": "**Goal:** Expose four agent-facing endpoints under /v1/bot/skills with the agentAccess !== 'none' filter and 'write' default for create.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/skills/bot-skills.controller.ts\n- Create: apps/server/apps/gateway/src/skills/bot-skills.controller.spec.ts\n- Modify: apps/server/apps/gateway/src/skills/skills.service.ts\n- Modify: apps/server/apps/gateway/src/skills/skills.module.ts\n\n**Verify:** pnpm --filter gateway test src/skills/bot-skills.controller.spec.ts\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/skills/bot-skills.controller.ts\",\"apps/server/apps/gateway/src/skills/skills.service.ts\"],\"verifyCommand\":\"pnpm --filter gateway test src/skills/bot-skills.controller.spec.ts\",\"acceptanceCriteria\":[\"GET /v1/bot/skills filters 'none'\",\"GET /v1/bot/skills/:id 403 on 'none'\",\"POST /v1/bot/skills creates with agentAccess='write' default\",\"x-team9-bot-user-id header check mirrors BotStaffProfileController\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: 'workspace.skill' logicalKey on /v1/bot/folder-token",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Add 'workspace.skill' to Team9LogicalMountKey + KNOWN_LOGICAL_KEYS and apply the agentAccess matrix when minting tokens.\n\n**Files:**\n- Modify (agent-pi): packages/claw-hive-types/src/just-bash-team9-workspace.ts\n- Modify (gateway): apps/server/apps/gateway/src/folder9/folder-token.service.ts\n- Modify (gateway): apps/server/apps/gateway/src/folder9/folder-token.service.spec.ts\n- Modify (gateway): apps/server/apps/gateway/src/folder9/folder9.module.ts\n\n**Verify:** pnpm --filter gateway test src/folder9/folder-token.service.spec.ts\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/folder9/folder-token.service.ts\",\"../team9-agent-pi/packages/claw-hive-types/src/just-bash-team9-workspace.ts\"],\"verifyCommand\":\"pnpm --filter gateway test src/folder9/folder-token.service.spec.ts\",\"acceptanceCriteria\":[\"Team9LogicalMountKey includes 'workspace.skill'\",\"folderId verified against skills.folderId in tenant\",\"matrix: 'none'->403, 'read'+write->403, otherwise mint\",\"propose/admin permissions rejected for workspace.skill\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: SkillTier API — unregisterProvider + removeByProviderId",
+      "status": "pending",
+      "description": "**Goal:** Close the API gap on SkillTierDependencyApi so providers can be unregistered cleanly.\n\n**Repo:** team9-agent-pi\n\n**Files:**\n- Modify: packages/agent-components/src/components/skill/skill-component.ts\n- Modify: packages/agent-components/src/components/skill/skill-component.test.ts\n- Modify: packages/agent-components/src/resource-tier/resource-tier-manager.ts\n- Modify: packages/agent-components/src/resource-tier/resource-tier-manager.test.ts\n\n**Verify:** pnpm --filter @team9claw/agent-components test\n\n```json:metadata\n{\"files\":[\"packages/agent-components/src/components/skill/skill-component.ts\",\"packages/agent-components/src/resource-tier/resource-tier-manager.ts\"],\"verifyCommand\":\"pnpm --filter @team9claw/agent-components test\",\"acceptanceCriteria\":[\"unregisterProvider exists on SkillTierDependencyApi\",\"removeByProviderId exists on ResourceTierManager\",\"unregister clears tier + skillStates\",\"unknown id is no-op\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: TieredSkill / SkillProviderSearchResult source + agentAccess",
+      "status": "pending",
+      "description": "**Goal:** Add optional source and agentAccess fields to TieredSkill / SkillProviderSearchResult; render them as XML attributes.\n\n**Repo:** team9-agent-pi\n\n**Files:**\n- Modify: packages/types/src/skill.ts\n- Modify: packages/agent-components/src/components/skill/skill-tier-xml.ts\n- Modify: packages/agent-components/src/components/skill/skill-tier-xml.test.ts\n- Modify: packages/agent-components/src/components/skill/mounted-folder-provider.ts\n- Modify: packages/agent-components/src/components/skill/memory-skill-provider.ts\n- Modify: packages/agent-components/src/components/skill/register-source-code-skills.ts\n\n**Verify:** pnpm --filter @team9claw/agent-components test src/components/skill/skill-tier-xml.test.ts\n\n```json:metadata\n{\"files\":[\"packages/types/src/skill.ts\",\"packages/agent-components/src/components/skill/skill-tier-xml.ts\"],\"verifyCommand\":\"pnpm --filter @team9claw/agent-components test\",\"acceptanceCriteria\":[\"TieredSkill has optional source + agentAccess\",\"renderSkillTierXml emits source/agent-access attrs when set\",\"bundled providers tag with source='bundled'\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: WorkspaceSkillsProvider",
+      "status": "pending",
+      "blockedBy": [4, 7],
+      "description": "**Goal:** Implement the new ISkillProvider that bridges the workspace skill library into the agent's skill-tier via gateway HTTP.\n\n**Repo:** team9-agent-pi\n\n**Files:**\n- Create: packages/agent-components/src/components/skill/workspace-skills-provider.ts\n- Create: packages/agent-components/src/components/skill/workspace-skills-provider.test.ts\n- Modify: packages/agent-components/src/components/skill/index.ts\n\n**Verify:** pnpm --filter @team9claw/agent-components test src/components/skill/workspace-skills-provider.test.ts\n\n```json:metadata\n{\"files\":[\"packages/agent-components/src/components/skill/workspace-skills-provider.ts\"],\"verifyCommand\":\"pnpm --filter @team9claw/agent-components test src/components/skill/workspace-skills-provider.test.ts\",\"acceptanceCriteria\":[\"search tags results with source='workspace' + agentAccess\",\"resolve fetches skill.md and parses frontmatter\",\"defensive 'none' filter on wire\",\"errors warn instead of throw\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Team9SkillsComponent + 2 tools + system-prompt guidance block",
+      "status": "pending",
+      "blockedBy": [5, 6, 8],
+      "description": "**Goal:** Add the new team9-skills component owning provider registration, the two new LLM tools, and the static permission-guidance block in the system prompt.\n\n**Repo:** team9-agent-pi\n\n**Files:**\n- Create: packages/claw-hive/src/components/team9-skills/component.ts\n- Create: packages/claw-hive/src/components/team9-skills/component.test.ts\n- Create: packages/claw-hive/src/components/team9-skills/team9-skills-prompt.ts\n- Create: packages/claw-hive/src/components/team9-skills/team9-skills-prompt.test.ts\n- Create: packages/claw-hive/src/components/team9-skills/tools/create-workspace-skill.ts\n- Create: packages/claw-hive/src/components/team9-skills/tools/mount-workspace-skill.ts\n- Create: packages/claw-hive/src/components/team9-skills/tools/__tests__/create-workspace-skill.test.ts\n- Create: packages/claw-hive/src/components/team9-skills/tools/__tests__/mount-workspace-skill.test.ts\n- Create: packages/claw-hive/src/components/team9-skills/index.ts\n\n**Verify:** pnpm --filter @team9claw/claw-hive test src/components/team9-skills/\n\n```json:metadata\n{\"files\":[\"packages/claw-hive/src/components/team9-skills/component.ts\",\"packages/claw-hive/src/components/team9-skills/team9-skills-prompt.ts\"],\"verifyCommand\":\"pnpm --filter @team9claw/claw-hive test src/components/team9-skills/\",\"acceptanceCriteria\":[\"typeKey 'team9-skills' with deps [team9, folder9, host, skill-tier]\",\"onSessionStart registers WorkspaceSkillsProvider\",\"onDispose unregisters provider\",\"onBeforePrompt injects TEAM9_SKILLS_GUIDANCE\",\"create_workspace_skill calls POST /v1/bot/skills, optional autoMount\",\"mount_workspace_skill issues token + applyMount, surfaces structured errors on denial\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Wire team9-skills into blueprints + factory registry",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** Make team9-skills a registered component type and add it to blueprints already mounting the skill stack.\n\n**Repo:** team9-agent-pi\n\n**Files:**\n- Modify: packages/claw-hive/src/component-factories.ts\n- Modify: packages/claw-hive/src/component-factories.test.ts\n- Modify: packages/claw-hive/src/blueprints/presets.ts\n- Modify: packages/claw-hive/src/blueprints/presets.test.ts\n\n**Verify:** pnpm --filter @team9claw/claw-hive test\n\n```json:metadata\n{\"files\":[\"packages/claw-hive/src/component-factories.ts\",\"packages/claw-hive/src/blueprints/presets.ts\"],\"verifyCommand\":\"pnpm --filter @team9claw/claw-hive test\",\"acceptanceCriteria\":[\"factory registers team9-skills\",\"team9-common-staff and routine blueprints include team9-skills\",\"blueprint tests assert presence\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Bump @team9claw/* package version pin in team9 gateway",
+      "status": "pending",
+      "blockedBy": [5, 10],
+      "description": "**Goal:** Bump agent-pi packages and the gateway pin so 'workspace.skill' literal is available to the gateway compile.\n\n**Files:**\n- Modify (agent-pi): packages/claw-hive-types/package.json, packages/agent-components/package.json, packages/claw-hive/package.json, pnpm-lock.yaml\n- Modify (team9): apps/server/apps/gateway/package.json, pnpm-lock.yaml\n\n**Verify:** pnpm --filter gateway typecheck && pnpm --filter @team9claw/claw-hive build\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/package.json\"],\"verifyCommand\":\"pnpm --filter gateway typecheck\",\"acceptanceCriteria\":[\"agent-pi packages bumped\",\"gateway pin updated\",\"pnpm install resolves cleanly in both repos\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Frontend types + API client cleanup",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Update team9 client types and HTTP client to match the new gateway shape (agentAccess in/out, version routes gone, legacy fallback gone).\n\n**Repo:** team9\n\n**Files:**\n- Modify: apps/client/src/types/skill.ts\n- Modify: apps/client/src/services/api/skills.ts\n- Modify: apps/client/src/services/api/folder9-folder.ts\n- Modify: apps/client/src/hooks/useSkills.ts\n\n**Verify:** pnpm --filter team9-app-web typecheck && pnpm --filter team9-app-web test\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/skill.ts\",\"apps/client/src/services/api/skills.ts\",\"apps/client/src/services/api/folder9-folder.ts\",\"apps/client/src/hooks/useSkills.ts\"],\"verifyCommand\":\"pnpm --filter team9-app-web typecheck\",\"acceptanceCriteria\":[\"SkillVersion/SkillFile types removed\",\"SkillAgentAccess exported, Skill includes agentAccess\",\"version API methods + fetchLegacySkillFiles deleted\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: AgentAccessControl + CreateSkillDialog + SkillCard + i18n",
+      "status": "pending",
+      "blockedBy": [12],
+      "description": "**Goal:** Add the 3-state agent-access selector to the skill detail UI, surface it in the create dialog, remove the suggestion badge.\n\n**Repo:** team9\n\n**Files:**\n- Create: apps/client/src/components/skills/AgentAccessControl.tsx\n- Create: apps/client/src/components/skills/__tests__/AgentAccessControl.test.tsx\n- Modify: apps/client/src/components/skills/CreateSkillDialog.tsx\n- Modify: apps/client/src/components/skills/SkillCard.tsx\n- Modify: apps/client/src/components/skills/SkillDetailPage.tsx\n- Modify: apps/client/src/i18n/locales/{en,zh-CN,...}/skills.json\n\n**Verify:** pnpm --filter team9-app-web test src/components/skills/\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/skills/AgentAccessControl.tsx\",\"apps/client/src/components/skills/CreateSkillDialog.tsx\",\"apps/client/src/components/skills/SkillCard.tsx\",\"apps/client/src/components/skills/SkillDetailPage.tsx\"],\"verifyCommand\":\"pnpm --filter team9-app-web test src/components/skills/\",\"acceptanceCriteria\":[\"AgentAccessControl renders 3 options\",\"CreateSkillDialog defaults to 'read' and passes agentAccess\",\"SkillCard hasPendingSuggestion badge removed\",\"i18n strings added for all locales\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: Delete SuggestionReviewPanel + clean up integration sites",
+      "status": "pending",
+      "blockedBy": [13],
+      "description": "**Goal:** Remove the no-longer-used suggestion review panel and verify nothing references it.\n\n**Repo:** team9\n\n**Files:**\n- Delete: apps/client/src/components/skills/SuggestionReviewPanel.tsx\n- Delete: apps/client/src/components/skills/__tests__/SuggestionReviewPanel.test.tsx (if exists)\n- Modify: any file that imports it\n\n**Verify:** pnpm --filter team9-app-web typecheck && rg 'SuggestionReviewPanel' apps/client/src\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/skills/SuggestionReviewPanel.tsx\"],\"verifyCommand\":\"pnpm --filter team9-app-web typecheck && rg SuggestionReviewPanel apps/client/src\",\"acceptanceCriteria\":[\"file deleted\",\"zero references in apps/client/src\",\"typecheck passes\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-09"
+}
