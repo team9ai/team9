@@ -126,10 +126,20 @@ export class SkillsService {
 
   async delete(skillId: string, tenantId: string) {
     const skill = await this.getSkillOrThrow(skillId, tenantId);
-    if (skill.folderId) {
-      await this.folder9Client.deleteFolder(tenantId, skill.folderId);
-    }
     await this.db.delete(schema.skills).where(eq(schema.skills.id, skillId));
+    if (skill.folderId) {
+      await this.folder9Client
+        .deleteFolder(tenantId, skill.folderId)
+        .catch((err) => {
+          // Best-effort: DB row is already gone; folder9 folder will be orphaned
+          // until manual cleanup. Log so ops can spot it.
+          console.warn(
+            `[SkillsService] folder9 deleteFolder failed after DB row removed for skill ${skillId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        });
+    }
     return { success: true };
   }
 

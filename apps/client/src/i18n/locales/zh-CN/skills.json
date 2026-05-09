@@ -139,18 +139,18 @@
     "promptTemplateDescription": "带变量占位符的可复用提示词"
   },
   "agentAccess": {
-    "label": "Agent 访问权限",
+    "label": "代理访问权限",
     "none": {
       "title": "隐藏",
-      "help": "工作空间中的 Agent 无法查看或使用此技能。"
+      "help": "本工作区的代理无法看到或使用此技能。"
     },
     "read": {
       "title": "只读",
-      "help": "Agent 可以找到并使用此技能，但无法编辑其文件。"
+      "help": "代理可以发现并使用此技能，但无法编辑其文件。"
     },
     "write": {
       "title": "读写",
-      "help": "Agent 可以使用并编辑此技能。"
+      "help": "代理可以使用并编辑此技能。"
     }
   }
 }

@@ -484,10 +484,19 @@ describe('SkillsService', () => {
     expect(folder9Client.deleteFolder).not.toHaveBeenCalled();
   });
 
-  it('deletes the folder9 folder when folderId is set', async () => {
+  it('deletes the folder9 folder when folderId is set, DB delete happens before folder9 cleanup', async () => {
     selectPlans.push({
       terminal: 'limit',
       result: [{ id: 'skill-1', tenantId, folderId: 'folder-1' }],
+    });
+
+    const callOrder: string[] = [];
+    db.delete.mockImplementation(() => {
+      callOrder.push('db.delete');
+      return createDeleteBuilder(deleteResults);
+    });
+    folder9Client.deleteFolder.mockImplementation(async () => {
+      callOrder.push('folder9.deleteFolder');
     });
 
     await expect(service.delete('skill-1', tenantId)).resolves.toEqual({
@@ -500,9 +509,11 @@ describe('SkillsService', () => {
       'folder-1',
     );
     expect(db.delete).toHaveBeenCalled();
+    // DB row must be deleted before folder9 cleanup
+    expect(callOrder).toEqual(['db.delete', 'folder9.deleteFolder']);
   });
 
-  it('does not delete the DB record when folder9 deleteFolder throws', async () => {
+  it('deletes the DB record and returns success even when folder9 deleteFolder throws', async () => {
     selectPlans.push({
       terminal: 'limit',
       result: [{ id: 'skill-1', tenantId, folderId: 'folder-1' }],
@@ -511,11 +522,14 @@ describe('SkillsService', () => {
       new Error('folder9 error'),
     );
 
-    await expect(service.delete('skill-1', tenantId)).rejects.toThrow(
-      'folder9 error',
-    );
+    // folder9 failure is best-effort — delete() must still resolve successfully
+    await expect(service.delete('skill-1', tenantId)).resolves.toEqual({
+      success: true,
+    });
 
-    expect(db.delete).not.toHaveBeenCalled();
+    // DB row was deleted despite folder9 failure
+    expect(db.delete).toHaveBeenCalled();
+    expect(folder9Client.deleteFolder).toHaveBeenCalledTimes(1);
   });
 
   it('update throws NotFoundException when skill does not exist', async () => {

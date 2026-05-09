@@ -139,18 +139,18 @@
     "promptTemplateDescription": "帶變數佔位符的可重複使用提示詞"
   },
   "agentAccess": {
-    "label": "Agent access",
+    "label": "代理存取權限",
     "none": {
-      "title": "Hidden",
-      "help": "Agents in this workspace cannot see or use this skill."
+      "title": "隱藏",
+      "help": "本工作區的代理無法看到或使用此技能。"
     },
     "read": {
-      "title": "Read-only",
-      "help": "Agents can find and use this skill but cannot edit its files."
+      "title": "唯讀",
+      "help": "代理可以發現並使用此技能，但無法編輯其檔案。"
     },
     "write": {
-      "title": "Read & write",
-      "help": "Agents can both use and edit this skill."
+      "title": "讀寫",
+      "help": "代理可以使用並編輯此技能。"
     }
   }
 }

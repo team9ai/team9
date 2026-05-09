@@ -85,7 +85,7 @@ export class BotSkillsController {
   ): void {
     if (!headerBotUserId || headerBotUserId !== authUserId) {
       throw new ForbiddenException(
-        'x-team9-bot-user-id must equal authenticated bot user id',
+        'X-Team9-Bot-User-Id does not match authenticated bot',
       );
     }
   }
