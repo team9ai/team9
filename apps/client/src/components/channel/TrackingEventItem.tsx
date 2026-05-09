@@ -348,7 +348,7 @@ export function TrackingEventItem({
         <span
           className={cn(
             "text-xs font-semibold shrink-0",
-            isThinking ? "whitespace-nowrap" : "w-[72px]",
+            isThinking ? "whitespace-nowrap" : "min-w-[72px] whitespace-nowrap",
             labelColorClass,
             status === "running" && "animate-pulse",
           )}
