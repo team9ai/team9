@@ -4,6 +4,7 @@ import { useAhandStore } from "@/stores/useAhandStore";
 import { useAppStore } from "@/stores/useAppStore";
 import type { ClientContext } from "@/types/im";
 import type {
+  AttachmentDto,
   Channel,
   ChannelWithUnread,
   ChannelMember,
@@ -578,6 +579,8 @@ export interface CreateTopicSessionDto {
   model?: { provider: string; id: string };
   /** Optional pre-set title (usually left null and auto-generated later). */
   title?: string;
+  /** Optional attachments (presigned + confirmed) to send with the first message. */
+  attachments?: AttachmentDto[];
 }
 
 export interface TopicSessionResponse {

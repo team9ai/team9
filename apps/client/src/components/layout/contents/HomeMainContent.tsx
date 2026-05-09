@@ -10,9 +10,10 @@ import {
   Plus,
   Search,
   Sparkles,
+  Upload,
   Video,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,8 @@ import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { Badge } from "@/components/ui/badge";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { AttachmentPreview } from "@/components/channel/editor/AttachmentPreview";
 import {
   type DashboardAgent,
   type DashboardAgentModel,
@@ -452,6 +455,23 @@ export function HomeMainContent({
   const [prompt, setPrompt] = useState("");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const dragCounterRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  // Dashboard composer has no channelId yet (channel is created on submit),
+  // so files are uploaded as workspace-visible. Once the topic-session
+  // channel is provisioned, the message-attachment row references the
+  // fileKey and access is gated by the message reader's channel membership
+  // — the looser file-API visibility never grants extra reach.
+  const {
+    uploadingFiles,
+    addFiles,
+    removeFile,
+    retryFile,
+    getAttachments,
+    isUploading,
+    clearFiles,
+  } = useFileUpload({ visibility: "workspace" });
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     agentId,
   );
@@ -465,8 +485,18 @@ export function HomeMainContent({
     pickDefaultAgent(agents);
   const effectiveModel = sessionModelOverride ?? selectedAgent?.model ?? null;
   const isSubmitting = createTopicSession.isPending;
+  // Allow send if either the prompt has text or there's at least one
+  // completed attachment ready to ship — matches MessageInput's
+  // "image-only message" UX. Still requires uploads to be settled and
+  // an agent to be selected.
+  const hasReadyAttachment = uploadingFiles.some(
+    (f) => f.status === "completed",
+  );
   const canSubmit =
-    prompt.trim().length > 0 && !isSubmitting && !!selectedAgent;
+    (prompt.trim().length > 0 || hasReadyAttachment) &&
+    !isSubmitting &&
+    !isUploading &&
+    !!selectedAgent;
   const activeSubscription = billingSummary.data?.subscription ?? null;
   const isSubscribed = !!activeSubscription;
   const currentPlanLabel =
@@ -520,8 +550,16 @@ export function HomeMainContent({
 
   const handleSubmit = async () => {
     const draft = prompt.trim();
-    if (!draft) return;
     if (!selectedAgent) return;
+    // Defensive: canSubmit already gates this, but if a stray Enter slips
+    // through while uploads are in-flight we'd otherwise drop the file
+    // references. Mirror MessageInput's early-return.
+    if (isUploading) return;
+
+    const attachments = getAttachments();
+    // Empty draft is OK only when at least one attachment is ready —
+    // server-side ValidateIf relaxes IsNotEmpty under the same condition.
+    if (!draft && attachments.length === 0) return;
 
     try {
       // Create a fresh topic session for this prompt. The server persists
@@ -534,9 +572,11 @@ export function HomeMainContent({
         botUserId: selectedAgent.userId,
         initialMessage: draft,
         ...(effectiveModel ? { model: effectiveModel } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
       });
 
       setPrompt("");
+      clearFiles();
       navigate({
         to: "/channels/$channelId",
         params: { channelId: result.channelId },
@@ -552,6 +592,89 @@ export function HomeMainContent({
       alert(getHttpErrorMessage(error) || "Failed to create conversation");
     }
   };
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      dragCounterRef.current = 0;
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        addFiles(files);
+      }
+    },
+    [addFiles],
+  );
+
+  const handlePaste = useCallback(
+    (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const pastedFiles: File[] = [];
+      for (const item of items) {
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            // Pasted screenshots often lack a meaningful name — generate one
+            if (!file.name || file.name.trim().length === 0) {
+              const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+              const extension = file.type.split("/")[1] || "bin";
+              pastedFiles.push(
+                new File([file], `pasted-${timestamp}.${extension}`, {
+                  type: file.type,
+                }),
+              );
+            } else {
+              pastedFiles.push(file);
+            }
+          }
+        }
+      }
+
+      if (pastedFiles.length > 0) {
+        const dataTransfer = new DataTransfer();
+        pastedFiles.forEach((file) => dataTransfer.items.add(file));
+        addFiles(dataTransfer.files);
+      }
+    },
+    [addFiles],
+  );
+
+  useEffect(() => {
+    const surface = composerSurfaceRef.current;
+    if (!surface) return;
+
+    surface.addEventListener("paste", handlePaste);
+    return () => {
+      surface.removeEventListener("paste", handlePaste);
+    };
+  }, [handlePaste]);
 
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (
     event,
@@ -598,7 +721,28 @@ export function HomeMainContent({
                 {t("dashboardTitle")}
               </h1>
 
-              <div className="dashboard-landing-surface w-full rounded-[1.9rem] px-3.5 pb-3.5 pt-3 sm:px-4 sm:pb-4 sm:pt-3.5">
+              <div
+                ref={composerSurfaceRef}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className={cn(
+                  "dashboard-landing-surface relative w-full rounded-[1.9rem] px-3.5 pb-3.5 pt-3 transition-colors sm:px-4 sm:pb-4 sm:pt-3.5",
+                  isDragging && "ring-2 ring-info/40 ring-offset-2",
+                )}
+              >
+                {isDragging && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[1.9rem] border-2 border-dashed border-info/40 bg-info/10 pointer-events-none">
+                    <div className="flex flex-col items-center gap-2 text-info">
+                      <Upload size={28} />
+                      <span className="text-sm font-medium">
+                        {t("message:dragToUpload")}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <Textarea
                   ref={promptRef}
                   value={prompt}
@@ -608,6 +752,16 @@ export function HomeMainContent({
                   placeholder={t("dashboardPromptPlaceholder")}
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
+
+                {uploadingFiles.length > 0 && (
+                  <div className="-mx-2 -mt-1">
+                    <AttachmentPreview
+                      files={uploadingFiles}
+                      onRemove={removeFile}
+                      onRetry={retryFile}
+                    />
+                  </div>
+                )}
 
                 <div className="mt-3 flex flex-col gap-2.5 px-0.5 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -637,15 +791,14 @@ export function HomeMainContent({
                     <input
                       ref={fileInputRef}
                       type="file"
+                      multiple
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        // TODO: wire up actual upload; placeholder for now
-                        console.log(
-                          "[dashboard composer] file selected:",
-                          file,
-                        );
+                        const files = e.target.files;
+                        if (files && files.length > 0) {
+                          addFiles(files);
+                        }
+                        // Reset so picking the same filename again still fires onChange
                         e.target.value = "";
                       }}
                     />

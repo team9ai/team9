@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -32,6 +33,18 @@ export class TopicSessionsController {
     @CurrentTenantId() tenantId: string | undefined,
     @Body() dto: CreateTopicSessionDto,
   ): Promise<TopicSessionResponse> {
+    // Cross-field check: at least one of initialMessage / attachments must
+    // be present. Lives here rather than in the DTO because @ValidateIf
+    // would gate ALL of initialMessage's validators (IsString/MaxLength)
+    // when attachments are present, opening a type-bypass.
+    const hasContent = !!dto.initialMessage?.trim();
+    const hasAttachments = !!dto.attachments?.length;
+    if (!hasContent && !hasAttachments) {
+      throw new BadRequestException(
+        'Either initialMessage or at least one attachment is required',
+      );
+    }
+
     return this.service.create({
       creatorId: userId,
       tenantId: tenantId ?? null,
@@ -39,6 +52,7 @@ export class TopicSessionsController {
       initialMessage: dto.initialMessage,
       ...(dto.model ? { model: dto.model } : {}),
       ...(dto.title !== undefined ? { title: dto.title } : {}),
+      ...(dto.attachments?.length ? { attachments: dto.attachments } : {}),
     });
   }
 
