@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
   and,
@@ -17,6 +12,7 @@ import type {
   AgentSessionBindingResponse,
   AgentSessionUnsupportedReason,
 } from './agent-session.types.js';
+import { ChannelsService } from '../channels/channels.service.js';
 
 type ChannelRow = {
   id: string;
@@ -48,6 +44,7 @@ export class AgentSessionBindingService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   async resolve(
@@ -59,10 +56,7 @@ export class AgentSessionBindingService {
       throw new NotFoundException('Channel not found');
     }
 
-    const member = await this.findMembership(channelId, userId);
-    if (!member) {
-      throw new ForbiddenException('User is not a channel member');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
 
     if (channel.type === 'task') {
       return this.resolveRoutineExecution(channel);
@@ -92,25 +86,6 @@ export class AgentSessionBindingService {
     return (channel as ChannelRow | undefined) ?? null;
   }
 
-  private async findMembership(
-    channelId: string,
-    userId: string,
-  ): Promise<{ id: string } | null> {
-    const [member] = await this.db
-      .select({ id: schema.channelMembers.id })
-      .from(schema.channelMembers)
-      .where(
-        and(
-          eq(schema.channelMembers.channelId, channelId),
-          eq(schema.channelMembers.userId, userId),
-          isNull(schema.channelMembers.leftAt),
-        ),
-      )
-      .limit(1);
-
-    return (member as { id: string } | undefined) ?? null;
-  }
-
   private async findChannelBot(
     channelId: string,
   ): Promise<BotBindingRow | null> {
@@ -122,6 +97,10 @@ export class AgentSessionBindingService {
       })
       .from(schema.channelMembers)
       .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.channelMembers.userId),
+      )
+      .innerJoin(
         schema.bots,
         eq(schema.bots.userId, schema.channelMembers.userId),
       )
@@ -129,6 +108,9 @@ export class AgentSessionBindingService {
         and(
           eq(schema.channelMembers.channelId, channelId),
           isNull(schema.channelMembers.leftAt),
+          eq(schema.users.userType, 'bot'),
+          eq(schema.users.isActive, true),
+          eq(schema.bots.isActive, true),
         ),
       )
       .limit(1);
@@ -149,7 +131,15 @@ export class AgentSessionBindingService {
       })
       .from(schema.routines)
       .leftJoin(schema.bots, eq(schema.bots.id, schema.routines.botId))
-      .where(eq(schema.routines.creationChannelId, channel.id))
+      .leftJoin(schema.users, eq(schema.users.id, schema.bots.userId))
+      .where(
+        and(
+          eq(schema.routines.creationChannelId, channel.id),
+          eq(schema.users.userType, 'bot'),
+          eq(schema.users.isActive, true),
+          eq(schema.bots.isActive, true),
+        ),
+      )
       .limit(1);
 
     const row = (routine as RoutineSessionRow | undefined) ?? null;
@@ -201,7 +191,15 @@ export class AgentSessionBindingService {
         eq(schema.routines.id, schema.routineExecutions.routineId),
       )
       .leftJoin(schema.bots, eq(schema.bots.id, schema.routines.botId))
-      .where(eq(schema.routineExecutions.channelId, channel.id))
+      .leftJoin(schema.users, eq(schema.users.id, schema.bots.userId))
+      .where(
+        and(
+          eq(schema.routineExecutions.channelId, channel.id),
+          eq(schema.users.userType, 'bot'),
+          eq(schema.users.isActive, true),
+          eq(schema.bots.isActive, true),
+        ),
+      )
       .limit(1);
 
     const row = (execution as RoutineExecutionRow | undefined) ?? null;
