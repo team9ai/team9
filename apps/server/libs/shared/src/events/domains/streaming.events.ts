@@ -63,7 +63,7 @@ export interface StreamingEndEvent {
   channelId: string;
   senderId: string;
   /** The final persisted message (from HTTP API response) */
-  message: Record<string, unknown>;
+  message: Record<string, unknown> | null;
 }
 
 /**

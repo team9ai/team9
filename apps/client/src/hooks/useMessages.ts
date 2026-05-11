@@ -476,6 +476,7 @@ export function useMessages(channelId: string | undefined) {
 
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
+      const stream = useStreamingStore.getState().streams.get(event.streamId);
       useStreamingStore.getState().endStream(event.streamId);
 
       // Proactively insert the final message into cache as a safety net,
@@ -493,6 +494,16 @@ export function useMessages(channelId: string | undefined) {
             refetchType: "all",
           });
         }
+      } else if (stream?.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["thread", stream.parentId],
+          refetchType: "all",
+        });
+      } else {
+        queryClient.invalidateQueries({
+          queryKey: ["messages", channelId],
+          refetchType: "all",
+        });
       }
     };
 
@@ -932,6 +943,7 @@ export function useChannelMessages(
 
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
+      const stream = useStreamingStore.getState().streams.get(event.streamId);
       useStreamingStore.getState().endStream(event.streamId);
       if (event.message) {
         const msg = event.message;
@@ -944,6 +956,16 @@ export function useChannelMessages(
             refetchType: "all",
           });
         }
+      } else if (stream?.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["thread", stream.parentId],
+          refetchType: "all",
+        });
+      } else {
+        queryClient.invalidateQueries({
+          queryKey: ["messages", channelId],
+          refetchType: "all",
+        });
       }
     };
 

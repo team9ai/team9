@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { normalizeTrackingSnapshot } from "@/lib/agent-event-metadata";
 import {
   clearPersistedStreamMetadata,
@@ -44,6 +44,7 @@ interface TrackingChannelState {
  * Handles initial loading, observe subscription, and streaming updates.
  */
 export function useTrackingChannel(trackingChannelId: string | undefined) {
+  const queryClient = useQueryClient();
   const [activeStream, setActiveStream] =
     useState<TrackingChannelState["activeStream"]>(null);
   const [extraMessages, setExtraMessages] = useState<
@@ -144,12 +145,19 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
     };
 
     const handleStreamEnd = (event: StreamingEndEvent) => {
+      if (event.channelId !== trackingChannelId) return;
       clearPersistedStreamMetadata(event.streamId);
       setActiveStream((prev) => {
         if (!prev || prev.streamId !== event.streamId) return prev;
         return null;
       });
-      // The new_message event will add the persisted message
+      if (!event.message) {
+        queryClient.invalidateQueries({
+          queryKey: ["trackingMessages", trackingChannelId],
+          refetchType: "all",
+        });
+      }
+      // The new_message event will add the persisted message when present.
     };
 
     const handleDeactivated = (event: TrackingDeactivatedEvent) => {
@@ -177,7 +185,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
       wsService.off(WS_EVENTS.STREAMING.END, handleStreamEnd);
       wsService.offTrackingDeactivated(handleDeactivated);
     };
-  }, [trackingChannelId, isDeactivated]);
+  }, [trackingChannelId, isDeactivated, queryClient]);
 
   // Compute latest 3 messages
   const allMessages: TrackingChannelState["latestMessages"] = [

@@ -62,7 +62,10 @@ function emit(event: string, payload: unknown) {
   }
 }
 
-function makeWrapper(): ComponentType<{ children: ReactNode }> {
+function makeWrapperWithClient(): {
+  wrapper: ComponentType<{ children: ReactNode }>;
+  queryClient: QueryClient;
+} {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -71,11 +74,17 @@ function makeWrapper(): ComponentType<{ children: ReactNode }> {
     },
   });
 
-  return function Wrapper({ children }: { children: ReactNode }) {
+  function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-  };
+  }
+
+  return { wrapper: Wrapper, queryClient };
+}
+
+function makeWrapper(): ComponentType<{ children: ReactNode }> {
+  return makeWrapperWithClient().wrapper;
 }
 
 describe("useTrackingChannel", () => {
@@ -185,5 +194,47 @@ describe("useTrackingChannel", () => {
         toolPhase: "args_streaming",
       }),
     );
+  });
+
+  it("refetches tracking messages when a stream ends without a message payload", async () => {
+    const { wrapper, queryClient } = makeWrapperWithClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useTrackingChannel("tracking-1"), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      emit(WS_EVENTS.STREAMING.START, {
+        streamId: "stream-1",
+        channelId: "tracking-1",
+        senderId: "bot-1",
+        startedAt: 1700000000000,
+        metadata: {
+          agentEventType: "tool_call",
+          status: "running",
+          toolCallId: "tc-1",
+          toolName: "run_command",
+        },
+      });
+    });
+
+    expect(result.current.activeStream?.streamId).toBe("stream-1");
+
+    act(() => {
+      emit(WS_EVENTS.STREAMING.END, {
+        streamId: "stream-1",
+        channelId: "tracking-1",
+        senderId: "bot-1",
+        message: null,
+      });
+    });
+
+    await waitFor(() => expect(result.current.activeStream).toBeNull());
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["trackingMessages", "tracking-1"],
+      refetchType: "all",
+    });
   });
 });
