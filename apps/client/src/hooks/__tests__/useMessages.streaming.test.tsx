@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WS_EVENTS } from "@/types/ws-events";
-import { useMessages } from "../useMessages";
+import { useMessages, useSendMessage } from "../useMessages";
 
 const listeners = vi.hoisted(
   () => new Map<string, Array<(event: unknown) => void>>(),
@@ -22,6 +22,7 @@ const streamStore = vi.hoisted(() => ({
 const mockImApi = vi.hoisted(() => ({
   messages: {
     getMessages: vi.fn(),
+    sendMessage: vi.fn(),
   },
 }));
 
@@ -142,6 +143,34 @@ function emit(event: string, payload: unknown) {
   }
 }
 
+function getFirstCachedMessage(
+  queryClient: QueryClient,
+): { id: string; sendStatus?: string } | undefined {
+  const data = queryClient.getQueryData<{
+    pages: Array<
+      | Array<{ id: string; sendStatus?: string }>
+      | { messages: Array<{ id: string; sendStatus?: string }> }
+    >;
+  }>(["messages", "ch-1"]);
+  const firstPage = data?.pages[0];
+  if (!firstPage) return undefined;
+  return Array.isArray(firstPage) ? firstPage[0] : firstPage.messages[0];
+}
+
+function getCachedMessages(
+  queryClient: QueryClient,
+): Array<{ id: string; sendStatus?: string }> {
+  const data = queryClient.getQueryData<{
+    pages: Array<
+      | Array<{ id: string; sendStatus?: string }>
+      | { messages: Array<{ id: string; sendStatus?: string }> }
+    >;
+  }>(["messages", "ch-1"]);
+  const firstPage = data?.pages[0];
+  if (!firstPage) return [];
+  return Array.isArray(firstPage) ? firstPage : firstPage.messages;
+}
+
 function makeWrapper(): {
   wrapper: ComponentType<{ children: ReactNode }>;
   queryClient: QueryClient;
@@ -167,6 +196,7 @@ describe("useMessages streaming events", () => {
     vi.clearAllMocks();
     streamStore.streams = new Map();
     mockImApi.messages.getMessages.mockResolvedValue([]);
+    mockImApi.messages.sendMessage.mockReset();
   });
 
   it("refetches channel messages when a stream ends without a message payload", async () => {
@@ -194,5 +224,62 @@ describe("useMessages streaming events", () => {
       queryKey: ["messages", "ch-1"],
       refetchType: "all",
     });
+  });
+
+  it("keeps timeout sends recoverable when the late websocket message arrives", async () => {
+    const { wrapper, queryClient } = makeWrapper();
+    const timeoutError = Object.assign(new Error("Request timeout"), {
+      code: "ECONNABORTED",
+    });
+    mockImApi.messages.sendMessage.mockRejectedValue(timeoutError);
+
+    const { result } = renderHook(
+      () => {
+        useMessages("ch-1");
+        return useSendMessage("ch-1");
+      },
+      { wrapper },
+    );
+
+    await waitFor(() =>
+      expect(mockImApi.messages.getMessages).toHaveBeenCalled(),
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ content: "hello" }),
+      ).rejects.toThrow("Request timeout");
+    });
+
+    const sentPayload = mockImApi.messages.sendMessage.mock.calls[0]?.[1] as {
+      clientMsgId?: string;
+    };
+    const clientMsgId = sentPayload.clientMsgId;
+    expect(clientMsgId).toBeTruthy();
+
+    expect(getFirstCachedMessage(queryClient)?.sendStatus).toBe("sending");
+
+    act(() => {
+      emit(WS_EVENTS.MESSAGE.NEW, {
+        id: "server-1",
+        clientMsgId,
+        channelId: "ch-1",
+        senderId: "current-user",
+        content: "hello",
+        type: "text",
+        isPinned: false,
+        isEdited: false,
+        isDeleted: false,
+        createdAt: "2026-05-12T00:00:00.000Z",
+        updatedAt: "2026-05-12T00:00:00.000Z",
+      });
+    });
+
+    expect(getCachedMessages(queryClient)).toEqual([
+      expect.objectContaining({
+        id: "server-1",
+        sendStatus: undefined,
+      }),
+    ]);
   });
 });
