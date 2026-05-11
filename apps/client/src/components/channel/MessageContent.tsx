@@ -21,7 +21,6 @@ import { sanitizeMessageHtml } from "@/lib/sanitize";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
-import { LongTextCollapse } from "./LongTextCollapse";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { SelectionCopyPopup } from "./SelectionCopyPopup";
 import { AstRenderer } from "./AstRenderer";
@@ -396,13 +395,22 @@ export function MessageContent({
   className,
   message,
 }: MessageContentProps) {
-  // For long_text messages, reactively subscribe to the full-content cache.
-  // enabled: false means this hook never initiates a fetch — LongTextCollapse
-  // handles that. But it does subscribe to cache updates, so when the full
-  // content arrives, this component re-renders with the complete text.
+  // Prefer the Lexical AST when the message was authored in the rich-text
+  // composer. This path renders React elements directly — no HTML sink, so
+  // there's no innerHTML to exploit. Legacy HTML rows and bot/markdown
+  // messages fall through to the sanitized HTML/Markdown paths below.
+  const hasAst =
+    !!message?.contentAst && typeof message.contentAst === "object";
+
+  // long_text messages arrive truncated from the API (only `content` is
+  // truncated — the Lexical AST is sent in full). There is no collapse/expand
+  // UI: fetch the full text and render it inline. AST-backed messages already
+  // render the complete content via AstRenderer, so they skip the fetch.
+  const needsFullContent =
+    message?.type === "long_text" && !hasAst && !!message?.isTruncated;
   const { data: fullContentData } = useFullContent(
-    message?.type === "long_text" ? message.id : undefined,
-    false, // never fetch from here — LongTextCollapse controls fetching
+    needsFullContent ? message.id : undefined,
+    needsFullContent,
   );
   const displayContent =
     message?.type === "long_text" && fullContentData?.content
@@ -410,12 +418,6 @@ export function MessageContent({
       : content;
 
   const isHtml = HTML_TAG_PATTERN.test(displayContent);
-  // Prefer the Lexical AST when the message was authored in the rich-text
-  // composer. This path renders React elements directly — no HTML sink, so
-  // there's no innerHTML to exploit. Legacy HTML rows and bot/markdown
-  // messages fall through to the sanitized HTML/Markdown paths below.
-  const hasAst =
-    !!message?.contentAst && typeof message.contentAst === "object";
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectionState, setSelectionState] = useState<{
     rect: DOMRect;
@@ -437,31 +439,6 @@ export function MessageContent({
         />
       ),
     [hasAst, isHtml, displayContent, className, message],
-  );
-
-  // Wrap in LongTextCollapse for long_text messages.
-  // Intentionally using stable primitive deps instead of the full `message` object
-  // to avoid re-renders when React Query returns a new object reference.
-  const wrappedElement = useMemo(
-    () => {
-      if (message?.type === "long_text") {
-        return (
-          <LongTextCollapse message={message}>
-            {contentElement}
-          </LongTextCollapse>
-        );
-      }
-      return contentElement;
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      message?.id,
-      message?.type,
-      message?.isTruncated,
-      message?.fullContentLength,
-      message?.content?.length,
-      contentElement,
-    ],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -489,7 +466,7 @@ export function MessageContent({
 
   return (
     <div ref={wrapperRef} onMouseUp={handleMouseUp}>
-      {wrappedElement}
+      {contentElement}
       {selectionState && (
         <SelectionCopyPopup
           anchorRect={selectionState.rect}
