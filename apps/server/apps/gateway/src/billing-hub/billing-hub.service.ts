@@ -117,6 +117,13 @@ export interface WorkspaceBillingOverview {
   recentTransactions: WorkspaceBillingTransaction[];
 }
 
+export interface WorkspaceBillingTransactionsPage {
+  transactions: WorkspaceBillingTransaction[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 type BillingView = 'plans' | 'credits';
 
 type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest';
@@ -203,6 +210,39 @@ export class BillingHubService {
     );
 
     return response.transactions;
+  }
+
+  async getWorkspaceTransactionsPage(
+    workspaceId: string,
+    page = 1,
+    limit = 10,
+    role?: WorkspaceRole,
+  ): Promise<WorkspaceBillingTransactionsPage> {
+    const canView = role === 'owner' || role === 'admin';
+    if (!this.enabled || !canView) {
+      return { transactions: [], total: 0, page, limit };
+    }
+
+    const ownerExternalId = encodeURIComponent(
+      this.ownerExternalId(workspaceId),
+    );
+
+    const response = await this.request<{
+      transactions: WorkspaceBillingTransaction[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(
+      `/api/billing/account/transactions?ownerExternalId=${ownerExternalId}&page=${page}&limit=${limit}`,
+      { method: 'GET' },
+    );
+
+    return {
+      transactions: response.transactions,
+      total: response.total,
+      page: response.page,
+      limit: response.limit,
+    };
   }
 
   async getWorkspaceOverview(
