@@ -4,10 +4,14 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { DATABASE_CONNECTION } from '@team9/database';
+import {
+  DATABASE_CONNECTION,
+  and,
+  eq,
+  isNull,
+  type PostgresJsDatabase,
+} from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import { and, eq, isNull } from 'drizzle-orm';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type {
   AgentSessionBindingKind,
   AgentSessionBindingResponse,
