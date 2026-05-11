@@ -37,5 +37,9 @@
   "botThinking": "Pensando",
   "botAnalyzing": "Analisando",
   "selectUserToChat": "Selecione um usuário para iniciar uma conversa direta",
-  "botGenerating": "Gerando resposta"
+  "botGenerating": "Gerando resposta",
+  "expandFullContent": "Mostrar conteúdo completo",
+  "remainingChars": " (mais {{chars}})",
+  "loadingFullContent": "Carregando conteúdo completo...",
+  "loadFullContentFailed": "Falha ao carregar o conteúdo completo. Cancele e tente novamente."
 }

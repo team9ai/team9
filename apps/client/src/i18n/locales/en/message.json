@@ -46,6 +46,8 @@
   "deleteConfirmDescription": "Are you sure you want to delete this message? This action cannot be undone.",
   "deleteConfirm": "Delete",
   "deleteCancel": "Cancel",
+  "expandFullContent": "Show full content",
+  "remainingChars": " ({{chars}} more)",
   "loadingFullContent": "Loading full content...",
   "loadFullContentFailed": "Failed to load full content. Please cancel and try again."
 }

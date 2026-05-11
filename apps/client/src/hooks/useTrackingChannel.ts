@@ -9,6 +9,7 @@ import type { Message, ChannelSnapshot } from "@/types/im";
 import type {
   StreamingStartEvent,
   StreamingContentEvent,
+  StreamingMetadataEvent,
   StreamingEndEvent,
   TrackingDeactivatedEvent,
 } from "@/types/ws-events";
@@ -108,6 +109,20 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
       });
     };
 
+    const handleStreamMetadata = (event: StreamingMetadataEvent) => {
+      if (event.channelId !== trackingChannelId) return;
+      setActiveStream((prev) => {
+        if (!prev || prev.streamId !== event.streamId) return prev;
+        return {
+          ...prev,
+          metadata: {
+            ...(prev.metadata ?? {}),
+            ...event.metadata,
+          },
+        };
+      });
+    };
+
     const handleStreamEnd = (event: StreamingEndEvent) => {
       setActiveStream((prev) => {
         if (!prev || prev.streamId !== event.streamId) return prev;
@@ -126,6 +141,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
     wsService.onNewMessage(handleNewMessage);
     wsService.on(WS_EVENTS.STREAMING.START, handleStreamStart);
     wsService.on(WS_EVENTS.STREAMING.CONTENT, handleStreamContent);
+    wsService.on(WS_EVENTS.STREAMING.METADATA, handleStreamMetadata);
     wsService.on(WS_EVENTS.STREAMING.END, handleStreamEnd);
     wsService.onTrackingDeactivated(handleDeactivated);
 
@@ -133,6 +149,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
       wsService.off(WS_EVENTS.MESSAGE.NEW, handleNewMessage);
       wsService.off(WS_EVENTS.STREAMING.START, handleStreamStart);
       wsService.off(WS_EVENTS.STREAMING.CONTENT, handleStreamContent);
+      wsService.off(WS_EVENTS.STREAMING.METADATA, handleStreamMetadata);
       wsService.off(WS_EVENTS.STREAMING.END, handleStreamEnd);
       wsService.offTrackingDeactivated(handleDeactivated);
     };
