@@ -234,7 +234,6 @@ export class AgentSessionController {
   private filterSseRecord(record: string): string | null {
     const trimmed = record.trim();
     if (trimmed.length === 0) return null;
-    if (trimmed.startsWith(':')) return record;
 
     const lines = record.split(/\r?\n/);
     const dataLines = lines.filter((line) => line.startsWith('data:'));

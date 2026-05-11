@@ -186,4 +186,16 @@ describe('AgentSessionController', () => {
       'data: ping',
     );
   });
+
+  it('does not let comment-prefixed SSE records bypass data filtering', () => {
+    expect(
+      (controller as any).filterSseRecord(
+        ': keepalive\ndata: {"type":"tool_execution_start","args":{"token":"raw"}}',
+      ),
+    ).toBeNull();
+
+    expect((controller as any).filterSseRecord(': keepalive')).toBe(
+      ': keepalive',
+    );
+  });
 });
