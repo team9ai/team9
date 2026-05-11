@@ -2,7 +2,7 @@ import type { HiveSessionComponentsResponse } from '@team9/claw-hive';
 import type { SafeSessionComponentsResponse } from './agent-session.types.js';
 
 const SENSITIVE_KEY_PATTERN =
-  /(^|[_-])(token|secret|password|apikey|api_key|authorization|credential)([_-]|$)/i;
+  /(token|secret|password|api[-_]?key|authorization|credential)/i;
 
 const ALLOWED_EVENT_TYPES = new Set([
   'agent_start',

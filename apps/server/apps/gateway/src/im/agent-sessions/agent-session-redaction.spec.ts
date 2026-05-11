@@ -20,6 +20,22 @@ describe('agent session redaction', () => {
     });
   });
 
+  it('redacts camelCase secret keys', () => {
+    expect(
+      redactSensitiveValue({
+        accessToken: 'access-token',
+        clientSecret: 'client-secret',
+        team9AuthToken: { value: 'nested-token' },
+        keep: { value: 'visible' },
+      }),
+    ).toEqual({
+      accessToken: '[redacted]',
+      clientSecret: '[redacted]',
+      team9AuthToken: '[redacted]',
+      keep: { value: 'visible' },
+    });
+  });
+
   it('strips component configs and keeps redacted latest data', () => {
     expect(
       projectSafeComponents({
