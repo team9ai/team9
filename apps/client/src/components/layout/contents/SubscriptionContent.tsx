@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ShieldAlert } from "lucide-react";
+import { Copy, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -14,6 +14,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   PlanCard,
   buildPlanFeatures,
@@ -33,6 +41,7 @@ import {
   useCreateWorkspaceBillingCheckout,
   useCreateWorkspaceBillingPortal,
   useWorkspaceBillingOverview,
+  useWorkspaceBillingTransactions,
 } from "@/hooks/useWorkspaceBilling";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { openExternalUrl } from "@/lib/open-external-url";
@@ -191,18 +200,6 @@ function getWorkspaceCredits(account: WorkspaceBillingAccount | null) {
   );
 }
 
-function getTransactionAmountLabel(transaction: WorkspaceBillingTransaction) {
-  if (transaction.paymentAmountCents !== null) {
-    return formatMoney(transaction.paymentAmountCents);
-  }
-
-  if (transaction.type === "quota_grant") {
-    return "Included";
-  }
-
-  return "—";
-}
-
 function getTransactionTitle(transaction: WorkspaceBillingTransaction) {
   return (
     transaction.productName ||
@@ -211,16 +208,50 @@ function getTransactionTitle(transaction: WorkspaceBillingTransaction) {
   );
 }
 
-function getTransactionMeta(transaction: WorkspaceBillingTransaction) {
-  if (transaction.invoiceId) {
-    return `Invoice ${transaction.invoiceId}`;
-  }
+function formatTransactionType(type: string) {
+  const labels: Record<string, string> = {
+    charge: "Usage charge",
+    quota_grant: "Subscription quota",
+    signup_bonus: "Signup bonus",
+    recharge: "Top-up",
+    refund: "Refund",
+    adjustment: "Manual adjustment",
+  };
+  return labels[type] ?? formatStatusLabel(type);
+}
 
-  if (transaction.referenceId) {
-    return `Reference ${transaction.referenceId}`;
-  }
+function TransactionDetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
+      <dt className="w-28 shrink-0 text-xs uppercase tracking-[0.16em] text-[#7e91b2]">
+        {label}
+      </dt>
+      <dd className="min-w-0 break-words text-[#1f2c47]">{children}</dd>
+    </div>
+  );
+}
 
-  return formatStatusLabel(transaction.type);
+function TransactionReferenceCopyButton({ value }: { value: string }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-5 w-5 shrink-0 text-[#7e91b2] hover:text-[#35517d]"
+      aria-label="Copy reference ID"
+      onClick={() => {
+        void navigator.clipboard?.writeText(value);
+      }}
+    >
+      <Copy className="h-3.5 w-3.5" />
+    </Button>
+  );
 }
 
 function SectionMessage({
@@ -285,6 +316,26 @@ export function SubscriptionContent({
   const overview = useWorkspaceBillingOverview(workspaceId);
   const checkout = useCreateWorkspaceBillingCheckout(workspaceId);
   const portal = useCreateWorkspaceBillingPortal(workspaceId);
+
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<WorkspaceBillingTransaction | null>(null);
+  const transactionsQuery = useWorkspaceBillingTransactions(
+    workspaceId,
+    transactionsPage,
+    currentView === "credits",
+  );
+  const transactions = transactionsQuery.data?.transactions ?? [];
+  const transactionsTotal = transactionsQuery.data?.total ?? 0;
+  const transactionsLimit = transactionsQuery.data?.limit ?? 10;
+  const transactionsTotalPages = Math.max(
+    1,
+    Math.ceil(transactionsTotal / transactionsLimit),
+  );
+
+  useEffect(() => {
+    setTransactionsPage(1);
+  }, [workspaceId]);
 
   const creditProducts = overview.data?.creditProducts ?? [];
   const subscriptionProducts = overview.data?.subscriptionProducts ?? [];
@@ -750,79 +801,107 @@ export function SubscriptionContent({
                     </CardTitle>
 
                     <div className="mt-5">
-                      {overview.data?.recentTransactions.length ? (
-                        <div className="overflow-hidden rounded-xl border border-[#d5dfef] bg-white">
-                          <div className="hidden grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] gap-4 border-b border-[#e8edf5] bg-[#f0f4fb] px-5 py-3 text-[11px] font-medium uppercase tracking-[0.2em] text-[#7e91b2] md:grid">
-                            <div>Date</div>
-                            <div>Amount</div>
-                            <div>Credits</div>
-                            <div>Actions</div>
-                          </div>
-
-                          {overview.data.recentTransactions.map(
-                            (transaction) => {
-                              const canManageInvoice =
-                                transaction.paymentAmountCents !== null ||
-                                !!transaction.invoiceId;
-
-                              return (
-                                <div
-                                  key={transaction.id}
-                                  className="grid gap-3 border-t border-[#e8edf5] px-5 py-3.5 first:border-t-0 md:grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] md:items-center"
-                                >
-                                  <div>
-                                    <MobileTableLabel>Date</MobileTableLabel>
-                                    <div className="text-sm font-medium text-[#111b35]">
-                                      {formatDateTime(transaction.createdAt)}
-                                    </div>
-                                    <div className="mt-1 text-xs text-[#7e91b2]">
-                                      {getTransactionTitle(transaction)}
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <MobileTableLabel>Amount</MobileTableLabel>
-                                    <div className="text-sm text-[#425675]">
-                                      {getTransactionAmountLabel(transaction)}
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <MobileTableLabel>Credits</MobileTableLabel>
-                                    <div className="text-sm font-medium text-[#425675]">
-                                      {formatCredits(transaction.amount)}
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <MobileTableLabel>Actions</MobileTableLabel>
-                                    {canManageInvoice ? (
-                                      <Button
-                                        variant="link"
-                                        className="h-auto p-0 text-sm font-medium text-[#35517d] hover:text-[#111b35]"
-                                        onClick={() =>
-                                          void handleManageBilling("credits")
-                                        }
-                                        disabled={portal.isPending}
-                                      >
-                                        Get invoice
-                                      </Button>
-                                    ) : (
-                                      <div className="text-sm text-[#7e91b2]">
-                                        {getTransactionMeta(transaction)}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            },
+                      {transactionsQuery.isLoading ? (
+                        <SectionMessage
+                          title="Loading transactions…"
+                          description="Fetching the latest billing activity for this workspace."
+                        />
+                      ) : transactionsQuery.isError ? (
+                        <SectionMessage
+                          title="Couldn't load transactions"
+                          description={getErrorMessage(
+                            transactionsQuery.error,
+                            "Please try again in a moment.",
                           )}
-                        </div>
-                      ) : (
+                        />
+                      ) : transactionsTotal === 0 ? (
                         <SectionMessage
                           title="No billing transactions yet"
                           description="Completed recharges, subscriptions, and refunds will appear here."
                         />
+                      ) : (
+                        <>
+                          <div className="overflow-hidden rounded-xl border border-[#d5dfef] bg-white">
+                            <div className="hidden grid-cols-[1.6fr_0.8fr_auto] gap-4 border-b border-[#e8edf5] bg-[#f0f4fb] px-5 py-3 text-[11px] font-medium uppercase tracking-[0.2em] text-[#7e91b2] md:grid">
+                              <div>Date</div>
+                              <div>Credits</div>
+                              <div className="text-right">Actions</div>
+                            </div>
+
+                            {transactions.map((transaction) => (
+                              <div
+                                key={transaction.id}
+                                className="grid gap-3 border-t border-[#e8edf5] px-5 py-3.5 first:border-t-0 md:grid-cols-[1.6fr_0.8fr_auto] md:items-center"
+                              >
+                                <div>
+                                  <MobileTableLabel>Date</MobileTableLabel>
+                                  <div className="text-sm font-medium text-[#111b35]">
+                                    {formatDateTime(transaction.createdAt)}
+                                  </div>
+                                  <div className="mt-1 text-xs text-[#7e91b2]">
+                                    {getTransactionTitle(transaction)}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <MobileTableLabel>Credits</MobileTableLabel>
+                                  <div className="text-sm font-medium text-[#425675]">
+                                    {formatCredits(transaction.amount)}
+                                  </div>
+                                </div>
+
+                                <div className="md:text-right">
+                                  <MobileTableLabel>Actions</MobileTableLabel>
+                                  <Button
+                                    variant="link"
+                                    className="h-auto p-0 text-sm font-medium text-[#35517d] hover:text-[#111b35]"
+                                    onClick={() =>
+                                      setSelectedTransaction(transaction)
+                                    }
+                                  >
+                                    Details
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="mt-4 flex items-center justify-between gap-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setTransactionsPage((page) =>
+                                  Math.max(1, page - 1),
+                                )
+                              }
+                              disabled={
+                                transactionsPage <= 1 ||
+                                transactionsQuery.isFetching
+                              }
+                            >
+                              Previous
+                            </Button>
+                            <span className="text-xs text-[#7e91b2]">
+                              Page {transactionsPage} of {transactionsTotalPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setTransactionsPage((page) =>
+                                  Math.min(transactionsTotalPages, page + 1),
+                                )
+                              }
+                              disabled={
+                                transactionsPage >= transactionsTotalPages ||
+                                transactionsQuery.isFetching
+                              }
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </div>
                   </CardContent>
