@@ -255,7 +255,7 @@ export class AgentSessionController {
         '\n',
       );
     } catch {
-      return record;
+      return null;
     }
   }
 }

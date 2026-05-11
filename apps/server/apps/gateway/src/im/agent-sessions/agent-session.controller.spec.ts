@@ -176,4 +176,14 @@ describe('AgentSessionController', () => {
       'id: 7\ndata: {"type":"component_data_snapshot","components":[{"componentId":"host","data":{"credential":"[redacted]","visible":true}}]}',
     );
   });
+
+  it('drops non-json SSE data records except ping heartbeats', () => {
+    expect((controller as any).filterSseRecord('data: internal-event')).toBe(
+      null,
+    );
+
+    expect((controller as any).filterSseRecord('data: ping')).toBe(
+      'data: ping',
+    );
+  });
 });
