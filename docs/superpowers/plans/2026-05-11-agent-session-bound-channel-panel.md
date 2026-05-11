@@ -128,7 +128,7 @@ describe("session component and status helpers", () => {
 Run:
 
 ```bash
-pnpm --filter @team9/gateway test -- claw-hive.service.spec.ts
+NODE_OPTIONS='--experimental-vm-modules' pnpm --dir apps/server exec jest --config libs/claw-hive/jest.config.cjs claw-hive.service.spec.ts
 ```
 
 Expected: FAIL with TypeScript errors that `getSessionComponents` and `getSessionStatus` do not exist.
@@ -207,7 +207,7 @@ async getSessionStatus(
 Run:
 
 ```bash
-pnpm --filter @team9/gateway test -- claw-hive.service.spec.ts
+NODE_OPTIONS='--experimental-vm-modules' pnpm --dir apps/server exec jest --config libs/claw-hive/jest.config.cjs claw-hive.service.spec.ts
 ```
 
 Expected: PASS for `claw-hive.service.spec.ts`.
