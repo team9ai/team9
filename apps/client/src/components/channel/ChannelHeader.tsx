@@ -62,12 +62,9 @@ export function ChannelHeader({
 
   // For direct/echo messages, show the other user's info
   const isDirect = channel.type === "direct" || channel.type === "echo";
-  // Topic / routine sessions are one-on-one agent conversations. Like DMs they
-  // have no meaningful member roster, invitations, or channel-details surface,
-  // so the group-management chrome (member count, Invite, info) is hidden.
-  const isAgentSession =
-    channel.type === "topic-session" || channel.type === "routine-session";
-  const isPrivateConversation = isDirect || isAgentSession;
+  const isOneOnOneSession =
+    channel.type === "routine-session" || channel.type === "topic-session";
+  const showChannelManagementActions = !isDirect && !isOneOnOneSession;
   const channelWithUnread = channel as ChannelWithUnread;
   const otherUser =
     "otherUser" in channelWithUnread ? channelWithUnread.otherUser : undefined;
@@ -346,7 +343,7 @@ export function ChannelHeader({
               {t("newTopic", { ns: "navigation" as const })}
             </Button>
           )}
-          {!isPrivateConversation && (
+          {showChannelManagementActions && (
             <Button
               variant="ghost"
               className="h-8 px-2 gap-1"
@@ -367,7 +364,7 @@ export function ChannelHeader({
             <Search size={18} />
           </Button> */}
 
-          {!isPrivateConversation && (
+          {showChannelManagementActions && (
             <Button
               variant="outline"
               size="sm"
@@ -378,7 +375,7 @@ export function ChannelHeader({
               Invite
             </Button>
           )}
-          {!isPrivateConversation && (
+          {showChannelManagementActions && (
             <Button
               variant="ghost"
               size="icon"
@@ -392,14 +389,16 @@ export function ChannelHeader({
       </div>
 
       {/* Add Member Dialog */}
-      <AddMemberDialog
-        isOpen={isAddMemberOpen}
-        onClose={() => setIsAddMemberOpen(false)}
-        channelId={channel.id}
-      />
+      {showChannelManagementActions && (
+        <AddMemberDialog
+          isOpen={isAddMemberOpen}
+          onClose={() => setIsAddMemberOpen(false)}
+          channelId={channel.id}
+        />
+      )}
 
       {/* Channel Details Modal */}
-      {!isPrivateConversation && (
+      {showChannelManagementActions && (
         <ChannelDetailsModal
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}
