@@ -391,12 +391,18 @@ describe('ClawHiveService', () => {
         }),
       );
 
-      await expect(service.getSessionStatus('s1')).resolves.toEqual({
+      await expect(
+        service.getSessionStatus('team9/tenant/s1'),
+      ).resolves.toEqual({
         sessionId: 's1',
         isStreaming: false,
         queueLength: 2,
         ownedBy: 'worker-1',
       });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/team9%2Ftenant%2Fs1/status',
+        expect.objectContaining({ method: 'GET' }),
+      );
     });
   });
 
