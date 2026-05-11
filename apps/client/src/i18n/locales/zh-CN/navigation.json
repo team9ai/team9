@@ -30,6 +30,7 @@
   "starred": "星标",
   "starredDescription": "将重要内容拖到这里",
   "newMessage": "新消息",
+  "newTopic": "新建话题",
   "addChannel": "添加频道",
   "welcomeBack": "欢迎回来",
   "welcomeBackTo": "欢迎回到 {{workspace}}！",

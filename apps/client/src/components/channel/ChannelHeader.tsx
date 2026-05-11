@@ -335,32 +335,16 @@ export function ChannelHeader({
 
         <div className="flex items-center gap-1">
           {isOneOnOneAgentChat && associatedAgent && (
-            <TooltipProvider delayDuration={150}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("newTopic", {
-                      ns: "navigation" as const,
-                      defaultValue: "新建话题",
-                    })}
-                    onClick={() =>
-                      navigateToNewTopic(navigate, associatedAgent.id)
-                    }
-                  >
-                    <SquarePen size={18} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" sideOffset={6}>
-                  {t("newTopic", {
-                    ns: "navigation" as const,
-                    defaultValue: "新建话题",
-                  })}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => navigateToNewTopic(navigate, associatedAgent.id)}
+            >
+              <SquarePen size={16} />
+              {t("newTopic", { ns: "navigation" as const })}
+            </Button>
           )}
           {!isPrivateConversation && (
             <Button

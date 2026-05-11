@@ -9,7 +9,7 @@ const navigateMock = vi.fn();
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) =>
-      options?.defaultValue ?? key,
+      key === "newTopic" ? "新建话题" : (options?.defaultValue ?? key),
   }),
 }));
 
@@ -53,10 +53,14 @@ describe("ChannelHeader — new topic button", () => {
     navigateMock.mockReset();
   });
 
+  const newTopicButton = () =>
+    screen.queryByRole("button", { name: "新建话题" });
+
   it("shows the new-topic button for a topic-session with a bot", () => {
     render(<ChannelHeader channel={makeChannel({})} />);
-    const btn = screen.getByLabelText("新建话题");
-    fireEvent.click(btn);
+    const btn = newTopicButton();
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn!);
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/channels",
       search: { agentId: "agent-user-1" },
@@ -65,7 +69,7 @@ describe("ChannelHeader — new topic button", () => {
 
   it("shows the new-topic button for a direct DM with a bot", () => {
     render(<ChannelHeader channel={makeChannel({ type: "direct" })} />);
-    expect(screen.getByLabelText("新建话题")).toBeInTheDocument();
+    expect(newTopicButton()).toBeInTheDocument();
   });
 
   it("does not show the button for a direct DM with a human user", () => {
@@ -77,14 +81,14 @@ describe("ChannelHeader — new topic button", () => {
         })}
       />,
     );
-    expect(screen.queryByLabelText("新建话题")).not.toBeInTheDocument();
+    expect(newTopicButton()).not.toBeInTheDocument();
   });
 
   it("does not show the button for a routine-session", () => {
     render(
       <ChannelHeader channel={makeChannel({ type: "routine-session" })} />,
     );
-    expect(screen.queryByLabelText("新建话题")).not.toBeInTheDocument();
+    expect(newTopicButton()).not.toBeInTheDocument();
   });
 
   it("does not show the button for a public channel", () => {
@@ -93,6 +97,6 @@ describe("ChannelHeader — new topic button", () => {
         channel={makeChannel({ type: "public", otherUser: undefined })}
       />,
     );
-    expect(screen.queryByLabelText("新建话题")).not.toBeInTheDocument();
+    expect(newTopicButton()).not.toBeInTheDocument();
   });
 });

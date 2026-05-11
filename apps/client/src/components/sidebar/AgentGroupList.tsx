@@ -211,14 +211,8 @@ function AgentGroup({
         <button
           type="button"
           onClick={handleNewTopic}
-          title={t("newTopic", {
-            ns: "navigation" as const,
-            defaultValue: "新建话题",
-          })}
-          aria-label={t("newTopic", {
-            ns: "navigation" as const,
-            defaultValue: "新建话题",
-          })}
+          title={t("newTopic", { ns: "navigation" as const })}
+          aria-label={t("newTopic", { ns: "navigation" as const })}
           className={cn(
             "absolute right-2 shrink-0 inline-flex size-5 items-center justify-center rounded",
             "text-nav-foreground-subtle transition-opacity",

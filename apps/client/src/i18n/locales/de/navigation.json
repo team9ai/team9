@@ -30,6 +30,7 @@
   "starred": "Markiert",
   "starredDescription": "Wichtige Elemente hierher ziehen",
   "newMessage": "Neue Nachricht",
+  "newTopic": "Neues Thema",
   "addChannel": "Kanal hinzufügen",
   "welcomeBack": "Willkommen zurück",
   "welcomeBackTo": "Willkommen zurück bei {{workspace}}!",
