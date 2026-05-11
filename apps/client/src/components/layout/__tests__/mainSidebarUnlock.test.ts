@@ -22,7 +22,7 @@ const navigationItems = [
 ];
 
 describe("mainSidebarUnlock", () => {
-  it("keeps AI Staff and Routines visible before unlock", () => {
+  it("keeps Skills visible before unlock", () => {
     const visibleItems = getVisibleNavigationItems(navigationItems, false);
 
     expect(visibleItems.map((item) => item.id)).toEqual([
@@ -31,6 +31,7 @@ describe("mainSidebarUnlock", () => {
       "activity",
       "aiStaff",
       "routines",
+      "skills",
       "application",
       "more",
     ]);
@@ -60,6 +61,6 @@ describe("mainSidebarUnlock", () => {
   });
 
   it("keeps the hidden-section list stable", () => {
-    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["skills", "resources", "wiki"]);
+    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["resources", "wiki"]);
   });
 });
