@@ -40,6 +40,11 @@
   "yesterday": "Вчера",
   "copy": "Копировать",
   "copied": "Скопировано",
+  "imagePreview": {
+    "download": "Скачать",
+    "openInNewTab": "Открыть в новой вкладке",
+    "copyFailed": "Не удалось скопировать изображение"
+  },
   "selected": "Выбрано",
   "warning": "Предупреждение:",
   "seconds": "с",

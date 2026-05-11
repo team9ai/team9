@@ -209,8 +209,10 @@ describe('MessagesController', () => {
       gatewayMQService as never,
     );
     (controller as any).logger = {
+      log: jest.fn(),
       debug: jest.fn(),
       warn: jest.fn(),
+      error: jest.fn(),
     };
   });
 
@@ -269,6 +271,43 @@ describe('MessagesController', () => {
   });
 
   describe('createMessage', () => {
+    it('logs the message send attempt before membership lookup', async () => {
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).resolves.toEqual(makeMessage());
+
+      expect((controller as any).logger.log).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `[createMessage] START channel=${CHANNEL_ID} user=${USER_ID} clientMsgId=${CLIENT_MSG_ID}`,
+        ),
+      );
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+    });
+
+    it('logs the failing stage when message creation fails', async () => {
+      const error = new Error('grpc unavailable');
+      imWorkerGrpcClientService.createMessage.mockRejectedValueOnce(error);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toBe(error);
+
+      expect((controller as any).logger.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `[createMessage] FAIL channel=${CHANNEL_ID} user=${USER_ID} clientMsgId=${CLIENT_MSG_ID} stage=gRPC`,
+        ),
+      );
+    });
+
     it('rejects non-members before any message work happens', async () => {
       channelsService.isMember.mockResolvedValueOnce(false);
 

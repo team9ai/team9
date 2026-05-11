@@ -40,6 +40,11 @@
   "yesterday": "昨日",
   "copy": "コピー",
   "copied": "コピーしました",
+  "imagePreview": {
+    "download": "ダウンロード",
+    "openInNewTab": "新しいタブで開く",
+    "copyFailed": "画像をコピーできません"
+  },
   "selected": "選択済み",
   "warning": "警告：",
   "seconds": "秒",

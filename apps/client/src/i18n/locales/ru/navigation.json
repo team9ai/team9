@@ -30,6 +30,7 @@
   "starred": "Избранное",
   "starredDescription": "Перетащите сюда важные элементы",
   "newMessage": "Новое сообщение",
+  "newTopic": "Новая тема",
   "addChannel": "Добавить канал",
   "welcomeBack": "С возвращением",
   "welcomeBackTo": "С возвращением в {{workspace}}!",

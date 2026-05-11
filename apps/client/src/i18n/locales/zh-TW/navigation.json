@@ -30,6 +30,7 @@
   "starred": "星號標記",
   "starredDescription": "將重要內容拖到這裡",
   "newMessage": "新訊息",
+  "newTopic": "新增話題",
   "addChannel": "新增頻道",
   "welcomeBack": "歡迎回來",
   "welcomeBackTo": "歡迎回到 {{workspace}}！",

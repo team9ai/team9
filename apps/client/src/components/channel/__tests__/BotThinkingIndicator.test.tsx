@@ -363,6 +363,22 @@ describe("BotThinkingIndicator", () => {
       expect(avatar).toHaveClass("h-7");
     });
 
+    it("reserves the standard message avatar column without enlarging the avatar", () => {
+      const members = [makeMember("bot-1")];
+      render(
+        <BotThinkingIndicator thinkingBotIds={["bot-1"]} members={members} />,
+      );
+
+      const row = screen.getByTestId("bot-thinking-row");
+      const avatarSlot = screen.getByTestId("bot-thinking-avatar-slot");
+
+      expect(row).toHaveClass("gap-3");
+      expect(avatarSlot).toHaveClass("w-9");
+      expect(avatarSlot).toHaveClass("h-9");
+      expect(avatarSlot).toHaveClass("items-center");
+      expect(avatarSlot).toHaveClass("justify-center");
+    });
+
     it("renders the avatar fallback initial from the bot name", () => {
       const members = [makeMember("bot-1")];
       const { container } = render(

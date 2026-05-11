@@ -129,38 +129,43 @@ export function BotThinkingIndicator({
     <AnimatePresence>
       {isVisible && (
         <motion.div
-          className="flex flex-row items-center gap-2 px-2 py-1"
+          className="flex flex-row items-center gap-3 px-2 py-1"
           data-testid="bot-thinking-row"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
         >
-          {/* Avatar with breathing glow */}
-          <div className="relative shrink-0">
-            <motion.div
-              data-testid="bot-thinking-glow"
-              className={`absolute -inset-px rounded-full ${glowClass}`}
-              animate={{
-                opacity: isWorking ? [0.15, 0.4, 0.15] : [0.1, 0.25, 0.1],
-                scale: isWorking ? [1, 1.06, 1] : [1, 1.035, 1],
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: isWorking ? 2 : 2.8,
-                ease: "easeInOut",
-              }}
-            />
-            <Avatar className="relative w-7 h-7">
-              {botUser?.avatarUrl ? (
-                <AvatarImage src={botUser.avatarUrl} alt={botName} />
-              ) : (
-                <AvatarImage src="/bot.webp" alt={botName} />
-              )}
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {initials.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+          <div
+            data-testid="bot-thinking-avatar-slot"
+            className="flex h-9 w-9 shrink-0 items-center justify-center"
+          >
+            {/* Avatar with breathing glow */}
+            <div className="relative h-7 w-7 shrink-0">
+              <motion.div
+                data-testid="bot-thinking-glow"
+                className={`absolute -inset-px rounded-full ${glowClass}`}
+                animate={{
+                  opacity: isWorking ? [0.15, 0.4, 0.15] : [0.1, 0.25, 0.1],
+                  scale: isWorking ? [1, 1.06, 1] : [1, 1.035, 1],
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: isWorking ? 2 : 2.8,
+                  ease: "easeInOut",
+                }}
+              />
+              <Avatar className="relative w-7 h-7">
+                {botUser?.avatarUrl ? (
+                  <AvatarImage src={botUser.avatarUrl} alt={botName} />
+                ) : (
+                  <AvatarImage src="/bot.webp" alt={botName} />
+                )}
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                  {initials.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </div>
 
           <div className="flex flex-row items-center gap-2 flex-1 min-w-0">

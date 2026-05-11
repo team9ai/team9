@@ -27,6 +27,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+}));
+
 vi.mock("@/hooks/useChannels", () => ({
   useChannel: (...args: unknown[]) => mockUseChannel(...args),
   useChannelMembers: (...args: unknown[]) => mockUseChannelMembers(...args),
@@ -203,6 +207,52 @@ describe("ChannelHeader · Model badge placement", () => {
     expect(screen.getByText("平台工程师")).toBeInTheDocument();
     expect(screen.getByText("OpenClaw")).toBeInTheDocument();
     expect(screen.getByText("agent-lxy-001")).toBeInTheDocument();
+  });
+
+  it("does not render member-management actions for topic-session channels", () => {
+    mockUseChannelMembers.mockReturnValue({
+      data: [
+        { id: "member-1", userId: "user-1" },
+        { id: "member-2", userId: "bot-lxy" },
+      ],
+    });
+
+    render(
+      <ChannelHeader
+        channel={
+          {
+            id: "topic-1",
+            tenantId: "tenant-1",
+            name: "测试 skill 读取能力",
+            type: "topic-session",
+            createdBy: "user-1",
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            unreadCount: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z",
+            otherUser: {
+              id: "bot-lxy",
+              username: "lin_xiaoyu",
+              displayName: "林晓宇",
+              status: "online",
+              userType: "bot",
+              agentType: "openclaw",
+              roleTitle: "平台工程师",
+              agentId: "agent-lxy-001",
+            },
+          } as ChannelWithUnread
+        }
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /^2$/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /invite/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the second-line agent avatar and shows the profile card when hovering avatar or name", () => {

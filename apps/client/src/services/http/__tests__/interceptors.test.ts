@@ -5,6 +5,7 @@ import type { HttpError, HttpRequestConfig } from "../types";
 // import picks up the mocks.
 vi.mock("../../auth-session", () => ({
   getAuthToken: vi.fn(() => null),
+  getValidAccessToken: vi.fn(),
   redirectToLogin: vi.fn(),
   refreshAccessToken: vi.fn(),
 }));
@@ -22,6 +23,7 @@ vi.mock("@sentry/react", () => ({
 import { authInterceptor, handleUnauthorized } from "../interceptors";
 import {
   getAuthToken,
+  getValidAccessToken,
   redirectToLogin,
   refreshAccessToken,
 } from "../../auth-session";
@@ -39,20 +41,28 @@ function makeError(
 // ── authInterceptor ─────────────────────────────────────────
 
 describe("authInterceptor", () => {
-  it("attaches Authorization header when token exists", () => {
-    vi.mocked(getAuthToken).mockReturnValue("my-token");
-
-    const config = authInterceptor({ url: "/test" });
-
-    expect(config.headers).toEqual(
-      expect.objectContaining({ Authorization: "Bearer my-token" }),
-    );
+  beforeEach(() => {
+    vi.mocked(getAuthToken).mockReset();
+    vi.mocked(getValidAccessToken).mockReset();
   });
 
-  it("does not attach header when no token", () => {
-    vi.mocked(getAuthToken).mockReturnValue(null);
+  it("attaches a valid Authorization token when one is available", async () => {
+    vi.mocked(getAuthToken).mockReturnValue("my-token");
+    vi.mocked(getValidAccessToken).mockResolvedValue("fresh-token");
 
-    const config = authInterceptor({ url: "/test" });
+    const config = await authInterceptor({ url: "/test" });
+
+    expect(config.headers).toEqual(
+      expect.objectContaining({ Authorization: "Bearer fresh-token" }),
+    );
+    expect(getValidAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not attach header when no token", async () => {
+    vi.mocked(getAuthToken).mockReturnValue(null);
+    vi.mocked(getValidAccessToken).mockResolvedValue(null);
+
+    const config = await authInterceptor({ url: "/test" });
 
     const headers = new Headers(config.headers);
     expect(headers.get("Authorization")).toBeNull();
@@ -118,6 +128,30 @@ describe("handleUnauthorized", () => {
     const fetchCall = vi.mocked(fetch).mock.calls[0];
     const headers = fetchCall[1]?.headers as Headers;
     expect(headers.get("Authorization")).toBe(`Bearer ${newToken}`);
+  });
+
+  it("preserves request timeout cancellation on 401 retry", async () => {
+    const newToken = "fresh-access-token";
+    vi.mocked(refreshAccessToken).mockResolvedValue(newToken);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const error = makeError(401, {
+      url: "/v1/channels",
+      method: "GET",
+      baseURL: "http://localhost:3000/api",
+      timeout: 1234,
+    });
+
+    await handleUnauthorized(error);
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0];
+    expect(fetchCall[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("redirects to login when refresh returns null", async () => {

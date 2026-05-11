@@ -192,6 +192,13 @@ export interface WorkspaceBillingOverview {
   recentTransactions: WorkspaceBillingTransaction[];
 }
 
+export interface WorkspaceBillingTransactionsPage {
+  transactions: WorkspaceBillingTransaction[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export type WorkspaceOnboardingStatus =
   | "in_progress"
   | "skipped"

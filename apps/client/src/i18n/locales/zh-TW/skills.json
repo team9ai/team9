@@ -139,17 +139,21 @@
     "promptTemplateDescription": "帶變數佔位符的可重複使用提示詞"
   },
   "agentAccess": {
-    "label": "代理存取權限",
+    "label": "權限",
+    "sectionTitle": "智慧體權限",
     "none": {
       "title": "隱藏",
+      "buttonTitle": "隱藏",
       "help": "本工作區的代理無法看到或使用此技能。"
     },
     "read": {
       "title": "唯讀",
+      "buttonTitle": "唯讀",
       "help": "代理可以發現並使用此技能，但無法編輯其檔案。"
     },
     "write": {
       "title": "讀寫",
+      "buttonTitle": "寫",
       "help": "代理可以使用並編輯此技能。"
     }
   }

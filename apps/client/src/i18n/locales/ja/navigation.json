@@ -30,6 +30,7 @@
   "starred": "スター付き",
   "starredDescription": "重要な項目をここにドラッグ",
   "newMessage": "新規メッセージ",
+  "newTopic": "新しいトピック",
   "addChannel": "チャンネルを追加",
   "welcomeBack": "おかえりなさい",
   "welcomeBackTo": "{{workspace}} へおかえりなさい！",

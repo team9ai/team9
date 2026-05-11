@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/react";
 import type { HttpRequestConfig, HttpResponse, HttpError } from "./types";
 import { useWorkspaceStore } from "../../stores";
 import {
-  getAuthToken,
+  getValidAccessToken,
   redirectToLogin,
   refreshAccessToken,
 } from "../auth-session";
@@ -70,10 +70,10 @@ export const errorLogger = async (error: HttpError): Promise<never> => {
   throw error;
 };
 
-export const authInterceptor = (
+export const authInterceptor = async (
   config: HttpRequestConfig,
-): HttpRequestConfig => {
-  const token = getAuthToken();
+): Promise<HttpRequestConfig> => {
+  const token = await getValidAccessToken();
 
   if (token) {
     config.headers = {
@@ -136,10 +136,18 @@ const retryRequest = async <T = unknown>(
     }
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, config.timeout ?? 30000);
+
   const response = await fetch(url, {
     method: config.method || "GET",
     headers,
     body,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
   });
 
   const data = response.headers

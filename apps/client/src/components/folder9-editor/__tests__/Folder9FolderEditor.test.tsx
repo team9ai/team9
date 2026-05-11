@@ -1439,6 +1439,47 @@ describe("Folder9FolderEditor — tree file operations", () => {
       }),
     );
   });
+
+  it("deletes a file from the tree context menu", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { api, commit } = makeApi();
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "SKILL.md",
+            treePosition: "right",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("folder9-folder-tree");
+    fireEvent.contextMenu(
+      await screen.findByRole("treeitem", { name: /SKILL\.md/ }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Delete SKILL.md",
+        files: [
+          {
+            path: "SKILL.md",
+            content: "",
+            encoding: "text",
+            action: "delete",
+          },
+        ],
+        propose: false,
+      }),
+    );
+  });
 });
 
 describe("Folder9FolderEditor — Cmd/Ctrl+S shortcut", () => {

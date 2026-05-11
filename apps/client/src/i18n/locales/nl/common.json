@@ -40,6 +40,11 @@
   "yesterday": "Gisteren",
   "copy": "Kopiëren",
   "copied": "Gekopieerd",
+  "imagePreview": {
+    "download": "Downloaden",
+    "openInNewTab": "Openen in nieuw tabblad",
+    "copyFailed": "Kan afbeelding niet kopiëren"
+  },
   "selected": "Geselecteerd",
   "warning": "Waarschuwing:",
   "seconds": "s",

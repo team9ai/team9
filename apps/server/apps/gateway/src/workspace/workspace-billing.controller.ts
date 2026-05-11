@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,19 @@ import {
 } from './guards/workspace-role.guard.js';
 import { CreateWorkspaceBillingCheckoutDto } from './dto/create-workspace-billing-checkout.dto.js';
 import { CreateWorkspaceBillingPortalDto } from './dto/create-workspace-billing-portal.dto.js';
+
+function clampQueryInt(
+  raw: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const parsed = Math.trunc(Number(raw));
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, parsed));
+}
 
 @Controller({
   path: 'workspaces',
@@ -58,6 +72,30 @@ export class WorkspaceBillingController {
     // audit-sensitive fields (transaction history) for non-managers.
     return this.billingHubService.getWorkspaceOverview(
       workspaceId,
+      request.workspaceRole as
+        | 'owner'
+        | 'admin'
+        | 'member'
+        | 'guest'
+        | undefined,
+    );
+  }
+
+  @Get(':workspaceId/billing/transactions')
+  @UseGuards(AuthGuard, WorkspaceGuard)
+  async getTransactions(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Query('page') pageRaw: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
+    @Req() request: { workspaceRole?: string },
+  ) {
+    const page = clampQueryInt(pageRaw, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = clampQueryInt(limitRaw, 10, 1, 50);
+
+    return this.billingHubService.getWorkspaceTransactionsPage(
+      workspaceId,
+      page,
+      limit,
       request.workspaceRole as
         | 'owner'
         | 'admin'

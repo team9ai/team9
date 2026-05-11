@@ -500,4 +500,72 @@ describe("FolderTreeNode", () => {
     expect(screen.getByRole("group")).toBeInTheDocument();
     expect(container.querySelectorAll("[role='treeitem']")).toHaveLength(1);
   });
+
+  it("renders icons in the tree context menu actions", () => {
+    render(
+      <FolderTreeNode
+        node={dirNode("api")}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set()}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+        onCreateFileInDirectory={vi.fn()}
+        onCreateFolderInDirectory={vi.fn()}
+        onUploadInDirectory={vi.fn()}
+        onDeleteEntry={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /api/ }));
+
+    expect(
+      screen.getByRole("menuitem", { name: /new file/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /new folder/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /upload file/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /delete/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /new file/i }).querySelector("svg"),
+    ).not.toBeNull();
+    expect(
+      screen
+        .getByRole("menuitem", { name: /new folder/i })
+        .querySelector("svg"),
+    ).not.toBeNull();
+    expect(
+      screen
+        .getByRole("menuitem", { name: /upload file/i })
+        .querySelector("svg"),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("menuitem", { name: /delete/i }).querySelector("svg"),
+    ).not.toBeNull();
+  });
+
+  it("calls onDeleteEntry from the tree context menu", () => {
+    const onDeleteEntry = vi.fn();
+    render(
+      <FolderTreeNode
+        node={fileNode("api/auth.md")}
+        depth={0}
+        selectedPath={null}
+        expandedDirs={new Set()}
+        onSelect={vi.fn()}
+        onToggleExpand={vi.fn()}
+        onDeleteEntry={onDeleteEntry}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /auth\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /delete/i }));
+
+    expect(onDeleteEntry).toHaveBeenCalledWith("api/auth.md", "file");
+  });
 });

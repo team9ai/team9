@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Check,
   Copy,
@@ -9,8 +10,10 @@ import {
   Users,
   UserPlus,
   Pencil,
+  SquarePen,
   X,
 } from "lucide-react";
+import { navigateToNewTopic } from "@/lib/agent-topics";
 import { AgentPillRow } from "@/components/sidebar/AgentPillRow";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +42,8 @@ export function ChannelHeader({
   channel,
   currentUserRole,
 }: ChannelHeaderProps) {
-  const { t } = useTranslation("channel");
+  const { t } = useTranslation(["channel", "navigation"]);
+  const navigate = useNavigate();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [copiedUsername, setCopiedUsername] = useState(false);
@@ -58,6 +62,9 @@ export function ChannelHeader({
 
   // For direct/echo messages, show the other user's info
   const isDirect = channel.type === "direct" || channel.type === "echo";
+  const isOneOnOneSession =
+    channel.type === "routine-session" || channel.type === "topic-session";
+  const showChannelManagementActions = !isDirect && !isOneOnOneSession;
   const channelWithUnread = channel as ChannelWithUnread;
   const otherUser =
     "otherUser" in channelWithUnread ? channelWithUnread.otherUser : undefined;
@@ -70,6 +77,13 @@ export function ChannelHeader({
     otherUser?.userType === "bot"
       ? otherUser
       : members.find((member) => member.user?.userType === "bot")?.user;
+
+  // One-on-one conversation with an AI agent (topic-session or a plain bot DM,
+  // but NOT routine-session) — these get an in-chat "new topic" entry point.
+  const isOneOnOneAgentChat =
+    (channel.type === "topic-session" || channel.type === "direct") &&
+    associatedAgent?.userType === "bot";
+
   const showAgentMetadata =
     associatedAgent?.userType === "bot" &&
     !isDirect &&
@@ -317,10 +331,23 @@ export function ChannelHeader({
         </div>
 
         <div className="flex items-center gap-1">
-          {!isDirect && (
+          {isOneOnOneAgentChat && associatedAgent && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => navigateToNewTopic(navigate, associatedAgent.id)}
+            >
+              <SquarePen size={16} />
+              {t("newTopic", { ns: "navigation" as const })}
+            </Button>
+          )}
+          {showChannelManagementActions && (
             <Button
               variant="ghost"
               className="h-8 px-2 gap-1"
+              aria-label="Channel members"
               onClick={() => openDetails("members")}
             >
               <Users size={16} />
@@ -337,7 +364,7 @@ export function ChannelHeader({
             <Search size={18} />
           </Button> */}
 
-          {!isDirect && (
+          {showChannelManagementActions && (
             <Button
               variant="outline"
               size="sm"
@@ -348,10 +375,11 @@ export function ChannelHeader({
               Invite
             </Button>
           )}
-          {!isDirect && (
+          {showChannelManagementActions && (
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Channel details"
               onClick={() => openDetails("about")}
             >
               <Info size={18} />
@@ -361,14 +389,16 @@ export function ChannelHeader({
       </div>
 
       {/* Add Member Dialog */}
-      <AddMemberDialog
-        isOpen={isAddMemberOpen}
-        onClose={() => setIsAddMemberOpen(false)}
-        channelId={channel.id}
-      />
+      {showChannelManagementActions && (
+        <AddMemberDialog
+          isOpen={isAddMemberOpen}
+          onClose={() => setIsAddMemberOpen(false)}
+          channelId={channel.id}
+        />
+      )}
 
       {/* Channel Details Modal */}
-      {!isDirect && (
+      {showChannelManagementActions && (
         <ChannelDetailsModal
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}

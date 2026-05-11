@@ -40,6 +40,11 @@
   "yesterday": "昨天",
   "copy": "複製",
   "copied": "已複製",
+  "imagePreview": {
+    "download": "下載",
+    "openInNewTab": "在新分頁開啟",
+    "copyFailed": "無法複製圖片"
+  },
   "selected": "已選取",
   "warning": "警告：",
   "seconds": "秒",
