@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { normalizeTrackingSnapshot } from "@/lib/agent-event-metadata";
+import {
+  clearPersistedStreamMetadata,
+  loadPersistedStreamMetadata,
+  mergeStreamingMetadata,
+  persistStreamMetadata,
+} from "@/lib/streaming-metadata";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import { WS_EVENTS } from "@/types/ws-events";
@@ -95,11 +101,16 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
 
     const handleStreamStart = (event: StreamingStartEvent) => {
       if (event.channelId !== trackingChannelId) return;
+      const metadata = mergeStreamingMetadata(
+        loadPersistedStreamMetadata(event.streamId),
+        event.metadata,
+      );
       setActiveStream({
         streamId: event.streamId,
         content: "",
-        metadata: event.metadata,
+        metadata,
       });
+      persistStreamMetadata(event.streamId, metadata);
     };
 
     const handleStreamContent = (event: StreamingContentEvent) => {
@@ -112,18 +123,28 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
     const handleStreamMetadata = (event: StreamingMetadataEvent) => {
       if (event.channelId !== trackingChannelId) return;
       setActiveStream((prev) => {
-        if (!prev || prev.streamId !== event.streamId) return prev;
+        const base =
+          prev && prev.streamId === event.streamId
+            ? prev.metadata
+            : loadPersistedStreamMetadata(event.streamId);
+        const metadata = mergeStreamingMetadata(base, event.metadata);
+        persistStreamMetadata(event.streamId, metadata);
+        if (!prev || prev.streamId !== event.streamId) {
+          return {
+            streamId: event.streamId,
+            content: "",
+            metadata,
+          };
+        }
         return {
           ...prev,
-          metadata: {
-            ...(prev.metadata ?? {}),
-            ...event.metadata,
-          },
+          metadata,
         };
       });
     };
 
     const handleStreamEnd = (event: StreamingEndEvent) => {
+      clearPersistedStreamMetadata(event.streamId);
       setActiveStream((prev) => {
         if (!prev || prev.streamId !== event.streamId) return prev;
         return null;
@@ -135,7 +156,10 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
       if (event.channelId !== trackingChannelId) return;
       setIsDeactivated(true);
       setSnapshot(normalizeTrackingSnapshot(event.snapshot));
-      setActiveStream(null);
+      setActiveStream((prev) => {
+        if (prev) clearPersistedStreamMetadata(prev.streamId);
+        return null;
+      });
     };
 
     wsService.onNewMessage(handleNewMessage);

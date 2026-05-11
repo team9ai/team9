@@ -52,6 +52,28 @@ describe("getAgentEventMetadata", () => {
       });
     });
 
+    it("normalizes string toolArgs into streaming toolArgsText", () => {
+      const result = getAgentEventMetadata(
+        {
+          agentEventType: "tool_call",
+          status: "running",
+          toolName: "search",
+          toolCallId: "call_123",
+          toolArgs: '{"query":"hel',
+          toolPhase: "args_streaming",
+        },
+        FALLBACK,
+      );
+      expect(result).toEqual({
+        agentEventType: "tool_call",
+        status: "running",
+        toolName: "search",
+        toolCallId: "call_123",
+        toolArgsText: '{"query":"hel',
+        toolPhase: "args_streaming",
+      });
+    });
+
     it("normalizes legacy func_call metadata into a tool_call event", () => {
       const result = getAgentEventMetadata(
         {

@@ -128,6 +128,11 @@ export function getOptionalAgentEventMetadata(
       ? { toolCallId: value.toolCallId }
       : {}),
     ...(isRecord(value.toolArgs) ? { toolArgs: value.toolArgs } : {}),
+    ...(value.toolPhase === "args_streaming" &&
+    typeof value.toolArgs === "string" &&
+    typeof value.toolArgsText !== "string"
+      ? { toolArgsText: value.toolArgs }
+      : {}),
     ...(typeof value.toolArgsText === "string"
       ? { toolArgsText: value.toolArgsText }
       : {}),

@@ -81,6 +81,7 @@ function makeWrapper(): ComponentType<{ children: ReactNode }> {
 describe("useTrackingChannel", () => {
   beforeEach(() => {
     listeners.clear();
+    sessionStorage.clear();
     vi.clearAllMocks();
     mockImApi.channels.getChannel.mockResolvedValue({
       id: "tracking-1",
@@ -125,6 +126,50 @@ describe("useTrackingChannel", () => {
           toolCallId: "tc-1",
           toolName: "RunScript",
           toolArgsText: '{"cmd":"pnpm test"}',
+          toolPhase: "args_streaming",
+        },
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.activeStream?.metadata).toMatchObject({
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-1",
+        toolName: "RunScript",
+        toolArgsText: '{"cmd":"pnpm test"}',
+        toolPhase: "args_streaming",
+      }),
+    );
+  });
+
+  it("creates an active tracking stream from metadata delta events after refresh", async () => {
+    const { result } = renderHook(() => useTrackingChannel("tracking-1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      emit(WS_EVENTS.STREAMING.METADATA, {
+        streamId: "stream-1",
+        channelId: "tracking-1",
+        senderId: "bot-1",
+        metadata: {
+          agentEventType: "tool_call",
+          status: "running",
+          toolCallId: "tc-1",
+          toolName: "RunScript",
+          deltaData: { toolArgsText: '{"cmd":"pnpm' },
+          toolPhase: "args_streaming",
+        },
+      });
+      emit(WS_EVENTS.STREAMING.METADATA, {
+        streamId: "stream-1",
+        channelId: "tracking-1",
+        senderId: "bot-1",
+        metadata: {
+          deltaData: { toolArgsText: ' test"}' },
           toolPhase: "args_streaming",
         },
       });

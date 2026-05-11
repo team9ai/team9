@@ -57,6 +57,7 @@ import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.ser
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
 import { appMetrics } from '@team9/observability';
+import { mergeStreamingMetadataSnapshot } from '../streaming/streaming-metadata.js';
 
 interface SocketHandshakeAuth {
   token?: string;
@@ -944,6 +945,8 @@ export class WebsocketGateway
       JSON.stringify({
         channelId: data.channelId,
         senderId: socketClient.userId,
+        parentId: data.parentId,
+        metadata: data.metadata,
         startedAt: Date.now(),
       }),
       STREAM_TTL,
@@ -989,6 +992,10 @@ export class WebsocketGateway
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
       120,
     );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      120,
+    );
 
     await this.sendToChannelMembers(
       data.channelId,
@@ -1014,6 +1021,10 @@ export class WebsocketGateway
 
     await this.redisService.expire(
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      120,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
       120,
     );
 
@@ -1043,6 +1054,28 @@ export class WebsocketGateway
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
       120,
     );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      120,
+    );
+
+    const sessionRaw = await this.redisService.get(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+    );
+    if (sessionRaw) {
+      const session = this.parseStreamingSession(sessionRaw);
+      await this.redisService.set(
+        REDIS_KEYS.STREAMING_SESSION(data.streamId),
+        JSON.stringify({
+          ...session,
+          metadata: mergeStreamingMetadataSnapshot(
+            session.metadata,
+            data.metadata,
+          ),
+        }),
+        120,
+      );
+    }
 
     await this.sendToChannelMembers(
       data.channelId,

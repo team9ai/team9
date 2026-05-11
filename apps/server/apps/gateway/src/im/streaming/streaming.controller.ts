@@ -36,6 +36,7 @@ import {
   UpdateStreamingMetadataDto,
   EndStreamingDto,
 } from './dto/streaming.dto.js';
+import { mergeStreamingMetadataSnapshot } from './streaming-metadata.js';
 
 const STREAM_TTL = 120;
 
@@ -268,10 +269,7 @@ export class StreamingController {
     // argument streaming without persisting every intermediate delta.
     const nextSession: StreamingSession = {
       ...session,
-      metadata: {
-        ...(session.metadata ?? {}),
-        ...dto.metadata,
-      },
+      metadata: mergeStreamingMetadataSnapshot(session.metadata, dto.metadata),
     };
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(streamId),
