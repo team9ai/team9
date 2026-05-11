@@ -554,7 +554,7 @@ describe('MessagesController', () => {
       );
     });
 
-    it('does not force-broadcast writing events when skipBroadcast is set', async () => {
+    it('does not force-broadcast running writing events when skipBroadcast is set', async () => {
       const metadata = { agentEventType: 'writing', status: 'running' };
       const fullMessage = makeMessage({ metadata });
       messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
@@ -569,6 +569,27 @@ describe('MessagesController', () => {
       ).resolves.toEqual(fullMessage);
 
       expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+    });
+
+    it('still broadcasts completed writing events when skipBroadcast is set', async () => {
+      const metadata = { agentEventType: 'writing', status: 'completed' };
+      const fullMessage = makeMessage({ metadata });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'final reply',
+          metadata,
+          skipBroadcast: true,
+        } as never),
+      ).resolves.toEqual(fullMessage);
+
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.NEW,
+        fullMessage,
+      );
     });
 
     it('calls assertMentionsAllowed when message contains @mentions', async () => {

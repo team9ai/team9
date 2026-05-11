@@ -79,7 +79,21 @@ export class MessagesController {
     metadata: Record<string, unknown> | undefined,
   ): boolean {
     const agentEventType = metadata?.agentEventType;
-    return typeof agentEventType === 'string' && agentEventType !== 'writing';
+    if (typeof agentEventType !== 'string') {
+      return false;
+    }
+
+    if (agentEventType !== 'writing') {
+      return true;
+    }
+
+    const status = metadata?.status;
+    return (
+      status === 'completed' ||
+      status === 'failed' ||
+      status === 'timeout' ||
+      status === 'cancelled'
+    );
   }
 
   private async createChannelMessage(
