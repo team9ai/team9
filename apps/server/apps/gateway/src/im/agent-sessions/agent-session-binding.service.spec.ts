@@ -134,6 +134,60 @@ describe('AgentSessionBindingService', () => {
     });
   });
 
+  it('does not support a topic-session setting without an active Hive bot row', async () => {
+    dbMock.push([
+      {
+        id: 'topic-1',
+        tenantId: 'tenant-1',
+        type: 'topic-session',
+        propertySettings: {
+          topicSession: {
+            agentId: 'agent-from-settings',
+            sessionId: 'team9/tenant-1/agent-from-settings/dm/topic-1',
+          },
+        },
+      },
+    ]);
+    dbMock.push([]);
+
+    await expect(service.resolve('topic-1', 'user-1')).resolves.toMatchObject({
+      kind: 'topic-session',
+      supported: false,
+      unsupportedReason: 'no_bot',
+      sessionId: null,
+    });
+  });
+
+  it('does not let topic-session settings override a non-Hive bot row', async () => {
+    dbMock.push([
+      {
+        id: 'topic-1',
+        tenantId: 'tenant-1',
+        type: 'topic-session',
+        propertySettings: {
+          topicSession: {
+            agentId: 'agent-from-settings',
+            sessionId: 'team9/tenant-1/agent-from-settings/dm/topic-1',
+          },
+        },
+      },
+    ]);
+    dbMock.push([
+      {
+        botUserId: 'bot-user-1',
+        managedProvider: 'openclaw',
+        managedMeta: { instanceId: 'instance-1' },
+      },
+    ]);
+
+    await expect(service.resolve('topic-1', 'user-1')).resolves.toMatchObject({
+      kind: 'topic-session',
+      supported: false,
+      unsupportedReason: 'not_hive_managed',
+      sessionId: null,
+    });
+  });
+
   it('resolves a routine creation session channel', async () => {
     dbMock.push([
       { id: 'routine-channel', tenantId: 'tenant-1', type: 'routine-session' },

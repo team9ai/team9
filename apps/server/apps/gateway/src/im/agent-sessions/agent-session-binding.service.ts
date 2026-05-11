@@ -240,25 +240,11 @@ export class AgentSessionBindingService {
     const settingsSessionId = topicSession?.sessionId ?? null;
 
     if (!bot) {
-      if (
-        settingsAgentId &&
-        settingsSessionId &&
-        channel.type === 'topic-session'
-      ) {
-        return {
-          ...this.base(channel, 'topic-session'),
-          supported: true,
-          agentId: settingsAgentId,
-          botUserId: null,
-          sessionId: settingsSessionId,
-        };
-      }
-
       return this.unsupported(channel, kind, 'no_bot');
     }
 
     const unsupported = this.getUnsupportedReason(bot);
-    if (unsupported && !(settingsAgentId && settingsSessionId)) {
+    if (unsupported) {
       return this.unsupported(channel, kind, unsupported, bot);
     }
 
