@@ -82,3 +82,5 @@ tmp
 apps/client/playwright-report/
 apps/client/test-results/
 apps/client/playwright/.cache/
+
+.codex
