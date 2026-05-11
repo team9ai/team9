@@ -210,12 +210,15 @@ function getTransactionTitle(transaction: WorkspaceBillingTransaction) {
 
 function formatTransactionType(type: string) {
   const labels: Record<string, string> = {
-    charge: "Usage charge",
-    quota_grant: "Subscription quota",
-    signup_bonus: "Signup bonus",
     recharge: "Top-up",
+    recharge_reversal: "Top-up reversal",
+    grant: "Credit grant",
+    quota_grant: "Plan quota",
+    quota_reset: "Plan quota reset",
+    quota_reversal: "Plan quota reversal",
+    consume: "Usage",
     refund: "Refund",
-    adjustment: "Manual adjustment",
+    admin_adjust: "Manual adjustment",
   };
   return labels[type] ?? formatStatusLabel(type);
 }
@@ -228,29 +231,40 @@ function TransactionDetailRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-      <dt className="w-28 shrink-0 text-xs uppercase tracking-[0.16em] text-[#7e91b2]">
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
+      <dt className="w-24 shrink-0 pt-px text-[11px] font-medium uppercase tracking-[0.14em] text-[#9aa8c2] sm:w-28">
         {label}
       </dt>
-      <dd className="min-w-0 break-words text-[#1f2c47]">{children}</dd>
+      <dd className="min-w-0 flex-1 break-words text-[#1f2c47]">{children}</dd>
     </div>
   );
 }
 
-function TransactionReferenceCopyButton({ value }: { value: string }) {
+function TransactionCopyButton({ value }: { value: string }) {
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon"
-      className="h-5 w-5 shrink-0 text-[#7e91b2] hover:text-[#35517d]"
-      aria-label="Copy reference ID"
+      className="h-5 w-5 shrink-0 text-[#9aa8c2] hover:text-[#35517d]"
+      aria-label="Copy"
       onClick={() => {
         void navigator.clipboard?.writeText(value);
       }}
     >
       <Copy className="h-3.5 w-3.5" />
     </Button>
+  );
+}
+
+function TransactionIdValue({ value }: { value: string }) {
+  return (
+    <span className="flex min-w-0 items-start gap-1.5">
+      <span className="min-w-0 break-all font-mono text-[12.5px] leading-relaxed text-[#425675]">
+        {value}
+      </span>
+      <TransactionCopyButton value={value} />
+    </span>
   );
 }
 
@@ -925,63 +939,49 @@ export function SubscriptionContent({
                 <DialogContent className="sm:max-w-md">
                   {selectedTransaction ? (
                     <>
-                      <DialogHeader>
-                        <DialogTitle>
+                      <DialogHeader className="pr-6">
+                        <DialogTitle className="text-base leading-snug text-[#111b35]">
                           {getTransactionTitle(selectedTransaction)}
                         </DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription className="text-[#7e91b2]">
                           {formatTransactionType(selectedTransaction.type)}
                         </DialogDescription>
                       </DialogHeader>
 
-                      <dl className="mt-2 space-y-3 text-sm">
-                        <TransactionDetailRow label="Time">
-                          {formatDateTime(selectedTransaction.createdAt)}
-                        </TransactionDetailRow>
-                        <TransactionDetailRow label="Credits">
+                      <div className="mt-1 flex items-baseline justify-between gap-3 border-b border-[#eef2f8] pb-3">
+                        <span className="text-2xl font-semibold tracking-tight text-[#111b35]">
                           {formatCredits(selectedTransaction.amount)}
-                        </TransactionDetailRow>
-                        <TransactionDetailRow label="Balance">
-                          {formatCredits(selectedTransaction.balanceBefore)} →{" "}
-                          {formatCredits(selectedTransaction.balanceAfter)}
-                        </TransactionDetailRow>
+                        </span>
+                        <span className="text-xs text-[#9aa8c2]">
+                          {formatDateTime(selectedTransaction.createdAt)}
+                        </span>
+                      </div>
+
+                      <dl className="space-y-2.5 text-sm">
                         {selectedTransaction.description ? (
                           <TransactionDetailRow label="Description">
                             {selectedTransaction.description}
                           </TransactionDetailRow>
                         ) : null}
-                        {selectedTransaction.referenceType ||
-                        selectedTransaction.referenceId ? (
+                        {selectedTransaction.referenceId ? (
                           <TransactionDetailRow label="Reference">
-                            <span className="flex items-center gap-1.5">
-                              <span className="break-all">
-                                {[
-                                  selectedTransaction.referenceType
-                                    ? formatStatusLabel(
-                                        selectedTransaction.referenceType,
-                                      )
-                                    : null,
-                                  selectedTransaction.referenceId,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </span>
-                              {selectedTransaction.referenceId ? (
-                                <TransactionReferenceCopyButton
-                                  value={selectedTransaction.referenceId}
-                                />
-                              ) : null}
-                            </span>
+                            <TransactionIdValue
+                              value={selectedTransaction.referenceId}
+                            />
                           </TransactionDetailRow>
                         ) : null}
                         {selectedTransaction.agentId ? (
                           <TransactionDetailRow label="Agent">
-                            {selectedTransaction.agentId}
+                            <TransactionIdValue
+                              value={selectedTransaction.agentId}
+                            />
                           </TransactionDetailRow>
                         ) : null}
                         {selectedTransaction.operatorExternalId ? (
                           <TransactionDetailRow label="Operator">
-                            {selectedTransaction.operatorExternalId}
+                            <TransactionIdValue
+                              value={selectedTransaction.operatorExternalId}
+                            />
                           </TransactionDetailRow>
                         ) : null}
                         {selectedTransaction.paymentAmountCents !== null ? (
@@ -993,14 +993,16 @@ export function SubscriptionContent({
                         ) : null}
                         {selectedTransaction.invoiceId ? (
                           <TransactionDetailRow label="Invoice">
-                            {selectedTransaction.invoiceId}
+                            <TransactionIdValue
+                              value={selectedTransaction.invoiceId}
+                            />
                           </TransactionDetailRow>
                         ) : null}
                       </dl>
 
                       {selectedTransaction.invoiceId ||
                       selectedTransaction.paymentAmountCents !== null ? (
-                        <DialogFooter className="mt-4 flex-col items-stretch gap-2 sm:flex-col sm:items-stretch">
+                        <DialogFooter className="mt-1 flex-col items-stretch gap-2 sm:flex-col sm:items-stretch">
                           <Button
                             variant="outline"
                             onClick={() => void handleManageBilling("credits")}
