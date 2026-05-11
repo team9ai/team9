@@ -15,12 +15,24 @@ export function agentSessionComponentsKey(
   return ["channel-agent-session-components", channelId] as const;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isSnapshotEvent(value: unknown): value is ComponentDataSnapshotEvent {
-  const event = value as ComponentDataSnapshotEvent;
+  if (!isRecord(value)) return false;
   return (
-    event?.type === "component_data_snapshot" &&
-    typeof event.timestamp === "number" &&
-    Array.isArray(event.components)
+    value.type === "component_data_snapshot" &&
+    typeof value.sessionId === "string" &&
+    typeof value.timestamp === "number" &&
+    typeof value.turnIndex === "number" &&
+    Array.isArray(value.components) &&
+    value.components.every(
+      (component) =>
+        isRecord(component) &&
+        typeof component.componentId === "string" &&
+        isRecord(component.data),
+    )
   );
 }
 
@@ -29,6 +41,9 @@ function patchComponents(
   event: ComponentDataSnapshotEvent,
 ): { next: SafeSessionComponentsResponse | undefined; hasUnknown: boolean } {
   if (!current) return { next: current, hasUnknown: false };
+  if (current.sessionId !== event.sessionId) {
+    return { next: current, hasUnknown: false };
+  }
 
   let hasUnknown = false;
   const byId = new Map(
@@ -97,14 +112,14 @@ export function useAgentSessionComponents(
       if (disposed) return;
 
       source = new EventSource(
-        `${API_BASE_URL}/v1/im/channels/${channelId}/agent-session/events?token=${encodeURIComponent(
-          token,
-        )}`,
+        `${API_BASE_URL}/v1/im/channels/${encodeURIComponent(
+          channelId,
+        )}/agent-session/events?token=${encodeURIComponent(token)}`,
       );
       source.onopen = () => {
         void queryClient.invalidateQueries({ queryKey });
       };
-      source.onmessage = (message: MessageEvent<string>) => {
+      const handleMessage = (message: MessageEvent<string>) => {
         try {
           const parsed = JSON.parse(message.data) as unknown;
           if (!isSnapshotEvent(parsed)) return;
@@ -125,11 +140,19 @@ export function useAgentSessionComponents(
           // Ignore heartbeats and malformed records.
         }
       };
+      source.onmessage = handleMessage;
+      source.addEventListener(
+        "component_data_snapshot",
+        handleMessage as EventListener,
+      );
       source.onerror = () => {
-        if (disposed) return;
+        if (disposed || reconnectTimer) return;
         source?.close();
         source = null;
-        reconnectTimer = setTimeout(() => void open(), 2_000);
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          void open();
+        }, 2_000);
       };
     };
 
