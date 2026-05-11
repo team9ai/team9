@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Copy, ShieldAlert } from "lucide-react";
+import { ChevronRight, Copy, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -822,16 +822,29 @@ export function SubscriptionContent({
                       ) : (
                         <>
                           <div className="overflow-hidden rounded-xl border border-[#d5dfef] bg-white">
-                            <div className="hidden grid-cols-[1.6fr_0.8fr_auto] gap-4 border-b border-[#e8edf5] bg-[#f0f4fb] px-5 py-3 text-[11px] font-medium uppercase tracking-[0.2em] text-[#7e91b2] md:grid">
+                            <div className="hidden grid-cols-[1.6fr_0.8fr] gap-4 border-b border-[#e8edf5] bg-[#f0f4fb] py-3 pl-5 pr-11 text-[11px] font-medium uppercase tracking-[0.2em] text-[#7e91b2] md:grid">
                               <div>Date</div>
                               <div>Credits</div>
-                              <div className="text-right">Actions</div>
                             </div>
 
                             {transactions.map((transaction) => (
                               <div
                                 key={transaction.id}
-                                className="grid gap-3 border-t border-[#e8edf5] px-5 py-3.5 first:border-t-0 md:grid-cols-[1.6fr_0.8fr_auto] md:items-center"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() =>
+                                  setSelectedTransaction(transaction)
+                                }
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" ||
+                                    event.key === " "
+                                  ) {
+                                    event.preventDefault();
+                                    setSelectedTransaction(transaction);
+                                  }
+                                }}
+                                className="relative grid cursor-pointer gap-3 border-t border-[#e8edf5] py-3.5 pl-5 pr-11 transition-colors first:border-t-0 hover:bg-[#f6f9fd] focus-visible:bg-[#f6f9fd] focus-visible:outline-none md:grid-cols-[1.6fr_0.8fr] md:items-center"
                               >
                                 <div>
                                   <MobileTableLabel>Date</MobileTableLabel>
@@ -850,18 +863,10 @@ export function SubscriptionContent({
                                   </div>
                                 </div>
 
-                                <div className="md:text-right">
-                                  <MobileTableLabel>Actions</MobileTableLabel>
-                                  <Button
-                                    variant="link"
-                                    className="h-auto p-0 text-sm font-medium text-[#35517d] hover:text-[#111b35]"
-                                    onClick={() =>
-                                      setSelectedTransaction(transaction)
-                                    }
-                                  >
-                                    Details
-                                  </Button>
-                                </div>
+                                <ChevronRight
+                                  aria-hidden
+                                  className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#c2cedf]"
+                                />
                               </div>
                             ))}
                           </div>
