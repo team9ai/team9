@@ -85,6 +85,52 @@ describe('AgentSessionBindingService', () => {
     );
   });
 
+  it('does not bind a channel to a bot from another tenant', async () => {
+    dbMock.push([{ id: 'channel-1', tenantId: 'tenant-1', type: 'direct' }]);
+    dbMock.push([
+      {
+        botUserId: 'bot-user-1',
+        botTenantId: 'other-tenant',
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-1' },
+      },
+    ]);
+
+    await expect(service.resolve('channel-1', 'user-1')).resolves.toMatchObject(
+      {
+        supported: false,
+        unsupportedReason: 'no_bot',
+        sessionId: null,
+      },
+    );
+  });
+
+  it('rejects ambiguous channels with multiple active Hive bots', async () => {
+    dbMock.push([{ id: 'channel-1', tenantId: 'tenant-1', type: 'direct' }]);
+    dbMock.push([
+      {
+        botUserId: 'bot-user-1',
+        botTenantId: 'tenant-1',
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-1' },
+      },
+      {
+        botUserId: 'bot-user-2',
+        botTenantId: 'tenant-1',
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-2' },
+      },
+    ]);
+
+    await expect(service.resolve('channel-1', 'user-1')).resolves.toMatchObject(
+      {
+        supported: false,
+        unsupportedReason: 'ambiguous_bot',
+        sessionId: null,
+      },
+    );
+  });
+
   it('derives a tracking channel session id after read access is granted', async () => {
     dbMock.push([{ id: 'track-1', tenantId: 'tenant-1', type: 'tracking' }]);
     dbMock.push([
@@ -131,6 +177,37 @@ describe('AgentSessionBindingService', () => {
       kind: 'topic-session',
       agentId: 'agent-from-settings',
       sessionId: 'team9/tenant-1/agent-from-settings/dm/topic-1',
+    });
+  });
+
+  it('rejects malformed topic-session settings for another channel scope', async () => {
+    dbMock.push([
+      {
+        id: 'topic-1',
+        tenantId: 'tenant-1',
+        type: 'topic-session',
+        propertySettings: {
+          topicSession: {
+            agentId: 'agent-from-settings',
+            sessionId: 'team9/tenant-1/agent-from-settings/dm/other-channel',
+          },
+        },
+      },
+    ]);
+    dbMock.push([
+      {
+        botUserId: 'bot-user-1',
+        botTenantId: 'tenant-1',
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-from-settings' },
+      },
+    ]);
+
+    await expect(service.resolve('topic-1', 'user-1')).resolves.toMatchObject({
+      kind: 'topic-session',
+      supported: false,
+      unsupportedReason: 'session_not_created',
+      sessionId: null,
     });
   });
 
@@ -211,6 +288,38 @@ describe('AgentSessionBindingService', () => {
       agentId: 'agent-1',
       botUserId: 'bot-user-1',
       sessionId: 'team9/tenant-1/agent-1/dm/routine-channel',
+    });
+  });
+
+  it('rejects a routine creation row that does not match the channel setting', async () => {
+    dbMock.push([
+      {
+        id: 'routine-channel',
+        tenantId: 'tenant-1',
+        type: 'routine-session',
+        propertySettings: {
+          routineSession: { purpose: 'creation', routineId: 'routine-1' },
+        },
+      },
+    ]);
+    dbMock.push([
+      {
+        routineId: 'other-routine',
+        creationSessionId: 'team9/tenant-1/agent-1/dm/routine-channel',
+        botUserId: 'bot-user-1',
+        botTenantId: 'tenant-1',
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-1' },
+      },
+    ]);
+
+    await expect(
+      service.resolve('routine-channel', 'user-1'),
+    ).resolves.toMatchObject({
+      kind: 'routine-creation',
+      supported: false,
+      unsupportedReason: 'session_not_created',
+      sessionId: null,
     });
   });
 

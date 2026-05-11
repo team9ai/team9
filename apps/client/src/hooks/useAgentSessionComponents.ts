@@ -8,11 +8,17 @@ import type {
   SafeSessionComponentItem,
   SafeSessionComponentsResponse,
 } from "@/types/im";
+import { channelAgentSessionKey } from "./useChannelAgentSession";
 
 export function agentSessionComponentsKey(
   channelId: string | null | undefined,
+  sessionId?: string | null,
 ) {
-  return ["channel-agent-session-components", channelId] as const;
+  return [
+    "channel-agent-session-components",
+    channelId,
+    sessionId ?? null,
+  ] as const;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -39,10 +45,16 @@ function isSnapshotEvent(value: unknown): value is ComponentDataSnapshotEvent {
 function patchComponents(
   current: SafeSessionComponentsResponse | undefined,
   event: ComponentDataSnapshotEvent,
-): { next: SafeSessionComponentsResponse | undefined; hasUnknown: boolean } {
-  if (!current) return { next: current, hasUnknown: false };
+): {
+  next: SafeSessionComponentsResponse | undefined;
+  hasUnknown: boolean;
+  isStaleSession: boolean;
+} {
+  if (!current) {
+    return { next: current, hasUnknown: false, isStaleSession: false };
+  }
   if (current.sessionId !== event.sessionId) {
-    return { next: current, hasUnknown: false };
+    return { next: current, hasUnknown: false, isStaleSession: true };
   }
 
   let hasUnknown = false;
@@ -74,19 +86,21 @@ function patchComponents(
   return {
     next: { ...current, components: Array.from(byId.values()) },
     hasUnknown,
+    isStaleSession: false,
   };
 }
 
 export function useAgentSessionComponents(
   channelId: string | null | undefined,
   enabled = true,
+  sessionId?: string | null,
 ) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => agentSessionComponentsKey(channelId),
-    [channelId],
+    () => agentSessionComponentsKey(channelId, sessionId),
+    [channelId, sessionId],
   );
-  const isEnabled = enabled && !!channelId;
+  const isEnabled = enabled && !!channelId && !!sessionId;
 
   const query = useQuery({
     queryKey,
@@ -102,39 +116,54 @@ export function useAgentSessionComponents(
     let source: EventSource | null = null;
     let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let shouldForceRefresh = false;
+    let lastEventId: string | null = null;
 
     const open = async () => {
-      const token = await getValidAccessToken();
+      const token = shouldForceRefresh
+        ? await getValidAccessToken({ forceRefresh: true })
+        : await getValidAccessToken();
+      shouldForceRefresh = false;
       if (!token) {
         if (!disposed) redirectToLogin();
         return;
       }
       if (disposed) return;
 
+      const params = new URLSearchParams({ token });
+      if (lastEventId) params.set("lastEventId", lastEventId);
       source = new EventSource(
         `${API_BASE_URL}/v1/im/channels/${encodeURIComponent(
           channelId,
-        )}/agent-session/events?token=${encodeURIComponent(token)}`,
+        )}/agent-session/events?${params.toString()}`,
       );
       source.onopen = () => {
         void queryClient.invalidateQueries({ queryKey });
       };
       const handleMessage = (message: MessageEvent<string>) => {
+        if (message.lastEventId) lastEventId = message.lastEventId;
         try {
           const parsed = JSON.parse(message.data) as unknown;
           if (!isSnapshotEvent(parsed)) return;
 
           let shouldRefetch = false;
+          let isStaleSession = false;
           queryClient.setQueryData<SafeSessionComponentsResponse>(
             queryKey,
             (current) => {
               const patched = patchComponents(current, parsed);
-              shouldRefetch = patched.hasUnknown;
+              shouldRefetch = patched.hasUnknown || patched.isStaleSession;
+              isStaleSession = patched.isStaleSession;
               return patched.next;
             },
           );
           if (shouldRefetch) {
             void queryClient.invalidateQueries({ queryKey });
+          }
+          if (isStaleSession) {
+            void queryClient.invalidateQueries({
+              queryKey: channelAgentSessionKey(channelId),
+            });
           }
         } catch {
           // Ignore heartbeats and malformed records.
@@ -147,6 +176,7 @@ export function useAgentSessionComponents(
       );
       source.onerror = () => {
         if (disposed || reconnectTimer) return;
+        shouldForceRefresh = true;
         source?.close();
         source = null;
         reconnectTimer = setTimeout(() => {

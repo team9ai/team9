@@ -47,11 +47,12 @@ export function projectSafeComponents(
       ...(component.schema !== undefined && { schema: component.schema }),
       latestData: component.latestData
         ? {
-            ...component.latestData,
             data: redactSensitiveValue(component.latestData.data) as Record<
               string,
               unknown
             >,
+            capturedAtCallId: component.latestData.capturedAtCallId,
+            capturedAt: component.latestData.capturedAt,
           }
         : null,
     })),
@@ -66,15 +67,40 @@ export function filterAgentSessionEvent(
 
   if (type !== 'component_data_snapshot') return event;
 
+  const sessionId =
+    typeof event.sessionId === 'string' ? event.sessionId : null;
+  const timestamp =
+    typeof event.timestamp === 'number' ? event.timestamp : null;
+  const turnIndex =
+    typeof event.turnIndex === 'number' ? event.turnIndex : null;
+  if (!sessionId || timestamp === null || turnIndex === null) return null;
+
   const components = Array.isArray(event.components)
-    ? event.components.map((component) => {
+    ? event.components.flatMap((component) => {
+        if (!component || typeof component !== 'object') return [];
         const row = component as Record<string, unknown>;
-        return {
-          ...row,
-          data: redactSensitiveValue(row.data) as Record<string, unknown>,
-        };
+        if (typeof row.componentId !== 'string') return [];
+        if (
+          !row.data ||
+          typeof row.data !== 'object' ||
+          Array.isArray(row.data)
+        ) {
+          return [];
+        }
+        return [
+          {
+            componentId: row.componentId,
+            data: redactSensitiveValue(row.data) as Record<string, unknown>,
+          },
+        ];
       })
     : [];
 
-  return { ...event, components };
+  return {
+    type,
+    sessionId,
+    timestamp,
+    turnIndex,
+    components,
+  };
 }

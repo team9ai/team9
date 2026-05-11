@@ -8,6 +8,7 @@ export type AgentSessionBindingKind =
 export type AgentSessionUnsupportedReason =
   | 'no_bot'
   | 'not_hive_managed'
+  | 'ambiguous_bot'
   | 'session_not_created';
 
 export interface AgentSessionStatus {

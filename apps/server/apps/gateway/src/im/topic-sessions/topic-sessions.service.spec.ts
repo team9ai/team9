@@ -82,6 +82,7 @@ const AGENT_ID = 'agent-alpha';
 function makeHiveBotRow(): any {
   return {
     userId: BOT_USER_ID,
+    tenantId: TENANT_ID,
     managedProvider: 'hive',
     managedMeta: { agentId: AGENT_ID },
     isActive: true,
@@ -303,6 +304,24 @@ describe('TopicSessionsService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(clawHive.createSession).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the target bot belongs to a different tenant', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...makeHiveBotRow(), tenantId: 'other-tenant' },
+      ]);
+
+      await expect(
+        service.create({
+          creatorId: CREATOR_ID,
+          tenantId: TENANT_ID,
+          botUserId: BOT_USER_ID,
+          initialMessage: 'hi',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(clawHive.createSession).not.toHaveBeenCalled();
+      expect(channels.createTopicSessionChannel).not.toHaveBeenCalled();
     });
 
     it('compensates the agent-pi session when channel creation fails', async () => {

@@ -387,13 +387,22 @@ export function ChannelView({
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
-  const agentSession = useChannelAgentSession(channelId, !isPreviewMode);
+  const isAgentSessionCandidate =
+    !isPreviewMode &&
+    (isBotDm || channel?.type === "tracking" || channel?.type === "task");
+  const agentSession = useChannelAgentSession(
+    channelId,
+    isAgentSessionCandidate,
+  );
   const shouldShowAgentSessionPanel =
     !!agentSession.data &&
-    (agentSession.data.supported || !!agentSession.data.unsupportedReason);
+    (agentSession.data.supported ||
+      (!!agentSession.data.unsupportedReason &&
+        agentSession.data.unsupportedReason !== "no_bot"));
   const agentComponents = useAgentSessionComponents(
     channelId,
     shouldShowAgentSessionPanel && agentSession.data?.supported === true,
+    agentSession.data?.sessionId,
   );
   const agentPanelCount = shouldShowAgentSessionPanel ? 1 : 0;
   const openThreadPanelCount =
@@ -588,7 +597,7 @@ export function ChannelView({
         containerWidth -
         agentPanelCount * agentPanelWidth -
         openThreadPanelCount * threadPanelWidthRef.current;
-      setIsSnapped(mainChatWidth < 400);
+      setIsSnapped(openThreadPanelCount > 0 && mainChatWidth < 400);
     };
 
     // Recalculate immediately for threadPanelWidth changes

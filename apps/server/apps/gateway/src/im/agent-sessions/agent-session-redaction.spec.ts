@@ -51,6 +51,7 @@ describe('agent session redaction', () => {
               data: { mood: 'calm', credential: 'raw' },
               capturedAtCallId: 'call-1',
               capturedAt: 123,
+              token: 'raw-latest-token',
             },
           },
         ],
@@ -79,8 +80,14 @@ describe('agent session redaction', () => {
         sessionId: 's1',
         timestamp: 456,
         turnIndex: 1,
+        token: 'raw-event-token',
         components: [
-          { componentId: 'host', data: { authorization: 'Bearer x' } },
+          {
+            componentId: 'host',
+            token: 'raw-component-token',
+            effectiveConfig: { apiKey: 'raw' },
+            data: { authorization: 'Bearer x' },
+          },
         ],
       }),
     ).toEqual({

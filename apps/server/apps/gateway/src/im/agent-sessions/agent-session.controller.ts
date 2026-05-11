@@ -117,7 +117,9 @@ export class AgentSessionController {
       'X-Hive-Auth': this.hiveAuthToken,
     };
     if (binding.tenantId) headers['X-Hive-Tenant'] = binding.tenantId;
-    const lastEventId = req.headers['last-event-id'] as string | undefined;
+    const lastEventId =
+      (req.headers['last-event-id'] as string | undefined) ??
+      this.safeLastEventId(req.query.lastEventId);
     if (lastEventId) headers['Last-Event-ID'] = lastEventId;
 
     const controller = new AbortController();
@@ -206,18 +208,36 @@ export class AgentSessionController {
           const record = buffer.slice(0, split.index);
           buffer = buffer.slice(split.index + split.length);
           const forwarded = this.filterSseRecord(record);
-          if (forwarded) res.write(`${forwarded}\n\n`);
+          if (forwarded) await this.writeSseRecord(res, forwarded);
           split = this.findRecordBoundary(buffer);
         }
       }
 
       if (buffer.length > 0) {
         const forwarded = this.filterSseRecord(buffer);
-        if (forwarded) res.write(`${forwarded}\n\n`);
+        if (forwarded) await this.writeSseRecord(res, forwarded);
       }
     } finally {
+      await reader.cancel().catch(() => undefined);
       res.end();
     }
+  }
+
+  private async writeSseRecord(res: Response, record: string): Promise<void> {
+    if (res.destroyed) return;
+    if (res.write(`${record}\n\n`)) return;
+
+    await new Promise<void>((resolve) => {
+      const cleanup = () => {
+        res.off('drain', cleanup);
+        res.off('close', cleanup);
+        res.off('error', cleanup);
+        resolve();
+      };
+      res.once('drain', cleanup);
+      res.once('close', cleanup);
+      res.once('error', cleanup);
+    });
   }
 
   private findRecordBoundary(
@@ -237,24 +257,56 @@ export class AgentSessionController {
 
     const lines = record.split(/\r?\n/);
     const dataLines = lines.filter((line) => line.startsWith('data:'));
-    if (dataLines.length === 0) return record;
+    if (dataLines.length === 0) {
+      return trimmed === ': keepalive' || trimmed === ': ping' ? trimmed : null;
+    }
 
     const rawData = dataLines
       .map((line) => line.slice('data:'.length).trimStart())
       .join('\n')
       .trim();
-    if (rawData === 'ping' || rawData === '"ping"') return record;
+    if (rawData === 'ping' || rawData === '"ping"') return 'data: ping';
 
     try {
       const parsed = JSON.parse(rawData) as Record<string, unknown>;
       const filtered = filterAgentSessionEvent(parsed);
       if (!filtered) return null;
-      const directiveLines = lines.filter((line) => !line.startsWith('data:'));
+      const directiveLines = this.safeSseDirectiveLines(lines, filtered);
       return [...directiveLines, `data: ${JSON.stringify(filtered)}`].join(
         '\n',
       );
     } catch {
       return null;
     }
+  }
+
+  private safeSseDirectiveLines(
+    lines: string[],
+    event: Record<string, unknown>,
+  ): string[] {
+    const directives: string[] = [];
+    const idLine = lines.find((line) => line.startsWith('id:'));
+    const id = idLine?.slice('id:'.length).trim();
+    if (id && this.isSafeSseDirectiveValue(id)) {
+      directives.push(`id: ${id}`);
+    }
+
+    const eventLine = lines.find((line) => line.startsWith('event:'));
+    const eventName = eventLine?.slice('event:'.length).trim();
+    if (eventName && eventName === event.type) {
+      directives.push(`event: ${eventName}`);
+    }
+
+    return directives;
+  }
+
+  private safeLastEventId(value: unknown): string | undefined {
+    const candidate: unknown = Array.isArray(value) ? value[0] : value;
+    if (typeof candidate !== 'string') return undefined;
+    return this.isSafeSseDirectiveValue(candidate) ? candidate : undefined;
+  }
+
+  private isSafeSseDirectiveValue(value: string): boolean {
+    return value.length > 0 && value.length <= 256 && !/[\r\n]/.test(value);
   }
 }

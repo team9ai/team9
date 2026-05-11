@@ -170,10 +170,10 @@ describe('AgentSessionController', () => {
 
     expect(
       (controller as any).filterSseRecord(
-        'id: 7\ndata: {"type":"component_data_snapshot","components":[{"componentId":"host","data":{"credential":"raw","visible":true}}]}',
+        'id: 7\nretry: 1000\n: debug\nevent: component_data_snapshot\ndata: {"type":"component_data_snapshot","sessionId":"s1","timestamp":1,"turnIndex":0,"token":"raw","components":[{"componentId":"host","token":"raw","data":{"credential":"raw","visible":true}}]}',
       ),
     ).toBe(
-      'id: 7\ndata: {"type":"component_data_snapshot","components":[{"componentId":"host","data":{"credential":"[redacted]","visible":true}}]}',
+      'id: 7\nevent: component_data_snapshot\ndata: {"type":"component_data_snapshot","sessionId":"s1","timestamp":1,"turnIndex":0,"components":[{"componentId":"host","data":{"credential":"[redacted]","visible":true}}]}',
     );
   });
 
@@ -197,5 +197,19 @@ describe('AgentSessionController', () => {
     expect((controller as any).filterSseRecord(': keepalive')).toBe(
       ': keepalive',
     );
+  });
+
+  it('drops unknown no-data SSE records and sanitizes ping heartbeats', () => {
+    expect((controller as any).filterSseRecord('event: debug')).toBeNull();
+    expect((controller as any).filterSseRecord('retry: 1000')).toBeNull();
+    expect(
+      (controller as any).filterSseRecord(': internal raw state'),
+    ).toBeNull();
+
+    expect(
+      (controller as any).filterSseRecord(
+        'id: 7\n: internal raw state\ndata: ping',
+      ),
+    ).toBe('data: ping');
   });
 });

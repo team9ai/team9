@@ -98,7 +98,7 @@ describe("useAgentSessionComponents", () => {
 
   it("loads initial components and opens authenticated SSE", async () => {
     const { result } = renderHook(
-      () => useAgentSessionComponents("channel-1", true),
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
       { wrapper: makeWrapper(queryClient) },
     );
 
@@ -112,9 +112,12 @@ describe("useAgentSessionComponents", () => {
   });
 
   it("encodes the channel id in the SSE URL", async () => {
-    renderHook(() => useAgentSessionComponents("channel/1", true), {
-      wrapper: makeWrapper(queryClient),
-    });
+    renderHook(
+      () => useAgentSessionComponents("channel/1", true, "session-1"),
+      {
+        wrapper: makeWrapper(queryClient),
+      },
+    );
 
     await waitFor(() => expect(eventSources).toHaveLength(1));
     expect(eventSources[0].url).toContain(
@@ -124,7 +127,7 @@ describe("useAgentSessionComponents", () => {
 
   it("directly patches latestData from component_data_snapshot", async () => {
     const { result } = renderHook(
-      () => useAgentSessionComponents("channel-1", true),
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
       { wrapper: makeWrapper(queryClient) },
     );
     await waitFor(() =>
@@ -156,7 +159,7 @@ describe("useAgentSessionComponents", () => {
 
   it("handles named component_data_snapshot SSE events", async () => {
     const { result } = renderHook(
-      () => useAgentSessionComponents("channel-1", true),
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
       { wrapper: makeWrapper(queryClient) },
     );
     await waitFor(() =>
@@ -186,10 +189,13 @@ describe("useAgentSessionComponents", () => {
     );
   });
 
-  it("ignores stale sessions and malformed component entries", async () => {
-    renderHook(() => useAgentSessionComponents("channel-1", true), {
-      wrapper: makeWrapper(queryClient),
-    });
+  it("refetches on stale sessions and ignores malformed component entries", async () => {
+    renderHook(
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
+      {
+        wrapper: makeWrapper(queryClient),
+      },
+    );
     await waitFor(() => expect(eventSources).toHaveLength(1));
 
     act(() => {
@@ -213,17 +219,25 @@ describe("useAgentSessionComponents", () => {
       } as MessageEvent<string>);
     });
 
+    await waitFor(() =>
+      expect(mockApi.channels.getAgentSessionComponents).toHaveBeenCalledTimes(
+        2,
+      ),
+    );
+
     const cached = queryClient.getQueryData<{
       components: Array<{ latestData: unknown }>;
-    }>(agentSessionComponentsKey("channel-1"));
+    }>(agentSessionComponentsKey("channel-1", "session-1"));
     expect(cached?.components[0].latestData).toBeNull();
-    expect(mockApi.channels.getAgentSessionComponents).toHaveBeenCalledTimes(1);
   });
 
   it("inserts unknown components and refetches once", async () => {
-    renderHook(() => useAgentSessionComponents("channel-1", true), {
-      wrapper: makeWrapper(queryClient),
-    });
+    renderHook(
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
+      {
+        wrapper: makeWrapper(queryClient),
+      },
+    );
     await waitFor(() =>
       expect(mockApi.channels.getAgentSessionComponents).toHaveBeenCalledTimes(
         1,
@@ -251,9 +265,12 @@ describe("useAgentSessionComponents", () => {
   });
 
   it("deduplicates reconnect timers after repeated errors", async () => {
-    renderHook(() => useAgentSessionComponents("channel-1", true), {
-      wrapper: makeWrapper(queryClient),
-    });
+    renderHook(
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
+      {
+        wrapper: makeWrapper(queryClient),
+      },
+    );
     await waitFor(() => expect(eventSources).toHaveLength(1));
 
     vi.useFakeTimers();
@@ -270,6 +287,53 @@ describe("useAgentSessionComponents", () => {
       });
 
       expect(eventSources).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("forces token refresh and resumes from the last event id after errors", async () => {
+    auth.getValidAccessToken
+      .mockResolvedValueOnce("token-1")
+      .mockResolvedValueOnce("token-2");
+
+    renderHook(
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
+      {
+        wrapper: makeWrapper(queryClient),
+      },
+    );
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    act(() => {
+      eventSources[0].onmessage?.({
+        data: JSON.stringify({
+          type: "component_data_snapshot",
+          sessionId: "session-1",
+          timestamp: 1700000000300,
+          turnIndex: 5,
+          components: [{ componentId: "persona", data: { mood: "fresh" } }],
+        }),
+        lastEventId: "event-7",
+      } as MessageEvent<string>);
+    });
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        eventSources[0].onerror?.();
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+
+      expect(eventSources).toHaveLength(2);
+      expect(auth.getValidAccessToken).toHaveBeenLastCalledWith({
+        forceRefresh: true,
+      });
+      expect(eventSources[1].url).toContain("token=token-2");
+      expect(eventSources[1].url).toContain("lastEventId=event-7");
     } finally {
       vi.useRealTimers();
     }

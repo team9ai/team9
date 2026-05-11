@@ -23,18 +23,21 @@ type ChannelRow = {
 
 type BotBindingRow = {
   botUserId: string | null;
+  botTenantId?: string | null;
   managedProvider: string | null;
   managedMeta: schema.ManagedMeta | null;
 };
 
 type RoutineSessionRow = BotBindingRow & {
   routineId: string;
+  routineTenantId?: string | null;
   creationSessionId: string | null;
 };
 
 type RoutineExecutionRow = BotBindingRow & {
   executionId: string;
   routineId: string;
+  routineTenantId?: string | null;
   taskcastTaskId: string | null;
   taskStatus: string;
 };
@@ -66,9 +69,9 @@ export class AgentSessionBindingService {
       return this.resolveRoutineSession(channel);
     }
 
-    const bot = await this.findChannelBot(channel.id);
+    const bots = await this.findChannelBots(channel);
     const kind = this.kindForChannelType(channel.type);
-    return this.resolveBotChannel(channel, kind, bot);
+    return this.resolveBotChannel(channel, kind, bots);
   }
 
   private async findChannel(channelId: string): Promise<ChannelRow | null> {
@@ -86,12 +89,11 @@ export class AgentSessionBindingService {
     return (channel as ChannelRow | undefined) ?? null;
   }
 
-  private async findChannelBot(
-    channelId: string,
-  ): Promise<BotBindingRow | null> {
-    const [bot] = await this.db
+  private async findChannelBots(channel: ChannelRow): Promise<BotBindingRow[]> {
+    const rows = await this.db
       .select({
         botUserId: schema.bots.userId,
+        botTenantId: schema.installedApplications.tenantId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
       })
@@ -104,37 +106,62 @@ export class AgentSessionBindingService {
         schema.bots,
         eq(schema.bots.userId, schema.channelMembers.userId),
       )
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .where(
         and(
-          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.channelId, channel.id),
           isNull(schema.channelMembers.leftAt),
           eq(schema.users.userType, 'bot'),
           eq(schema.users.isActive, true),
           eq(schema.bots.isActive, true),
+          channel.tenantId
+            ? eq(schema.installedApplications.tenantId, channel.tenantId)
+            : undefined,
         ),
       )
-      .limit(1);
+      .limit(2);
 
-    return (bot as BotBindingRow | undefined) ?? null;
+    return (rows as BotBindingRow[]).filter((row) =>
+      this.botTenantMatches(channel, row),
+    );
   }
 
   private async resolveRoutineSession(
     channel: ChannelRow,
   ): Promise<AgentSessionBindingResponse> {
+    const routineSession = this.getRoutineSessionSettings(channel);
     const [routine] = await this.db
       .select({
         routineId: schema.routines.id,
+        routineTenantId: schema.routines.tenantId,
         creationSessionId: schema.routines.creationSessionId,
         botUserId: schema.bots.userId,
+        botTenantId: schema.installedApplications.tenantId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
       })
       .from(schema.routines)
       .leftJoin(schema.bots, eq(schema.bots.id, schema.routines.botId))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .leftJoin(schema.users, eq(schema.users.id, schema.bots.userId))
       .where(
         and(
           eq(schema.routines.creationChannelId, channel.id),
+          routineSession?.routineId
+            ? eq(schema.routines.id, routineSession.routineId)
+            : undefined,
+          channel.tenantId
+            ? eq(schema.routines.tenantId, channel.tenantId)
+            : undefined,
+          channel.tenantId
+            ? eq(schema.installedApplications.tenantId, channel.tenantId)
+            : undefined,
           eq(schema.users.userType, 'bot'),
           eq(schema.users.isActive, true),
           eq(schema.bots.isActive, true),
@@ -145,6 +172,18 @@ export class AgentSessionBindingService {
     const row = (routine as RoutineSessionRow | undefined) ?? null;
     if (!row) {
       return this.unsupported(channel, 'routine-creation', 'no_bot');
+    }
+    if (
+      !this.botTenantMatches(channel, row) ||
+      !this.routineTenantMatches(channel, row) ||
+      (routineSession?.routineId && row.routineId !== routineSession.routineId)
+    ) {
+      return this.unsupported(
+        channel,
+        'routine-creation',
+        'session_not_created',
+        row,
+      );
     }
 
     const unsupported = this.getUnsupportedReason(row);
@@ -179,9 +218,11 @@ export class AgentSessionBindingService {
       .select({
         executionId: schema.routineExecutions.id,
         routineId: schema.routineExecutions.routineId,
+        routineTenantId: schema.routines.tenantId,
         taskcastTaskId: schema.routineExecutions.taskcastTaskId,
         taskStatus: schema.routineExecutions.status,
         botUserId: schema.bots.userId,
+        botTenantId: schema.installedApplications.tenantId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
       })
@@ -191,10 +232,20 @@ export class AgentSessionBindingService {
         eq(schema.routines.id, schema.routineExecutions.routineId),
       )
       .leftJoin(schema.bots, eq(schema.bots.id, schema.routines.botId))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .leftJoin(schema.users, eq(schema.users.id, schema.bots.userId))
       .where(
         and(
           eq(schema.routineExecutions.channelId, channel.id),
+          channel.tenantId
+            ? eq(schema.routines.tenantId, channel.tenantId)
+            : undefined,
+          channel.tenantId
+            ? eq(schema.installedApplications.tenantId, channel.tenantId)
+            : undefined,
           eq(schema.users.userType, 'bot'),
           eq(schema.users.isActive, true),
           eq(schema.bots.isActive, true),
@@ -208,6 +259,17 @@ export class AgentSessionBindingService {
         channel,
         'routine-execution',
         'session_not_created',
+      );
+    }
+    if (
+      !this.botTenantMatches(channel, row) ||
+      !this.routineTenantMatches(channel, row)
+    ) {
+      return this.unsupported(
+        channel,
+        'routine-execution',
+        'session_not_created',
+        row,
       );
     }
 
@@ -233,19 +295,38 @@ export class AgentSessionBindingService {
   private resolveBotChannel(
     channel: ChannelRow,
     kind: AgentSessionBindingKind | null,
-    bot: BotBindingRow | null,
+    bots: BotBindingRow[],
   ): AgentSessionBindingResponse {
     const topicSession = this.getTopicSessionSettings(channel);
     const settingsAgentId = topicSession?.agentId ?? null;
     const settingsSessionId = topicSession?.sessionId ?? null;
 
-    if (!bot) {
+    if (bots.length === 0) {
       return this.unsupported(channel, kind, 'no_bot');
     }
 
+    const hiveBots = bots.filter((bot) => !this.getUnsupportedReason(bot));
+    if (hiveBots.length > 1) {
+      return this.unsupported(channel, kind, 'ambiguous_bot');
+    }
+
+    const bot = hiveBots[0] ?? bots[0];
     const unsupported = this.getUnsupportedReason(bot);
     if (unsupported) {
       return this.unsupported(channel, kind, unsupported, bot);
+    }
+
+    if (
+      settingsSessionId &&
+      (!settingsAgentId ||
+        !this.isExpectedSessionId(
+          channel,
+          kind,
+          settingsAgentId,
+          settingsSessionId,
+        ))
+    ) {
+      return this.unsupported(channel, kind, 'session_not_created', bot);
     }
 
     const agentId = settingsAgentId ?? bot.managedMeta?.agentId ?? null;
@@ -345,5 +426,37 @@ export class AgentSessionBindingService {
       | null
       | undefined;
     return settings?.topicSession ?? null;
+  }
+
+  private getRoutineSessionSettings(
+    channel: ChannelRow,
+  ): { purpose?: string; routineId?: string } | null {
+    const settings = channel.propertySettings as
+      | { routineSession?: { purpose?: string; routineId?: string } }
+      | null
+      | undefined;
+    return settings?.routineSession ?? null;
+  }
+
+  private botTenantMatches(channel: ChannelRow, row: BotBindingRow): boolean {
+    if (!channel.tenantId || row.botTenantId === undefined) return true;
+    return row.botTenantId === channel.tenantId;
+  }
+
+  private routineTenantMatches(
+    channel: ChannelRow,
+    row: { routineTenantId?: string | null },
+  ): boolean {
+    if (!channel.tenantId || row.routineTenantId === undefined) return true;
+    return row.routineTenantId === channel.tenantId;
+  }
+
+  private isExpectedSessionId(
+    channel: ChannelRow,
+    kind: AgentSessionBindingKind | null,
+    agentId: string,
+    sessionId: string,
+  ): boolean {
+    return sessionId === this.buildSessionId(channel, kind, agentId);
   }
 }

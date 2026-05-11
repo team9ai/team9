@@ -1,6 +1,29 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChannelView } from "../ChannelView";
+
+const viewState = vi.hoisted(() => ({
+  channel: {
+    id: "channel-1",
+    tenantId: "tenant-1",
+    type: "direct",
+    name: "Agent",
+    isArchived: false,
+    otherUser: { id: "bot-user-1", userType: "bot" },
+  } as any,
+  agentSession: {
+    data: {
+      channelId: "channel-1",
+      channelType: "direct",
+      kind: "dm",
+      supported: true,
+      tenantId: "tenant-1",
+      agentId: "agent-1",
+      botUserId: "bot-user-1",
+      sessionId: "session-1",
+    },
+  } as any,
+}));
 
 vi.stubGlobal(
   "ResizeObserver",
@@ -48,14 +71,7 @@ vi.mock("@/services/websocket", () => ({
 
 vi.mock("@/hooks/useChannels", () => ({
   useChannel: () => ({
-    data: {
-      id: "channel-1",
-      tenantId: "tenant-1",
-      type: "direct",
-      name: "Agent",
-      isArchived: false,
-      otherUser: { id: "bot-user-1", userType: "bot" },
-    },
+    data: viewState.channel,
     isLoading: false,
   }),
   useChannelMembers: () => ({ data: [] }),
@@ -126,18 +142,7 @@ vi.mock("@/hooks/useBotStartupCountdown", () => ({
 }));
 
 vi.mock("@/hooks/useChannelAgentSession", () => ({
-  useChannelAgentSession: () => ({
-    data: {
-      channelId: "channel-1",
-      channelType: "direct",
-      kind: "dm",
-      supported: true,
-      tenantId: "tenant-1",
-      agentId: "agent-1",
-      botUserId: "bot-user-1",
-      sessionId: "session-1",
-    },
-  }),
+  useChannelAgentSession: () => viewState.agentSession,
 }));
 
 vi.mock("@/hooks/useAgentSessionComponents", () => ({
@@ -154,7 +159,9 @@ vi.mock("../agent-session/AgentSessionPanel", () => ({
 
 vi.mock("../ChannelHeader", () => ({ ChannelHeader: () => <div /> }));
 vi.mock("../ChannelTabs", () => ({ ChannelTabs: () => <div /> }));
-vi.mock("../ChannelContent", () => ({ ChannelContent: () => <div /> }));
+vi.mock("../ChannelContent", () => ({
+  ChannelContent: () => <div data-testid="channel-content" />,
+}));
 vi.mock("../ThreadPanel", () => ({ ThreadPanel: () => <aside /> }));
 vi.mock("../JoinChannelPrompt", () => ({ JoinChannelPrompt: () => null }));
 vi.mock("../BotStartupOverlay", () => ({ BotStartupOverlay: () => null }));
@@ -169,9 +176,70 @@ vi.mock("@/services/api/file", () => ({
 }));
 
 describe("ChannelView agent session panel", () => {
+  beforeEach(() => {
+    viewState.channel = {
+      id: "channel-1",
+      tenantId: "tenant-1",
+      type: "direct",
+      name: "Agent",
+      isArchived: false,
+      otherUser: { id: "bot-user-1", userType: "bot" },
+    };
+    viewState.agentSession = {
+      data: {
+        channelId: "channel-1",
+        channelType: "direct",
+        kind: "dm",
+        supported: true,
+        tenantId: "tenant-1",
+        agentId: "agent-1",
+        botUserId: "bot-user-1",
+        sessionId: "session-1",
+      },
+    };
+  });
+
   it("renders the session panel for a supported binding", () => {
     render(<ChannelView channelId="channel-1" />);
 
     expect(screen.getByText("Agent Session Panel")).toBeInTheDocument();
+  });
+
+  it("hides no_bot unsupported bindings on ordinary channels", () => {
+    viewState.channel = {
+      id: "channel-1",
+      tenantId: "tenant-1",
+      type: "public",
+      name: "General",
+      isArchived: false,
+      otherUser: undefined,
+    };
+    viewState.agentSession = {
+      data: {
+        channelId: "channel-1",
+        channelType: "public",
+        kind: null,
+        supported: false,
+        unsupportedReason: "no_bot",
+        tenantId: "tenant-1",
+        agentId: null,
+        botUserId: null,
+        sessionId: null,
+      },
+    };
+
+    render(<ChannelView channelId="channel-1" />);
+
+    expect(screen.queryByText("Agent Session Panel")).not.toBeInTheDocument();
+  });
+
+  it("keeps chat visible when only the agent session panel is open", async () => {
+    render(<ChannelView channelId="channel-1" />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Agent Session Panel")).toBeInTheDocument(),
+    );
+    const chatShell = screen.getByTestId("channel-content").closest(".flex-1");
+    expect(chatShell?.className).not.toContain("hidden");
   });
 });
