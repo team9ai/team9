@@ -48,6 +48,7 @@ import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
+  type StaffModelFamily,
 } from "@/lib/common-staff-models";
 import {
   getBaseModelProductKey,
@@ -101,7 +102,7 @@ function getAgentModelLabel(
     return matchedModel?.label ?? model.id;
   }
 
-  if (agent.canSwitchModel) {
+  if (agent.canSwitchModel && agent.agentModelFamily === null) {
     return DEFAULT_STAFF_MODEL.label;
   }
 
@@ -113,7 +114,15 @@ function getAgentModelLabel(
       username: agent.username,
     });
 
-  return productKey ? FIXED_BASE_MODEL_LABELS[productKey] : fallbackLabel;
+  if (productKey) {
+    return FIXED_BASE_MODEL_LABELS[productKey];
+  }
+
+  if (agent.canSwitchModel) {
+    return DEFAULT_STAFF_MODEL.label;
+  }
+
+  return fallbackLabel;
 }
 
 function DashboardModelControl({
@@ -129,6 +138,11 @@ function DashboardModelControl({
 }) {
   const currentLabel = getAgentModelLabel(agent, model, fallbackLabel);
   const currentValue = model ? `${model.provider}::${model.id}` : undefined;
+  const agentModelFamily: StaffModelFamily | null =
+    agent?.agentModelFamily ?? null;
+  const availableModels = agentModelFamily
+    ? COMMON_STAFF_MODELS.filter((m) => m.family === agentModelFamily)
+    : COMMON_STAFF_MODELS;
 
   if (!agent?.canSwitchModel) {
     return (
@@ -164,7 +178,7 @@ function DashboardModelControl({
             onSelectModel({ provider, id });
           }}
         >
-          {COMMON_STAFF_MODELS.map((model) => (
+          {availableModels.map((model) => (
             <DropdownMenuRadioItem
               key={`${model.provider}::${model.id}`}
               value={`${model.provider}::${model.id}`}

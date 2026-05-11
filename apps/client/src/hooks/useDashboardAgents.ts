@@ -11,6 +11,11 @@ import type {
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import type { AgentType, ChannelWithUnread } from "@/types/im";
 import { useCurrentUser } from "./useAuth";
+import type { StaffModelFamily } from "@/lib/common-staff-models";
+import {
+  BASE_MODEL_PRODUCT_FAMILY,
+  getBaseModelProductKey,
+} from "@/lib/base-model-agent";
 
 export interface DashboardAgentModel {
   provider: string;
@@ -37,6 +42,11 @@ export interface DashboardAgent {
   model: DashboardAgentModel | null;
   managedAgentId: string | null;
   canSwitchModel: boolean;
+  // Non-null only for base-model agents whose `managedMeta.agentId` matches a
+  // known preset (claude/chatgpt/gemini). Picker UIs lock the dropdown to a
+  // single family using this. `null` means no filter — common/personal staff
+  // can pick any model.
+  agentModelFamily: StaffModelFamily | null;
   staffKind: "common" | "personal" | "other" | null;
   roleTitle: string | null;
   shortRoleTitle: string | null;
@@ -71,8 +81,28 @@ function canOpenDashboardDm(bot: DashboardBot, currentUserId?: string) {
   return bot.ownerId === currentUserId || bot.visibility.allowDirectMessage;
 }
 
-function canSwitchDashboardModel(applicationId: string) {
-  return applicationId === "common-staff" || applicationId === "personal-staff";
+function getDashboardAgentFamily(
+  applicationId: string,
+  bot: DashboardBot,
+): StaffModelFamily | null {
+  if (applicationId !== "base-model-staff") return null;
+  const agentId =
+    "managedMeta" in bot ? (bot.managedMeta?.agentId ?? null) : null;
+  const productKey = getBaseModelProductKey(agentId);
+  return productKey ? BASE_MODEL_PRODUCT_FAMILY[productKey] : null;
+}
+
+function canSwitchDashboardModel(
+  applicationId: string,
+  agentModelFamily: StaffModelFamily | null,
+): boolean {
+  if (applicationId === "common-staff" || applicationId === "personal-staff") {
+    return true;
+  }
+  if (applicationId === "base-model-staff") {
+    return agentModelFamily !== null;
+  }
+  return false;
 }
 
 function getStaffKind(applicationId: string): DashboardAgent["staffKind"] {
@@ -145,6 +175,8 @@ export function buildDashboardAgents(
           ? (currentUserDisplayName ?? null)
           : null);
 
+      const agentModelFamily = getDashboardAgentFamily(app.applicationId, bot);
+
       agents.set(bot.userId, {
         userId: bot.userId,
         botId: bot.botId,
@@ -160,7 +192,11 @@ export function buildDashboardAgents(
         hasExistingChannel: !!existingChannel,
         model: getBotModel(bot),
         managedAgentId: getBotManagedAgentId(bot),
-        canSwitchModel: canSwitchDashboardModel(app.applicationId),
+        canSwitchModel: canSwitchDashboardModel(
+          app.applicationId,
+          agentModelFamily,
+        ),
+        agentModelFamily,
         staffKind,
         roleTitle:
           getBotRoleTitle(bot) ?? existingChannel?.otherUser?.roleTitle ?? null,
@@ -188,6 +224,7 @@ export function buildDashboardAgents(
       model: null,
       managedAgentId: null,
       canSwitchModel: false,
+      agentModelFamily: null,
       staffKind: otherUser.staffKind ?? null,
       roleTitle: otherUser.roleTitle ?? null,
       shortRoleTitle: null,

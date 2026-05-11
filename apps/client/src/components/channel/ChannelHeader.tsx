@@ -62,6 +62,12 @@ export function ChannelHeader({
 
   // For direct/echo messages, show the other user's info
   const isDirect = channel.type === "direct" || channel.type === "echo";
+  // Topic / routine sessions are one-on-one agent conversations. Like DMs they
+  // have no meaningful member roster, invitations, or channel-details surface,
+  // so the group-management chrome (member count, Invite, info) is hidden.
+  const isAgentSession =
+    channel.type === "topic-session" || channel.type === "routine-session";
+  const isPrivateConversation = isDirect || isAgentSession;
   const channelWithUnread = channel as ChannelWithUnread;
   const otherUser =
     "otherUser" in channelWithUnread ? channelWithUnread.otherUser : undefined;
@@ -356,10 +362,11 @@ export function ChannelHeader({
               </Tooltip>
             </TooltipProvider>
           )}
-          {!isDirect && (
+          {!isPrivateConversation && (
             <Button
               variant="ghost"
               className="h-8 px-2 gap-1"
+              aria-label="Channel members"
               onClick={() => openDetails("members")}
             >
               <Users size={16} />
@@ -376,7 +383,7 @@ export function ChannelHeader({
             <Search size={18} />
           </Button> */}
 
-          {!isDirect && (
+          {!isPrivateConversation && (
             <Button
               variant="outline"
               size="sm"
@@ -387,10 +394,11 @@ export function ChannelHeader({
               Invite
             </Button>
           )}
-          {!isDirect && (
+          {!isPrivateConversation && (
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Channel details"
               onClick={() => openDetails("about")}
             >
               <Info size={18} />
@@ -407,7 +415,7 @@ export function ChannelHeader({
       />
 
       {/* Channel Details Modal */}
-      {!isDirect && (
+      {!isPrivateConversation && (
         <ChannelDetailsModal
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}
