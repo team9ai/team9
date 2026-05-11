@@ -27,6 +27,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
+}));
+
 vi.mock("@/hooks/useChannels", () => ({
   useChannel: (...args: unknown[]) => mockUseChannel(...args),
   useChannelMembers: (...args: unknown[]) => mockUseChannelMembers(...args),
