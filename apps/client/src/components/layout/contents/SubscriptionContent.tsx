@@ -883,7 +883,8 @@ export function SubscriptionContent({
                               Previous
                             </Button>
                             <span className="text-xs text-[#7e91b2]">
-                              Page {transactionsPage} of {transactionsTotalPages}
+                              Page {transactionsPage} of{" "}
+                              {transactionsTotalPages}
                             </span>
                             <Button
                               variant="outline"
@@ -907,6 +908,115 @@ export function SubscriptionContent({
                   </CardContent>
                 </Card>
               </div>
+
+              <Dialog
+                open={!!selectedTransaction}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setSelectedTransaction(null);
+                  }
+                }}
+              >
+                <DialogContent className="sm:max-w-md">
+                  {selectedTransaction ? (
+                    <>
+                      <DialogHeader>
+                        <DialogTitle>
+                          {getTransactionTitle(selectedTransaction)}
+                        </DialogTitle>
+                        <DialogDescription>
+                          {formatTransactionType(selectedTransaction.type)}
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <dl className="mt-2 space-y-3 text-sm">
+                        <TransactionDetailRow label="Time">
+                          {formatDateTime(selectedTransaction.createdAt)}
+                        </TransactionDetailRow>
+                        <TransactionDetailRow label="Credits">
+                          {formatCredits(selectedTransaction.amount)}
+                        </TransactionDetailRow>
+                        <TransactionDetailRow label="Balance">
+                          {formatCredits(selectedTransaction.balanceBefore)} →{" "}
+                          {formatCredits(selectedTransaction.balanceAfter)}
+                        </TransactionDetailRow>
+                        {selectedTransaction.description ? (
+                          <TransactionDetailRow label="Description">
+                            {selectedTransaction.description}
+                          </TransactionDetailRow>
+                        ) : null}
+                        {selectedTransaction.referenceType ||
+                        selectedTransaction.referenceId ? (
+                          <TransactionDetailRow label="Reference">
+                            <span className="flex items-center gap-1.5">
+                              <span className="break-all">
+                                {[
+                                  selectedTransaction.referenceType
+                                    ? formatStatusLabel(
+                                        selectedTransaction.referenceType,
+                                      )
+                                    : null,
+                                  selectedTransaction.referenceId,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                              {selectedTransaction.referenceId ? (
+                                <TransactionReferenceCopyButton
+                                  value={selectedTransaction.referenceId}
+                                />
+                              ) : null}
+                            </span>
+                          </TransactionDetailRow>
+                        ) : null}
+                        {selectedTransaction.agentId ? (
+                          <TransactionDetailRow label="Agent">
+                            {selectedTransaction.agentId}
+                          </TransactionDetailRow>
+                        ) : null}
+                        {selectedTransaction.operatorExternalId ? (
+                          <TransactionDetailRow label="Operator">
+                            {selectedTransaction.operatorExternalId}
+                          </TransactionDetailRow>
+                        ) : null}
+                        {selectedTransaction.paymentAmountCents !== null ? (
+                          <TransactionDetailRow label="Payment">
+                            {formatMoney(
+                              selectedTransaction.paymentAmountCents,
+                            )}
+                          </TransactionDetailRow>
+                        ) : null}
+                        {selectedTransaction.invoiceId ? (
+                          <TransactionDetailRow label="Invoice">
+                            {selectedTransaction.invoiceId}
+                          </TransactionDetailRow>
+                        ) : null}
+                      </dl>
+
+                      {selectedTransaction.invoiceId ||
+                      selectedTransaction.paymentAmountCents !== null ? (
+                        <DialogFooter className="mt-4 flex-col items-stretch gap-2 sm:flex-col sm:items-stretch">
+                          <Button
+                            variant="outline"
+                            onClick={() => void handleManageBilling("credits")}
+                            disabled={portal.isPending}
+                          >
+                            Get invoice
+                          </Button>
+                          {portal.error ? (
+                            <p className="text-xs text-destructive">
+                              {getErrorMessage(
+                                portal.error,
+                                "Couldn't open the billing portal. Please try again.",
+                              )}
+                            </p>
+                          ) : null}
+                        </DialogFooter>
+                      ) : null}
+                    </>
+                  ) : null}
+                </DialogContent>
+              </Dialog>
 
               {checkout.error ? (
                 <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-5 py-3.5 text-sm text-destructive">
