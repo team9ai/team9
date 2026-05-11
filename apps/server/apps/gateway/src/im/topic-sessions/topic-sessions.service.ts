@@ -85,10 +85,29 @@ export class TopicSessionsService {
     initialMessage: string;
     model?: { provider: string; id: string };
     title?: string | null;
+    attachments?: Array<{
+      // Owned upload (fileKey) vs external pass-through (fileUrl) — same
+      // contract as messages.service.sendFromBot. Exactly one must be set.
+      fileKey?: string;
+      fileUrl?: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+    }>;
   }): Promise<TopicSessionResponse> {
-    const { creatorId, tenantId, botUserId, initialMessage, model } = params;
+    const {
+      creatorId,
+      tenantId,
+      botUserId,
+      initialMessage,
+      model,
+      attachments,
+    } = params;
     const explicitTitle = params.title?.trim();
-    const title = explicitTitle || this.deriveTemporaryTitle(initialMessage);
+    const title =
+      explicitTitle ||
+      this.deriveTemporaryTitle(initialMessage, attachments) ||
+      'Untitled';
     const titleSource = explicitTitle ? 'manual' : 'temporary';
 
     // --- Step 1: resolve agentId from bot ---
@@ -186,7 +205,10 @@ export class TopicSessionsService {
     let messageId: string;
     try {
       const clientMsgId = uuidv7();
-      const messageType = determineMessageType(initialMessage, false);
+      const messageType = determineMessageType(
+        initialMessage,
+        !!attachments?.length,
+      );
       const result = await this.imWorkerGrpc.createMessage({
         clientMsgId,
         channelId,
@@ -194,6 +216,7 @@ export class TopicSessionsService {
         content: initialMessage,
         type: messageType,
         workspaceId,
+        ...(attachments?.length ? { attachments } : {}),
       });
       messageId = result.msgId;
     } catch (err) {
@@ -608,19 +631,34 @@ export class TopicSessionsService {
     return `team9/${tenantId ?? ''}/${agentId}/dm/${channelId}`;
   }
 
-  private deriveTemporaryTitle(initialMessage: string): string {
+  private deriveTemporaryTitle(
+    initialMessage: string,
+    attachments?: Array<{ fileName: string }>,
+  ): string {
     const normalized = initialMessage.replace(/\s+/g, ' ').trim();
-    const hasCjk =
-      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
-        normalized,
-      );
 
-    if (hasCjk) {
-      return Array.from(normalized).slice(0, 12).join('');
+    if (normalized.length > 0) {
+      const hasCjk =
+        /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
+          normalized,
+        );
+
+      if (hasCjk) {
+        return Array.from(normalized).slice(0, 12).join('');
+      }
+
+      const firstWords = normalized.split(' ').slice(0, 6).join(' ');
+      return Array.from(firstWords).slice(0, 40).join('');
     }
 
-    const firstWords = normalized.split(' ').slice(0, 6).join(' ');
-    return Array.from(firstWords).slice(0, 40).join('');
+    // No usable text — fall back to the first attachment's filename so
+    // the sidebar shows something meaningful before the auto-title pass.
+    const firstName = attachments?.[0]?.fileName?.trim();
+    if (firstName) {
+      return Array.from(firstName).slice(0, 40).join('');
+    }
+
+    return '';
   }
 
   /**
