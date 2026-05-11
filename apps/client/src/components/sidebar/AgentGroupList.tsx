@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, SquarePen } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
+import { navigateToNewTopic } from "@/lib/agent-topics";
 import type { TopicSessionGroup } from "@/services/api/im";
 
 type LinkPrefix = "/channels" | "/messages";
@@ -158,10 +159,7 @@ function AgentGroup({
     // Route back to the dashboard composer with the clicked agent pre-selected
     // via search param, so the composer header reflects the correct agent
     // instead of falling back to the dashboard's last-remembered selection.
-    void navigate({
-      to: "/channels",
-      search: { agentId: group.agentUserId },
-    });
+    navigateToNewTopic(navigate, group.agentUserId);
   };
 
   return (
@@ -213,14 +211,8 @@ function AgentGroup({
         <button
           type="button"
           onClick={handleNewTopic}
-          title={t("newTopic", {
-            ns: "navigation" as const,
-            defaultValue: "新建话题",
-          })}
-          aria-label={t("newTopic", {
-            ns: "navigation" as const,
-            defaultValue: "新建话题",
-          })}
+          title={t("newTopic", { ns: "navigation" as const })}
+          aria-label={t("newTopic", { ns: "navigation" as const })}
           className={cn(
             "absolute right-2 shrink-0 inline-flex size-5 items-center justify-center rounded",
             "text-nav-foreground-subtle transition-opacity",

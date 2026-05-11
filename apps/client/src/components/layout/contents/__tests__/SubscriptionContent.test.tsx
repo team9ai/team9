@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { changeLanguage } from "@/i18n/loadLanguage";
@@ -7,6 +13,7 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const mockWorkspaceStore = vi.hoisted(() => vi.fn());
 const mockUseUserWorkspaces = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
+const mockUseWorkspaceBillingTransactions = vi.hoisted(() => vi.fn());
 const mockUseCreateWorkspaceBillingCheckout = vi.hoisted(() => vi.fn());
 const mockUseCreateWorkspaceBillingPortal = vi.hoisted(() => vi.fn());
 const mockOpenExternalUrl = vi.hoisted(() => vi.fn());
@@ -27,6 +34,7 @@ vi.mock("@/hooks/useWorkspace", () => ({
 
 vi.mock("@/hooks/useWorkspaceBilling", () => ({
   useWorkspaceBillingOverview: mockUseWorkspaceBillingOverview,
+  useWorkspaceBillingTransactions: mockUseWorkspaceBillingTransactions,
   useCreateWorkspaceBillingCheckout: mockUseCreateWorkspaceBillingCheckout,
   useCreateWorkspaceBillingPortal: mockUseCreateWorkspaceBillingPortal,
 }));
@@ -52,6 +60,14 @@ describe("SubscriptionContent", () => {
     mockUseUserWorkspaces.mockReturnValue({
       data: [{ id: "ws-1", name: "Alpha", role: "owner" }],
       isLoading: false,
+    });
+
+    mockUseWorkspaceBillingTransactions.mockReturnValue({
+      data: { transactions: [], total: 0, page: 1, limit: 10 },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      error: null,
     });
 
     mockUseCreateWorkspaceBillingCheckout.mockReturnValue({
@@ -802,5 +818,94 @@ describe("SubscriptionContent", () => {
     expect(
       screen.queryByRole("button", { name: /open billing portal/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("paginates the credits transaction list and opens the details dialog", async () => {
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          id: "acct_1",
+          ownerExternalId: "tenant:ws-1",
+          ownerType: "organization",
+          ownerName: "Alpha",
+          balance: 0,
+          grantBalance: 5000,
+          quota: 0,
+          quotaExpiresAt: null,
+          effectiveQuota: 0,
+          available: 5000,
+          creditLimit: 0,
+          status: "active",
+          metadata: null,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
+        },
+        subscription: null,
+        subscriptionProducts: [],
+        creditProducts: [],
+        recentTransactions: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseWorkspaceBillingTransactions.mockReturnValue({
+      data: {
+        transactions: [
+          {
+            id: "txn_1",
+            accountId: "acct_1",
+            type: "consume",
+            amount: 1.798,
+            balanceBefore: 0,
+            balanceAfter: 0,
+            operatorExternalId: "op-1",
+            agentId: "agent-1",
+            referenceType: "llm_usage",
+            referenceId: "gen-abc-123",
+            description: "LLM usage: openai/gpt-5.4-mini via openrouter",
+            createdAt: "2026-05-11T06:06:00.000Z",
+            productName: null,
+            paymentAmountCents: null,
+            invoiceId: null,
+          },
+        ],
+        total: 25,
+        page: 1,
+        limit: 10,
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      error: null,
+    });
+
+    render(<SubscriptionContent view="credits" />);
+
+    expect(await screen.findByText("Recent Transactions")).toBeInTheDocument();
+    // The always-empty Amount column was removed.
+    expect(
+      screen.queryByRole("columnheader", { name: /amount/i }),
+    ).not.toBeInTheDocument();
+
+    // Pagination: 25 / 10 -> 3 pages, Previous disabled on the first page.
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /previous/i })).toBeEnabled();
+
+    // Clicking a transaction row opens the details dialog with its fields.
+    fireEvent.click(
+      screen.getByText("LLM usage: openai/gpt-5.4-mini via openrouter", {
+        selector: "div",
+      }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Usage")).toBeInTheDocument();
+    expect(within(dialog).getByText("agent-1")).toBeInTheDocument();
+    expect(within(dialog).getByText("gen-abc-123")).toBeInTheDocument();
+    // Confusing "balance before -> after" row is gone.
+    expect(within(dialog).queryByText(/^balance$/i)).not.toBeInTheDocument();
   });
 });

@@ -401,4 +401,95 @@ describe('BillingHubService', () => {
       );
     });
   });
+
+  describe('getWorkspaceTransactionsPage', () => {
+    const workspaceId = '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14';
+
+    it('fetches the requested page with page+limit query params for managers', async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              success: true,
+              data: {
+                transactions: [
+                  {
+                    id: 'txn_9',
+                    accountId: 'acct_1',
+                    type: 'charge',
+                    amount: -50,
+                    balanceBefore: 300,
+                    balanceAfter: 250,
+                    operatorExternalId: null,
+                    agentId: 'agent_1',
+                    referenceType: 'message',
+                    referenceId: 'msg_9',
+                    description: 'LLM usage',
+                    createdAt: '2026-04-02T00:00:00.000Z',
+                    productName: null,
+                    paymentAmountCents: null,
+                    invoiceId: null,
+                  },
+                ],
+                total: 21,
+                page: 2,
+                limit: 10,
+                totalPages: 3,
+              },
+            }),
+          ),
+      });
+
+      const result = await service.getWorkspaceTransactionsPage(
+        workspaceId,
+        2,
+        10,
+        'owner',
+      );
+
+      expect(result).toEqual({
+        transactions: [expect.objectContaining({ id: 'txn_9' })],
+        total: 21,
+        page: 2,
+        limit: 10,
+      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://billing.example.com/api/billing/account/transactions?ownerExternalId=tenant%3A72ecfcd7-d495-43a4-8b8a-8fda2d9cec14&page=2&limit=10',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    it('returns an empty page without calling Billing Hub for non-managers', async () => {
+      const result = await service.getWorkspaceTransactionsPage(
+        workspaceId,
+        1,
+        10,
+        'member',
+      );
+      expect(result).toEqual({
+        transactions: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+      });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty page when no role is provided', async () => {
+      const result = await service.getWorkspaceTransactionsPage(
+        workspaceId,
+        1,
+        10,
+      );
+      expect(result).toEqual({
+        transactions: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+      });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+  });
 });

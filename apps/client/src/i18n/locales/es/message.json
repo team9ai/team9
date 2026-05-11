@@ -47,7 +47,5 @@
   "deleteConfirm": "Eliminar",
   "deleteCancel": "Cancelar",
   "loadingFullContent": "Cargando contenido completo...",
-  "loadFullContentFailed": "Error al cargar el contenido completo. Cancela e inténtalo de nuevo.",
-  "expandFullContent": "Expandir texto completo",
-  "remainingChars": "(~{{chars}} caracteres más)"
+  "loadFullContentFailed": "Error al cargar el contenido completo. Cancela e inténtalo de nuevo."
 }

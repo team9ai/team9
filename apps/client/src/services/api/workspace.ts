@@ -13,6 +13,7 @@ import type {
   BillingProduct,
   WorkspaceBillingOverview,
   WorkspaceBillingSummary,
+  WorkspaceBillingTransactionsPage,
   OnboardingRoleCatalogItem,
   OnboardingRoleSelection,
   OnboardingTasksSelection,
@@ -160,6 +161,18 @@ export const workspaceApi = {
   ): Promise<WorkspaceBillingOverview> => {
     const response = await http.get<WorkspaceBillingOverview>(
       `/v1/workspaces/${workspaceId}/billing/overview`,
+    );
+    return response.data;
+  },
+
+  getBillingTransactions: async (
+    workspaceId: string,
+    page = 1,
+    limit = 10,
+  ): Promise<WorkspaceBillingTransactionsPage> => {
+    const response = await http.get<WorkspaceBillingTransactionsPage>(
+      `/v1/workspaces/${workspaceId}/billing/transactions`,
+      { params: { page, limit } },
     );
     return response.data;
   },

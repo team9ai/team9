@@ -30,6 +30,7 @@
   "starred": "Starred",
   "starredDescription": "Drag important items here",
   "newMessage": "New Message",
+  "newTopic": "New Topic",
   "addChannel": "Add channel",
   "welcomeBack": "Welcome back",
   "welcomeBackTo": "Welcome back to {{workspace}}!",

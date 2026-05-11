@@ -30,6 +30,7 @@
   "starred": "즐겨찾기",
   "starredDescription": "중요한 항목을 여기로 드래그하세요",
   "newMessage": "새 메시지",
+  "newTopic": "새 주제",
   "addChannel": "채널 추가",
   "welcomeBack": "돌아오신 것을 환영합니다",
   "welcomeBackTo": "{{workspace}}에 오신 것을 환영합니다!",

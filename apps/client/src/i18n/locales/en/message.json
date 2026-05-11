@@ -47,7 +47,5 @@
   "deleteConfirm": "Delete",
   "deleteCancel": "Cancel",
   "loadingFullContent": "Loading full content...",
-  "loadFullContentFailed": "Failed to load full content. Please cancel and try again.",
-  "expandFullContent": "Expand full content",
-  "remainingChars": "(~{{chars}} more characters)"
+  "loadFullContentFailed": "Failed to load full content. Please cancel and try again."
 }

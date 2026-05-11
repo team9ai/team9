@@ -30,6 +30,7 @@
   "starred": "Favoritos",
   "starredDescription": "Arraste itens importantes para cá",
   "newMessage": "Nova mensagem",
+  "newTopic": "Novo tópico",
   "addChannel": "Adicionar canal",
   "welcomeBack": "Bem-vindo de volta",
   "welcomeBackTo": "Bem-vindo de volta ao {{workspace}}!",

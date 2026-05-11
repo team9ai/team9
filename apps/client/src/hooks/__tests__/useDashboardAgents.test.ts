@@ -216,4 +216,131 @@ describe("buildDashboardAgents", () => {
       hasExistingChannel: true,
     });
   });
+
+  it("computes anthropic agentModelFamily and enables switching for a Claude base-model bot", () => {
+    const installedApps = [
+      makeInstalledApp({
+        id: "base-app",
+        applicationId: "base-model-staff",
+        name: "Base Model Staff",
+        bots: [
+          {
+            botId: "bot-claude",
+            userId: "bot-user-claude",
+            agentType: null,
+            username: "claude_bot",
+            displayName: "Claude",
+            isActive: true,
+            createdAt: "2026-05-11T00:00:00.000Z",
+            managedMeta: { agentId: "base-model-claude-tenant-1" },
+          },
+        ],
+      }),
+    ] as InstalledApplicationWithBots[];
+
+    const agents = buildDashboardAgents(installedApps, [], "me");
+
+    expect(agents).toHaveLength(1);
+    expect(agents[0]).toMatchObject({
+      applicationId: "base-model-staff",
+      agentModelFamily: "anthropic",
+      canSwitchModel: true,
+    });
+  });
+
+  it("computes openai agentModelFamily for a ChatGPT base-model bot", () => {
+    const installedApps = [
+      makeInstalledApp({
+        id: "base-app",
+        applicationId: "base-model-staff",
+        name: "Base Model Staff",
+        bots: [
+          {
+            botId: "bot-gpt",
+            userId: "bot-user-gpt",
+            agentType: null,
+            username: "chatgpt_bot",
+            displayName: "ChatGPT",
+            isActive: true,
+            createdAt: "2026-05-11T00:00:00.000Z",
+            managedMeta: { agentId: "base-model-chatgpt-tenant-1" },
+          },
+        ],
+      }),
+    ] as InstalledApplicationWithBots[];
+
+    const agents = buildDashboardAgents(installedApps, [], "me");
+
+    expect(agents[0]).toMatchObject({
+      agentModelFamily: "openai",
+      canSwitchModel: true,
+    });
+  });
+
+  it("keeps base-model bots read-only when the family cannot be resolved", () => {
+    const installedApps = [
+      makeInstalledApp({
+        id: "base-app",
+        applicationId: "base-model-staff",
+        name: "Base Model Staff",
+        bots: [
+          {
+            botId: "bot-mystery",
+            userId: "bot-user-mystery",
+            agentType: null,
+            username: "mystery_bot",
+            displayName: "Mystery",
+            isActive: true,
+            createdAt: "2026-05-11T00:00:00.000Z",
+            managedMeta: { agentId: "base-model-mystery-tenant-1" },
+          },
+        ],
+      }),
+    ] as InstalledApplicationWithBots[];
+
+    const agents = buildDashboardAgents(installedApps, [], "me");
+
+    expect(agents[0]).toMatchObject({
+      agentModelFamily: null,
+      canSwitchModel: false,
+    });
+  });
+
+  it("leaves common-staff agents with a null agentModelFamily so all models stay selectable", () => {
+    const installedApps = [
+      makeInstalledApp({
+        id: "common-app",
+        applicationId: "common-staff",
+        name: "Common Staff",
+        bots: [
+          {
+            botId: "bot-common",
+            userId: "bot-user-common",
+            username: "common_staff",
+            displayName: "Common Staff",
+            roleTitle: null,
+            shortRoleTitle: null,
+            persona: null,
+            jobDescription: null,
+            avatarUrl: null,
+            model: null,
+            mentorId: null,
+            mentorDisplayName: null,
+            mentorAvatarUrl: null,
+            isActive: true,
+            createdAt: "2026-05-11T00:00:00.000Z",
+            managedMeta: { agentId: "common-1" },
+          },
+        ],
+      }),
+    ] as InstalledApplicationWithBots[];
+
+    const agents = buildDashboardAgents(installedApps, [], "me");
+
+    expect(agents[0]).toMatchObject({
+      applicationId: "common-staff",
+      agentModelFamily: null,
+      canSwitchModel: true,
+    });
+  });
 });

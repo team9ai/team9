@@ -10,6 +10,7 @@ describe('WorkspaceBillingController', () => {
     listSubscriptionProducts: jest.Mock<any>;
     getWorkspaceSubscription: jest.Mock<any>;
     getWorkspaceOverview: jest.Mock<any>;
+    getWorkspaceTransactionsPage: jest.Mock<any>;
     createWorkspaceCheckout: jest.Mock<any>;
     createWorkspacePortal: jest.Mock<any>;
   };
@@ -24,6 +25,12 @@ describe('WorkspaceBillingController', () => {
         subscriptionProducts: [],
         creditProducts: [],
         recentTransactions: [],
+      }),
+      getWorkspaceTransactionsPage: jest.fn<any>().mockResolvedValue({
+        transactions: [],
+        total: 0,
+        page: 1,
+        limit: 10,
       }),
       createWorkspaceCheckout: jest.fn<any>().mockResolvedValue({
         checkoutUrl: 'https://checkout.stripe.com/session',
@@ -174,5 +181,63 @@ describe('WorkspaceBillingController', () => {
         WorkspaceBillingController.prototype.createPortal,
       ),
     ).toEqual(['owner', 'admin']);
+  });
+
+  it('forwards page, limit, and role to BillingHubService for transactions', async () => {
+    await controller.getTransactions(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      '2',
+      '25',
+      { workspaceRole: 'owner' },
+    );
+    expect(
+      billingHubService.getWorkspaceTransactionsPage,
+    ).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      2,
+      25,
+      'owner',
+    );
+  });
+
+  it('clamps bad page/limit query input to safe defaults', async () => {
+    await controller.getTransactions(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      '0',
+      '500',
+      { workspaceRole: 'owner' },
+    );
+    expect(
+      billingHubService.getWorkspaceTransactionsPage,
+    ).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      1,
+      50,
+      'owner',
+    );
+
+    await controller.getTransactions(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      undefined,
+      undefined,
+      { workspaceRole: 'owner' },
+    );
+    expect(
+      billingHubService.getWorkspaceTransactionsPage,
+    ).toHaveBeenLastCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      1,
+      10,
+      'owner',
+    );
+  });
+
+  it('does not gate transaction reads behind owner/admin metadata', () => {
+    expect(
+      Reflect.getMetadata(
+        WORKSPACE_ROLES_KEY,
+        WorkspaceBillingController.prototype.getTransactions,
+      ),
+    ).toBeUndefined();
   });
 });

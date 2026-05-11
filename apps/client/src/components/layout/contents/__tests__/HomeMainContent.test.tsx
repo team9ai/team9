@@ -135,6 +135,7 @@ describe("HomeMainContent", () => {
           model: { provider: "openrouter", id: "openai/gpt-4.1" },
           managedAgentId: "common-staff-bot-1",
           canSwitchModel: true,
+          agentModelFamily: null,
         },
         {
           userId: "agent-2",
@@ -149,6 +150,7 @@ describe("HomeMainContent", () => {
           model: { provider: "openrouter", id: "anthropic/claude-opus-4.6" },
           managedAgentId: "common-staff-bot-2",
           canSwitchModel: true,
+          agentModelFamily: null,
         },
       ],
     });
@@ -224,13 +226,40 @@ describe("HomeMainContent", () => {
     });
   });
 
-  it("shows a static model label for base-model agents that cannot switch", () => {
+  it("shows a static model label for unrecognized base-model agents that cannot switch", () => {
     mockUseDashboardAgents.mockReturnValue({
       agents: [
         {
-          userId: "base-agent-1",
-          botId: "base-bot-1",
-          channelId: "bot-ch-1",
+          userId: "base-agent-mystery",
+          botId: "mystery-bot",
+          channelId: "bot-ch-mystery",
+          label: "Mystery",
+          username: "mystery_bot",
+          applicationId: "base-model-staff",
+          installedApplicationId: "app-base",
+          agentType: "base_model",
+          hasExistingChannel: true,
+          model: null,
+          managedAgentId: "base-model-mystery-ws-1",
+          canSwitchModel: false,
+          agentModelFamily: null,
+        },
+      ],
+    });
+
+    renderWithProviders(<HomeMainContent />);
+
+    // Fallback label from translation map for the read-only pill.
+    expect(screen.getByText("GPT5.4")).toBeInTheDocument();
+  });
+
+  it("shows only family-matching models in the picker for a recognized Claude base-model agent", async () => {
+    mockUseDashboardAgents.mockReturnValue({
+      agents: [
+        {
+          userId: "base-agent-claude",
+          botId: "claude-bot",
+          channelId: "bot-ch-claude",
           label: "Claude",
           username: "claude_bot",
           applicationId: "base-model-staff",
@@ -239,14 +268,37 @@ describe("HomeMainContent", () => {
           hasExistingChannel: true,
           model: null,
           managedAgentId: "base-model-claude-ws-1",
-          canSwitchModel: false,
+          canSwitchModel: true,
+          agentModelFamily: "anthropic",
         },
       ],
     });
 
     renderWithProviders(<HomeMainContent />);
 
-    expect(screen.getByText("Claude Sonnet 4.6")).toBeInTheDocument();
+    // The composer model trigger shows the family default label
+    // (Claude Sonnet 4.6) because no override is selected yet.
+    const trigger = screen.getByRole("button", { name: /claude sonnet 4\.6/i });
+    fireEvent.pointerDown(trigger);
+
+    // Both Anthropic models present.
+    expect(
+      await screen.findByRole("menuitemradio", { name: /claude opus 4\.7/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitemradio", { name: /claude sonnet 4\.6/i }),
+    ).toBeInTheDocument();
+
+    // Non-Anthropic models filtered out.
+    expect(
+      screen.queryByRole("menuitemradio", { name: /gpt-5\.4/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitemradio", { name: /gemini/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitemradio", { name: /qwen/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the model picker button for switchable agents", () => {
@@ -273,6 +325,7 @@ describe("HomeMainContent", () => {
           model: null,
           managedAgentId: "base-model-claude-ws-1",
           canSwitchModel: false,
+          agentModelFamily: null,
         },
         {
           userId: "agent-personal",
@@ -287,6 +340,7 @@ describe("HomeMainContent", () => {
           model: { provider: "openrouter", id: "openai/gpt-4.1" },
           managedAgentId: null,
           canSwitchModel: true,
+          agentModelFamily: null,
         },
       ],
     });
