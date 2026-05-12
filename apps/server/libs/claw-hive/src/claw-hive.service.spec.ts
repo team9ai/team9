@@ -518,6 +518,46 @@ describe('ClawHiveService', () => {
     });
   });
 
+  // ── startSession ─────────────────────────────────────────────────────────
+
+  describe('startSession', () => {
+    it('sends POST to /api/sessions/{id}/start with auth headers', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ status: 'started' }));
+
+      await service.startSession('my-session-id', 'tenant-abc');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/my-session-id/start',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'X-Hive-Auth': 'test-token',
+            'X-Hive-Tenant': 'tenant-abc',
+          }),
+        }),
+      );
+    });
+
+    it('URL-encodes session IDs containing slashes', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({}));
+
+      await service.startSession('team9/t1/agent/task/task-1');
+
+      const calledUrl = (mockFetch.mock.calls[0] as any[])[0] as string;
+      expect(calledUrl).toBe(
+        'http://test-hive:9999/api/sessions/team9%2Ft1%2Fagent%2Ftask%2Ftask-1/start',
+      );
+    });
+
+    it('throws when response is not ok', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Session not found', 404));
+
+      await expect(service.startSession('bad-session')).rejects.toThrow(
+        'Failed to start session: 404',
+      );
+    });
+  });
+
   // ── deleteSession ─────────────────────────────────────────────────────────
 
   describe('deleteSession', () => {

@@ -47,10 +47,7 @@ export function projectSafeComponents(
       ...(component.schema !== undefined && { schema: component.schema }),
       latestData: component.latestData
         ? {
-            data: redactSensitiveValue(component.latestData.data) as Record<
-              string,
-              unknown
-            >,
+            data: redactSensitiveValue(component.latestData.data),
             capturedAtCallId: component.latestData.capturedAtCallId,
             capturedAt: component.latestData.capturedAt,
           }
@@ -80,17 +77,11 @@ export function filterAgentSessionEvent(
         if (!component || typeof component !== 'object') return [];
         const row = component as Record<string, unknown>;
         if (typeof row.componentId !== 'string') return [];
-        if (
-          !row.data ||
-          typeof row.data !== 'object' ||
-          Array.isArray(row.data)
-        ) {
-          return [];
-        }
+        if (row.data === undefined) return [];
         return [
           {
             componentId: row.componentId,
-            data: redactSensitiveValue(row.data) as Record<string, unknown>,
+            data: redactSensitiveValue(row.data),
           },
         ];
       })

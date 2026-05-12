@@ -47,7 +47,7 @@ export interface HiveSessionComponentItem {
   schema?: unknown[];
   runtimeInjectedOnly: boolean;
   latestData: {
-    data: Record<string, unknown>;
+    data: unknown;
     capturedAtCallId: string | null;
     capturedAt: number;
   } | null;
@@ -351,6 +351,18 @@ export class ClawHiveService {
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Failed to interrupt session: ${res.status} ${text}`);
+    }
+  }
+
+  /** Start (resume) a paused session loop. */
+  async startSession(sessionId: string, tenantId?: string): Promise<void> {
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/start`,
+      { method: 'POST', headers: this.headers(tenantId) },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to start session: ${res.status} ${text}`);
     }
   }
 

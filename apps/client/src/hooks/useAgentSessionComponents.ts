@@ -25,6 +25,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasOwnData(value: Record<string, unknown>): boolean {
+  return Object.prototype.hasOwnProperty.call(value, "data");
+}
+
 function isSnapshotEvent(value: unknown): value is ComponentDataSnapshotEvent {
   if (!isRecord(value)) return false;
   return (
@@ -37,7 +41,8 @@ function isSnapshotEvent(value: unknown): value is ComponentDataSnapshotEvent {
       (component) =>
         isRecord(component) &&
         typeof component.componentId === "string" &&
-        isRecord(component.data),
+        hasOwnData(component) &&
+        component.data !== undefined,
     )
   );
 }

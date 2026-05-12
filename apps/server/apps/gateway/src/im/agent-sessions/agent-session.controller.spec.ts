@@ -6,7 +6,12 @@ type MockFn = jest.Mock<(...args: any[]) => any>;
 
 describe('AgentSessionController', () => {
   let bindingService: { resolve: MockFn };
-  let clawHive: { getSessionStatus: MockFn; getSessionComponents: MockFn };
+  let clawHive: {
+    getSessionStatus: MockFn;
+    getSessionComponents: MockFn;
+    interruptSession: MockFn;
+    startSession: MockFn;
+  };
   let jwtService: { verify: MockFn };
   let controller: AgentSessionController;
 
@@ -17,6 +22,8 @@ describe('AgentSessionController', () => {
     clawHive = {
       getSessionStatus: jest.fn<any>(),
       getSessionComponents: jest.fn<any>(),
+      interruptSession: jest.fn<any>(),
+      startSession: jest.fn<any>(),
     };
     jwtService = {
       verify: jest.fn<any>(),
@@ -159,6 +166,47 @@ describe('AgentSessionController', () => {
       controller.getComponents('user-1', 'channel-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(clawHive.getSessionComponents).not.toHaveBeenCalled();
+  });
+
+  it('pauses the resolved agent session through Hive', async () => {
+    bindingService.resolve.mockResolvedValue({
+      channelId: 'channel-1',
+      channelType: 'direct',
+      kind: 'dm',
+      tenantId: 'tenant-1',
+      supported: true,
+      agentId: 'agent-1',
+      botUserId: 'bot-user-1',
+      sessionId: 'session-1',
+    });
+    clawHive.interruptSession.mockResolvedValue(undefined);
+
+    await expect(
+      controller.pauseSession('user-1', 'channel-1'),
+    ).resolves.toEqual({ status: 'paused' });
+    expect(clawHive.interruptSession).toHaveBeenCalledWith(
+      'session-1',
+      'tenant-1',
+    );
+  });
+
+  it('resumes the resolved agent session through Hive', async () => {
+    bindingService.resolve.mockResolvedValue({
+      channelId: 'channel-1',
+      channelType: 'direct',
+      kind: 'dm',
+      tenantId: null,
+      supported: true,
+      agentId: 'agent-1',
+      botUserId: 'bot-user-1',
+      sessionId: 'session-1',
+    });
+    clawHive.startSession.mockResolvedValue(undefined);
+
+    await expect(
+      controller.resumeSession('user-1', 'channel-1'),
+    ).resolves.toEqual({ status: 'resumed' });
+    expect(clawHive.startSession).toHaveBeenCalledWith('session-1', undefined);
   });
 
   it('filters SSE records through the agent session allowlist and redaction', () => {

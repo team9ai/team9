@@ -212,6 +212,14 @@ export const channelsApi = {
     return response.data;
   },
 
+  pauseAgentSession: async (channelId: string): Promise<void> => {
+    await http.post(`/v1/im/channels/${channelId}/agent-session/pause`, {});
+  },
+
+  resumeAgentSession: async (channelId: string): Promise<void> => {
+    await http.post(`/v1/im/channels/${channelId}/agent-session/resume`, {});
+  },
+
   // Get the effective LLM model for this channel's agent session.
   // Only available on human↔agent DM and routine-session channels.
   getChannelModel: async (

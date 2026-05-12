@@ -3,13 +3,18 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SafeSessionComponentItem } from "@/types/im";
 
+function formatSnapshotData(data: unknown): string {
+  return JSON.stringify(data, null, 2) ?? "undefined";
+}
+
 export function SessionComponentRow({
   component,
 }: {
   component: SafeSessionComponentItem;
 }) {
   const [open, setOpen] = useState(true);
-  const data = component.latestData?.data ?? null;
+  const hasSnapshot = component.latestData !== null;
+  const data = component.latestData?.data;
 
   return (
     <div className="border-b border-border/60 py-2 last:border-b-0">
@@ -33,8 +38,8 @@ export function SessionComponentRow({
         )}
       </button>
       {open && (
-        <pre className="mt-2 max-h-48 overflow-auto rounded border border-border/60 bg-muted/30 p-2 text-[11px] leading-4 text-muted-foreground">
-          {data ? JSON.stringify(data, null, 2) : "No snapshot yet"}
+        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border border-border/60 bg-muted/30 p-2 text-[11px] leading-4 text-muted-foreground">
+          {hasSnapshot ? formatSnapshotData(data) : "No snapshot yet"}
         </pre>
       )}
     </div>
