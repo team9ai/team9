@@ -99,6 +99,13 @@ export function ChannelHeader({
   const agentDisplayName =
     associatedAgent?.displayName || associatedAgent?.username || null;
   const agentIdentifier = associatedAgent?.agentId || associatedAgent?.id;
+  const showAssociatedAgentPills = Boolean(
+    associatedAgent?.staffKind && associatedAgent.agentType !== "base_model",
+  );
+  const showStandaloneRoleTitle = Boolean(
+    associatedAgent?.roleTitle &&
+    (!showAssociatedAgentPills || associatedAgent.staffKind !== "common"),
+  );
   const canEditTitle =
     !isDirect &&
     (channel.type === "topic-session" ||
@@ -309,7 +316,15 @@ export function ChannelHeader({
                     </span>
                   </UserHoverCard>
                 )}
-                {associatedAgent?.roleTitle && (
+                {showAssociatedAgentPills && associatedAgent?.staffKind && (
+                  <AgentPillRow
+                    staffKind={associatedAgent.staffKind}
+                    roleTitle={associatedAgent.roleTitle}
+                    ownerName={associatedAgent.ownerName}
+                    className="mt-0 w-auto max-w-[14rem] shrink-0"
+                  />
+                )}
+                {showStandaloneRoleTitle && associatedAgent?.roleTitle && (
                   <Badge
                     variant="outline"
                     size="sm"

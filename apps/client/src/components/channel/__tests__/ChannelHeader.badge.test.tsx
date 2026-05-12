@@ -262,6 +262,59 @@ describe("ChannelHeader · Model badge placement", () => {
     });
   });
 
+  it("keeps staff badges visible when the agent identifier is copyable", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const longAgentId = "personal-staff-019d7315-a4bb-7039-bdbe-b810e026061d";
+
+    render(
+      <ChannelHeader
+        channel={
+          {
+            id: "topic-1",
+            tenantId: "tenant-1",
+            name: "测试a2ui",
+            type: "topic-session",
+            createdBy: "user-1",
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            unreadCount: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z",
+            otherUser: {
+              id: "bot-lia",
+              username: "lia",
+              displayName: "Lia",
+              status: "online",
+              userType: "bot",
+              agentType: null,
+              staffKind: "personal",
+              agentId: longAgentId,
+            },
+          } as ChannelWithUnread
+        }
+      />,
+    );
+
+    expect(screen.getByText("Lia")).toBeInTheDocument();
+    expect(screen.getByText("agentPillAi")).toBeInTheDocument();
+    expect(screen.getByText("agentPillPersonalAssistant")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Copy agent id ${longAgentId}`,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(longAgentId);
+    });
+  });
+
   it("does not render member-management actions for topic-session channels", () => {
     mockUseChannelMembers.mockReturnValue({
       data: [
