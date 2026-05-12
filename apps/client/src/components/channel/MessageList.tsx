@@ -697,7 +697,7 @@ export function MessageList({
             )
           : agentMeta;
         return (
-          <div id={`message-${message.id}`} className="ml-14 mr-8 py-1">
+          <div id={`message-${message.id}`} className="ml-2 mr-8 py-1">
             <A2UISurfaceBlock
               message={message}
               metadata={surfaceMeta}
@@ -711,7 +711,7 @@ export function MessageList({
       // A2UI response — compact "User selected X" display
       if (agentMeta?.agentEventType === "a2ui_response") {
         return (
-          <div id={`message-${message.id}`} className="ml-14 mr-8 py-1">
+          <div id={`message-${message.id}`} className="ml-2 mr-8 py-1">
             <A2UIResponseItem message={message} metadata={agentMeta} />
           </div>
         );

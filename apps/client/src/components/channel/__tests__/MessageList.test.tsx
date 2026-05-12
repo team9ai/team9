@@ -460,11 +460,11 @@ describe("MessageList — round auto-fold", () => {
     });
     expect(screen.getByTestId("a2ui-response")).toBeInTheDocument();
     expect(screen.getByTestId("a2ui-surface").parentElement).toHaveClass(
-      "ml-14",
+      "ml-2",
       "mr-8",
     );
     expect(screen.getByTestId("a2ui-response").parentElement).toHaveClass(
-      "ml-14",
+      "ml-2",
       "mr-8",
     );
     expect(screen.getByTestId("a2ui-response").parentElement).not.toHaveClass(
