@@ -11,6 +11,7 @@ import { PropertiesModule } from './properties/properties.module.js';
 import { ViewsModule } from './views/views.module.js';
 import { BotMessagingModule } from './bot/bot-messaging.module.js';
 import { TopicSessionsModule } from './topic-sessions/topic-sessions.module.js';
+import { AgentSessionsModule } from './agent-sessions/agent-sessions.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { TopicSessionsModule } from './topic-sessions/topic-sessions.module.js';
     ViewsModule,
     BotMessagingModule,
     TopicSessionsModule,
+    AgentSessionsModule,
   ],
   exports: [
     AuthModule,
@@ -39,6 +41,7 @@ import { TopicSessionsModule } from './topic-sessions/topic-sessions.module.js';
     PropertiesModule,
     ViewsModule,
     TopicSessionsModule,
+    AgentSessionsModule,
   ],
 })
 export class ImModule {}

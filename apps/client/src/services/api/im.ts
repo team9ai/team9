@@ -30,6 +30,8 @@ import type {
   GetSubRepliesParams,
   SyncMessagesResponse,
   SyncAckDto,
+  AgentSessionBinding,
+  SafeSessionComponentsResponse,
 } from "@/types/im";
 import { normalizeMessage, normalizeMessages } from "./normalize-reactions";
 
@@ -176,6 +178,22 @@ export const channelsApi = {
     await http.patch(`/v1/im/channels/${channelId}/sidebar-visibility`, {
       show,
     });
+  },
+
+  getAgentSession: async (channelId: string): Promise<AgentSessionBinding> => {
+    const response = await http.get<AgentSessionBinding>(
+      `/v1/im/channels/${channelId}/agent-session`,
+    );
+    return response.data;
+  },
+
+  getAgentSessionComponents: async (
+    channelId: string,
+  ): Promise<SafeSessionComponentsResponse> => {
+    const response = await http.get<SafeSessionComponentsResponse>(
+      `/v1/im/channels/${channelId}/agent-session/components`,
+    );
+    return response.data;
   },
 
   // Get the effective LLM model for this channel's agent session.

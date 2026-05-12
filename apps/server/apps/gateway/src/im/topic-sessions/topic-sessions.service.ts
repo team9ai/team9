@@ -23,7 +23,10 @@ import * as schema from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
 import { GatewayMQService } from '@team9/rabbitmq';
 import { type PostBroadcastTask } from '@team9/shared';
-import { ChannelsService } from '../channels/channels.service.js';
+import {
+  ChannelsService,
+  type ChannelResponse,
+} from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
@@ -114,6 +117,7 @@ export class TopicSessionsService {
     const [botRow] = await this.db
       .select({
         userId: schema.bots.userId,
+        tenantId: schema.installedApplications.tenantId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
@@ -121,14 +125,26 @@ export class TopicSessionsService {
       })
       .from(schema.bots)
       .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
-      .where(eq(schema.bots.userId, botUserId))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(
+        and(
+          eq(schema.bots.userId, botUserId),
+          tenantId
+            ? eq(schema.installedApplications.tenantId, tenantId)
+            : undefined,
+        ),
+      )
       .limit(1);
 
     if (
       !botRow ||
       botRow.userType !== 'bot' ||
       !botRow.isActive ||
-      botRow.managedProvider !== 'hive'
+      botRow.managedProvider !== 'hive' ||
+      (tenantId && botRow.tenantId !== tenantId)
     ) {
       throw new BadRequestException(
         'Target user is not an active hive-managed agent',
@@ -180,7 +196,7 @@ export class TopicSessionsService {
     }
 
     // --- Step 5: create channel + members in team9 DB ---
-    let channel;
+    let channel: ChannelResponse;
     try {
       channel = await this.channels.createTopicSessionChannel({
         creatorId,
