@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChannelView } from "../ChannelView";
 
@@ -142,7 +142,8 @@ vi.mock("@/hooks/useBotStartupCountdown", () => ({
 }));
 
 vi.mock("@/hooks/useChannelAgentSession", () => ({
-  useChannelAgentSession: () => viewState.agentSession,
+  useChannelAgentSession: (_channelId: string, enabled: boolean) =>
+    enabled ? viewState.agentSession : { data: undefined },
 }));
 
 vi.mock("@/hooks/useAgentSessionComponents", () => ({
@@ -157,7 +158,33 @@ vi.mock("../agent-session/AgentSessionPanel", () => ({
   AgentSessionPanel: () => <aside>Agent Session Panel</aside>,
 }));
 
-vi.mock("../ChannelHeader", () => ({ ChannelHeader: () => <div /> }));
+vi.mock("../ChannelHeader", () => ({
+  ChannelHeader: ({
+    showAgentSessionToggle,
+    isAgentSessionPanelOpen,
+    onToggleAgentSessionPanel,
+  }: {
+    showAgentSessionToggle?: boolean;
+    isAgentSessionPanelOpen?: boolean;
+    onToggleAgentSessionPanel?: () => void;
+  }) => (
+    <div>
+      {showAgentSessionToggle && (
+        <button
+          type="button"
+          aria-label={
+            isAgentSessionPanelOpen
+              ? "Hide agent session panel"
+              : "Show agent session panel"
+          }
+          onClick={onToggleAgentSessionPanel}
+        >
+          Agent Session Toggle
+        </button>
+      )}
+    </div>
+  ),
+}));
 vi.mock("../ChannelTabs", () => ({ ChannelTabs: () => <div /> }));
 vi.mock("../ChannelContent", () => ({
   ChannelContent: () => <div data-testid="channel-content" />,
@@ -199,8 +226,51 @@ describe("ChannelView agent session panel", () => {
     };
   });
 
-  it("renders the session panel for a supported binding", () => {
+  it("keeps the session panel collapsed until the header toggle is clicked", () => {
     render(<ChannelView channelId="channel-1" />);
+
+    expect(screen.queryByText("Agent Session Panel")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show agent session panel" }),
+    );
+
+    expect(screen.getByText("Agent Session Panel")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide agent session panel" }),
+    );
+
+    expect(screen.queryByText("Agent Session Panel")).not.toBeInTheDocument();
+  });
+
+  it("requests the session binding for topic-session channels even before otherUser is hydrated", () => {
+    viewState.channel = {
+      id: "topic-1",
+      tenantId: "tenant-1",
+      type: "topic-session",
+      name: "Topic",
+      isArchived: false,
+      otherUser: undefined,
+    };
+    viewState.agentSession = {
+      data: {
+        channelId: "topic-1",
+        channelType: "topic-session",
+        kind: "topic-session",
+        supported: true,
+        tenantId: "tenant-1",
+        agentId: "agent-1",
+        botUserId: "bot-user-1",
+        sessionId: "team9/tenant-1/agent-1/dm/topic-1",
+      },
+    };
+
+    render(<ChannelView channelId="topic-1" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show agent session panel" }),
+    );
 
     expect(screen.getByText("Agent Session Panel")).toBeInTheDocument();
   });
@@ -235,6 +305,9 @@ describe("ChannelView agent session panel", () => {
 
   it("keeps chat visible when only the agent session panel is open", async () => {
     render(<ChannelView channelId="channel-1" />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show agent session panel" }),
+    );
 
     await waitFor(() =>
       expect(screen.getByText("Agent Session Panel")).toBeInTheDocument(),
