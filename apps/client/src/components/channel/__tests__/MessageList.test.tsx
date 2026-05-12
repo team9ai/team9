@@ -459,6 +459,12 @@ describe("MessageList — round auto-fold", () => {
       },
     });
     expect(screen.getByTestId("a2ui-response")).toBeInTheDocument();
+    expect(screen.getByTestId("a2ui-surface").parentElement).toHaveClass(
+      "ml-14",
+    );
+    expect(screen.getByTestId("a2ui-response").parentElement).toHaveClass(
+      "ml-14",
+    );
   });
 
   describe("direct channel (DM)", () => {

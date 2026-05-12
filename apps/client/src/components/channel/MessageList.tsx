@@ -690,7 +690,7 @@ export function MessageList({
             )
           : agentMeta;
         return (
-          <div id={`message-${message.id}`} className="ml-2 mr-4 py-1">
+          <div id={`message-${message.id}`} className="ml-14 mr-4 py-1">
             <A2UISurfaceBlock
               message={message}
               metadata={surfaceMeta}
@@ -706,7 +706,7 @@ export function MessageList({
         return (
           <div
             id={`message-${message.id}`}
-            className="ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4 py-0.5"
+            className="ml-14 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4 py-0.5"
             style={{ paddingLeft: "9px" }}
           >
             <A2UIResponseItem message={message} metadata={agentMeta} />
