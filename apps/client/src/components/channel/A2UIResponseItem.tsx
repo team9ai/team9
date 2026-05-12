@@ -8,6 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { UserHoverCard } from "./UserHoverCard";
 
 export interface A2UIResponseItemProps {
   message: Message;
@@ -94,6 +95,7 @@ export function A2UIResponseItem({ message, metadata }: A2UIResponseItemProps) {
   const isCurrentUser =
     !!message.senderId && message.senderId === currentUser.data?.id;
   const actorLabel = `${displayName}${isCurrentUser ? "(你)" : ""}`;
+  const actorUserId = metadata.responderId ?? message.senderId ?? undefined;
   const createdAt = parseApiDate(message.createdAt);
   const timeLabel = formatMessageTime(createdAt);
   const selectionDisplay = parseContentSelection(message.content) ??
@@ -104,16 +106,24 @@ export function A2UIResponseItem({ message, metadata }: A2UIResponseItemProps) {
 
   return (
     <div className="group/a2ui-response flex min-h-8 items-center gap-3">
-      <UserAvatar
-        userId={metadata.responderId ?? message.senderId ?? undefined}
-        name={displayName}
-        username={message.sender?.username}
-        avatarUrl={metadata.responderAvatarUrl ?? message.sender?.avatarUrl}
-        className="h-6 w-6"
-        fallbackClassName="text-[10px] font-semibold"
-      />
+      <UserHoverCard userId={actorUserId} displayName={displayName}>
+        <span className="inline-flex shrink-0 cursor-pointer items-center">
+          <UserAvatar
+            userId={actorUserId}
+            name={displayName}
+            username={message.sender?.username}
+            avatarUrl={metadata.responderAvatarUrl ?? message.sender?.avatarUrl}
+            className="h-6 w-6"
+            fallbackClassName="text-[10px] font-semibold"
+          />
+        </span>
+      </UserHoverCard>
       <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        <span className="font-semibold text-foreground">“{actorLabel}”</span>
+        <UserHoverCard userId={actorUserId} displayName={displayName}>
+          <span className="cursor-pointer font-semibold text-foreground hover:underline underline-offset-2">
+            “{actorLabel}”
+          </span>
+        </UserHoverCard>
         <span className="mx-1">在</span>
         <span className="font-medium text-foreground">
           “{selectionDisplay.title}”

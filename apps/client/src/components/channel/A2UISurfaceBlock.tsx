@@ -4,6 +4,7 @@ import { Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSendMessage } from "@/hooks/useMessages";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatAbsoluteTooltip } from "@/lib/date-format";
 import { formatMessageTime, parseApiDate } from "@/lib/date-utils";
 import {
@@ -17,6 +18,7 @@ import {
   type ParsedChoicesSurface,
   type ParsedTab,
 } from "@/lib/a2ui-parser";
+import { UserHoverCard } from "./UserHoverCard";
 
 export interface A2UISurfaceBlockProps {
   message: Message;
@@ -301,7 +303,7 @@ function CollapsedHeader({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="group/header flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+        className="group/header flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/30"
       >
         {!isResolved && (
           <span
@@ -317,13 +319,45 @@ function CollapsedHeader({
         )}
         {isResolved ? (
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">
-              {agentName}(agent)
-            </span>
+            <UserHoverCard
+              userId={message.sender?.id ?? message.senderId ?? undefined}
+              displayName={agentName}
+            >
+              <span className="mr-1.5 inline-flex cursor-pointer items-center gap-1.5 align-middle hover:underline underline-offset-2">
+                <UserAvatar
+                  userId={message.senderId ?? undefined}
+                  name={message.sender?.displayName ?? agentName}
+                  username={message.sender?.username}
+                  avatarUrl={message.sender?.avatarUrl}
+                  isBot={message.sender?.userType === "bot"}
+                  className="h-5 w-5"
+                  fallbackClassName="text-[9px] font-semibold"
+                />
+                <span className="font-semibold text-foreground">
+                  {agentName}(agent)
+                </span>
+              </span>
+            </UserHoverCard>
             <span className="mx-1.5">提问</span>
             <span className="font-medium text-foreground">“{askedTitle}”</span>
             <span className="mx-1.5">已被</span>
-            <span className="font-medium text-foreground">{actorLabel}</span>
+            <UserHoverCard
+              userId={metadata.responderId}
+              displayName={responderName}
+            >
+              <span className="mx-1.5 inline-flex cursor-pointer items-center gap-1.5 align-middle hover:underline underline-offset-2">
+                <UserAvatar
+                  userId={metadata.responderId}
+                  name={responderName}
+                  avatarUrl={metadata.responderAvatarUrl}
+                  className="h-5 w-5"
+                  fallbackClassName="text-[9px] font-semibold"
+                />
+                <span className="font-medium text-foreground">
+                  {actorLabel}
+                </span>
+              </span>
+            </UserHoverCard>
             <span className="mx-1.5">选择</span>
             <span className="font-medium text-foreground">
               “{selectionDisplay.selection}”
@@ -424,12 +458,17 @@ function ActiveSurface({
   const tabKey = tab.title;
   const selected = selectedValues[tabKey] ?? [];
   const otherText = otherTexts[tabKey] ?? "";
+  const agentName =
+    message.sender?.displayName ?? message.sender?.username ?? "Agent";
   const firstIncompleteTabIndex = findFirstIncompleteTabIndex(
     parsed.tabs,
     selectedValues,
   );
   const hasIncompleteTabs = firstIncompleteTabIndex >= 0;
   const primaryButtonLabel = hasIncompleteTabs ? "下一个" : "提交";
+  const currentTabHasSelection = selected.length > 0;
+  const primaryButtonDisabled =
+    sendMessage.isPending || !currentTabHasSelection;
 
   const handleOptionChange = (value: string) => {
     if (validationError) setValidationError(null);
@@ -587,13 +626,26 @@ function ActiveSurface({
       className="bg-card border border-border rounded-lg p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <div className="mb-4 flex items-center text-xs text-muted-foreground">
-        <span className="truncate">
-          <span className="mr-1 font-semibold text-foreground">
-            {message.sender?.displayName ?? message.sender?.username ?? "Agent"}
-            (agent)
+        <UserHoverCard
+          userId={message.sender?.id ?? message.senderId ?? undefined}
+          displayName={agentName}
+        >
+          <span className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 hover:underline underline-offset-2">
+            <UserAvatar
+              userId={message.senderId ?? undefined}
+              name={message.sender?.displayName ?? agentName}
+              username={message.sender?.username}
+              avatarUrl={message.sender?.avatarUrl}
+              isBot={message.sender?.userType === "bot"}
+              className="h-5 w-5"
+              fallbackClassName="text-[9px] font-semibold"
+            />
+            <span className="font-semibold text-foreground">
+              {agentName}(agent)
+            </span>
           </span>
-          向你提问
-        </span>
+        </UserHoverCard>
+        <span className="ml-1.5">向你提问</span>
       </div>
 
       {parsed.tabs.length > 1 && (
@@ -674,8 +726,13 @@ function ActiveSurface({
       <button
         type="button"
         onClick={handlePrimaryAction}
-        disabled={sendMessage.isPending}
-        className="w-full mt-3 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={primaryButtonDisabled}
+        className={cn(
+          "w-full mt-3 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+          primaryButtonDisabled
+            ? "cursor-not-allowed bg-muted text-muted-foreground"
+            : "bg-primary text-primary-foreground hover:bg-primary/90",
+        )}
       >
         {sendMessage.isPending ? "提交中..." : primaryButtonLabel}
       </button>

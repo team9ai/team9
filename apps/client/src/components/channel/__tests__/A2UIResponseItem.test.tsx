@@ -64,4 +64,26 @@ describe("A2UIResponseItem", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/\d{2}:02/)).toBeInTheDocument();
   });
+
+  it("marks the selected response actor as an interactive hover target", () => {
+    const metadata: AgentEventMetadata = {
+      agentEventType: "a2ui_response",
+      status: "completed",
+      surfaceId: "choices-1",
+      responderId: "current-user",
+      responderName: "Winrey Ma",
+      responderAvatarUrl: "https://cdn.example.com/winrey.png",
+    };
+
+    render(
+      <TooltipProvider>
+        <A2UIResponseItem message={makeMessage()} metadata={metadata} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("“Winrey Ma(你)”")).toHaveClass(
+      "cursor-pointer",
+      "hover:underline",
+    );
+  });
 });
