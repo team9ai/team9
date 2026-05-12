@@ -35,6 +35,8 @@ import type {
 } from "@/types/im";
 import { normalizeMessage, normalizeMessages } from "./normalize-reactions";
 
+export const CHANNEL_DETAIL_TIMEOUT_MS = 8_000;
+
 function buildClientContext(): ClientContext {
   if (!isTauriApp()) return { kind: "web" };
   const userId = useAppStore.getState().user?.id;
@@ -83,7 +85,9 @@ export const channelsApi = {
 
   // Get channel details
   getChannel: async (channelId: string): Promise<Channel> => {
-    const response = await http.get<Channel>(`/v1/im/channels/${channelId}`);
+    const response = await http.get<Channel>(`/v1/im/channels/${channelId}`, {
+      timeout: CHANNEL_DETAIL_TIMEOUT_MS,
+    });
     return response.data;
   },
 
