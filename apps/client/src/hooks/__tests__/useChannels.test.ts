@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 const mockUseQuery = vi.hoisted(() => vi.fn());
+const mockGetChannels = vi.hoisted(() => vi.fn());
+const mockGetGroupChannels = vi.hoisted(() => vi.fn());
+const mockGetDirectChannels = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: mockUseQuery,
@@ -16,12 +19,36 @@ vi.mock("@/stores", () => ({
 vi.mock("@/services/api/im", () => ({
   default: {
     channels: {
-      getChannels: vi.fn(),
+      getChannels: mockGetChannels,
+      getGroupChannels: mockGetGroupChannels,
+      getDirectChannels: mockGetDirectChannels,
     },
   },
 }));
 
-import { useChannelsByType } from "@/hooks/useChannels";
+import { useChannels, useChannelsByType } from "@/hooks/useChannels";
+
+describe("useChannels", () => {
+  it("loads sidebar channels from group and direct slices instead of the full channel list", async () => {
+    const groupChannel = { id: "public-1", type: "public" };
+    const directChannel = { id: "direct-1", type: "direct" };
+    mockGetGroupChannels.mockResolvedValue([groupChannel]);
+    mockGetDirectChannels.mockResolvedValue([directChannel]);
+    mockUseQuery.mockImplementation((options) => options);
+
+    const { result } = renderHook(() => useChannels());
+
+    const queryFn = (
+      result.current as unknown as { queryFn: () => Promise<unknown> }
+    ).queryFn;
+
+    await expect(queryFn()).resolves.toEqual([directChannel, groupChannel]);
+
+    expect(mockGetDirectChannels).toHaveBeenCalled();
+    expect(mockGetGroupChannels).toHaveBeenCalled();
+    expect(mockGetChannels).not.toHaveBeenCalled();
+  });
+});
 
 describe("useChannelsByType", () => {
   it("excludes routine-session channels from every grouped output", () => {

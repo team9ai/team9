@@ -8,10 +8,77 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Team9</title>
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        background: #f8f7f2;
+      }
+
+      #startup-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: grid;
+        place-items: center;
+        background:
+          linear-gradient(135deg, rgba(37, 99, 235, 0.08), transparent 42%),
+          #f8f7f2;
+        color: #171717;
+        transition: opacity 180ms ease;
+      }
+
+      #startup-splash.startup-splash--hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .startup-splash__inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .startup-splash__logo {
+        display: block;
+        width: min(168px, 48vw);
+        height: auto;
+      }
+    </style>
+    <script>
+      (() => {
+        const t0 = performance.now();
+        window.__TEAM9_STARTUP_T0 = t0;
+        try {
+          const override = window.localStorage?.getItem("team9_startup_debug");
+          const isTauri = "__TAURI_INTERNALS__" in window;
+          if (override !== "0" && (override === "1" || isTauri)) {
+            console.info("[startup] +0.0ms html:head");
+          }
+        } catch {
+          console.info("[startup] +0.0ms html:head");
+        }
+      })();
+    </script>
   </head>
 
   <body>
     <div id="root"></div>
+    <div id="startup-splash" aria-hidden="true">
+      <div class="startup-splash__inner">
+        <img
+          class="startup-splash__logo"
+          src="/team9-logo.png"
+          alt=""
+          draggable="false"
+        />
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

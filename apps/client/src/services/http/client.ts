@@ -7,6 +7,12 @@ import type {
   ErrorInterceptor,
   InterceptorManager,
 } from "./types";
+import {
+  getStartupPathForLog,
+  markStartup,
+  startupDurationMs,
+  startupNow,
+} from "@/lib/startup-profiler";
 
 class HttpClient {
   private baseURL: string;
@@ -152,6 +158,8 @@ class HttpClient {
     url: string,
     config: HttpRequestConfig = {},
   ): Promise<HttpResponse<T>> {
+    const requestStartedAt = startupNow();
+    let requestPath = getStartupPathForLog(url);
     let requestConfig: HttpRequestConfig = {
       ...config,
       baseURL: this.baseURL,
@@ -162,6 +170,11 @@ class HttpClient {
       requestConfig = await this.applyRequestInterceptors(requestConfig);
 
       const fullURL = this.buildURL(url, requestConfig.params);
+      requestPath = getStartupPathForLog(fullURL);
+      markStartup("http:request start", {
+        method: requestConfig.method ?? "GET",
+        path: requestPath,
+      });
 
       const controller = new AbortController();
       const timeoutId = setTimeout(
@@ -192,6 +205,12 @@ class HttpClient {
       });
 
       clearTimeout(timeoutId);
+      markStartup("http:response received", {
+        method: requestConfig.method ?? "GET",
+        path: requestPath,
+        status: response.status,
+        durationMs: startupDurationMs(requestStartedAt),
+      });
 
       const data = await this.parseResponseData<T>(response);
 
@@ -215,6 +234,11 @@ class HttpClient {
       return await this.applyResponseInterceptors(httpResponse);
     } catch (error: unknown) {
       if (this.isAbortError(error)) {
+        markStartup("http:timeout", {
+          method: requestConfig.method ?? "GET",
+          path: requestPath,
+          durationMs: startupDurationMs(requestStartedAt),
+        });
         throw this.createError(
           "Request timeout",
           requestConfig,
@@ -223,6 +247,12 @@ class HttpClient {
       }
 
       if (error instanceof Error && !this.isManagedHttpError(error)) {
+        markStartup("http:network error", {
+          method: requestConfig.method ?? "GET",
+          path: requestPath,
+          durationMs: startupDurationMs(requestStartedAt),
+          message: error.message,
+        });
         throw this.createError(
           error.message,
           requestConfig,
@@ -230,6 +260,13 @@ class HttpClient {
           undefined,
         );
       }
+
+      markStartup("http:error response", {
+        method: requestConfig.method ?? "GET",
+        path: requestPath,
+        status: (error as HttpError<T>).status,
+        durationMs: startupDurationMs(requestStartedAt),
+      });
 
       return await this.applyErrorInterceptors(error as HttpError<T>);
     }

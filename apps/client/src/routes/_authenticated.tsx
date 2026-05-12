@@ -20,224 +20,58 @@ import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
 import { useSyncUserLocale } from "@/hooks/useSyncUserLocale";
 import { useAhandBootstrap } from "@/hooks/useAhandBootstrap";
 import { useAhandJwtRefresh } from "@/hooks/useAhandJwtRefresh";
+import { useWorkspaceBootstrap } from "@/hooks/useWorkspaceBootstrap";
 import { registerServiceWorker } from "@/lib/push-notifications";
-import { queryClient } from "@/lib/query-client";
-import {
-  getEarliestOwnedWorkspace,
-  getSessionWorkspaceId,
-  isOnboardingRequired,
-} from "@/lib/onboarding-gate";
-import workspaceApi from "@/services/api/workspace";
 import { useEffect } from "react";
-import { workspaceActions, useWorkspaceStore } from "@/stores";
 import {
   appActions,
-  DEFAULT_SECTION_PATHS,
   getSectionFromPath,
   isRestorableSectionPath,
-  isSidebarSection,
-  sanitizeLastVisitedPaths,
 } from "@/stores";
-import type { UserWorkspace, WorkspaceOnboarding } from "@/types/workspace";
+import { markStartup } from "@/lib/startup-profiler";
+import { getAuthenticatedStartupRedirect } from "@/lib/authenticated-startup-redirect";
 
 const ONBOARDING_ROUTE = "/onboarding";
-const WORKSPACE_BOOTSTRAP_RETRY_COUNT = 5;
-const WORKSPACE_BOOTSTRAP_RETRY_DELAY_MS = 300;
-const ONBOARDING_BOOTSTRAP_RETRY_COUNT = 5;
-const ONBOARDING_BOOTSTRAP_RETRY_DELAY_MS = 300;
-
-function wait(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-async function fetchUserWorkspaces() {
-  const workspaces = await workspaceApi.getUserWorkspaces();
-  queryClient.setQueryData(["user-workspaces"], workspaces);
-  return workspaces;
-}
-
-async function fetchOnboardingState(workspaceId: string) {
-  const onboarding = await workspaceApi.getOnboardingState(workspaceId);
-  queryClient.setQueryData(["workspace-onboarding", workspaceId], onboarding);
-  return onboarding;
-}
-
-async function getUserWorkspaces(options?: { forceRefresh?: boolean }) {
-  const cached = queryClient.getQueryData<UserWorkspace[]>(["user-workspaces"]);
-  if (!options?.forceRefresh && cached !== undefined) {
-    return cached;
-  }
-
-  return fetchUserWorkspaces();
-}
-
-async function getUserWorkspacesWithBootstrapRetry() {
-  let workspaces = await getUserWorkspaces();
-
-  for (
-    let attempt = 1;
-    workspaces.length === 0 && attempt < WORKSPACE_BOOTSTRAP_RETRY_COUNT;
-    attempt += 1
-  ) {
-    await wait(WORKSPACE_BOOTSTRAP_RETRY_DELAY_MS);
-    workspaces = await getUserWorkspaces({ forceRefresh: true });
-  }
-
-  return workspaces;
-}
-
-async function getOnboardingState(
-  workspaceId: string,
-  options?: { forceRefresh?: boolean },
-) {
-  const cached = queryClient.getQueryData<WorkspaceOnboarding | null>([
-    "workspace-onboarding",
-    workspaceId,
-  ]);
-  if (!options?.forceRefresh && cached !== undefined) {
-    return cached;
-  }
-
-  return fetchOnboardingState(workspaceId);
-}
-
-async function getOnboardingStateWithBootstrapRetry(workspaceId: string) {
-  let onboarding = await getOnboardingState(workspaceId);
-
-  for (
-    let attempt = 1;
-    onboarding === null && attempt < ONBOARDING_BOOTSTRAP_RETRY_COUNT;
-    attempt += 1
-  ) {
-    await wait(ONBOARDING_BOOTSTRAP_RETRY_DELAY_MS);
-    onboarding = await getOnboardingState(workspaceId, { forceRefresh: true });
-  }
-
-  return onboarding;
-}
-
-function getActiveWorkspaceId(workspaces: UserWorkspace[]) {
-  const selectedWorkspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
-  const currentWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
-
-  return currentWorkspace?.id ?? workspaces[0]?.id ?? null;
-}
 
 export const Route = createFileRoute("/_authenticated")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: ({ location }) => {
+    markStartup("auth.beforeLoad:start", {
+      href: location.href,
+      pathname: location.pathname,
+    });
+
     const token = localStorage.getItem("auth_token");
-    if (!token) {
+    markStartup("auth.beforeLoad:token checked", {
+      hasToken: Boolean(token),
+    });
+
+    const startupRedirect = getAuthenticatedStartupRedirect({ location });
+    if (startupRedirect) {
+      markStartup("auth.beforeLoad:redirect", startupRedirect);
       throw redirect({
-        to: "/login",
-        search: {
-          redirect: location.href,
-        },
+        to: startupRedirect.to as never,
+        search: startupRedirect.search as never,
       });
     }
 
-    const pathname = location.pathname;
-    const workspaces = await getUserWorkspacesWithBootstrapRetry();
-    const activeWorkspaceId = getActiveWorkspaceId(workspaces);
-    const onboardingWorkspace = getEarliestOwnedWorkspace(workspaces);
-    const onboarding = onboardingWorkspace
-      ? await getOnboardingStateWithBootstrapRetry(onboardingWorkspace.id)
-      : null;
-    const onboardingRequired = isOnboardingRequired(onboarding);
-    const sessionWorkspaceId = getSessionWorkspaceId({
-      activeWorkspaceId,
-      onboardingWorkspaceId: onboardingWorkspace?.id ?? null,
-      onboardingRequired,
+    markStartup("auth.beforeLoad:end", {
+      pathname: location.pathname,
     });
-
-    if (sessionWorkspaceId) {
-      workspaceActions.setSelectedWorkspaceId(sessionWorkspaceId);
-
-      if (
-        onboardingRequired &&
-        onboardingWorkspace &&
-        pathname !== ONBOARDING_ROUTE
-      ) {
-        throw redirect({
-          to: ONBOARDING_ROUTE,
-          search: {
-            workspaceId: onboardingWorkspace.id,
-            step: onboarding.currentStep,
-          },
-        });
-      }
-
-      if (pathname === ONBOARDING_ROUTE && !onboardingRequired) {
-        throw redirect({ to: "/" });
-      }
-    } else if (pathname === ONBOARDING_ROUTE) {
-      throw redirect({ to: "/" });
-    }
-
-    // Redirect to last visited path only on initial app load (not on explicit navigation)
-    if (pathname === "/") {
-      const hasInitialized = sessionStorage.getItem("app_initialized");
-      if (!hasInitialized) {
-        sessionStorage.setItem("app_initialized", "true");
-        const appStorage = localStorage.getItem("app-storage");
-        if (appStorage) {
-          try {
-            const parsed = JSON.parse(appStorage);
-            const activeSidebar = isSidebarSection(parsed?.state?.activeSidebar)
-              ? parsed.state.activeSidebar
-              : "home";
-            const lastVisitedPaths = sanitizeLastVisitedPaths(
-              parsed?.state?.lastVisitedPaths,
-            );
-
-            if (
-              parsed?.state?.lastVisitedPaths &&
-              JSON.stringify(parsed.state.lastVisitedPaths) !==
-                JSON.stringify(lastVisitedPaths)
-            ) {
-              localStorage.setItem(
-                "app-storage",
-                JSON.stringify({
-                  ...parsed,
-                  state: {
-                    ...parsed.state,
-                    lastVisitedPaths,
-                  },
-                }),
-              );
-            }
-
-            const normalizedSidebar =
-              activeSidebar as keyof typeof DEFAULT_SECTION_PATHS;
-            const lastVisitedPath =
-              lastVisitedPaths[normalizedSidebar] ??
-              DEFAULT_SECTION_PATHS[normalizedSidebar];
-
-            if (isRestorableSectionPath(lastVisitedPath)) {
-              throw redirect({
-                to: lastVisitedPath as never,
-              });
-            }
-          } catch (e) {
-            // If it's a redirect, rethrow it
-            if (
-              e instanceof Response ||
-              (e && typeof e === "object" && "to" in e)
-            ) {
-              throw e;
-            }
-            // Ignore JSON parse errors
-          }
-        }
-      }
-    }
   },
   component: AuthenticatedLayout,
 });
 
+let authenticatedLayoutFirstRenderLogged = false;
+
 function AuthenticatedLayout() {
   const location = useLocation();
+  if (!authenticatedLayoutFirstRenderLogged) {
+    authenticatedLayoutFirstRenderLogged = true;
+    markStartup("auth.layout:render first", {
+      pathname: location.pathname,
+    });
+  }
+
   const isOnboardingRoute = location.pathname === ONBOARDING_ROUTE;
   const sidebarCollapsed = useSidebarCollapsed();
   const fontScales = useFontScales();
@@ -250,6 +84,9 @@ function AuthenticatedLayout() {
 
   // Resume aHand daemon connection if previously enabled
   useAhandBootstrap();
+
+  // Hydrate workspace/onboarding state after the shell is visible.
+  useWorkspaceBootstrap();
 
   // Auto-refresh aHand JWT when daemon reports auth error
   useAhandJwtRefresh();
@@ -273,6 +110,9 @@ function AuthenticatedLayout() {
 
   // Register Service Worker for push notifications on mount
   useEffect(() => {
+    markStartup("auth.layout:mounted", {
+      pathname: window.location.pathname,
+    });
     registerServiceWorker();
   }, []);
 

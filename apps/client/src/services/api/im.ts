@@ -51,6 +51,22 @@ export const channelsApi = {
     return response.data;
   },
 
+  // Get user-accessible public/private group channels only.
+  getGroupChannels: async (): Promise<ChannelWithUnread[]> => {
+    const response = await http.get<ChannelWithUnread[]>(
+      "/v1/im/channels/groups",
+    );
+    return response.data;
+  },
+
+  // Get direct-message style channels only.
+  getDirectChannels: async (): Promise<ChannelWithUnread[]> => {
+    const response = await http.get<ChannelWithUnread[]>(
+      "/v1/im/channels/directs",
+    );
+    return response.data;
+  },
+
   // Create a new channel
   createChannel: async (data: CreateChannelDto): Promise<Channel> => {
     const response = await http.post<Channel>("/v1/im/channels", data);

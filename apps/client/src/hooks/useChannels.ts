@@ -20,7 +20,13 @@ export function useChannels() {
 
   return useQuery({
     queryKey: ["channels", workspaceId],
-    queryFn: () => imApi.channels.getChannels(),
+    queryFn: async () => {
+      const [directChannels, groupChannels] = await Promise.all([
+        imApi.channels.getDirectChannels(),
+        imApi.channels.getGroupChannels(),
+      ]);
+      return [...directChannels, ...groupChannels];
+    },
     staleTime: 30000,
     enabled: !!workspaceId,
   });

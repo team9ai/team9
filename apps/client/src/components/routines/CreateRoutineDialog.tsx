@@ -119,16 +119,11 @@ export function CreateRoutineDialog({
 
   // Fetch channels for channel_message trigger type
   const { data: channels = [] } = useQuery({
-    queryKey: ["channels"],
-    queryFn: () => channelsApi.getChannels(),
+    queryKey: ["group-channels", workspaceId],
+    queryFn: () => channelsApi.getGroupChannels(),
     enabled: isOpen && addingTrigger && newTriggerType === "channel_message",
   });
-  const nonDirectChannels = channels.filter(
-    (ch) =>
-      ch.type !== "direct" &&
-      ch.type !== "echo" &&
-      ch.type !== "routine-session",
-  );
+  const nonDirectChannels = channels;
 
   const createMutation = useMutation({
     mutationFn: () =>
