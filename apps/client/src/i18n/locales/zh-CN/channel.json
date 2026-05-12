@@ -164,6 +164,16 @@
         "loading": "正在生成回复",
         "success": "回复生成完成",
         "error": "回复生成失败"
+      },
+      "wait": {
+        "loading": "正在等待",
+        "success": "等待完成",
+        "error": "等待失败"
+      },
+      "todoWrite": {
+        "loading": "正在更新 TODO",
+        "success": "TODO 更新完成",
+        "error": "TODO 更新失败"
       }
     },
     "thinking": {
@@ -187,6 +197,24 @@
     "toolCall": {
       "argsLabel": "参数",
       "resultLabel": "结果",
+      "loadedTools": "加载了工具",
+      "todoSummary": "TODO {{total}} 项",
+      "todoStatus": {
+        "pending": "未完成",
+        "inProgress": "进行中",
+        "completed": "完成"
+      },
+      "fullscreen": "全屏显示 {{label}}",
+      "closeFullscreen": "关闭全屏",
+      "rawJson": "raw",
+      "formattedJson": "格式化",
+      "emptyStream": "（空）",
+      "runCommand": {
+        "local": "在本机执行命令",
+        "cloudComputer": "在云计算机'{{name}}'执行命令",
+        "cloudSandbox": "在云沙箱({{name}})执行命令",
+        "backend": "在 {{name}} 执行命令"
+      },
       "unknownTool": "未知工具"
     },
     "eventLabels": {

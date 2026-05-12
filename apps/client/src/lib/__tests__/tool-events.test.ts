@@ -39,6 +39,65 @@ describe("unwrapToolResultContent", () => {
 });
 
 describe("buildToolDisplayState", () => {
+  it("builds a local run_command display state with split streams", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "run_command",
+        toolArgs: {
+          name: "echo hello",
+          backend: "ahand:user-computer:ff00",
+          command: "echo hello",
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: JSON.stringify({
+        stdout: "hello\n",
+        stderr: "",
+        exitCode: 0,
+      }),
+    });
+
+    expect(state.commandExecution).toEqual({
+      command: "echo hello",
+      backend: "ahand:user-computer:ff00",
+      targetKind: "local",
+      targetName: undefined,
+      stdout: "hello\n",
+      stderr: "",
+      exitCode: "0",
+    });
+  });
+
+  it("classifies cloud run_command backends for display copy", () => {
+    const cloudComputer = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "run_command",
+        toolArgs: {
+          backend: "cloud-computer:e2b_id_xxxxx",
+          command: "pwd",
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: '{"stdout":"/workspace\\n","stderr":""}',
+    }).commandExecution;
+    const cloudSandbox = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "run_command",
+        toolArgs: {
+          backend: "just-bash-team9-workspace",
+          command: "ls",
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: '{"stdout":"file.txt\\n","stderr":""}',
+    }).commandExecution;
+
+    expect(cloudComputer?.targetKind).toBe("cloud-computer");
+    expect(cloudComputer?.targetName).toBe("e2b_id_xxxxx");
+    expect(cloudSandbox?.targetKind).toBe("cloud-sandbox");
+    expect(cloudSandbox?.targetName).toBe("just-bash");
+  });
+
   it("treats success false as failure even when status is completed", () => {
     const state = buildToolDisplayState({
       callMetadata: callMeta(),
@@ -126,6 +185,82 @@ describe("buildToolDisplayState", () => {
     expect(state.status).toBe("success");
     expect(state.isSuccess).toBe(true);
     expect(state.indicator).toBe("check");
+  });
+
+  it("unwraps invoke_tool metadata to display the actual nested tool", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "invoke_tool",
+        toolArgs: {
+          name: "wait",
+          params: {
+            seconds: 30,
+            reason: "测试 wait 重新触发",
+            prompt: "30 秒等待完成后继续回复",
+          },
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: '{"success":true}',
+    });
+
+    expect(state.toolName).toBe("wait");
+    expect(state.argsSummary).toContain('seconds="30"');
+    expect(state.argsSummary).toContain('reason="测试 wait 重新触发"');
+    expect(state.argsText).toContain('"seconds": 30');
+    expect(state.argsText).not.toContain('"name": "wait"');
+  });
+
+  it("extracts loaded tool names from load_tools args", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "load_tools",
+        toolArgs: { names: ["PresentChoices", "SearchDocs"] },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: "Loaded: PresentChoices, SearchDocs",
+    });
+
+    expect(state.loadedToolNames).toEqual(["PresentChoices", "SearchDocs"]);
+  });
+
+  it("builds a TodoWrite display with every todo item in source order", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "TodoWrite",
+        toolArgs: {
+          todos: [
+            {
+              content: "验证 TODO 工具的显示效果",
+              activeForm: "正在验证 TODO 展示",
+              status: "in_progress",
+            },
+            { content: "看现有样式", status: "completed" },
+            { content: "接入多行状态", status: "in_progress" },
+            { content: "补测试", status: "pending" },
+          ],
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: "ok",
+    });
+
+    expect(state.todoWrite).toEqual({
+      total: 4,
+      pending: 1,
+      inProgress: 2,
+      completed: 1,
+      items: [
+        {
+          content: "验证 TODO 工具的显示效果",
+          activeForm: "正在验证 TODO 展示",
+          status: "in_progress",
+        },
+        { content: "看现有样式", status: "completed" },
+        { content: "接入多行状态", status: "in_progress" },
+        { content: "补测试", status: "pending" },
+      ],
+    });
   });
 
   it("keeps explicitly successful results as success when content has an error field", () => {

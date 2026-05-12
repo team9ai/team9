@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { act, render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import i18n from "@/i18n";
 import { changeLanguage } from "@/i18n/loadLanguage";
 import { ToolCallBlock } from "../ToolCallBlock";
@@ -138,6 +138,27 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("Failed to send message")).toBeInTheDocument();
     });
 
+    it("shows nested invoke_tool wait calls as a wait operation", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("invoke_tool", {
+            name: "wait",
+            params: {
+              seconds: 30,
+              reason: "test wait resume",
+              prompt: "resume after waiting",
+            },
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent='{"success":true}'
+        />,
+      );
+
+      expect(screen.getByText("Wait completed")).toBeInTheDocument();
+      expect(screen.getByText(/wait\(seconds="30"/)).toBeInTheDocument();
+      expect(screen.queryByText(/invoke_tool/)).not.toBeInTheDocument();
+    });
+
     it("renders the zh-CN localized label when the language is set to zh-CN", async () => {
       await act(async () => {
         await changeLanguage("zh-CN");
@@ -152,6 +173,89 @@ describe("ToolCallBlock", () => {
         );
 
         expect(screen.getByText("消息发送完成")).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
+
+    it("renders load_tools as a loaded tool summary in zh-CN", async () => {
+      await act(async () => {
+        await changeLanguage("zh-CN");
+      });
+      try {
+        const { container } = render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("load_tools", {
+              names: ["PresentChoices"],
+            })}
+            resultMetadata={makeResultMeta("completed")}
+            resultContent="Loaded: PresentChoices"
+          />,
+        );
+
+        expect(screen.getByText("工具加载完成")).toBeInTheDocument();
+        expect(screen.getByText(/加载了工具/)).toBeInTheDocument();
+        expect(screen.queryByText(/load_tools/)).not.toBeInTheDocument();
+        expect(container.querySelector("em")?.textContent).toBe(
+          "PresentChoices",
+        );
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
+
+    it("renders TodoWrite as compact one-line TODO items in zh-CN", async () => {
+      await act(async () => {
+        await changeLanguage("zh-CN");
+      });
+      try {
+        render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("TodoWrite", {
+              todos: [
+                {
+                  content: "验证 TODO 工具的显示效果",
+                  activeForm: "正在验证 TODO 展示",
+                  status: "in_progress",
+                },
+                { content: "看现有样式", status: "completed" },
+                { content: "接入多行状态", status: "in_progress" },
+                { content: "补测试", status: "pending" },
+              ],
+            })}
+            resultMetadata={makeResultMeta("completed")}
+            resultContent="ok"
+          />,
+        );
+
+        expect(screen.getByText("TODO 更新完成")).toBeInTheDocument();
+        expect(screen.getByText("TODO 4 项")).toBeInTheDocument();
+        expect(screen.queryByText(/TodoWrite/)).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("正在验证 TODO 展示"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByText("验证 TODO 工具的显示效果"),
+        ).toBeInTheDocument();
+        expect(screen.getByText("接入多行状态")).toBeInTheDocument();
+        expect(screen.getByText("补测试")).toBeInTheDocument();
+        expect(screen.queryByText("进行中")).not.toBeInTheDocument();
+        expect(screen.queryByText("完成")).not.toBeInTheDocument();
+        expect(screen.queryByText("未完成")).not.toBeInTheDocument();
+        expect(screen.getAllByTestId("todo-write-status-icon")).toHaveLength(4);
+        for (const item of screen.getAllByTestId("todo-write-item")) {
+          expect(item).toHaveClass("items-center");
+          expect(
+            item.querySelectorAll("[data-testid='todo-write-title']"),
+          ).toHaveLength(1);
+        }
+
+        fireEvent.click(screen.getByText("TODO 更新完成"));
+        expect(screen.getByText("参数")).toBeInTheDocument();
       } finally {
         await act(async () => {
           await i18n.changeLanguage("en");
@@ -389,6 +493,207 @@ describe("ToolCallBlock", () => {
   });
 
   describe("expand / collapse behaviour", () => {
+    it("renders run_command as a readable Chinese command summary with split streams", async () => {
+      await act(async () => {
+        await changeLanguage("zh-CN");
+      });
+      try {
+        render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("run_command", {
+              name: "echo hello",
+              backend: "ahand:user-computer:ff00",
+              command: "echo hello",
+            })}
+            resultMetadata={makeResultMeta("completed")}
+            resultContent={JSON.stringify({
+              stdout: "hello\n",
+              stderr: "warn\n",
+              exitCode: 0,
+            })}
+          />,
+        );
+
+        expect(screen.getByText("在本机执行命令")).toBeInTheDocument();
+        expect(screen.getByText("echo hello")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText("在本机执行命令"));
+
+        expect(screen.getByText("stdout")).toBeInTheDocument();
+        expect(screen.getByText("hello")).toBeInTheDocument();
+        expect(screen.getByText("stderr")).toBeInTheDocument();
+        expect(screen.getByText("warn")).toBeInTheDocument();
+        expect(screen.queryByText("参数")).not.toBeInTheDocument();
+        expect(screen.queryByText("结果")).not.toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
+
+    it("hides empty run_command streams and zero exitCode when stdout has content", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "echo hello",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "hello\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Run command on this computer"));
+
+      expect(screen.getByText("stdout")).toBeInTheDocument();
+      expect(screen.getByText("hello")).toBeInTheDocument();
+      expect(screen.queryByText("stderr")).not.toBeInTheDocument();
+      expect(screen.queryByText("exitCode")).not.toBeInTheDocument();
+    });
+
+    it("shows zero exitCode when run_command streams are both empty", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "true",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Run command on this computer"));
+
+      expect(screen.queryByText("stdout")).not.toBeInTheDocument();
+      expect(screen.queryByText("stderr")).not.toBeInTheDocument();
+      expect(screen.getByText("exitCode")).toBeInTheDocument();
+      expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("shows non-zero run_command exitCode alongside output", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "false",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "failed\n",
+            stderr: "",
+            exitCode: 2,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Run command on this computer"));
+
+      expect(screen.getByText("stdout")).toBeInTheDocument();
+      expect(screen.getByText("failed")).toBeInTheDocument();
+      expect(screen.queryByText("stderr")).not.toBeInTheDocument();
+      expect(screen.getByText("exitCode")).toBeInTheDocument();
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+
+    it("adds a fullscreen control to expanded raw blocks", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("QueryChannel", {
+            channelId: "ch-456",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent='{"name": "general"}'
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+      fireEvent.click(screen.getByRole("button", { name: "Fullscreen Args" }));
+
+      const dialog = screen.getByRole("dialog", { name: "Args" });
+      expect(dialog).toBeInTheDocument();
+      expect(dialog).toHaveClass("bg-black/60");
+      expect(dialog).toHaveClass("p-6");
+      expect(dialog).toHaveClass("pt-12");
+
+      const fullscreenPanel = within(dialog)
+        .getByText(/"channelId": "ch-456"/)
+        .closest("[data-fullscreen-panel]");
+      expect(fullscreenPanel).toHaveClass("h-full");
+      expect(within(dialog).getByText(/"channelId": "ch-456"/)).toHaveClass(
+        "!max-h-none",
+      );
+      expect(
+        within(dialog).getByText(/"channelId": "ch-456"/),
+      ).toBeInTheDocument();
+    });
+
+    it("formats fullscreen JSON and can switch to raw", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("QueryChannel", {
+            channelId: "ch-456",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent='{"name":"general","count":2}'
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Fullscreen Result" }),
+      );
+
+      const dialog = screen.getByRole("dialog", { name: "Result" });
+      expect(within(dialog).getByText(/"name": "general"/)).toBeInTheDocument();
+      expect(within(dialog).getByText(/"count": 2/)).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "raw" }));
+
+      expect(
+        within(dialog).getByText('{"name":"general","count":2}'),
+      ).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole("button", { name: "formatted" }),
+      ).toBeInTheDocument();
+    });
+
+    it("toggles raw JSON for run_command from the json button", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            name: "echo hello",
+            backend: "ahand:user-computer:ff00",
+            command: "echo hello",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "hello\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "json" }));
+
+      expect(screen.getByText("Args")).toBeInTheDocument();
+      expect(
+        screen.getByText(/"backend": "ahand:user-computer:ff00"/),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Result")).toBeInTheDocument();
+      expect(screen.getByText(/"stdout": "hello\\n"/)).toBeInTheDocument();
+    });
+
     it("shows both args and result when expanded", () => {
       render(
         <ToolCallBlock
