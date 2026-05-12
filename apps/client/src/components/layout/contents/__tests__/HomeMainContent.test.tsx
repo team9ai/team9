@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -307,6 +307,29 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByRole("button", { name: /gpt-4.1/i }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the dashboard model menu visually minimal", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: /gpt-4.1/i }));
+
+    expect(await screen.findByText("Gemini 3.1 Pro")).toBeInTheDocument();
+    expect(screen.getByText("Gemini 3 Flash")).toBeInTheDocument();
+    expect(screen.queryByText(/preview/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("OpenAI")).not.toBeInTheDocument();
+    expect(screen.queryByText("Google")).not.toBeInTheDocument();
+    expect(screen.queryByText("Other")).not.toBeInTheDocument();
+    expect(screen.getByRole("menu")).toHaveClass("w-max");
+    expect(screen.getByRole("menu")).not.toHaveClass("w-[12.5rem]");
+
+    const menu = within(screen.getByRole("menu"));
+    expect(menu.getAllByRole("img", { name: "Claude logo" })).toHaveLength(2);
+    expect(menu.getAllByRole("img", { name: "ChatGPT logo" })).toHaveLength(2);
+    expect(menu.getAllByRole("img", { name: "Gemini logo" })).toHaveLength(2);
+    expect(menu.getByRole("img", { name: "Qwen logo" })).toBeInTheDocument();
+    expect(menu.getByRole("img", { name: "GLM logo" })).toBeInTheDocument();
+    expect(menu.getByRole("img", { name: "Kimi logo" })).toBeInTheDocument();
   });
 
   it("defaults to the personal-staff agent when one exists", () => {

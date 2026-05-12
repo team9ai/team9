@@ -67,3 +67,7 @@ export const COMMON_STAFF_MODELS: StaffModel[] = [
 ];
 
 export const DEFAULT_STAFF_MODEL = COMMON_STAFF_MODELS.find((m) => m.default)!;
+
+export function formatStaffModelDisplayLabel(label: string) {
+  return label.replace(/\s*\(Preview\)/g, "").replace(/\s+Preview$/, "");
+}
