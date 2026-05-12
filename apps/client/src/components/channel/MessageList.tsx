@@ -14,7 +14,7 @@ import {
   type StateSnapshot,
 } from "react-virtuoso";
 import { Loader2 } from "lucide-react";
-import type { Message, ChannelMember } from "@/types/im";
+import type { Message, ChannelMember, AgentEventMetadata } from "@/types/im";
 import {
   getAgentMeta,
   pairToolEvents,
@@ -105,6 +105,26 @@ function findRoundStartedAt(
   }
 
   return undefined;
+}
+
+function resolveA2UISurfaceMetadata(
+  surfaceMetadata: AgentEventMetadata,
+  responseMetadata: AgentEventMetadata | undefined,
+): AgentEventMetadata {
+  if (!responseMetadata || surfaceMetadata.status !== "running") {
+    return surfaceMetadata;
+  }
+
+  return {
+    ...surfaceMetadata,
+    status: "resolved",
+    completedAt: surfaceMetadata.completedAt ?? responseMetadata.completedAt,
+    updatedAt: surfaceMetadata.updatedAt ?? responseMetadata.updatedAt,
+    selections: surfaceMetadata.selections ?? responseMetadata.selections,
+    responderId: surfaceMetadata.responderId ?? responseMetadata.responderId,
+    responderName:
+      surfaceMetadata.responderName ?? responseMetadata.responderName,
+  };
 }
 
 // Per-channel scroll position snapshots for restoring on channel switch
@@ -216,6 +236,27 @@ export function MessageList({
     [messages],
   );
   const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
+  const a2uiResponsesBySurfaceId = useMemo(() => {
+    const responses = new Map<string, AgentEventMetadata>();
+
+    for (const message of chronoMessages) {
+      const meta = getAgentMeta(message);
+      if (meta?.agentEventType !== "a2ui_response" || !meta.surfaceId) {
+        continue;
+      }
+
+      responses.set(meta.surfaceId, {
+        ...meta,
+        responderId: meta.responderId ?? message.senderId ?? undefined,
+        responderName:
+          meta.responderName ??
+          message.sender?.displayName ??
+          message.sender?.username,
+      });
+    }
+
+    return responses;
+  }, [chronoMessages]);
   const listData = useMemo<ChannelListItem[]>(() => {
     const items: ChannelListItem[] = chronoMessages.map((message) => ({
       type: "message",
@@ -635,11 +676,17 @@ export function MessageList({
 
       // A2UI surface block — render always, pass readOnly to suppress interactivity
       if (agentMeta?.agentEventType === "a2ui_surface_update") {
+        const surfaceMeta = agentMeta.surfaceId
+          ? resolveA2UISurfaceMetadata(
+              agentMeta,
+              a2uiResponsesBySurfaceId.get(agentMeta.surfaceId),
+            )
+          : agentMeta;
         return (
           <div id={`message-${message.id}`} className="px-4 py-1">
             <A2UISurfaceBlock
               message={message}
-              metadata={agentMeta}
+              metadata={surfaceMeta}
               readOnly={readOnly}
               channelId={channelId}
             />
@@ -747,6 +794,7 @@ export function MessageList({
       thinkingStatuses,
       toggleRoundExpanded,
       foldMaps,
+      a2uiResponsesBySurfaceId,
       editingMessageId,
       updateMessage.isPending,
       handleEditStart,
