@@ -14,6 +14,7 @@ export interface CommandExecutionDisplay {
   backend?: string;
   targetKind: CommandTargetKind;
   targetName?: string;
+  message?: string;
   stdout: string;
   stderr: string;
   exitCode?: string;
@@ -72,6 +73,16 @@ function tryParseJson(text: string): unknown {
   } catch {
     return null;
   }
+}
+
+function getCompletedToolArgsFromText(
+  metadata: AgentEventMetadata,
+): Record<string, unknown> | undefined {
+  if (metadata.toolPhase === "args_streaming") return undefined;
+  if (typeof metadata.toolArgsText !== "string") return undefined;
+
+  const parsed = tryParseJson(metadata.toolArgsText);
+  return isRecord(parsed) ? parsed : undefined;
 }
 
 function textFromValue(value: unknown): string {
@@ -140,14 +151,13 @@ function resolveToolCall(
 ): ResolvedToolCall {
   const fallbackToolName =
     callMetadata.toolName ?? resultMetadata?.toolName ?? "Unknown tool";
+  const toolArgs =
+    callMetadata.toolArgs ?? getCompletedToolArgsFromText(callMetadata);
 
-  if (
-    callMetadata.toolName === "invoke_tool" &&
-    isRecord(callMetadata.toolArgs)
-  ) {
-    const nestedToolName = callMetadata.toolArgs.name;
+  if (callMetadata.toolName === "invoke_tool" && isRecord(toolArgs)) {
+    const nestedToolName = toolArgs.name;
     if (typeof nestedToolName === "string" && nestedToolName.trim()) {
-      const nestedParams = callMetadata.toolArgs.params;
+      const nestedParams = toolArgs.params;
       return {
         toolName: nestedToolName,
         ...(isRecord(nestedParams) ? { toolArgs: nestedParams } : {}),
@@ -157,7 +167,7 @@ function resolveToolCall(
 
   return {
     toolName: fallbackToolName,
-    ...(callMetadata.toolArgs ? { toolArgs: callMetadata.toolArgs } : {}),
+    ...(toolArgs ? { toolArgs } : {}),
   };
 }
 
@@ -218,6 +228,7 @@ function buildCommandExecution(
       ? resultText
       : "";
   const stderr = resultRecord ? textFromValue(resultRecord.stderr) : "";
+  const message = resultRecord ? textFromValue(resultRecord.message) : "";
   const exitCode =
     resultRecord &&
     (typeof resultRecord.exitCode === "number" ||
@@ -229,6 +240,7 @@ function buildCommandExecution(
     command,
     ...(backend ? { backend } : {}),
     ...resolveCommandTarget(backend),
+    ...(message.trim() ? { message } : {}),
     stdout,
     stderr,
     ...(exitCode !== undefined ? { exitCode } : {}),

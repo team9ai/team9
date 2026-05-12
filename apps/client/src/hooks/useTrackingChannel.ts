@@ -39,6 +39,16 @@ interface TrackingChannelState {
   } | null;
 }
 
+function appendLatestTrackingMessage(
+  messages: TrackingChannelState["latestMessages"],
+  message: TrackingLatestMessage,
+): TrackingChannelState["latestMessages"] {
+  return [
+    ...messages.filter((existing) => existing.id !== message.id),
+    message,
+  ].slice(-10);
+}
+
 /**
  * Hook to manage tracking channel data for inline card display.
  * Handles initial loading, observe subscription, and streaming updates.
@@ -97,7 +107,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
 
     const handleNewMessage = (msg: Message) => {
       if (msg.channelId !== trackingChannelId) return;
-      setExtraMessages((prev) => [...prev, msg].slice(-10));
+      setExtraMessages((prev) => appendLatestTrackingMessage(prev, msg));
     };
 
     const handleStreamStart = (event: StreamingStartEvent) => {
@@ -151,13 +161,15 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
         if (!prev || prev.streamId !== event.streamId) return prev;
         return null;
       });
-      if (!event.message) {
+      const { message } = event;
+      if (message) {
+        setExtraMessages((prev) => appendLatestTrackingMessage(prev, message));
+      } else {
         queryClient.invalidateQueries({
           queryKey: ["trackingMessages", trackingChannelId],
           refetchType: "all",
         });
       }
-      // The new_message event will add the persisted message when present.
     };
 
     const handleDeactivated = (event: TrackingDeactivatedEvent) => {

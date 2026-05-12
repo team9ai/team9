@@ -300,7 +300,7 @@ function StreamBlock({
   emptyText,
   t,
 }: {
-  label: "stdout" | "stderr" | "exitCode";
+  label: string;
   value: string;
   tone: "neutral" | "error";
   emptyText: string;
@@ -441,10 +441,16 @@ export function ToolCallBlock({
   const isTodoWriteDisplay = !!todoWrite;
   const hasCommandStdout = !!commandExecution?.stdout.trim();
   const hasCommandStderr = !!commandExecution?.stderr.trim();
+  const commandMessage = commandExecution?.message;
+  const hasCommandMessage = !!commandMessage?.trim();
   const commandExitCode = commandExecution?.exitCode;
   const shouldShowCommandExitCode =
     commandExitCode !== undefined &&
     ((!hasCommandStdout && !hasCommandStderr) || commandExitCode !== "0");
+  const isStreamingArgs =
+    callMetadata.toolPhase === "args_streaming" &&
+    displayState.argsText.trim() !== "";
+  const showDetails = isExpanded || isStreamingArgs;
   const translate = t as (
     key: string,
     options?: Record<string, unknown>,
@@ -572,7 +578,7 @@ export function ToolCallBlock({
           className={cn(
             "shrink-0 ml-2 text-muted-foreground transition-transform duration-200",
             "group-hover:text-foreground",
-            isExpanded && "rotate-90",
+            showDetails && "rotate-90",
           )}
         />
       </div>
@@ -582,10 +588,26 @@ export function ToolCallBlock({
       )}
 
       {/* Expanded: full args + result (including error detail on failure) */}
-      {isExpanded && (
+      {showDetails && (
         <div className="mt-1 mb-1.5 space-y-2">
           {isRunCommandDisplay && !showRawJson ? (
             <>
+              <StreamBlock
+                label="command"
+                value={commandExecution.command}
+                tone="neutral"
+                emptyText={translate("tracking.toolCall.emptyStream")}
+                t={translate}
+              />
+              {hasCommandMessage && (
+                <StreamBlock
+                  label="message"
+                  value={commandMessage ?? ""}
+                  tone="neutral"
+                  emptyText={translate("tracking.toolCall.emptyStream")}
+                  t={translate}
+                />
+              )}
               {hasCommandStdout && (
                 <StreamBlock
                   label="stdout"

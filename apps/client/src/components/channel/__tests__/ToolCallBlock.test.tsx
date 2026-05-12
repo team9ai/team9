@@ -462,6 +462,46 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText(/RunScript/)).toBeInTheDocument();
     });
 
+    it("shows streaming tool args immediately while the call is being generated", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("RunScript", undefined, {
+            status: "running",
+            toolArgsText: '{"cmd":"pnpm test',
+            toolPhase: "args_streaming",
+          })}
+          resultContent=""
+        />,
+      );
+
+      expect(screen.getByText("Args")).toBeInTheDocument();
+      expect(screen.getByText('{"cmd":"pnpm test')).toBeInTheDocument();
+      expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    });
+
+    it("formats a completed streaming tool call before the result arrives", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", undefined, {
+            status: "running",
+            toolArgsText: JSON.stringify({
+              backend: "ahand:user-computer:ff00",
+              command: "pnpm test",
+            }),
+            toolPhase: "executing",
+          })}
+          resultContent=""
+        />,
+      );
+
+      expect(
+        screen.getByText("Run command on this computer"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("pnpm test")).toBeInTheDocument();
+      expect(screen.queryByText(/run_command\(/)).not.toBeInTheDocument();
+      expect(screen.queryByText("Args")).not.toBeInTheDocument();
+    });
+
     it("uses an emerald wrench icon for successful result", () => {
       render(
         <ToolCallBlock
@@ -574,6 +614,37 @@ describe("ToolCallBlock", () => {
 
       fireEvent.click(screen.getByText("Run command on this computer"));
 
+      expect(screen.queryByText("stdout")).not.toBeInTheDocument();
+      expect(screen.queryByText("stderr")).not.toBeInTheDocument();
+      expect(screen.getByText("exitCode")).toBeInTheDocument();
+      expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    it("shows the command and message when run_command has no stdout or stderr", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "python3 long-script.py",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            message: "Command is still running in the background.",
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Run command on this computer"));
+
+      expect(screen.getByText("command")).toBeInTheDocument();
+      expect(screen.getAllByText("python3 long-script.py").length).toBe(2);
+      expect(screen.getByText("message")).toBeInTheDocument();
+      expect(
+        screen.getByText("Command is still running in the background."),
+      ).toBeInTheDocument();
       expect(screen.queryByText("stdout")).not.toBeInTheDocument();
       expect(screen.queryByText("stderr")).not.toBeInTheDocument();
       expect(screen.getByText("exitCode")).toBeInTheDocument();

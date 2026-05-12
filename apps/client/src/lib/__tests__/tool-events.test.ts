@@ -175,6 +175,84 @@ describe("buildToolDisplayState", () => {
     expect(state.argsText).toBe('{"message":"hel');
   });
 
+  it("parses completed streaming args text once the tool call starts executing", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "run_command",
+        toolArgs: undefined,
+        toolArgsText: JSON.stringify({
+          backend: "ahand:user-computer:ff00",
+          command: "pnpm test",
+        }),
+        toolPhase: "executing",
+      }),
+      resultMetadata: resultMeta({ status: "running" }),
+      resultContent: "",
+    });
+
+    expect(state.argsText).toContain('"command": "pnpm test"');
+    expect(state.commandExecution).toEqual({
+      backend: "ahand:user-computer:ff00",
+      command: "pnpm test",
+      targetKind: "local",
+      targetName: undefined,
+      stdout: "",
+      stderr: "",
+    });
+  });
+
+  it("extracts run_command message results for the friendly display", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "run_command",
+        toolArgs: {
+          backend: "ahand:user-computer:ff00",
+          command: "python3 long-script.py",
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: JSON.stringify({
+        message: "Command is still running in the background.",
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+      }),
+    });
+
+    expect(state.commandExecution).toEqual({
+      backend: "ahand:user-computer:ff00",
+      command: "python3 long-script.py",
+      message: "Command is still running in the background.",
+      targetKind: "local",
+      targetName: undefined,
+      stdout: "",
+      stderr: "",
+      exitCode: "0",
+    });
+  });
+
+  it("parses completed streaming invoke_tool args into the nested display tool", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "invoke_tool",
+        toolArgs: undefined,
+        toolArgsText: JSON.stringify({
+          name: "wait",
+          params: { seconds: 30, reason: "rate limit" },
+        }),
+        toolPhase: "executing",
+      }),
+      resultMetadata: resultMeta({ status: "running" }),
+      resultContent: "",
+    });
+
+    expect(state.toolName).toBe("wait");
+    expect(state.argsSummary).toContain('seconds="30"');
+    expect(state.argsSummary).toContain('reason="rate limit"');
+    expect(state.argsText).toContain('"seconds": 30');
+    expect(state.argsText).not.toContain('"name": "wait"');
+  });
+
   it("uses completed result as success when no failure evidence exists", () => {
     const state = buildToolDisplayState({
       callMetadata: callMeta(),
