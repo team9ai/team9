@@ -193,6 +193,7 @@ describe("MessageItem - agent event rendering", () => {
 
   it("does not emit the gray wrapper for agent_start events", () => {
     const msg = makeMessage({
+      content: "Execution started.",
       metadata: { agentEventType: "agent_start", status: "completed" },
     });
 
@@ -206,6 +207,7 @@ describe("MessageItem - agent event rendering", () => {
     expect(
       screen.queryByText("tracking.eventLabels.agentStart"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("Execution started.")).not.toBeInTheDocument();
   });
 
   it("should render tool_result as collapsible", () => {
