@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -206,7 +206,9 @@ describe("HomeMainContent", () => {
     fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
       target: { value: "hello beta" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
 
     // Dashboard submit no longer routes to an existing bot channel with a
     // draft query param — it creates a fresh topic session for the selected
@@ -224,6 +226,47 @@ describe("HomeMainContent", () => {
         params: { channelId: "topic-ch-new" },
       });
     });
+  });
+
+  it("submits the dashboard prompt on Enter outside IME composition", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "hello alpha" },
+    });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByPlaceholderText(/message dashboard/i), {
+        key: "Enter",
+        code: "Enter",
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTopicSessionMutate).toHaveBeenCalledWith({
+        botUserId: "agent-1",
+        initialMessage: "hello alpha",
+        model: { provider: "openrouter", id: "openai/gpt-4.1" },
+      });
+    });
+  });
+
+  it("does not submit when Enter commits an IME candidate", () => {
+    renderWithProviders(<HomeMainContent />);
+
+    const input = screen.getByPlaceholderText(/message dashboard/i);
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, {
+      target: { value: "n" },
+    });
+    // Mirrors WKWebView/Safari ordering: compositionend can arrive before the
+    // Enter keydown that commits the candidate.
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    expect(mockCreateTopicSessionMutate).not.toHaveBeenCalled();
   });
 
   it("shows a static model label for unrecognized base-model agents that cannot switch", () => {

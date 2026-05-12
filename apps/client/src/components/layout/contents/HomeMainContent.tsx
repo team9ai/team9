@@ -1,4 +1,4 @@
-import type { KeyboardEventHandler } from "react";
+import type { CompositionEventHandler, KeyboardEventHandler } from "react";
 import {
   type LucideIcon,
   ArrowUp,
@@ -468,6 +468,8 @@ export function HomeMainContent({
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const isPromptComposingRef = useRef(false);
+  const promptCompositionEndFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const dragCounterRef = useRef(0);
@@ -690,10 +692,51 @@ export function HomeMainContent({
     };
   }, [handlePaste]);
 
+  useEffect(() => {
+    return () => {
+      if (promptCompositionEndFrameRef.current !== null) {
+        cancelAnimationFrame(promptCompositionEndFrameRef.current);
+        promptCompositionEndFrameRef.current = null;
+      }
+      isPromptComposingRef.current = false;
+    };
+  }, []);
+
+  const handlePromptCompositionStart: CompositionEventHandler<
+    HTMLTextAreaElement
+  > = () => {
+    if (promptCompositionEndFrameRef.current !== null) {
+      cancelAnimationFrame(promptCompositionEndFrameRef.current);
+      promptCompositionEndFrameRef.current = null;
+    }
+    isPromptComposingRef.current = true;
+  };
+
+  const handlePromptCompositionEnd: CompositionEventHandler<
+    HTMLTextAreaElement
+  > = () => {
+    if (promptCompositionEndFrameRef.current !== null) {
+      cancelAnimationFrame(promptCompositionEndFrameRef.current);
+    }
+    // WKWebView/Safari can fire compositionend before the Enter keydown that
+    // commits the IME candidate, so keep the guard alive for that same tick.
+    promptCompositionEndFrameRef.current = requestAnimationFrame(() => {
+      promptCompositionEndFrameRef.current = null;
+      isPromptComposingRef.current = false;
+    });
+  };
+
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (
     event,
   ) => {
     if (event.key === "Enter" && !event.shiftKey) {
+      if (
+        isPromptComposingRef.current ||
+        event.nativeEvent.isComposing ||
+        event.keyCode === 229
+      ) {
+        return;
+      }
       event.preventDefault();
       handleSubmit();
     }
@@ -761,6 +804,8 @@ export function HomeMainContent({
                   ref={promptRef}
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
+                  onCompositionStart={handlePromptCompositionStart}
+                  onCompositionEnd={handlePromptCompositionEnd}
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
                   placeholder={t("dashboardPromptPlaceholder")}
