@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { queryClient } from "@/lib/query-client";
 import {
@@ -17,6 +17,8 @@ import { workspaceActions, useWorkspaceStore } from "@/stores";
 import type { UserWorkspace, WorkspaceOnboarding } from "@/types/workspace";
 
 const ONBOARDING_ROUTE = "/onboarding";
+export const STARTUP_REQUEST_RETRY_COUNT = 3;
+const STARTUP_REQUEST_RETRY_DELAY_MS = 300;
 const WORKSPACE_BOOTSTRAP_RETRY_COUNT = 5;
 const WORKSPACE_BOOTSTRAP_RETRY_DELAY_MS = 300;
 const ONBOARDING_BOOTSTRAP_RETRY_COUNT = 5;
@@ -25,20 +27,72 @@ const ONBOARDING_BOOTSTRAP_RETRY_DELAY_MS = 300;
 let workspaceBootstrapRefreshPromise: Promise<WorkspaceBootstrapSnapshot> | null =
   null;
 
+export type WorkspaceBootstrapStatus =
+  | "refreshing"
+  | "retrying"
+  | "ready"
+  | "degraded"
+  | "failed";
+
+export interface WorkspaceBootstrapState {
+  status: WorkspaceBootstrapStatus;
+  errorMessage: string | null;
+  retry: () => void;
+}
+
 function wait(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function withStartupRequestRetry<T>(
+  label: string,
+  request: () => Promise<T>,
+) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= STARTUP_REQUEST_RETRY_COUNT; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= STARTUP_REQUEST_RETRY_COUNT) {
+        break;
+      }
+
+      markStartup(`${label}:request failed, retrying`, {
+        attempt,
+        maxAttempts: STARTUP_REQUEST_RETRY_COUNT,
+        retryDelayMs: STARTUP_REQUEST_RETRY_DELAY_MS,
+        message: getErrorMessage(error),
+      });
+      await wait(STARTUP_REQUEST_RETRY_DELAY_MS);
+    }
+  }
+
+  throw lastError;
+}
+
 async function fetchUserWorkspaces() {
-  const workspaces = await workspaceApi.getUserWorkspaces();
+  const workspaces = await withStartupRequestRetry(
+    "workspace.bootstrap:workspaces",
+    workspaceApi.getUserWorkspaces,
+  );
   queryClient.setQueryData(["user-workspaces"], workspaces);
   return workspaces;
 }
 
 async function fetchOnboardingState(workspaceId: string) {
-  const onboarding = await workspaceApi.getOnboardingState(workspaceId);
+  const onboarding = await withStartupRequestRetry(
+    "workspace.bootstrap:onboarding",
+    () => workspaceApi.getOnboardingState(workspaceId),
+  );
   queryClient.setQueryData(["workspace-onboarding", workspaceId], onboarding);
   return onboarding;
 }
@@ -200,9 +254,20 @@ function applyWorkspaceBootstrapSnapshot(
 
 export function useWorkspaceBootstrap() {
   const navigate = useNavigate();
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [state, setState] = useState<Omit<WorkspaceBootstrapState, "retry">>({
+    status: "refreshing",
+    errorMessage: null,
+  });
+
+  const retry = useCallback(() => {
+    setState({ status: "retrying", errorMessage: null });
+    setRetryAttempt((attempt) => attempt + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    let appliedSnapshot = false;
     const initialPathname = window.location.pathname;
 
     const maybeNavigate = (
@@ -246,21 +311,42 @@ export function useWorkspaceBootstrap() {
 
     const cached = readWorkspaceBootstrapCache();
     if (cached) {
+      appliedSnapshot = true;
       maybeNavigate(applyWorkspaceBootstrapSnapshot(cached, "cache"));
+      setState({ status: "ready", errorMessage: null });
     }
 
     void getSharedWorkspaceBootstrapRefreshPromise()
       .then((snapshot) => {
+        if (cancelled) {
+          return;
+        }
+        appliedSnapshot = true;
         maybeNavigate(applyWorkspaceBootstrapSnapshot(snapshot, "network"));
+        setState({ status: "ready", errorMessage: null });
       })
       .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        const errorMessage = getErrorMessage(error);
         markStartup("workspace.bootstrap:refresh failed", {
-          message: error instanceof Error ? error.message : String(error),
+          message: errorMessage,
+        });
+        setState({
+          status: appliedSnapshot ? "degraded" : "failed",
+          errorMessage,
         });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, retryAttempt]);
+
+  return {
+    ...state,
+    retry,
+  };
 }

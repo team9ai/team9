@@ -23,6 +23,7 @@ import { useAhandJwtRefresh } from "@/hooks/useAhandJwtRefresh";
 import { useWorkspaceBootstrap } from "@/hooks/useWorkspaceBootstrap";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { useEffect } from "react";
+import { RefreshCw, WifiOff } from "lucide-react";
 import {
   appActions,
   getSectionFromPath,
@@ -30,6 +31,7 @@ import {
 } from "@/stores";
 import { markStartup } from "@/lib/startup-profiler";
 import { getAuthenticatedStartupRedirect } from "@/lib/authenticated-startup-redirect";
+import { Button } from "@/components/ui/button";
 
 const ONBOARDING_ROUTE = "/onboarding";
 
@@ -86,7 +88,7 @@ function AuthenticatedLayout() {
   useAhandBootstrap();
 
   // Hydrate workspace/onboarding state after the shell is visible.
-  useWorkspaceBootstrap();
+  const workspaceBootstrap = useWorkspaceBootstrap();
 
   // Auto-refresh aHand JWT when daemon reports auth error
   useAhandJwtRefresh();
@@ -137,8 +139,22 @@ function AuthenticatedLayout() {
     appActions.setLastVisitedPath(pathSection, pathname);
   }, [location.pathname]);
 
+  const workspaceBootstrapPrompt =
+    workspaceBootstrap.status === "failed" ||
+    workspaceBootstrap.status === "retrying" ? (
+      <WorkspaceBootstrapNetworkPrompt
+        isRetrying={workspaceBootstrap.status === "retrying"}
+        onRetry={workspaceBootstrap.retry}
+      />
+    ) : null;
+
   if (isOnboardingRoute) {
-    return <Outlet />;
+    return (
+      <>
+        <Outlet />
+        {workspaceBootstrapPrompt}
+      </>
+    );
   }
 
   return (
@@ -169,8 +185,44 @@ function AuthenticatedLayout() {
           >
             <Outlet />
             <RoutePendingOverlay />
+            {workspaceBootstrapPrompt}
           </main>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceBootstrapNetworkPrompt({
+  isRetrying,
+  onRetry,
+}: {
+  isRetrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 px-6 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-card p-5 text-center shadow-lg">
+        <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <WifiOff className="size-5" />
+        </div>
+        <h2 className="text-base font-semibold text-foreground">
+          需要联网才能加载工作区
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          请检查网络连接后重试。当前工作区信息没有加载完成，暂时无法继续进入应用。
+        </p>
+        <Button
+          type="button"
+          className="mt-5 w-full"
+          onClick={onRetry}
+          disabled={isRetrying}
+        >
+          <RefreshCw
+            className={`mr-2 size-4 ${isRetrying ? "animate-spin" : ""}`}
+          />
+          {isRetrying ? "正在重试" : "重试"}
+        </Button>
       </div>
     </div>
   );
