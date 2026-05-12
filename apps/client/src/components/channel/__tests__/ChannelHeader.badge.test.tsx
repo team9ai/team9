@@ -209,6 +209,59 @@ describe("ChannelHeader · Model badge placement", () => {
     expect(screen.getByText("agent-lxy-001")).toBeInTheDocument();
   });
 
+  it("truncates the agent identifier affordance while copying the full id", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const longAgentId = "personal-staff-019d7315-a4bb-7039-bdbe-b810e026061d";
+
+    render(
+      <ChannelHeader
+        channel={
+          {
+            id: "topic-1",
+            tenantId: "tenant-1",
+            name: "当前workspace技能",
+            type: "topic-session",
+            createdBy: "user-1",
+            order: 0,
+            isArchived: false,
+            isActivated: true,
+            unreadCount: 0,
+            createdAt: "2026-04-07T00:00:00Z",
+            updatedAt: "2026-04-07T00:00:00Z",
+            otherUser: {
+              id: "bot-lxy",
+              username: "lin_xiaoyu",
+              displayName: "林晓宇",
+              status: "online",
+              userType: "bot",
+              agentType: "openclaw",
+              roleTitle: "平台工程师",
+              agentId: longAgentId,
+            },
+          } as ChannelWithUnread
+        }
+      />,
+    );
+
+    const copyButton = screen.getByRole("button", {
+      name: `Copy agent id ${longAgentId}`,
+    });
+    const idText = screen.getByText(longAgentId);
+
+    expect(copyButton).toHaveClass("min-w-0");
+    expect(idText).toHaveClass("truncate");
+
+    fireEvent.click(copyButton);
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(longAgentId);
+    });
+  });
+
   it("does not render member-management actions for topic-session channels", () => {
     mockUseChannelMembers.mockReturnValue({
       data: [

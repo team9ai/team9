@@ -384,12 +384,21 @@ export function ChannelView({
   const [isSnapped, setIsSnapped] = useState(false);
   const [threadPanelWidth, setThreadPanelWidth] = useState(600);
   const [agentPanelWidth, setAgentPanelWidth] = useState(360);
+  const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
+  useEffect(() => {
+    setIsAgentSessionPanelOpen(false);
+  }, [channelId]);
+
   const isAgentSessionCandidate =
     !isPreviewMode &&
-    (isBotDm || channel?.type === "tracking" || channel?.type === "task");
+    (isBotDm ||
+      channel?.type === "topic-session" ||
+      channel?.type === "routine-session" ||
+      channel?.type === "tracking" ||
+      channel?.type === "task");
   const agentSession = useChannelAgentSession(
     channelId,
     isAgentSessionCandidate,
@@ -399,16 +408,24 @@ export function ChannelView({
     (agentSession.data.supported ||
       (!!agentSession.data.unsupportedReason &&
         agentSession.data.unsupportedReason !== "no_bot"));
+  const isAgentSessionPanelVisible =
+    shouldShowAgentSessionPanel && isAgentSessionPanelOpen;
   const agentComponents = useAgentSessionComponents(
     channelId,
-    shouldShowAgentSessionPanel && agentSession.data?.supported === true,
+    isAgentSessionPanelVisible && agentSession.data?.supported === true,
     agentSession.data?.sessionId,
   );
-  const agentPanelCount = shouldShowAgentSessionPanel ? 1 : 0;
+  const agentPanelCount = isAgentSessionPanelVisible ? 1 : 0;
   const openThreadPanelCount =
     (primaryThread.isOpen && primaryThread.rootMessageId ? 1 : 0) +
     (secondaryThread.isOpen && secondaryThread.rootMessageId ? 1 : 0);
   const sidePanelCount = agentPanelCount + openThreadPanelCount;
+
+  useEffect(() => {
+    if (!shouldShowAgentSessionPanel) {
+      setIsAgentSessionPanelOpen(false);
+    }
+  }, [shouldShowAgentSessionPanel]);
 
   // Bot response indicator state (local)
   const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
@@ -655,7 +672,15 @@ export function ChannelView({
         className={`flex-1 flex flex-col min-w-0 select-text ${isSnapped ? "hidden" : ""}`}
       >
         {!hideHeader && (
-          <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
+          <ChannelHeader
+            channel={channel}
+            currentUserRole={currentUserRole}
+            showAgentSessionToggle={shouldShowAgentSessionPanel}
+            isAgentSessionPanelOpen={isAgentSessionPanelVisible}
+            onToggleAgentSessionPanel={() =>
+              setIsAgentSessionPanelOpen((open) => !open)
+            }
+          />
         )}
 
         {/* Channel tabs - only show for non-direct, non-preview channels.
@@ -774,7 +799,7 @@ export function ChannelView({
         )}
       </div>
 
-      {agentSession.data && shouldShowAgentSessionPanel && (
+      {agentSession.data && isAgentSessionPanelVisible && (
         <AgentSessionPanel
           binding={agentSession.data}
           components={agentComponents.data}
