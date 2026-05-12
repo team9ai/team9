@@ -54,10 +54,14 @@ describe("A2UIResponseItem", () => {
     );
 
     expect(screen.getByText("WM")).toBeInTheDocument();
-    expect(screen.getByText("Winrey Ma(你)")).toBeInTheDocument();
-    expect(screen.getByText(/已选择了/)).toBeInTheDocument();
+    expect(screen.queryByText("✓")).not.toBeInTheDocument();
+    expect(screen.getByText("“Winrey Ma(你)”")).toBeInTheDocument();
+    expect(screen.getByText("在")).toBeInTheDocument();
+    expect(screen.getByText("“这次可以选多个，随便选！”")).toBeInTheDocument();
+    expect(screen.getByText("选择了")).toBeInTheDocument();
     expect(
-      screen.getByText('选项 B, 选项 D, Other — "测试"'),
+      screen.getByText('“选项 B, 选项 D, Other — "测试"”'),
     ).toBeInTheDocument();
+    expect(screen.getByText(/\d{2}:02/)).toBeInTheDocument();
   });
 });

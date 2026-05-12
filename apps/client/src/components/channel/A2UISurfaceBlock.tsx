@@ -4,7 +4,6 @@ import { Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSendMessage } from "@/hooks/useMessages";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { UserAvatar } from "@/components/ui/user-avatar";
 import { formatAbsoluteTooltip } from "@/lib/date-format";
 import { formatMessageTime, parseApiDate } from "@/lib/date-utils";
 import {
@@ -77,14 +76,18 @@ function findFirstIncompleteTabIndex(
   return tabs.findIndex((tab) => (selections[tab.title] ?? []).length === 0);
 }
 
-function buildSelectionText(
+function buildSelectionDisplay(
   metadata: AgentEventMetadata,
   parsed: ParsedChoicesSurface | null,
-): string {
-  if (!metadata.selections) return "";
+): { title: string; selection: string } {
+  if (!metadata.selections) {
+    return { title: "选项", selection: "选项" };
+  }
 
-  const parts: string[] = [];
+  const titles: string[] = [];
+  const selections: string[] = [];
   for (const [tabTitle, sel] of Object.entries(metadata.selections)) {
+    titles.push(tabTitle);
     const parsedTab = parsed?.tabs.find((t) => t.title === tabTitle);
     const labels = sel.selected
       .filter((v) => v !== "__other__")
@@ -93,13 +96,13 @@ function buildSelectionText(
       labels.push(sel.otherText ? `Other — "${sel.otherText}"` : "Other");
     }
 
-    const text = labels.join(", ");
-    parts.push(
-      parsed && parsed.tabs.length > 1 ? `${tabTitle}：${text}` : text,
-    );
+    selections.push(labels.join(", "));
   }
 
-  return parts.join("；");
+  return {
+    title: titles.filter(Boolean).join(" / ") || "选项",
+    selection: selections.filter(Boolean).join("；") || "选项",
+  };
 }
 
 function ChoiceIndicator({
@@ -115,7 +118,7 @@ function ChoiceIndicator({
     <span
       aria-hidden="true"
       className={cn(
-        "mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center border transition-colors",
+        "flex h-4 w-4 shrink-0 self-center items-center justify-center border transition-colors",
         type === "single-select" ? "rounded-full" : "rounded-[4px]",
         checked
           ? "border-primary bg-primary text-primary-foreground"
@@ -257,12 +260,14 @@ function ReadOnlyChoicesForm({
 // ---------------------------------------------------------------------------
 
 function CollapsedHeader({
+  message,
   metadata,
   parsed,
   expanded,
   onToggle,
   currentUserId,
 }: {
+  message: Message;
   metadata: AgentEventMetadata;
   parsed: ParsedChoicesSurface | null;
   expanded: boolean;
@@ -280,14 +285,15 @@ function CollapsedHeader({
   const actorLabel = `${responderName}${
     metadata.responderId && metadata.responderId === currentUserId ? "(你)" : ""
   }`;
-  const selectionText = buildSelectionText(metadata, parsed);
-  const summary = isResolved
-    ? `${actorLabel}${timeLabel ? `在${timeLabel}` : ""}已选择了${
-        selectionText || "选项"
-      }`
-    : isTimeout
-      ? "Selection timed out"
-      : "Selection cancelled";
+  const selectionDisplay = buildSelectionDisplay(metadata, parsed);
+  const agentName =
+    message.sender?.displayName ?? message.sender?.username ?? "Agent";
+  const askedTitle =
+    parsed?.tabs
+      .map((tab) => tab.title)
+      .filter(Boolean)
+      .join(" / ") || selectionDisplay.title;
+  const summary = isTimeout ? "Selection timed out" : "Selection cancelled";
 
   return (
     <div className="group/a2ui-surface bg-card border border-border rounded-lg overflow-hidden">
@@ -295,17 +301,9 @@ function CollapsedHeader({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="group/header flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+        className="group/header flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
       >
-        {isResolved ? (
-          <UserAvatar
-            userId={metadata.responderId}
-            name={responderName}
-            avatarUrl={metadata.responderAvatarUrl}
-            className="h-6 w-6"
-            fallbackClassName="text-[10px] font-semibold"
-          />
-        ) : (
+        {!isResolved && (
           <span
             className={cn(
               "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs",
@@ -317,13 +315,29 @@ function CollapsedHeader({
             {isTimeout ? "\u23F1" : "\u2717"}
           </span>
         )}
-        <span className="text-sm text-foreground truncate flex-1 min-w-0">
-          {summary}
-        </span>
-        {completedDate && (
+        {isResolved ? (
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              {agentName}(agent)
+            </span>
+            <span className="mx-1.5">提问</span>
+            <span className="font-medium text-foreground">“{askedTitle}”</span>
+            <span className="mx-1.5">已被</span>
+            <span className="font-medium text-foreground">{actorLabel}</span>
+            <span className="mx-1.5">选择</span>
+            <span className="font-medium text-foreground">
+              “{selectionDisplay.selection}”
+            </span>
+          </span>
+        ) : (
+          <span className="text-sm text-foreground truncate flex-1 min-w-0">
+            {summary}
+          </span>
+        )}
+        {completedDate && !isResolved && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="shrink-0 text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover/a2ui-surface:opacity-100">
+              <span className="shrink-0 text-[11px] text-muted-foreground opacity-70 transition-opacity group-hover/a2ui-surface:opacity-100">
                 {timeLabel}
               </span>
             </TooltipTrigger>
@@ -334,6 +348,11 @@ function CollapsedHeader({
               {formatAbsoluteTooltip(completedDate)}
             </TooltipContent>
           </Tooltip>
+        )}
+        {isResolved && (
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            点击展开
+          </span>
         )}
         <ChevronRight
           size={14}
@@ -567,18 +586,9 @@ function ActiveSurface({
       onKeyDown={handleKeyDown}
       className="bg-card border border-border rounded-lg p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
-      <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
-        <UserAvatar
-          userId={message.senderId ?? undefined}
-          name={message.sender?.displayName}
-          username={message.sender?.username}
-          avatarUrl={message.sender?.avatarUrl}
-          isBot={message.sender?.userType === "bot"}
-          className="h-5 w-5"
-          fallbackClassName="text-[10px] font-semibold"
-        />
-        <span>
-          <span className="font-semibold text-foreground">
+      <div className="mb-4 flex items-center text-xs text-muted-foreground">
+        <span className="truncate">
+          <span className="mr-1 font-semibold text-foreground">
             {message.sender?.displayName ?? message.sender?.username ?? "Agent"}
             (agent)
           </span>
@@ -727,6 +737,7 @@ export function A2UISurfaceBlock({
   // Completed / failed → collapsed header with optional expand
   return (
     <CollapsedHeader
+      message={message}
       metadata={metadata}
       parsed={parsed}
       expanded={expanded}

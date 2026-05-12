@@ -187,7 +187,10 @@ function renderSurface() {
   return renderSurfaceWithPayload(makeMultiTabPayload());
 }
 
-function renderSurfaceWithPayload(payload: AgentEventMetadata["payload"]) {
+function renderSurfaceWithPayload(
+  payload: AgentEventMetadata["payload"],
+  metadataOverride: Partial<AgentEventMetadata> = {},
+) {
   const message: Message = {
     id: "surface-message",
     channelId: "ch-1",
@@ -217,6 +220,7 @@ function renderSurfaceWithPayload(payload: AgentEventMetadata["payload"]) {
     status: "running",
     surfaceId: "choices-1",
     payload,
+    ...metadataOverride,
   };
 
   return render(
@@ -231,6 +235,33 @@ function renderSurfaceWithPayload(payload: AgentEventMetadata["payload"]) {
 }
 
 describe("A2UISurfaceBlock", () => {
+  it("renders the active question header aligned as text", () => {
+    renderSurface();
+
+    expect(screen.getByText("Lia(agent)")).toBeInTheDocument();
+    expect(screen.getByText(/向你提问/)).toBeInTheDocument();
+  });
+
+  it("renders resolved surfaces as an agent question summary", () => {
+    renderSurfaceWithPayload(makeMultiTabPayload(), {
+      status: "resolved",
+      selections: {
+        颜色: { selected: ["blue"], otherText: null },
+      },
+      responderId: "current-user",
+      responderName: "Winrey Ma",
+    });
+
+    expect(screen.getByText("Lia(agent)")).toBeInTheDocument();
+    expect(screen.getByText(/提问/)).toBeInTheDocument();
+    expect(screen.getByText("“颜色 / 水果 / 心情”")).toBeInTheDocument();
+    expect(screen.getByText(/已被/)).toBeInTheDocument();
+    expect(screen.getByText("Winrey Ma(你)")).toBeInTheDocument();
+    expect(screen.getByText(/选择/)).toBeInTheDocument();
+    expect(screen.getByText("“蓝色”")).toBeInTheDocument();
+    expect(screen.getByText("点击展开")).toBeInTheDocument();
+  });
+
   it("auto-advances after an unanswered single-select tab receives its first selection", () => {
     renderSurface();
 
