@@ -556,6 +556,13 @@ export function MessageList({
         }
       }
 
+      if (
+        agentMeta?.agentEventType === "agent_start" ||
+        agentMeta?.agentEventType === "turn_separator"
+      ) {
+        return <div className="min-h-px overflow-hidden" aria-hidden="true" />;
+      }
+
       // Combined tool_call + tool_result block: render both in one card,
       // then hide the standalone tool_result item that follows.
       if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
