@@ -124,6 +124,8 @@ function resolveA2UISurfaceMetadata(
     responderId: surfaceMetadata.responderId ?? responseMetadata.responderId,
     responderName:
       surfaceMetadata.responderName ?? responseMetadata.responderName,
+    responderAvatarUrl:
+      surfaceMetadata.responderAvatarUrl ?? responseMetadata.responderAvatarUrl,
   };
 }
 
@@ -247,11 +249,15 @@ export function MessageList({
 
       responses.set(meta.surfaceId, {
         ...meta,
+        completedAt: meta.completedAt ?? message.createdAt,
+        updatedAt: meta.updatedAt ?? message.updatedAt,
         responderId: meta.responderId ?? message.senderId ?? undefined,
         responderName:
           meta.responderName ??
           message.sender?.displayName ??
           message.sender?.username,
+        responderAvatarUrl:
+          meta.responderAvatarUrl ?? message.sender?.avatarUrl ?? undefined,
       });
     }
 
@@ -657,7 +663,8 @@ export function MessageList({
       }
 
       // Hide tool_result already rendered in the combined block above.
-      // Use min-h-px (1px) instead of h-0 to avoid react-virtuoso zero-size warnings.
+      // Keep a measurable 1px item for react-virtuoso, then pull it back up so
+      // the consumed result does not leave a visible hairline between rows.
       if (agentMeta?.agentEventType === "tool_result" && agentMeta.toolCallId) {
         const prevItem = listDataRef.current[itemIndex - 1];
         const prevMsg =
@@ -669,7 +676,7 @@ export function MessageList({
           prevMeta.toolCallId === agentMeta.toolCallId
         ) {
           return (
-            <div className="min-h-px overflow-hidden" aria-hidden="true" />
+            <div className="-mt-px h-px overflow-hidden" aria-hidden="true" />
           );
         }
       }
@@ -683,7 +690,7 @@ export function MessageList({
             )
           : agentMeta;
         return (
-          <div id={`message-${message.id}`} className="px-4 py-1">
+          <div id={`message-${message.id}`} className="ml-2 mr-4 py-1">
             <A2UISurfaceBlock
               message={message}
               metadata={surfaceMeta}

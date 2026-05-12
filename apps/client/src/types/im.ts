@@ -131,6 +131,7 @@ export interface AgentEventMetadata {
   selections?: Record<string, { selected: string[]; otherText: string | null }>;
   responderId?: string;
   responderName?: string;
+  responderAvatarUrl?: string;
 
   // === Thinking event fields ===
   /** Thinking content text (for thinking events) — Agent 的思考内容文本 */

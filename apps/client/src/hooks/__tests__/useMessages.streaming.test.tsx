@@ -145,11 +145,23 @@ function emit(event: string, payload: unknown) {
 
 function getFirstCachedMessage(
   queryClient: QueryClient,
-): { id: string; sendStatus?: string } | undefined {
+):
+  | { id: string; sendStatus?: string; metadata?: Record<string, unknown> }
+  | undefined {
   const data = queryClient.getQueryData<{
     pages: Array<
-      | Array<{ id: string; sendStatus?: string }>
-      | { messages: Array<{ id: string; sendStatus?: string }> }
+      | Array<{
+          id: string;
+          sendStatus?: string;
+          metadata?: Record<string, unknown>;
+        }>
+      | {
+          messages: Array<{
+            id: string;
+            sendStatus?: string;
+            metadata?: Record<string, unknown>;
+          }>;
+        }
     >;
   }>(["messages", "ch-1"]);
   const firstPage = data?.pages[0];
@@ -224,6 +236,45 @@ describe("useMessages streaming events", () => {
       queryKey: ["messages", "ch-1"],
       refetchType: "all",
     });
+  });
+
+  it("preserves message metadata on optimistic A2UI response sends", async () => {
+    const { wrapper, queryClient } = makeWrapper();
+    mockImApi.messages.sendMessage.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(
+      () => {
+        useMessages("ch-1");
+        return useSendMessage("ch-1");
+      },
+      { wrapper },
+    );
+
+    await waitFor(() =>
+      expect(mockImApi.messages.getMessages).toHaveBeenCalled(),
+    );
+
+    act(() => {
+      result.current.mutate({
+        content: "这次选哪个？: 选项 C",
+        metadata: {
+          agentEventType: "a2ui_response",
+          status: "completed",
+          surfaceId: "choices-1",
+          selections: {
+            "这次选哪个？": { selected: ["c"], otherText: null },
+          },
+        },
+      });
+    });
+
+    await waitFor(() =>
+      expect(getFirstCachedMessage(queryClient)?.metadata).toMatchObject({
+        agentEventType: "a2ui_response",
+        status: "completed",
+        surfaceId: "choices-1",
+      }),
+    );
   });
 
   it("keeps timeout sends recoverable when the late websocket message arrives", async () => {

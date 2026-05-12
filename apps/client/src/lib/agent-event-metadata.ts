@@ -178,6 +178,9 @@ export function getOptionalAgentEventMetadata(
     ...(typeof value.responderName === "string"
       ? { responderName: value.responderName }
       : {}),
+    ...(typeof value.responderAvatarUrl === "string"
+      ? { responderAvatarUrl: value.responderAvatarUrl }
+      : {}),
     // === Thinking event fields ===
     ...(typeof value.thinking === "string" ? { thinking: value.thinking } : {}),
     ...(typeof value.inputTokens === "number" &&
