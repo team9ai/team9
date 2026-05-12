@@ -42,6 +42,7 @@ const a2uiSurfaceRenderProps = vi.hoisted(() => ({
     surfaceId?: string;
     selections?: AgentEventMetadata["selections"];
     responderName?: string;
+    responderAvatarUrl?: string;
     readOnly?: boolean;
   }>,
 }));
@@ -243,6 +244,9 @@ vi.mock("../A2UISurfaceBlock", () => ({
       surfaceId: metadata.surfaceId,
       selections: metadata.selections,
       responderName: metadata.responderName,
+      responderAvatarUrl: (
+        metadata as AgentEventMetadata & { responderAvatarUrl?: string }
+      ).responderAvatarUrl,
       readOnly,
     });
     return (
@@ -419,6 +423,7 @@ describe("MessageList — round auto-fold", () => {
           email: "winrey@example.com",
           username: "winrey",
           displayName: "Winrey Ma",
+          avatarUrl: "https://cdn.example.com/winrey.png",
           status: "online",
           isActive: true,
           createdAt: "2024-01-01T00:00:00Z",
@@ -448,11 +453,18 @@ describe("MessageList — round auto-fold", () => {
       status: "resolved",
       surfaceId: "choices-1",
       responderName: "Winrey Ma",
+      responderAvatarUrl: "https://cdn.example.com/winrey.png",
       selections: {
         "这次选哪个？": { selected: ["c"], otherText: null },
       },
     });
     expect(screen.getByTestId("a2ui-response")).toBeInTheDocument();
+    expect(screen.getByTestId("a2ui-surface").parentElement).toHaveClass(
+      "ml-14",
+    );
+    expect(screen.getByTestId("a2ui-response").parentElement).toHaveClass(
+      "ml-14",
+    );
   });
 
   describe("direct channel (DM)", () => {

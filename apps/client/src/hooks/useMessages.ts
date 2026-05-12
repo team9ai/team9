@@ -1522,6 +1522,7 @@ export function useSendMessage(channelId: string) {
         senderId: currentUser?.id || "",
         content: newMessageData.content,
         contentAst: newMessageData.contentAst,
+        metadata: newMessageData.metadata,
         type: "text",
         isPinned: false,
         isEdited: false,
