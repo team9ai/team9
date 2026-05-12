@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -206,7 +206,9 @@ describe("HomeMainContent", () => {
     fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
       target: { value: "hello beta" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
 
     // Dashboard submit no longer routes to an existing bot channel with a
     // draft query param — it creates a fresh topic session for the selected
@@ -218,6 +220,53 @@ describe("HomeMainContent", () => {
         model: { provider: "openrouter", id: "anthropic/claude-opus-4.6" },
       });
     });
+    await vi.waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/channels/$channelId",
+        params: { channelId: "topic-ch-new" },
+      });
+    });
+  });
+
+  it("ignores duplicate dashboard submits while the first topic session is in flight", async () => {
+    let resolveMutation!: (value: {
+      channelId: string;
+      sessionId: string;
+      agentId: string;
+      botUserId: string;
+      title: null;
+      createdAt: string;
+    }) => void;
+    mockCreateTopicSessionMutate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = resolve;
+        }),
+    );
+
+    renderWithProviders(<HomeMainContent />);
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "hello beta" },
+    });
+
+    const sendButton = screen.getByRole("button", { name: /send message/i });
+    fireEvent.click(sendButton);
+    fireEvent.click(sendButton);
+
+    expect(mockCreateTopicSessionMutate).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMutation({
+        channelId: "topic-ch-new",
+        sessionId: "session-new",
+        agentId: "agent-hive-id",
+        botUserId: "bot-1",
+        title: null,
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+    });
+
     await vi.waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/channels/$channelId",

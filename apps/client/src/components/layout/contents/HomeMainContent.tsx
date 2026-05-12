@@ -487,6 +487,7 @@ export function HomeMainContent({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const dragCounterRef = useRef(0);
+  const submitInFlightRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   // Dashboard composer has no channelId yet (channel is created on submit),
   // so files are uploaded as workspace-visible. Once the topic-session
@@ -590,7 +591,9 @@ export function HomeMainContent({
     // Empty draft is OK only when at least one attachment is ready —
     // server-side ValidateIf relaxes IsNotEmpty under the same condition.
     if (!draft && attachments.length === 0) return;
+    if (submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     try {
       // Create a fresh topic session for this prompt. The server persists
       // the first user message inside the same saga, so we can navigate
@@ -620,6 +623,8 @@ export function HomeMainContent({
       }
 
       alert(getHttpErrorMessage(error) || "Failed to create conversation");
+    } finally {
+      submitInFlightRef.current = false;
     }
   };
 
