@@ -17,6 +17,7 @@ import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { TabsService } from '../views/tabs.service.js';
 import { BOT_SERVICE_TOKEN } from './channels.service.js';
+import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -2405,6 +2406,42 @@ describe('ChannelsService', () => {
       expect(
         (service as any).channelMemberCacheService.invalidate,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createTopicSessionChannel', () => {
+    it('invalidates a pre-existing channel detail cache entry after creation', async () => {
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'topic-channel-1',
+          type: 'topic-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          propertySettings: {
+            topicSession: {
+              agentId: 'agent-1',
+              sessionId: 'session-1',
+              title: 'Test topic',
+              titleSource: 'temporary',
+            },
+          },
+        },
+      ]);
+
+      await service.createTopicSessionChannel({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sessionId: 'session-1',
+        title: 'Test topic',
+        titleSource: 'temporary',
+        channelId: 'topic-channel-1',
+      });
+
+      expect((service as any).redis.invalidate).toHaveBeenCalledWith(
+        REDIS_KEYS.CHANNEL_CACHE('topic-channel-1'),
+      );
     });
   });
 

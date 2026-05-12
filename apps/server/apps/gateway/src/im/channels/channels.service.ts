@@ -659,6 +659,7 @@ export class ChannelsService {
     });
 
     await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channel.id));
     await this.redis.invalidate(
       REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, creatorId),
     );
