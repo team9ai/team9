@@ -95,6 +95,23 @@ function createDeps() {
     removeReaction: jest.fn<any>().mockResolvedValue(undefined),
     getMessageChannelId: jest.fn<any>().mockResolvedValue('channel-1'),
     truncateForPreview: jest.fn<any>().mockImplementation((msg) => msg),
+    getMessageWithDetails: jest.fn<any>().mockResolvedValue({
+      id: 'msg-1',
+      channelId: 'channel-1',
+      senderId: 'bot-1',
+      content: 'done',
+      type: 'text',
+      isPinned: false,
+      parentId: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      sender: {
+        id: 'bot-1',
+        username: 'bot',
+        displayName: 'Bot',
+        userType: 'bot',
+        agentType: 'influencer',
+      },
+    }),
   };
   const redisService = {
     set: jest.fn<any>().mockResolvedValue(undefined),
@@ -141,6 +158,15 @@ function createDeps() {
   const gatewayMQService = {
     publishUpstream: jest.fn<any>().mockResolvedValue(undefined),
     initializeForNode: jest.fn<any>().mockResolvedValue(undefined),
+    isReady: jest.fn<any>().mockReturnValue(false),
+    publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
+    publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+  };
+  const imWorkerGrpcClientService = {
+    createMessage: jest.fn<any>().mockResolvedValue({ msgId: 'msg-1' }),
+  };
+  const eventEmitter = {
+    emit: jest.fn<any>(),
   };
   const socketRedisAdapterService = {
     isInitialized: jest.fn<any>().mockReturnValue(false),
@@ -164,6 +190,8 @@ function createDeps() {
     zombieCleanerService,
     connectionService,
     gatewayMQService,
+    imWorkerGrpcClientService,
+    eventEmitter,
     socketRedisAdapterService,
     botTokenValidator,
   };
@@ -190,6 +218,8 @@ function createGateway(overrides: Partial<ReturnType<typeof createDeps>> = {}) {
     deps.gatewayMQService as never,
     deps.socketRedisAdapterService as never,
     deps.botTokenValidator as never,
+    deps.imWorkerGrpcClientService as never,
+    deps.eventEmitter as never,
   );
   const { server, emits } = makeServer();
   gateway.server = server as never;
@@ -1315,19 +1345,26 @@ describe('WebsocketGateway', () => {
       );
     });
 
-    it('refreshes TTL and broadcasts content deltas for bot streams', async () => {
+    it('refreshes TTL and broadcasts content deltas using the stored stream session channel', async () => {
       const { gateway, deps } = createGateway();
       const { client } = makeClient({ userId: 'bot-1', isBot: true });
       const sendSpy = jest
         .spyOn(gateway, 'sendToChannelMembers')
         .mockResolvedValue(undefined);
+      deps.redisService.get.mockResolvedValue(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          startedAt: 123,
+        }),
+      );
 
       await expect(
         gateway.handleStreamingDelta(
           client as never,
           {
             streamId: 'stream-1',
-            channelId: 'channel-1',
+            channelId: 'forged-channel',
             content: 'hello',
           } as never,
         ),
@@ -1351,6 +1388,7 @@ describe('WebsocketGateway', () => {
         'channel-1',
         WS_EVENTS.STREAMING.CONTENT,
         expect.objectContaining({
+          channelId: 'channel-1',
           senderId: 'bot-1',
           content: 'hello',
         }),
@@ -1359,10 +1397,39 @@ describe('WebsocketGateway', () => {
         'channel-1',
         WS_EVENTS.STREAMING.THINKING_CONTENT,
         expect.objectContaining({
+          channelId: 'channel-1',
           senderId: 'bot-1',
           content: 'thinking',
         }),
       );
+    });
+
+    it('rejects streaming updates when the stored stream owner differs from the socket user', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      deps.redisService.get.mockResolvedValue(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'other-bot',
+          startedAt: 123,
+        }),
+      );
+
+      await expect(
+        gateway.handleStreamingDelta(
+          client as never,
+          {
+            streamId: 'stream-1',
+            channelId: 'channel-1',
+            content: 'hello',
+          } as never,
+        ),
+      ).resolves.toEqual({ error: 'Not the owner of this stream' });
+
+      expect(sendSpy).not.toHaveBeenCalled();
     });
 
     it('rejects streaming updates from non-bot sockets', async () => {
@@ -1410,7 +1477,7 @@ describe('WebsocketGateway', () => {
       ).resolves.toEqual({ error: 'Only bot users can stream messages' });
     });
 
-    it('cleans up state and broadcasts the truncated final message on stream end', async () => {
+    it('cleans up legacy WS state and broadcasts the truncated final message on stream end', async () => {
       const { gateway, deps } = createGateway();
       const { client } = makeClient({ userId: 'bot-1', isBot: true });
       const sendSpy = jest
@@ -1454,6 +1521,91 @@ describe('WebsocketGateway', () => {
         truncatedMessage,
       );
       expect(metricFns.messagesTotalAdd).toHaveBeenCalledWith(1);
+    });
+
+    it('persists WS final content and broadcasts the persisted message on stream end', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+      const persistedMessage = {
+        id: 'msg-1',
+        channelId: 'channel-1',
+        senderId: 'bot-1',
+        content: 'done',
+        type: 'text',
+        isPinned: false,
+        parentId: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        sender: {
+          id: 'bot-1',
+          username: 'bot',
+          displayName: 'Bot',
+          userType: 'bot',
+          agentType: 'influencer',
+        },
+      };
+      deps.redisService.get.mockResolvedValue(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          parentId: 'parent-1',
+          metadata: { agentEventType: 'writing' },
+          startedAt: 123,
+        }),
+      );
+      deps.messagesService.getMessageWithDetails.mockResolvedValue(
+        persistedMessage,
+      );
+
+      await expect(
+        gateway.handleStreamingEnd(
+          client as never,
+          {
+            streamId: 'stream-1',
+            channelId: 'forged-channel',
+            content: 'done',
+            thinking: 'reasoning',
+          } as never,
+        ),
+      ).resolves.toEqual({ success: true, messageId: 'msg-1' });
+
+      expect(deps.imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          content: 'done',
+          parentId: 'parent-1',
+          workspaceId: 'tenant-1',
+          metadata: expect.objectContaining({
+            agentEventType: 'writing',
+            thinking: 'reasoning',
+          }),
+        }),
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.STREAMING.END,
+        expect.objectContaining({
+          streamId: 'stream-1',
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          message: persistedMessage,
+        }),
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.MESSAGE.NEW,
+        persistedMessage,
+      );
+      expect(deps.redisService.del).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION('stream-1'),
+      );
+      expect(deps.redisService.srem).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+        'stream-1',
+      );
     });
 
     it('ends bot streams without rebroadcasting a final message when none is provided', async () => {
@@ -1528,13 +1680,21 @@ describe('WebsocketGateway', () => {
       const sendSpy = jest
         .spyOn(gateway, 'sendToChannelMembers')
         .mockResolvedValue(undefined);
+      deps.redisService.get.mockResolvedValue(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          metadata: { existing: true },
+          startedAt: 123,
+        }),
+      );
 
       await expect(
         gateway.handleStreamingMetadata(
           client as never,
           {
             streamId: 'stream-1',
-            channelId: 'channel-1',
+            channelId: 'forged-channel',
             metadata: {
               agentEventType: 'tool_call',
               status: 'running',
@@ -1547,8 +1707,9 @@ describe('WebsocketGateway', () => {
         ),
       ).resolves.toEqual({ success: true });
 
-      expect(deps.redisService.expire).toHaveBeenCalledWith(
+      expect(deps.redisService.set).toHaveBeenCalledWith(
         REDIS_KEYS.STREAMING_SESSION('stream-1'),
+        expect.any(String),
         120,
       );
       expect(sendSpy).toHaveBeenCalledWith(
@@ -1563,6 +1724,11 @@ describe('WebsocketGateway', () => {
             toolArgsText: '{"cmd":"pnpm test"}',
           }),
         }),
+      );
+      expect(deps.redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION('stream-1'),
+        expect.stringContaining('"existing":true'),
+        120,
       );
     });
   });
