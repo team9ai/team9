@@ -65,8 +65,8 @@ function getStaffModelLogoMeta(
 }
 
 interface StaffModelProviderLogoProps extends Omit<
-  ComponentProps<"img">,
-  "children" | "src" | "alt"
+  ComponentProps<"span">,
+  "children"
 > {
   model: StaffModelLogoIdentity | null | undefined;
 }
@@ -81,18 +81,21 @@ export function StaffModelProviderLogo({
   if (!meta) return null;
 
   const baseClassName =
-    "inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-[0.3rem] ring-1";
+    "inline-flex size-4 shrink-0 items-center justify-center self-center overflow-hidden rounded-[0.3rem] bg-white p-[2px] align-middle ring-1 ring-black/5";
 
   return (
-    <img
-      src={meta.src}
-      alt={meta.alt}
-      className={cn(
-        baseClassName,
-        "bg-white object-contain p-[2px] ring-black/5",
-        className,
-      )}
+    <span
+      role="img"
+      aria-label={meta.alt}
+      className={cn(baseClassName, className)}
       {...props}
-    />
+    >
+      <img
+        src={meta.src}
+        alt=""
+        aria-hidden="true"
+        className="block size-full object-contain"
+      />
+    </span>
   );
 }

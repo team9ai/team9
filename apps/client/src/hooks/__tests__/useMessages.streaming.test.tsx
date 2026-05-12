@@ -3,7 +3,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WS_EVENTS } from "@/types/ws-events";
-import { useMessages, useSendMessage } from "../useMessages";
+import {
+  useChannelMessages,
+  useMessages,
+  useSendMessage,
+} from "../useMessages";
 
 const listeners = vi.hoisted(
   () => new Map<string, Array<(event: unknown) => void>>(),
@@ -22,6 +26,7 @@ const streamStore = vi.hoisted(() => ({
 const mockImApi = vi.hoisted(() => ({
   messages: {
     getMessages: vi.fn(),
+    getMessagesPaginated: vi.fn(),
     sendMessage: vi.fn(),
   },
 }));
@@ -196,6 +201,7 @@ describe("useMessages streaming events", () => {
     vi.clearAllMocks();
     streamStore.streams = new Map();
     mockImApi.messages.getMessages.mockResolvedValue([]);
+    mockImApi.messages.getMessagesPaginated.mockReset();
     mockImApi.messages.sendMessage.mockReset();
   });
 
@@ -281,5 +287,78 @@ describe("useMessages streaming events", () => {
         sendStatus: undefined,
       }),
     ]);
+  });
+
+  it("recovers latest messages into an anchored channel cache", async () => {
+    const { wrapper, queryClient } = makeWrapper();
+    mockImApi.messages.getMessagesPaginated.mockResolvedValueOnce({
+      messages: [
+        {
+          id: "anchor-1",
+          channelId: "ch-1",
+          senderId: "current-user",
+          content: "older anchor",
+          type: "text",
+          isPinned: false,
+          isEdited: false,
+          isDeleted: false,
+          createdAt: "2026-05-12T00:00:00.000Z",
+          updatedAt: "2026-05-12T00:00:00.000Z",
+        },
+      ],
+      hasOlder: false,
+      hasNewer: true,
+    });
+    mockImApi.messages.getMessagesPaginated.mockResolvedValueOnce({
+      messages: [
+        {
+          id: "bot-reply-1",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "already persisted",
+          type: "text",
+          isPinned: false,
+          isEdited: false,
+          isDeleted: false,
+          createdAt: "2026-05-12T00:01:00.000Z",
+          updatedAt: "2026-05-12T00:01:00.000Z",
+        },
+      ],
+      hasOlder: true,
+      hasNewer: false,
+    });
+
+    const { result } = renderHook(
+      () => useChannelMessages("ch-1", { anchorMessageId: "anchor-1" }),
+      { wrapper },
+    );
+
+    await waitFor(() =>
+      expect(mockImApi.messages.getMessagesPaginated).toHaveBeenCalledWith(
+        "ch-1",
+        { limit: 50, around: "anchor-1" },
+      ),
+    );
+
+    await act(async () => {
+      await result.current.recoverLatestMessages();
+    });
+
+    expect(mockImApi.messages.getMessagesPaginated).toHaveBeenLastCalledWith(
+      "ch-1",
+      { limit: 50 },
+    );
+    const data = queryClient.getQueryData<{
+      pages: Array<{
+        messages: Array<{ id: string; content: string }>;
+      }>;
+    }>(["messages", "ch-1", "anchor-1"]);
+
+    expect(data?.pages[0].messages[0]).toEqual(
+      expect.objectContaining({
+        id: "bot-reply-1",
+        content: "already persisted",
+      }),
+    );
   });
 });

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChannelView } from "../ChannelView";
 
@@ -23,6 +29,8 @@ const viewState = vi.hoisted(() => ({
       sessionId: "session-1",
     },
   } as any,
+  recoverLatestMessages: vi.fn(),
+  sendMessageMutateAsync: vi.fn(),
 }));
 
 vi.stubGlobal(
@@ -88,8 +96,9 @@ vi.mock("@/hooks/useMessages", () => ({
     hasPreviousPage: false,
     isFetchingPreviousPage: false,
     fetchPreviousPage: vi.fn(),
+    recoverLatestMessages: viewState.recoverLatestMessages,
   }),
-  useSendMessage: () => ({ mutateAsync: vi.fn() }),
+  useSendMessage: () => ({ mutateAsync: viewState.sendMessageMutateAsync }),
 }));
 
 vi.mock("@/hooks/useChannelTabs", () => ({
@@ -187,7 +196,17 @@ vi.mock("../ChannelHeader", () => ({
 }));
 vi.mock("../ChannelTabs", () => ({ ChannelTabs: () => <div /> }));
 vi.mock("../ChannelContent", () => ({
-  ChannelContent: () => <div data-testid="channel-content" />,
+  ChannelContent: ({
+    onSend,
+  }: {
+    onSend?: (payload: { content: string }) => Promise<void>;
+  }) => (
+    <div data-testid="channel-content">
+      <button type="button" onClick={() => void onSend?.({ content: "ping" })}>
+        Send test message
+      </button>
+    </div>
+  ),
 }));
 vi.mock("../ThreadPanel", () => ({ ThreadPanel: () => <aside /> }));
 vi.mock("../JoinChannelPrompt", () => ({ JoinChannelPrompt: () => null }));
@@ -204,6 +223,9 @@ vi.mock("@/services/api/file", () => ({
 
 describe("ChannelView agent session panel", () => {
   beforeEach(() => {
+    vi.useRealTimers();
+    viewState.recoverLatestMessages = vi.fn().mockResolvedValue(undefined);
+    viewState.sendMessageMutateAsync = vi.fn().mockResolvedValue(undefined);
     viewState.channel = {
       id: "channel-1",
       tenantId: "tenant-1",
@@ -314,5 +336,80 @@ describe("ChannelView agent session panel", () => {
     );
     const chatShell = screen.getByTestId("channel-content").closest(".flex-1");
     expect(chatShell?.className).not.toContain("hidden");
+  });
+
+  it("recovers latest messages while waiting for a bot reply so missed websocket pushes recover", async () => {
+    vi.useFakeTimers();
+
+    render(<ChannelView channelId="channel-1" />);
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Send test message" }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(viewState.sendMessageMutateAsync).toHaveBeenCalled();
+    expect(viewState.recoverLatestMessages).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(viewState.recoverLatestMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not overlap recovery requests on slow networks", async () => {
+    vi.useFakeTimers();
+    let resolveRecovery: (() => void) | undefined;
+    viewState.recoverLatestMessages = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRecovery = resolve;
+        }),
+    );
+
+    render(<ChannelView channelId="channel-1" />);
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Send test message" }),
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000);
+    });
+
+    expect(viewState.recoverLatestMessages).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRecovery?.();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(viewState.recoverLatestMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops recovery polling after bounded attempts", async () => {
+    vi.useFakeTimers();
+
+    render(<ChannelView channelId="channel-1" />);
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Send test message" }),
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(180000);
+    });
+
+    expect(viewState.recoverLatestMessages).toHaveBeenCalledTimes(40);
   });
 });

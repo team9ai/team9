@@ -589,10 +589,10 @@ export function RichTextEditor({
                           <DropdownMenuRadioItem
                             key={`${model.provider}::${model.id}`}
                             value={`${model.provider}::${model.id}`}
-                            className="!cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
+                            className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
                           >
                             <StaffModelProviderLogo model={model} />
-                            <span className="block max-w-[calc(100vw-4rem)] truncate">
+                            <span className="inline-flex max-w-[calc(100vw-4rem)] items-center truncate">
                               {formatStaffModelDisplayLabel(model.label)}
                             </span>
                           </DropdownMenuRadioItem>

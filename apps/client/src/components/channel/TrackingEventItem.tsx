@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { getLabelKey, type StatusType } from "@/config/toolLabels";
+import { getDisplayToolName } from "@/lib/tool-events";
 import type { AgentEventMetadata } from "@/types/im";
 
 // Namespace-scoped TFunction used by the formatDuration / buildThinkingStats
@@ -241,10 +242,14 @@ export function TrackingEventItem({
   // This replaces the hardcoded "Calling" label with tool-specific copy
   // (e.g. "Sending message" / "Message sent" / "Failed to send message").
   let toolCallLabel: string | null = null;
+  const displayToolName =
+    metadata.agentEventType === "tool_call"
+      ? getDisplayToolName(metadata)
+      : metadata.toolName;
   if (metadata.agentEventType === "tool_call") {
     const descriptor = getLabelKey(
       "invoke_tool",
-      metadata.toolName,
+      displayToolName,
       toLabelStatus(status),
     );
     toolCallLabel = loosenedT(descriptor.key, descriptor.values);
@@ -306,7 +311,7 @@ export function TrackingEventItem({
             duration: formatRoundDuration(agentEndDurationMs, t),
           })
       : metadata.agentEventType === "tool_call" && metadata.toolName
-        ? metadata.toolName
+        ? (displayToolName ?? metadata.toolName)
         : isThinking
           ? thinkingBody
           : content;

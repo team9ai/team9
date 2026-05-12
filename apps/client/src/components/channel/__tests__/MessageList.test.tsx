@@ -35,6 +35,17 @@ const mockChannelStreams = vi.hoisted(() => ({
   }>,
 }));
 
+const a2uiSurfaceRenderProps = vi.hoisted(() => ({
+  current: [] as Array<{
+    messageId: string;
+    status: AgentEventMetadata["status"];
+    surfaceId?: string;
+    selections?: AgentEventMetadata["selections"];
+    responderName?: string;
+    readOnly?: boolean;
+  }>,
+}));
+
 // Minimal `t()` stand-in: returns the key by default, but expands the
 // tracking keys that MessageList's round-fold tests rely on (RoundCollapseSummary)
 // so the accessible name remains human-readable. This keeps the mock narrow
@@ -217,7 +228,33 @@ vi.mock("../ToolCallBlock", () => ({
 }));
 
 vi.mock("../A2UISurfaceBlock", () => ({
-  A2UISurfaceBlock: () => <div data-testid="a2ui-surface" />,
+  A2UISurfaceBlock: ({
+    message,
+    metadata,
+    readOnly,
+  }: {
+    message: Message;
+    metadata: AgentEventMetadata;
+    readOnly?: boolean;
+  }) => {
+    a2uiSurfaceRenderProps.current.push({
+      messageId: message.id,
+      status: metadata.status,
+      surfaceId: metadata.surfaceId,
+      selections: metadata.selections,
+      responderName: metadata.responderName,
+      readOnly,
+    });
+    return (
+      <div
+        data-testid="a2ui-surface"
+        data-message-id={message.id}
+        data-status={metadata.status}
+        data-surface-id={metadata.surfaceId ?? ""}
+        data-responder-name={metadata.responderName ?? ""}
+      />
+    );
+  },
 }));
 
 vi.mock("../A2UIResponseItem", () => ({
@@ -360,9 +397,64 @@ function renderList(
 beforeEach(() => {
   vi.clearAllMocks();
   mockChannelStreams.current = [];
+  a2uiSurfaceRenderProps.current = [];
 });
 
 describe("MessageList — round auto-fold", () => {
+  it("renders a running A2UI surface as resolved when a response with the same surfaceId exists", () => {
+    const chrono = [
+      makeAgentEvent("surface-1", "a2ui_surface_update", {
+        metadata: {
+          agentEventType: "a2ui_surface_update",
+          status: "running",
+          surfaceId: "choices-1",
+          payload: [],
+        },
+      }),
+      makeMessage("response-1", {
+        senderId: "current-user",
+        content: "这次选哪个？: 选项 C",
+        sender: {
+          id: "current-user",
+          email: "winrey@example.com",
+          username: "winrey",
+          displayName: "Winrey Ma",
+          status: "online",
+          isActive: true,
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        },
+        metadata: {
+          agentEventType: "a2ui_response",
+          status: "completed",
+          surfaceId: "choices-1",
+          selections: {
+            "这次选哪个？": { selected: ["c"], otherText: null },
+          },
+        },
+      }),
+    ];
+
+    renderList(chrono, { channelType: "public" });
+
+    expect(screen.getByTestId("a2ui-surface")).toHaveAttribute(
+      "data-status",
+      "resolved",
+    );
+    const lastSurfaceRender =
+      a2uiSurfaceRenderProps.current[a2uiSurfaceRenderProps.current.length - 1];
+    expect(lastSurfaceRender).toMatchObject({
+      messageId: "surface-1",
+      status: "resolved",
+      surfaceId: "choices-1",
+      responderName: "Winrey Ma",
+      selections: {
+        "这次选哪个？": { selected: ["c"], otherText: null },
+      },
+    });
+    expect(screen.getByTestId("a2ui-response")).toBeInTheDocument();
+  });
+
   describe("direct channel (DM)", () => {
     it("renders a collapse summary for a non-latest round", () => {
       const chrono = [

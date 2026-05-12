@@ -6,7 +6,7 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { getPostHogBrowserClient } from "@/analytics/posthog/client";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import type {
@@ -872,6 +872,18 @@ export function useChannelMessages(
     enabled: !!channelId,
   });
 
+  const recoverLatestMessages = useCallback(async () => {
+    if (!channelId) return;
+
+    const latestPage = await imApi.messages.getMessagesPaginated(channelId, {
+      limit: 50,
+    });
+
+    for (const message of [...latestPage.messages].reverse()) {
+      upsertChannelMessageInCache(queryClient, channelId, message);
+    }
+  }, [channelId, queryClient]);
+
   // Listen for real-time updates
   useEffect(() => {
     if (!channelId) return;
@@ -1250,7 +1262,7 @@ export function useChannelMessages(
     };
   }, [channelId, queryClient, options?.anchorMessageId]);
 
-  return query;
+  return { ...query, recoverLatestMessages };
 }
 
 // Extract thread reply handling into a shared helper

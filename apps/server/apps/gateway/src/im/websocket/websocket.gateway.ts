@@ -191,7 +191,11 @@ export class WebsocketGateway
     content: string,
     thinking?: string,
   ): Promise<{ success: true; messageId: string } | { error: string }> {
+    const startedAt = Date.now();
     if (!this.imWorkerGrpcClientService) {
+      this.logger.error(
+        `[streaming_end] finalizer unavailable stream=${streamId} user=${userId} contentChars=${content.length}`,
+      );
       return { error: 'Streaming finalizer unavailable' };
     }
 
@@ -200,10 +204,16 @@ export class WebsocketGateway
       userId,
     );
     if (!session) {
+      this.logger.warn(
+        `[streaming_end] missing session stream=${streamId} user=${userId} reason=${error ?? 'unknown'} contentChars=${content.length}`,
+      );
       return { error: error ?? 'Streaming session not found or expired' };
     }
 
     const channelId = session.channelId;
+    this.logger.log(
+      `[streaming_end] received final content stream=${streamId} channel=${channelId} user=${userId} parent=${session.parentId ?? 'none'} contentChars=${content.length} thinkingChars=${thinking?.length ?? 0}`,
+    );
 
     await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(streamId));
     await this.redisService.srem(
@@ -225,16 +235,24 @@ export class WebsocketGateway
       content,
     );
 
-    const result = await this.imWorkerGrpcClientService.createMessage({
-      clientMsgId: uuidv7(),
-      channelId,
-      senderId: userId,
-      content,
-      parentId: session.parentId,
-      type: determineMessageType(content, false),
-      workspaceId,
-      metadata,
-    });
+    let result: { msgId: string };
+    try {
+      result = await this.imWorkerGrpcClientService.createMessage({
+        clientMsgId: uuidv7(),
+        channelId,
+        senderId: userId,
+        content,
+        parentId: session.parentId,
+        type: determineMessageType(content, false),
+        workspaceId,
+        metadata,
+      });
+    } catch (persistError) {
+      this.logger.error(
+        `[streaming_end] persist failed stream=${streamId} channel=${channelId} user=${userId} contentChars=${content.length} error=${(persistError as Error).message}`,
+      );
+      throw persistError;
+    }
 
     let message: MessageResponse | null = null;
     try {
@@ -256,8 +274,9 @@ export class WebsocketGateway
       },
     );
 
+    let newMsgDelivered: boolean | null = null;
     if (message) {
-      const newMsgDelivered = await this.sendToChannelMembers(
+      newMsgDelivered = await this.sendToChannelMembers(
         channelId,
         WS_EVENTS.MESSAGE.NEW,
         message,
@@ -275,6 +294,10 @@ export class WebsocketGateway
           `Message was persisted but clients will not see it until they refresh.`,
       );
     }
+
+    this.logger.log(
+      `[streaming_end] finalized stream=${streamId} channel=${channelId} user=${userId} msg=${result.msgId} hasDetails=${message ? 'yes' : 'no'} streamingEndDelivered=${streamingEndDelivered} newMessageDelivered=${newMsgDelivered ?? 'skipped'} totalMs=${Date.now() - startedAt}`,
+    );
 
     if (message) {
       this.eventEmitter?.emit('message.created', {
