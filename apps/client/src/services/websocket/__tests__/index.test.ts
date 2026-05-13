@@ -19,7 +19,17 @@ const { ioMock, sockets, sentryMock, queryClientMock } = vi.hoisted(() => {
     const socket: MockSocket = {
       connected: false,
       disconnect: vi.fn(),
-      off: vi.fn(),
+      off: vi.fn((event: string, callback?: (...args: unknown[]) => void) => {
+        if (!callback) {
+          handlers.delete(event);
+          return;
+        }
+        const current = handlers.get(event) ?? [];
+        handlers.set(
+          event,
+          current.filter((handler) => handler !== callback),
+        );
+      }),
       on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
         const current = handlers.get(event) ?? [];
         current.push(callback);
@@ -159,5 +169,93 @@ describe("WebSocketService routine/user updated helpers", () => {
 
     expect(routineCb).toHaveBeenCalledWith({ routineId: "r-1" });
     expect(userCb).toHaveBeenCalledWith({ userId: "u-1" });
+  });
+});
+
+describe("WebSocketService listener persistence", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    ioMock.mockClear();
+    sentryMock.addBreadcrumb.mockClear();
+    sentryMock.captureException.mockClear();
+    queryClientMock.invalidateQueries.mockClear();
+    sockets.length = 0;
+    localStorage.clear();
+  });
+
+  it("rebinds channel_created listeners when the socket instance is recreated", async () => {
+    const { default: wsService } = await import("../index");
+
+    await vi.waitFor(() => {
+      expect(sockets[0]).toBeDefined();
+    });
+
+    const firstSocket = sockets[0];
+    expect(firstSocket).toBeDefined();
+    if (!firstSocket) return;
+
+    firstSocket.connected = true;
+    firstSocket.trigger("connect");
+
+    const channelCreated = vi.fn();
+    wsService.onChannelCreated(channelCreated);
+
+    firstSocket.trigger("channel_created", { id: "channel-1" });
+    expect(channelCreated).toHaveBeenCalledTimes(1);
+    expect(channelCreated).toHaveBeenLastCalledWith({ id: "channel-1" });
+
+    firstSocket.connected = false;
+    wsService.connect();
+
+    await vi.waitFor(() => {
+      expect(ioMock).toHaveBeenCalledTimes(2);
+    });
+
+    const secondSocket = sockets[1];
+    expect(secondSocket).toBeDefined();
+    if (!secondSocket) return;
+
+    secondSocket.connected = true;
+    secondSocket.trigger("connect");
+    secondSocket.trigger("channel_created", { id: "channel-2" });
+
+    expect(channelCreated).toHaveBeenCalledTimes(2);
+    expect(channelCreated).toHaveBeenLastCalledWith({ id: "channel-2" });
+  });
+
+  it("does not rebind channel_created listeners after they are removed", async () => {
+    const { default: wsService } = await import("../index");
+
+    await vi.waitFor(() => {
+      expect(sockets[0]).toBeDefined();
+    });
+
+    const firstSocket = sockets[0];
+    expect(firstSocket).toBeDefined();
+    if (!firstSocket) return;
+
+    firstSocket.connected = true;
+    firstSocket.trigger("connect");
+
+    const channelCreated = vi.fn();
+    wsService.onChannelCreated(channelCreated);
+    wsService.off("channel_created", channelCreated);
+
+    firstSocket.connected = false;
+    wsService.connect();
+
+    await vi.waitFor(() => {
+      expect(ioMock).toHaveBeenCalledTimes(2);
+    });
+
+    const secondSocket = sockets[1];
+    expect(secondSocket).toBeDefined();
+    if (!secondSocket) return;
+
+    secondSocket.connected = true;
+    secondSocket.trigger("connect");
+    secondSocket.trigger("channel_created", { id: "channel-2" });
+
+    expect(channelCreated).not.toHaveBeenCalled();
   });
 });
