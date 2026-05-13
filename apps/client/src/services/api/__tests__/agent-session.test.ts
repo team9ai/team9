@@ -76,4 +76,26 @@ describe("channelsApi agent session endpoints", () => {
     );
     expect(result).toBe(payload);
   });
+
+  it("pauseAgentSession calls the channel pause endpoint", async () => {
+    mockHttp.post.mockResolvedValueOnce({ data: {} });
+
+    await channelsApi.pauseAgentSession("ch-1");
+
+    expect(mockHttp.post).toHaveBeenCalledWith(
+      "/v1/im/channels/ch-1/agent-session/pause",
+      {},
+    );
+  });
+
+  it("resumeAgentSession calls the channel resume endpoint", async () => {
+    mockHttp.post.mockResolvedValueOnce({ data: {} });
+
+    await channelsApi.resumeAgentSession("ch-1");
+
+    expect(mockHttp.post).toHaveBeenCalledWith(
+      "/v1/im/channels/ch-1/agent-session/resume",
+      {},
+    );
+  });
 });

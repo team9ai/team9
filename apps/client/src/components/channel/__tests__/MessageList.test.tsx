@@ -460,10 +460,15 @@ describe("MessageList — round auto-fold", () => {
     });
     expect(screen.getByTestId("a2ui-response")).toBeInTheDocument();
     expect(screen.getByTestId("a2ui-surface").parentElement).toHaveClass(
-      "ml-14",
+      "ml-2",
+      "mr-8",
     );
     expect(screen.getByTestId("a2ui-response").parentElement).toHaveClass(
-      "ml-14",
+      "ml-2",
+      "mr-8",
+    );
+    expect(screen.getByTestId("a2ui-response").parentElement).not.toHaveClass(
+      "border-l-2",
     );
   });
 
@@ -665,6 +670,45 @@ describe("MessageList — round auto-fold", () => {
       // Both events rendered
       expect(getRenderedMessageIds()).toEqual(
         expect.arrayContaining(["a1", "a2"]),
+      );
+    });
+
+    it("does not leave a padded row for agent_start before an active stream", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-1",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "streaming reply",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: Date.now(),
+          parts: [],
+        },
+      ];
+      const chrono = [
+        makeMessage("u1", { content: "hi" }),
+        makeAgentEvent("start", "agent_start", {
+          content: "Execution started.",
+        }),
+      ];
+
+      renderList(chrono, { channelType: "direct" });
+
+      expect(screen.queryByText("Execution started.")).not.toBeInTheDocument();
+      expect(getRenderedMessageIds()).not.toContain("start");
+
+      const startItem = document.querySelector<HTMLElement>(
+        '[data-virtuoso-item-key="start"]',
+      );
+      const hiddenPlaceholder =
+        startItem?.firstElementChild as HTMLElement | null;
+      expect(hiddenPlaceholder).toHaveAttribute("aria-hidden", "true");
+      expect(hiddenPlaceholder?.className).toContain("min-h-px");
+      expect(hiddenPlaceholder?.className).not.toContain("py-0.5");
+      expect(screen.getByTestId("streaming-item")).toHaveTextContent(
+        "streaming reply",
       );
     });
   });

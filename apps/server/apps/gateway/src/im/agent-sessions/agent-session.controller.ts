@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   Param,
+  Post,
   Query,
   Req,
   Res,
@@ -76,6 +77,34 @@ export class AgentSessionController {
     }
 
     return projectSafeComponents(response);
+  }
+
+  @Post(':channelId/agent-session/pause')
+  @UseGuards(AuthGuard)
+  async pauseSession(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+  ): Promise<{ status: 'paused' }> {
+    const binding = await this.resolveSupportedBinding(channelId, userId);
+    await this.clawHive.interruptSession(
+      binding.sessionId!,
+      binding.tenantId ?? undefined,
+    );
+    return { status: 'paused' };
+  }
+
+  @Post(':channelId/agent-session/resume')
+  @UseGuards(AuthGuard)
+  async resumeSession(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+  ): Promise<{ status: 'resumed' }> {
+    const binding = await this.resolveSupportedBinding(channelId, userId);
+    await this.clawHive.startSession(
+      binding.sessionId!,
+      binding.tenantId ?? undefined,
+    );
+    return { status: 'resumed' };
   }
 
   @Get(':channelId/agent-session/events')
@@ -179,6 +208,17 @@ export class AgentSessionController {
     } catch {
       return { exists: false, unavailableReason: 'agent_pi_unavailable' };
     }
+  }
+
+  private async resolveSupportedBinding(
+    channelId: string,
+    userId: string,
+  ): Promise<AgentSessionBindingResponse> {
+    const binding = await this.bindingService.resolve(channelId, userId);
+    if (!binding.supported || !binding.sessionId) {
+      throw new NotFoundException('Agent session not available');
+    }
+    return binding;
   }
 
   private extractBearerToken(req: Request): string | undefined {

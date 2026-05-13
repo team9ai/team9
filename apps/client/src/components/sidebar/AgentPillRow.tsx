@@ -7,6 +7,7 @@ export interface AgentPillRowProps {
   staffKind: AgentStaffKind;
   roleTitle?: string | null;
   ownerName?: string | null;
+  className?: string;
 }
 
 const basePill =
@@ -34,13 +35,14 @@ export function AgentPillRow({
   staffKind,
   roleTitle,
   ownerName,
+  className,
 }: AgentPillRowProps) {
   const { t } = useTranslation("navigation");
   const aiLabel = t("agentPillAi");
 
   if (staffKind === "common") {
     return (
-      <div className={rowClass}>
+      <div className={cn(rowClass, className)}>
         <span className={accentPill}>{aiLabel}</span>
         {roleTitle ? (
           <span className={truncatedPill} title={roleTitle}>
@@ -53,7 +55,7 @@ export function AgentPillRow({
 
   if (staffKind === "personal") {
     return (
-      <div className={rowClass}>
+      <div className={cn(rowClass, className)}>
         <span className={accentPill}>{aiLabel}</span>
         <span className={neutralPill}>{t("agentPillPersonalAssistant")}</span>
         {ownerName ? (
@@ -67,7 +69,7 @@ export function AgentPillRow({
 
   // staffKind === "other"
   return (
-    <div className={rowClass}>
+    <div className={cn(rowClass, className)}>
       <span className={accentPill}>{aiLabel}</span>
       <span className={neutralPill}>{t("agentPillModel")}</span>
     </div>

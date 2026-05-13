@@ -42,6 +42,13 @@ export const toolParamConfig: Record<string, ToolParamConfigItem> = {
       query: 60,
     },
   },
+  wait: {
+    keyParams: ["seconds", "reason", "prompt"],
+    truncate: {
+      reason: 60,
+      prompt: 80,
+    },
+  },
 };
 
 /**

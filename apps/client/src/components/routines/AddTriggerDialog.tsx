@@ -39,6 +39,7 @@ import {
 } from "@/lib/routine-trigger-keys";
 import { routinesApi } from "@/services/api/routines";
 import { channelsApi } from "@/services/api/im";
+import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import type { RoutineTriggerType } from "@/types/routine";
 
 interface AddTriggerDialogProps {
@@ -70,6 +71,7 @@ export function AddTriggerDialog({
 }: AddTriggerDialogProps) {
   const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
 
   // Dialog state
   const [step, setStep] = useState<1 | 2>(1);
@@ -96,17 +98,12 @@ export function AddTriggerDialog({
 
   // Fetch channels for channel_message type
   const { data: channels = [] } = useQuery({
-    queryKey: ["channels"],
-    queryFn: () => channelsApi.getChannels(),
-    enabled: isOpen && selectedType === "channel_message",
+    queryKey: ["group-channels", workspaceId],
+    queryFn: () => channelsApi.getGroupChannels(),
+    enabled: isOpen && selectedType === "channel_message" && !!workspaceId,
   });
 
-  const nonDirectChannels = channels.filter(
-    (ch) =>
-      ch.type !== "direct" &&
-      ch.type !== "echo" &&
-      ch.type !== "routine-session",
-  );
+  const nonDirectChannels = channels;
 
   const createMutation = useMutation({
     mutationFn: () => {

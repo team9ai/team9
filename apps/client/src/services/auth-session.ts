@@ -1,4 +1,9 @@
 import { API_BASE_URL } from "@/constants/api-base-url";
+import {
+  markStartup,
+  startupDurationMs,
+  startupNow,
+} from "@/lib/startup-profiler";
 
 const AUTH_TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
@@ -52,8 +57,14 @@ const isJwtExpired = (
 const requestTokenRefresh = async (): Promise<string | null> => {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
+    markStartup("auth.refresh:skipped", {
+      reason: "missing refresh token",
+    });
     return null;
   }
+
+  const startedAt = startupNow();
+  markStartup("auth.refresh:start");
 
   try {
     const response = await fetch(`${getApiBaseUrl()}/v1/auth/refresh`, {
@@ -65,6 +76,10 @@ const requestTokenRefresh = async (): Promise<string | null> => {
     });
 
     if (!response.ok) {
+      markStartup("auth.refresh:failed response", {
+        status: response.status,
+        durationMs: startupDurationMs(startedAt),
+      });
       return null;
     }
 
@@ -73,6 +88,9 @@ const requestTokenRefresh = async (): Promise<string | null> => {
       typeof data.accessToken !== "string" ||
       typeof data.refreshToken !== "string"
     ) {
+      markStartup("auth.refresh:invalid payload", {
+        durationMs: startupDurationMs(startedAt),
+      });
       return null;
     }
 
@@ -81,8 +99,14 @@ const requestTokenRefresh = async (): Promise<string | null> => {
       refreshToken: data.refreshToken,
     });
 
+    markStartup("auth.refresh:end", {
+      durationMs: startupDurationMs(startedAt),
+    });
     return data.accessToken;
   } catch {
+    markStartup("auth.refresh:network error", {
+      durationMs: startupDurationMs(startedAt),
+    });
     return null;
   }
 };
@@ -142,9 +166,19 @@ export const getValidAccessToken = async ({
   minValiditySeconds?: number;
 } = {}): Promise<string | null> => {
   const token = getAuthToken();
-  if (!forceRefresh && token && !isJwtExpired(token, minValiditySeconds)) {
+  const hasToken = Boolean(token);
+  const tokenExpired = token ? isJwtExpired(token, minValiditySeconds) : true;
+
+  if (!forceRefresh && token && !tokenExpired) {
     return token;
   }
+
+  markStartup("auth.accessToken:refresh needed", {
+    forceRefresh,
+    hasToken,
+    tokenExpired,
+    minValiditySeconds,
+  });
 
   return refreshAccessToken();
 };

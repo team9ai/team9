@@ -17,6 +17,7 @@ import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { TabsService } from '../views/tabs.service.js';
 import { BOT_SERVICE_TOKEN } from './channels.service.js';
+import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -1554,6 +1555,115 @@ describe('ChannelsService', () => {
       expect(result[0]).toHaveProperty('showInDmSidebar', false);
     });
 
+    it('returns only user-accessible public/private group channels for group lists', async () => {
+      const publicChannel = {
+        id: 'public-1',
+        tenantId: 'tenant-1',
+        name: 'Public',
+        description: null,
+        type: 'public',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unreadCount: 0,
+        lastReadMessageId: null,
+      };
+      const privateChannel = {
+        ...publicChannel,
+        id: 'private-1',
+        name: 'Private',
+        type: 'private',
+      };
+      const temporaryChannel = {
+        ...publicChannel,
+        id: 'topic-session-1',
+        name: 'Temporary',
+        type: 'topic-session',
+      };
+
+      db.where.mockResolvedValueOnce([
+        publicChannel,
+        privateChannel,
+        temporaryChannel,
+      ] as any);
+      // resolveEffectiveMembership DB query (no derived channels)
+      db.where.mockResolvedValueOnce([] as any);
+
+      const result = await (service as any).getUserGroupChannels(
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result.map((channel: any) => channel.type)).toEqual([
+        'public',
+        'private',
+      ]);
+    });
+
+    it('returns only direct and echo channels for direct lists', async () => {
+      const directChannel = {
+        id: 'direct-1',
+        tenantId: 'tenant-1',
+        name: null,
+        description: null,
+        type: 'direct',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        showInDmSidebar: true,
+      };
+      const echoChannel = {
+        ...directChannel,
+        id: 'echo-1',
+        type: 'echo',
+      };
+
+      db.where.mockResolvedValueOnce([directChannel, echoChannel] as any);
+      // direct channel member lookup
+      db.where.mockResolvedValueOnce([] as any);
+      // echo channel self lookup
+      db.limit.mockResolvedValueOnce([
+        {
+          id: 'user-1',
+          username: 'alice',
+          displayName: 'Alice',
+          avatarUrl: null,
+          status: 'online',
+          userType: 'human',
+          applicationId: null,
+          managedProvider: null,
+          managedMeta: null,
+          botExtra: null,
+          ownerDisplayName: null,
+          ownerUsername: null,
+        },
+      ] as any);
+
+      const result = await (service as any).getUserDirectChannels(
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result.map((channel: any) => channel.type)).toEqual([
+        'direct',
+        'echo',
+      ]);
+    });
+
     it('classifies a bot DM peer with commonStaff extra into staffKind=common', async () => {
       // Mocks the post-Task-2 join shape: the per-member query now returns
       // botExtra (jsonb) alongside ownerDisplayName / ownerUsername from
@@ -2296,6 +2406,42 @@ describe('ChannelsService', () => {
       expect(
         (service as any).channelMemberCacheService.invalidate,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createTopicSessionChannel', () => {
+    it('invalidates a pre-existing channel detail cache entry after creation', async () => {
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'topic-channel-1',
+          type: 'topic-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          propertySettings: {
+            topicSession: {
+              agentId: 'agent-1',
+              sessionId: 'session-1',
+              title: 'Test topic',
+              titleSource: 'temporary',
+            },
+          },
+        },
+      ]);
+
+      await service.createTopicSessionChannel({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        agentId: 'agent-1',
+        sessionId: 'session-1',
+        title: 'Test topic',
+        titleSource: 'temporary',
+        channelId: 'topic-channel-1',
+      });
+
+      expect((service as any).redis.invalidate).toHaveBeenCalledWith(
+        REDIS_KEYS.CHANNEL_CACHE('topic-channel-1'),
+      );
     });
   });
 

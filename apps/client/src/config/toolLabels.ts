@@ -41,6 +41,9 @@ export const toolNameLabelKeys: Record<string, string> = {
   search_docs: "tracking.tools.searchDocs",
   send_message: "tracking.tools.sendMessage",
   generate_reply: "tracking.tools.generateReply",
+  wait: "tracking.tools.wait",
+  TodoWrite: "tracking.tools.todoWrite",
+  todo_write: "tracking.tools.todoWrite",
 };
 
 /** Generic fallback key used when neither the tool name nor the operation

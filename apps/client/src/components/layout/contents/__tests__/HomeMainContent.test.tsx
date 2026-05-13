@@ -228,6 +228,53 @@ describe("HomeMainContent", () => {
     });
   });
 
+  it("ignores duplicate dashboard submits while the first topic session is in flight", async () => {
+    let resolveMutation!: (value: {
+      channelId: string;
+      sessionId: string;
+      agentId: string;
+      botUserId: string;
+      title: null;
+      createdAt: string;
+    }) => void;
+    mockCreateTopicSessionMutate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = resolve;
+        }),
+    );
+
+    renderWithProviders(<HomeMainContent />);
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "hello beta" },
+    });
+
+    const sendButton = screen.getByRole("button", { name: /send message/i });
+    fireEvent.click(sendButton);
+    fireEvent.click(sendButton);
+
+    expect(mockCreateTopicSessionMutate).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMutation({
+        channelId: "topic-ch-new",
+        sessionId: "session-new",
+        agentId: "agent-hive-id",
+        botUserId: "bot-1",
+        title: null,
+        createdAt: "2024-01-01T00:00:00.000Z",
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/channels/$channelId",
+        params: { channelId: "topic-ch-new" },
+      });
+    });
+  });
+
   it("submits the dashboard prompt on Enter outside IME composition", async () => {
     renderWithProviders(<HomeMainContent />);
 

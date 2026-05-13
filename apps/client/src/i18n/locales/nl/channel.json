@@ -147,6 +147,11 @@
         "loading": "Antwoord genereren",
         "success": "Antwoord gegenereerd",
         "error": "Antwoord genereren mislukt"
+      },
+      "todoWrite": {
+        "loading": "TODO bijwerken",
+        "success": "TODO bijgewerkt",
+        "error": "TODO bijwerken mislukt"
       }
     },
     "thinking": {
@@ -161,6 +166,17 @@
     "toolCall": {
       "argsLabel": "Args",
       "resultLabel": "Resultaat",
+      "loadedTools": "Tools geladen",
+      "todoSummary": "TODO {{total}} items",
+      "todoStatus": {
+        "pending": "Open",
+        "inProgress": "Bezig",
+        "completed": "Voltooid"
+      },
+      "fullscreen": "{{label}} volledig scherm",
+      "closeFullscreen": "Volledig scherm sluiten",
+      "rawJson": "raw",
+      "formattedJson": "geformatteerd",
       "unknownTool": "Onbekende tool"
     },
     "eventLabels": {

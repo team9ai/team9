@@ -29,9 +29,71 @@ function hasDataEnvelope(value: unknown): value is { data: unknown } {
   return typeof value === "object" && value !== null && "data" in value;
 }
 
+function getRequestPath(config: HttpRequestConfig) {
+  const url = config.url ?? "";
+
+  try {
+    const base = config.baseURL ?? API_BASE_URL;
+    return new URL(url, base).pathname;
+  } catch {
+    return url.split("?")[0] ?? url;
+  }
+}
+
+function summarizeBody(data: unknown): string {
+  if (data === undefined || data === null) {
+    return "none";
+  }
+
+  if (data instanceof FormData) {
+    return "FormData";
+  }
+
+  if (typeof data === "string") {
+    return `string(${data.length})`;
+  }
+
+  if (Array.isArray(data)) {
+    return `Array(${data.length})`;
+  }
+
+  if (typeof data === "object") {
+    const keys = Object.keys(data);
+    return `Object(${keys.slice(0, 8).join(",")}${keys.length > 8 ? ",..." : ""})`;
+  }
+
+  return typeof data;
+}
+
+function summarizeResponseData(data: unknown): string {
+  if (hasDataEnvelope(data)) {
+    return `Envelope(${summarizeResponseData(data.data)})`;
+  }
+
+  return summarizeBody(data);
+}
+
+function sanitizeHeaders(headers: HeadersInit | undefined) {
+  const source = new Headers(headers);
+  const sanitized: Record<string, string> = {};
+
+  source.forEach((value, key) => {
+    sanitized[key] =
+      key.toLowerCase() === "authorization" ? "[redacted]" : value;
+  });
+
+  return sanitized;
+}
+
 export const requestLogger = (config: HttpRequestConfig): HttpRequestConfig => {
   if (import.meta.env.DEV) {
-    console.log(`[HTTP Request] ${config.method} ${config.baseURL}`, config);
+    console.log("[HTTP Request]", {
+      method: config.method,
+      path: getRequestPath(config),
+      params: config.params,
+      body: summarizeBody(config.data),
+      headers: sanitizeHeaders(config.headers),
+    });
   }
   return config;
 };
@@ -40,10 +102,12 @@ export const responseLogger = <T>(
   response: HttpResponse<T>,
 ): HttpResponse<T> => {
   if (import.meta.env.DEV) {
-    console.log(
-      `[HTTP Response] ${response.status} ${response.statusText}`,
-      response.data,
-    );
+    console.log("[HTTP Response]", {
+      status: response.status,
+      statusText: response.statusText,
+      path: getRequestPath(response.config),
+      data: summarizeResponseData(response.data),
+    });
   }
   return response;
 };
@@ -64,7 +128,8 @@ export const errorLogger = async (error: HttpError): Promise<never> => {
       message: error.message,
       status: error.status,
       code: error.code,
-      response: error.response?.data,
+      path: error.config ? getRequestPath(error.config) : undefined,
+      response: summarizeResponseData(error.response?.data),
     });
   }
   throw error;

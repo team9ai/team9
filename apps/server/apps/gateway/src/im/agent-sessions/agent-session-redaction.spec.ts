@@ -101,6 +101,34 @@ describe('agent session redaction', () => {
     });
   });
 
+  it('keeps valid JSON component snapshot values that are not plain objects', () => {
+    expect(
+      filterAgentSessionEvent({
+        type: 'component_data_snapshot',
+        sessionId: 's1',
+        timestamp: 456,
+        turnIndex: 1,
+        components: [
+          { componentId: 'list', data: [{ token: 'raw' }, 'visible'] },
+          { componentId: 'empty', data: null },
+          { componentId: 'flag', data: false },
+          { componentId: 'count', data: 0 },
+        ],
+      }),
+    ).toEqual({
+      type: 'component_data_snapshot',
+      sessionId: 's1',
+      timestamp: 456,
+      turnIndex: 1,
+      components: [
+        { componentId: 'list', data: [{ token: '[redacted]' }, 'visible'] },
+        { componentId: 'empty', data: null },
+        { componentId: 'flag', data: false },
+        { componentId: 'count', data: 0 },
+      ],
+    });
+  });
+
   it('drops non-allowlisted events', () => {
     expect(
       filterAgentSessionEvent({

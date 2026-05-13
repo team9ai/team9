@@ -603,6 +603,13 @@ export function MessageList({
         }
       }
 
+      if (
+        agentMeta?.agentEventType === "agent_start" ||
+        agentMeta?.agentEventType === "turn_separator"
+      ) {
+        return <div className="min-h-px overflow-hidden" aria-hidden="true" />;
+      }
+
       // Combined tool_call + tool_result block: render both in one card,
       // then hide the standalone tool_result item that follows.
       if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
@@ -690,7 +697,7 @@ export function MessageList({
             )
           : agentMeta;
         return (
-          <div id={`message-${message.id}`} className="ml-14 mr-4 py-1">
+          <div id={`message-${message.id}`} className="ml-2 mr-8 py-1">
             <A2UISurfaceBlock
               message={message}
               metadata={surfaceMeta}
@@ -704,11 +711,7 @@ export function MessageList({
       // A2UI response — compact "User selected X" display
       if (agentMeta?.agentEventType === "a2ui_response") {
         return (
-          <div
-            id={`message-${message.id}`}
-            className="ml-14 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4 py-0.5"
-            style={{ paddingLeft: "9px" }}
-          >
+          <div id={`message-${message.id}`} className="ml-2 mr-8 py-1">
             <A2UIResponseItem message={message} metadata={agentMeta} />
           </div>
         );

@@ -136,6 +136,13 @@ export interface ChannelMemberResponse {
   };
 }
 
+interface ChannelListOptions {
+  types?: readonly ChannelResponse['type'][];
+}
+
+const GROUP_CHANNEL_TYPES = ['public', 'private'] as const;
+const DIRECT_CHANNEL_TYPES = ['direct', 'echo'] as const;
+
 type ChannelUserSummaryRow = {
   userId: string;
   username: string;
@@ -652,6 +659,7 @@ export class ChannelsService {
     });
 
     await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channel.id));
     await this.redis.invalidate(
       REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, creatorId),
     );
@@ -1287,6 +1295,49 @@ export class ChannelsService {
     return [...direct, ...extras];
   }
 
+  async getUserGroupChannels(
+    userId: string,
+    tenantId?: string,
+  ): Promise<ChannelWithUnread[]> {
+    const direct = await this.getDirectUserChannels(userId, tenantId, {
+      types: GROUP_CHANNEL_TYPES,
+    });
+
+    if (!tenantId) {
+      return direct;
+    }
+
+    const derived = await resolveEffectiveMembership({
+      db: this.db,
+      botService: this.botService,
+      userId,
+      tenantId,
+    });
+
+    const directIds = new Set(direct.map((c) => c.id));
+    const extraIds = derived
+      .map((d) => d.channelId)
+      .filter((id) => !directIds.has(id));
+
+    if (extraIds.length === 0) {
+      return direct;
+    }
+
+    const extras = await this.fetchChannelsByIds(extraIds, userId, {
+      types: GROUP_CHANNEL_TYPES,
+    });
+    return [...direct, ...extras];
+  }
+
+  async getUserDirectChannels(
+    userId: string,
+    tenantId?: string,
+  ): Promise<ChannelWithUnread[]> {
+    return this.getDirectUserChannels(userId, tenantId, {
+      types: DIRECT_CHANNEL_TYPES,
+    });
+  }
+
   /**
    * Direct-membership channel query — the original body of getUserChannels.
    * Returns channels where the user has an active `im_channel_members` row.
@@ -1294,8 +1345,10 @@ export class ChannelsService {
   private async getDirectUserChannels(
     userId: string,
     tenantId?: string,
+    options?: ChannelListOptions,
   ): Promise<ChannelWithUnread[]> {
-    const result = await this.db
+    const requestedTypes = options?.types ? [...options.types] : undefined;
+    const query = this.db
       .select({
         id: schema.channels.id,
         tenantId: schema.channels.tenantId,
@@ -1338,14 +1391,23 @@ export class ChannelsService {
           eq(schema.channelMembers.userId, userId),
           isNull(schema.channelMembers.leftAt),
           tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+          requestedTypes
+            ? inArray(schema.channels.type, requestedTypes)
+            : undefined,
         ),
       );
+    const result = await query;
+
+    const typeFiltered = requestedTypes
+      ? result.filter((channel) => requestedTypes.includes(channel.type))
+      : result;
+    const channels = typeFiltered;
 
     // For direct/echo channels, batch-fetch "other user" info in a single query
-    const directChannelIds = result
+    const directChannelIds = channels
       .filter((ch) => ch.type === 'direct')
       .map((ch) => ch.id);
-    const echoChannelIds = result
+    const echoChannelIds = channels
       .filter((ch) => ch.type === 'echo')
       .map((ch) => ch.id);
 
@@ -1425,7 +1487,7 @@ export class ChannelsService {
       }
     }
 
-    return result.map((channel) => {
+    return channels.map((channel) => {
       if (channel.type === 'direct' || channel.type === 'echo') {
         return {
           ...channel,
@@ -1455,8 +1517,10 @@ export class ChannelsService {
   private async fetchChannelsByIds(
     channelIds: string[],
     userId: string,
+    options?: Pick<ChannelListOptions, 'types'>,
   ): Promise<ChannelWithUnread[]> {
     if (channelIds.length === 0) return [];
+    const requestedTypes = options?.types ? [...options.types] : undefined;
 
     const rows = await this.db
       .select({
@@ -1491,11 +1555,17 @@ export class ChannelsService {
       .where(
         and(
           inArray(schema.channels.id, channelIds),
-          notInArray(schema.channels.type, ['direct', 'echo']),
+          requestedTypes
+            ? inArray(schema.channels.type, requestedTypes)
+            : notInArray(schema.channels.type, ['direct', 'echo']),
         ),
       );
 
-    return rows.map((row) => ({
+    const filteredRows = requestedTypes
+      ? rows.filter((row) => requestedTypes.includes(row.type))
+      : rows;
+
+    return filteredRows.map((row) => ({
       ...row,
       // Derived-only channels are never DM/echo, so no otherUser needed.
     }));

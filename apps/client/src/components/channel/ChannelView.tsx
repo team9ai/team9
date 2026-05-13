@@ -57,6 +57,9 @@ import { isValidMessageId } from "@/lib/utils";
 import { fileApi } from "@/services/api/file";
 import { AgentSessionPanel } from "./agent-session/AgentSessionPanel";
 
+const BOT_THINKING_RECOVERY_REFETCH_MS = 3000;
+const BOT_THINKING_RECOVERY_MAX_ATTEMPTS = 40;
+
 // ==================== ChannelFilesList ====================
 
 function ChannelFilesList({
@@ -297,6 +300,7 @@ export function ChannelView({
     hasPreviousPage,
     isFetchingPreviousPage,
     fetchPreviousPage,
+    recoverLatestMessages,
   } = useChannelMessages(channelId, {
     anchorMessageId: initialAnchorMessageId,
   });
@@ -436,6 +440,13 @@ export function ChannelView({
     () => getBotThinkingIds(thinkingStatuses),
     [thinkingStatuses],
   );
+  const thinkingRecoveryKey = useMemo(
+    () =>
+      thinkingStatuses
+        .map((status) => `${status.botId}:${status.startedAfterMs ?? ""}`)
+        .join("|"),
+    [thinkingStatuses],
+  );
 
   // Channel tabs state
   const messages = useMemo(
@@ -547,6 +558,39 @@ export function ChannelView({
       syncBotThinkingStatusesWithMessages(prev, messages),
     );
   }, [messages]);
+
+  // Socket.io events are best-effort: if the final bot message is persisted
+  // while the client misses streaming_end/new_message, this local warmup state
+  // would otherwise stay visible until a manual refresh or reconnect.
+  useEffect(() => {
+    if (!channelId || thinkingStatuses.length === 0) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer: number | undefined;
+
+    const scheduleRecovery = () => {
+      if (cancelled || attempts >= BOT_THINKING_RECOVERY_MAX_ATTEMPTS) return;
+      timer = window.setTimeout(() => {
+        attempts += 1;
+        void recoverLatestMessages()
+          .catch(() => undefined)
+          .finally(scheduleRecovery);
+      }, BOT_THINKING_RECOVERY_REFETCH_MS);
+    };
+
+    scheduleRecovery();
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [
+    channelId,
+    recoverLatestMessages,
+    thinkingRecoveryKey,
+    thinkingStatuses.length,
+  ]);
 
   // Trigger thinking indicator after sending a message
   const startBotThinking = useCallback(

@@ -237,4 +237,62 @@ describe("useTrackingChannel", () => {
       refetchType: "all",
     });
   });
+
+  it("keeps the finalized tool call visible from streaming_end message payload", async () => {
+    const { result } = renderHook(() => useTrackingChannel("tracking-1"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => {
+      emit(WS_EVENTS.STREAMING.START, {
+        streamId: "stream-1",
+        channelId: "tracking-1",
+        senderId: "bot-1",
+        startedAt: 1700000000000,
+        metadata: {
+          agentEventType: "tool_call",
+          status: "running",
+          toolCallId: "tc-1",
+          toolName: "run_command",
+          toolArgsText: '{"command":"pnpm',
+          toolPhase: "args_streaming",
+        },
+      });
+      emit(WS_EVENTS.STREAMING.END, {
+        streamId: "stream-1",
+        channelId: "tracking-1",
+        senderId: "bot-1",
+        message: {
+          id: "tool-call-message-1",
+          channelId: "tracking-1",
+          senderId: "bot-1",
+          content: "run_command",
+          type: "tracking",
+          createdAt: "2026-05-13T00:00:00.000Z",
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-1",
+            toolName: "run_command",
+            toolArgs: { command: "pnpm test" },
+            toolPhase: "executing",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => expect(result.current.activeStream).toBeNull());
+    expect(result.current.latestMessages).toContainEqual(
+      expect.objectContaining({
+        id: "tool-call-message-1",
+        metadata: expect.objectContaining({
+          agentEventType: "tool_call",
+          toolPhase: "executing",
+          toolArgs: { command: "pnpm test" },
+        }),
+      }),
+    );
+  });
 });

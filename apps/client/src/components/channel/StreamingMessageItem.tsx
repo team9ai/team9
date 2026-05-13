@@ -18,6 +18,13 @@ export const StreamingMessageItem = memo(function StreamingMessageItem({
   const botUser = botMember?.user;
   const botName = botUser?.displayName || botUser?.username || "Bot";
   const initials = botName[0] || "B";
+  const streamingCursor =
+    stream.isStreaming && !stream.isThinking ? (
+      <span
+        data-testid="streaming-text-cursor"
+        className="inline-block w-1.5 h-4 bg-foreground/70 animate-pulse ml-0.5 align-text-bottom"
+      />
+    ) : null;
 
   return (
     <motion.div
@@ -53,11 +60,8 @@ export const StreamingMessageItem = memo(function StreamingMessageItem({
             <MessageContent
               content={stream.content}
               className="text-sm whitespace-pre-wrap break-words"
+              trailingInline={streamingCursor}
             />
-            {/* Blinking cursor when streaming text (not thinking) */}
-            {stream.isStreaming && !stream.isThinking && (
-              <span className="inline-block w-1.5 h-4 bg-foreground/70 animate-pulse ml-0.5 align-text-bottom" />
-            )}
           </div>
         ) : stream.isThinking ? null : (
           /* Show dots only when no content and not thinking yet */

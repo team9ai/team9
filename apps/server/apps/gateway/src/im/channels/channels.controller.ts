@@ -61,6 +61,22 @@ export class ChannelsController {
     return this.channelsService.getPublicChannels(tenantId, userId);
   }
 
+  @Get('groups')
+  async getMyGroupChannels(
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
+  ): Promise<ChannelWithUnread[]> {
+    return this.channelsService.getUserGroupChannels(userId, tenantId);
+  }
+
+  @Get('directs')
+  async getMyDirectChannels(
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
+  ): Promise<ChannelWithUnread[]> {
+    return this.channelsService.getUserDirectChannels(userId, tenantId);
+  }
+
   @Post()
   async createChannel(
     @CurrentUser('sub') userId: string,

@@ -17,6 +17,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./lib/query-client";
 import { Team9PostHogProvider } from "./analytics/posthog";
+import { markStartup } from "./lib/startup-profiler";
+
+markStartup("main:module evaluated");
 
 // Initialize Sentry
 Sentry.init({
@@ -35,6 +38,7 @@ Sentry.init({
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const router = createRouter({ routeTree });
+markStartup("router:created");
 
 declare module "@tanstack/react-router" {
   interface Register {
@@ -58,6 +62,8 @@ const AppProviders = ({ children }: { children: React.ReactNode }) => {
   return <>{tree}</>;
 };
 
+markStartup("react:render start");
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
@@ -69,3 +75,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </Sentry.ErrorBoundary>
   </React.StrictMode>,
 );
+
+markStartup("react:render scheduled");

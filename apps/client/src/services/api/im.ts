@@ -35,6 +35,8 @@ import type {
 } from "@/types/im";
 import { normalizeMessage, normalizeMessages } from "./normalize-reactions";
 
+export const CHANNEL_DETAIL_TIMEOUT_MS = 8_000;
+
 function buildClientContext(): ClientContext {
   if (!isTauriApp()) return { kind: "web" };
   const userId = useAppStore.getState().user?.id;
@@ -48,6 +50,22 @@ export const channelsApi = {
   // Get all user's channels with unread counts
   getChannels: async (): Promise<ChannelWithUnread[]> => {
     const response = await http.get<ChannelWithUnread[]>("/v1/im/channels");
+    return response.data;
+  },
+
+  // Get user-accessible public/private group channels only.
+  getGroupChannels: async (): Promise<ChannelWithUnread[]> => {
+    const response = await http.get<ChannelWithUnread[]>(
+      "/v1/im/channels/groups",
+    );
+    return response.data;
+  },
+
+  // Get direct-message style channels only.
+  getDirectChannels: async (): Promise<ChannelWithUnread[]> => {
+    const response = await http.get<ChannelWithUnread[]>(
+      "/v1/im/channels/directs",
+    );
     return response.data;
   },
 
@@ -67,7 +85,9 @@ export const channelsApi = {
 
   // Get channel details
   getChannel: async (channelId: string): Promise<Channel> => {
-    const response = await http.get<Channel>(`/v1/im/channels/${channelId}`);
+    const response = await http.get<Channel>(`/v1/im/channels/${channelId}`, {
+      timeout: CHANNEL_DETAIL_TIMEOUT_MS,
+    });
     return response.data;
   },
 
@@ -194,6 +214,14 @@ export const channelsApi = {
       `/v1/im/channels/${channelId}/agent-session/components`,
     );
     return response.data;
+  },
+
+  pauseAgentSession: async (channelId: string): Promise<void> => {
+    await http.post(`/v1/im/channels/${channelId}/agent-session/pause`, {});
+  },
+
+  resumeAgentSession: async (channelId: string): Promise<void> => {
+    await http.post(`/v1/im/channels/${channelId}/agent-session/resume`, {});
   },
 
   // Get the effective LLM model for this channel's agent session.

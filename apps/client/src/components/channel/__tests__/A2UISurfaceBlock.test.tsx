@@ -187,7 +187,10 @@ function renderSurface() {
   return renderSurfaceWithPayload(makeMultiTabPayload());
 }
 
-function renderSurfaceWithPayload(payload: AgentEventMetadata["payload"]) {
+function renderSurfaceWithPayload(
+  payload: AgentEventMetadata["payload"],
+  metadataOverride: Partial<AgentEventMetadata> = {},
+) {
   const message: Message = {
     id: "surface-message",
     channelId: "ch-1",
@@ -217,6 +220,7 @@ function renderSurfaceWithPayload(payload: AgentEventMetadata["payload"]) {
     status: "running",
     surfaceId: "choices-1",
     payload,
+    ...metadataOverride,
   };
 
   return render(
@@ -231,6 +235,50 @@ function renderSurfaceWithPayload(payload: AgentEventMetadata["payload"]) {
 }
 
 describe("A2UISurfaceBlock", () => {
+  it("renders the active question header aligned as text", () => {
+    renderSurface();
+
+    const agentLabel = screen.getByText("Lia(agent)");
+
+    expect(agentLabel).toBeInTheDocument();
+    expect(agentLabel.parentElement).toHaveClass(
+      "cursor-pointer",
+      "hover:underline",
+    );
+    expect(screen.getByText(/向你提问/)).toBeInTheDocument();
+  });
+
+  it("renders resolved surfaces as an agent question summary", () => {
+    renderSurfaceWithPayload(makeMultiTabPayload(), {
+      status: "resolved",
+      selections: {
+        颜色: { selected: ["blue"], otherText: null },
+      },
+      responderId: "current-user",
+      responderName: "Winrey Ma",
+    });
+
+    const agentLabel = screen.getByText("Lia(agent)");
+    const userLabel = screen.getByText("Winrey Ma(你)");
+
+    expect(agentLabel).toBeInTheDocument();
+    expect(agentLabel.parentElement).toHaveClass(
+      "cursor-pointer",
+      "hover:underline",
+    );
+    expect(screen.getByText(/提问/)).toBeInTheDocument();
+    expect(screen.getByText("“颜色 / 水果 / 心情”")).toBeInTheDocument();
+    expect(screen.getByText(/已被/)).toBeInTheDocument();
+    expect(userLabel).toBeInTheDocument();
+    expect(userLabel.parentElement).toHaveClass(
+      "cursor-pointer",
+      "hover:underline",
+    );
+    expect(screen.getByText(/选择/)).toBeInTheDocument();
+    expect(screen.getByText("“蓝色”")).toBeInTheDocument();
+    expect(screen.getByText("点击展开")).toBeInTheDocument();
+  });
+
   it("auto-advances after an unanswered single-select tab receives its first selection", () => {
     renderSurface();
 
@@ -259,6 +307,23 @@ describe("A2UISurfaceBlock", () => {
     expect(screen.getByRole("button", { name: "提交" })).toBeInTheDocument();
   });
 
+  it("disables the primary action until the current tab has a selection", () => {
+    renderSurface();
+
+    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText("蓝色"));
+    expect(screen.getByText("选一个水果：")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText("香蕉"));
+    expect(screen.getByText("选一个心情：")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText("开心"));
+    expect(screen.getByRole("button", { name: "提交" })).toBeEnabled();
+  });
+
   it("keeps multi-select tabs in place until the user clicks next", () => {
     renderSurfaceWithPayload(makeMixedTabPayload());
 
@@ -270,13 +335,12 @@ describe("A2UISurfaceBlock", () => {
     expect(screen.getByRole("button", { name: "提交" })).toBeInTheDocument();
   });
 
-  it("asks the user to answer the current tab before moving next", () => {
+  it("keeps unanswered tabs in place with a disabled primary action", () => {
     renderSurface();
 
     fireEvent.click(screen.getByRole("button", { name: "心情" }));
-    fireEvent.click(screen.getByRole("button", { name: "下一个" }));
 
     expect(screen.getByText("选一个心情：")).toBeInTheDocument();
-    expect(screen.getByText("请先选择“心情”")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
   });
 });

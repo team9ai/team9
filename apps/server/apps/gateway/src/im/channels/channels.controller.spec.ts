@@ -56,6 +56,12 @@ describe('ChannelsController', () => {
   beforeEach(() => {
     channelsService = {
       getUserChannels: jest.fn<any>().mockResolvedValue([{ id: CHANNEL_ID }]),
+      getUserGroupChannels: jest
+        .fn<any>()
+        .mockResolvedValue([{ id: 'group-1' }]),
+      getUserDirectChannels: jest
+        .fn<any>()
+        .mockResolvedValue([{ id: 'direct-1' }]),
       getPublicChannels: jest.fn<any>().mockResolvedValue([{ id: CHANNEL_ID }]),
       create: jest.fn<any>().mockResolvedValue(makeChannel()),
       createDirectChannel: jest
@@ -124,6 +130,32 @@ describe('ChannelsController', () => {
       TENANT_ID,
     );
     expect(result).toEqual([{ id: CHANNEL_ID }]);
+  });
+
+  it('forwards tenant and user to getMyGroupChannels()', async () => {
+    const result = await (controller as any).getMyGroupChannels(
+      USER_ID,
+      TENANT_ID,
+    );
+
+    expect(channelsService.getUserGroupChannels).toHaveBeenCalledWith(
+      USER_ID,
+      TENANT_ID,
+    );
+    expect(result).toEqual([{ id: 'group-1' }]);
+  });
+
+  it('forwards tenant and user to getMyDirectChannels()', async () => {
+    const result = await (controller as any).getMyDirectChannels(
+      USER_ID,
+      TENANT_ID,
+    );
+
+    expect(channelsService.getUserDirectChannels).toHaveBeenCalledWith(
+      USER_ID,
+      TENANT_ID,
+    );
+    expect(result).toEqual([{ id: 'direct-1' }]);
   });
 
   it('forwards tenant and user to getPublicChannels()', async () => {

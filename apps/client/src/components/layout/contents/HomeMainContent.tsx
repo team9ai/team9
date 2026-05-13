@@ -195,10 +195,10 @@ function DashboardModelControl({
             <DropdownMenuRadioItem
               key={`${model.provider}::${model.id}`}
               value={`${model.provider}::${model.id}`}
-              className="!cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
+              className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
             >
               <StaffModelProviderLogo model={model} />
-              <span className="block max-w-[calc(100vw-4rem)] truncate">
+              <span className="inline-flex max-w-[calc(100vw-4rem)] items-center truncate">
                 {formatStaffModelDisplayLabel(model.label)}
               </span>
             </DropdownMenuRadioItem>
@@ -489,6 +489,7 @@ export function HomeMainContent({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const dragCounterRef = useRef(0);
+  const submitInFlightRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
   // Dashboard composer has no channelId yet (channel is created on submit),
   // so files are uploaded as workspace-visible. Once the topic-session
@@ -592,7 +593,9 @@ export function HomeMainContent({
     // Empty draft is OK only when at least one attachment is ready —
     // server-side ValidateIf relaxes IsNotEmpty under the same condition.
     if (!draft && attachments.length === 0) return;
+    if (submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     try {
       // Create a fresh topic session for this prompt. The server persists
       // the first user message inside the same saga, so we can navigate
@@ -622,6 +625,8 @@ export function HomeMainContent({
       }
 
       alert(getHttpErrorMessage(error) || "Failed to create conversation");
+    } finally {
+      submitInFlightRef.current = false;
     }
   };
 

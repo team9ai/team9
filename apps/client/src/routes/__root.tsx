@@ -3,19 +3,61 @@ import {
   Link,
   Outlet,
   useRouter,
+  useRouterState,
 } from "@tanstack/react-router";
-import { lazy } from "react";
+import { lazy, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Compass, Home } from "lucide-react";
 import { useThemeEffect } from "@/hooks/useTheme";
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import { markStartup } from "@/lib/startup-profiler";
 void lazy;
 
+let rootFirstRenderLogged = false;
+
+function hideStartupSplash() {
+  const splash = document.getElementById("startup-splash");
+  if (!splash) {
+    return;
+  }
+
+  splash.classList.add("startup-splash--hidden");
+  window.setTimeout(() => {
+    splash.remove();
+  }, 220);
+}
+
 function RootComponent() {
+  if (!rootFirstRenderLogged) {
+    rootFirstRenderLogged = true;
+    markStartup("root:render first");
+  }
+
   useThemeEffect();
   useDeepLink();
+
+  const routerState = useRouterState({
+    select: (state) => ({
+      status: state.status,
+      location: state.location.href,
+      resolvedLocation: state.resolvedLocation?.href ?? null,
+    }),
+  });
+
+  useEffect(() => {
+    markStartup("root:mounted");
+    hideStartupSplash();
+  }, []);
+
+  useEffect(() => {
+    markStartup("router:state", {
+      location: routerState.location,
+      resolvedLocation: routerState.resolvedLocation,
+      status: routerState.status,
+    });
+  }, [routerState.location, routerState.resolvedLocation, routerState.status]);
 
   return (
     <TooltipProvider delayDuration={200}>

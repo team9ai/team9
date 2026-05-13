@@ -168,6 +168,16 @@
         "loading": "Generating reply",
         "success": "Reply generated",
         "error": "Reply generation failed"
+      },
+      "wait": {
+        "loading": "Waiting",
+        "success": "Wait completed",
+        "error": "Wait failed"
+      },
+      "todoWrite": {
+        "loading": "Updating TODO",
+        "success": "TODO updated",
+        "error": "TODO update failed"
       }
     },
     "thinking": {
@@ -191,6 +201,24 @@
     "toolCall": {
       "argsLabel": "Args",
       "resultLabel": "Result",
+      "loadedTools": "Loaded tools",
+      "todoSummary": "TODO {{total}} items",
+      "todoStatus": {
+        "pending": "Pending",
+        "inProgress": "In progress",
+        "completed": "Completed"
+      },
+      "fullscreen": "Fullscreen {{label}}",
+      "closeFullscreen": "Close fullscreen",
+      "rawJson": "raw",
+      "formattedJson": "formatted",
+      "emptyStream": "(empty)",
+      "runCommand": {
+        "local": "Run command on this computer",
+        "cloudComputer": "Run command on cloud computer '{{name}}'",
+        "cloudSandbox": "Run command in cloud sandbox ({{name}})",
+        "backend": "Run command on {{name}}"
+      },
       "unknownTool": "Unknown tool"
     },
     "eventLabels": {

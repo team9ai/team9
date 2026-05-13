@@ -14,6 +14,7 @@ import api, {
   type User,
 } from "@/services/api";
 import { getHttpErrorStatus } from "@/lib/http-error";
+import { clearWorkspaceBootstrapCache } from "@/lib/workspace-bootstrap-cache";
 import {
   appActions,
   workspaceActions,
@@ -187,6 +188,7 @@ export const useLogout = () => {
       // Clear transient auth-flow state that should not survive logout.
       localStorage.removeItem("pending_invite_code");
       localStorage.removeItem("pending_desktop_session_id");
+      clearWorkspaceBootstrapCache();
       clearPrefixedLocalStorage("doc-draft-");
 
       // Reset all Zustand stores to prevent stale data on next login

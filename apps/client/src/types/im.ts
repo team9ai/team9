@@ -66,7 +66,7 @@ export interface SafeSessionComponentItem {
   runtimeInjectedOnly: boolean;
   schema?: unknown[];
   latestData: {
-    data: Record<string, unknown>;
+    data: unknown;
     capturedAtCallId: string | null;
     capturedAt: number;
   } | null;
@@ -90,7 +90,7 @@ export interface ComponentDataSnapshotEvent extends AgentSessionEvent {
   turnIndex: number;
   components: Array<{
     componentId: string;
-    data: Record<string, unknown>;
+    data: unknown;
   }>;
 }
 

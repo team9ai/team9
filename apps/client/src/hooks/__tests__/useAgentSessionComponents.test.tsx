@@ -157,6 +157,42 @@ describe("useAgentSessionComponents", () => {
     expect(mockApi.channels.getAgentSessionComponents).toHaveBeenCalledTimes(1);
   });
 
+  it("patches latestData when snapshot data is any JSON value", async () => {
+    const { result } = renderHook(
+      () => useAgentSessionComponents("channel-1", true, "session-1"),
+      { wrapper: makeWrapper(queryClient) },
+    );
+    await waitFor(() =>
+      expect(result.current.data?.components).toHaveLength(1),
+    );
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    act(() => {
+      eventSources[0].onmessage?.({
+        data: JSON.stringify({
+          type: "component_data_snapshot",
+          sessionId: "session-1",
+          timestamp: 1700000000000,
+          turnIndex: 2,
+          components: [
+            {
+              componentId: "persona",
+              data: [{ token: "raw" }, "visible"],
+            },
+          ],
+        }),
+      } as MessageEvent<string>);
+    });
+
+    await waitFor(() =>
+      expect(result.current.data?.components[0].latestData).toEqual({
+        data: [{ token: "raw" }, "visible"],
+        capturedAtCallId: null,
+        capturedAt: 1700000000000,
+      }),
+    );
+  });
+
   it("handles named component_data_snapshot SSE events", async () => {
     const { result } = renderHook(
       () => useAgentSessionComponents("channel-1", true, "session-1"),
