@@ -305,8 +305,12 @@ export function HomeSubSidebar() {
   } = useChannelsByType();
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
-  const { groups: agentGroups, isLoading: isLoadingAgents } =
-    useAgentGroupsForSidebar(5);
+  const {
+    groups: agentGroups,
+    isLoading: isLoadingAgents,
+    loadMoreTopicSessions,
+    isLoadingMoreTopicSessions,
+  } = useAgentGroupsForSidebar(5);
   const setSidebarVisibility = useSetSidebarVisibility();
   const { data: sections = [] } = useSections();
   const moveChannel = useMoveChannel();
@@ -726,6 +730,8 @@ export function HomeSubSidebar() {
                   selectedChannelId={selectedChannelId}
                   linkPrefix="/channels"
                   isLoading={isLoadingAgents}
+                  onLoadMoreTopicSessions={loadMoreTopicSessions}
+                  isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
                 />
               </div>
             )}

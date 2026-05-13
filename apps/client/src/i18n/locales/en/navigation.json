@@ -31,6 +31,7 @@
   "starredDescription": "Drag important items here",
   "newMessage": "New Message",
   "newTopic": "New Topic",
+  "loadMoreTopicSessions": "More",
   "addChannel": "Add channel",
   "welcomeBack": "Welcome back",
   "welcomeBackTo": "Welcome back to {{workspace}}!",

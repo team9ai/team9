@@ -2,7 +2,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, SquarePen } from "lucide-react";
+import { ChevronDown, ChevronRight, Ellipsis, SquarePen } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { navigateToNewTopic } from "@/lib/agent-topics";
@@ -47,6 +47,10 @@ export interface AgentGroupListProps {
   /** Optional: initially-expanded agent id (e.g. the one matching the
    *  currently-open channel). When omitted, all groups start collapsed. */
   initiallyExpandedAgentUserId?: string | null;
+  /** Called when an expanded group has more topic sessions than currently loaded. */
+  onLoadMoreTopicSessions?: (agentUserId: string) => void;
+  /** True while a larger topic-session page is being fetched. */
+  isLoadingMoreTopicSessions?: boolean;
 }
 
 /**
@@ -71,6 +75,8 @@ export function AgentGroupList({
   linkPrefix,
   isLoading,
   initiallyExpandedAgentUserId,
+  onLoadMoreTopicSessions,
+  isLoadingMoreTopicSessions,
 }: AgentGroupListProps) {
   const { t } = useTranslation(["navigation", "common", "message"]);
 
@@ -112,6 +118,8 @@ export function AgentGroupList({
           selectedChannelId={selectedChannelId}
           linkPrefix={linkPrefix}
           defaultExpanded={group.agentUserId === autoExpandedAgentUserId}
+          onLoadMoreTopicSessions={onLoadMoreTopicSessions}
+          isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
         />
       ))}
     </div>
@@ -123,19 +131,28 @@ function AgentGroup({
   selectedChannelId,
   linkPrefix,
   defaultExpanded,
+  onLoadMoreTopicSessions,
+  isLoadingMoreTopicSessions,
 }: {
   group: TopicSessionGroup;
   selectedChannelId?: string;
   linkPrefix: LinkPrefix;
   defaultExpanded: boolean;
+  onLoadMoreTopicSessions?: (agentUserId: string) => void;
+  isLoadingMoreTopicSessions?: boolean;
 }) {
   const navigate = useNavigate();
-  const { t } = useTranslation(["navigation"]);
+  const { t } = useTranslation(["navigation", "common"]);
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const headerHighlighted =
     !!group.legacyDirectChannelId &&
     selectedChannelId === group.legacyDirectChannelId;
+  const hiddenTopicCount = Math.max(
+    0,
+    group.totalCount - group.recentSessions.length,
+  );
+  const shouldShowLoadMore = hiddenTopicCount > 0 && !!onLoadMoreTopicSessions;
 
   const handleHeaderClick = () => {
     setExpanded((prev) => !prev);
@@ -160,6 +177,11 @@ function AgentGroup({
     // via search param, so the composer header reflects the correct agent
     // instead of falling back to the dashboard's last-remembered selection.
     navigateToNewTopic(navigate, group.agentUserId);
+  };
+
+  const handleLoadMore = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onLoadMoreTopicSessions?.(group.agentUserId);
   };
 
   return (
@@ -249,6 +271,35 @@ function AgentGroup({
                 })}
               />
             ))
+          )}
+          {shouldShowLoadMore && (
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMoreTopicSessions}
+              aria-label={t("loadMoreTopicSessions", {
+                ns: "navigation" as const,
+                defaultValue: "More",
+              })}
+              className={cn(
+                "flex w-full items-center gap-1.5 h-7 px-2 rounded-md text-left text-[0.75rem]",
+                "text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground-strong",
+                "disabled:pointer-events-none disabled:opacity-60",
+              )}
+            >
+              <Ellipsis size={14} className="shrink-0" />
+              <span className="truncate">
+                {isLoadingMoreTopicSessions
+                  ? t("loadingMore", {
+                      ns: "common" as const,
+                      defaultValue: "Loading...",
+                    })
+                  : t("loadMoreTopicSessions", {
+                      ns: "navigation" as const,
+                      defaultValue: "More",
+                    })}
+              </span>
+            </button>
           )}
           {/* NOTE: no row for legacyDirectChannelId — clicking the
               agent header already routes to it (per product decision

@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import imApi, {
   type CreateTopicSessionDto,
   type TopicSessionGroup,
@@ -20,6 +25,7 @@ export function useTopicSessionsGrouped(perAgent = 5) {
   return useQuery<TopicSessionGroup[]>({
     queryKey: ["topic-sessions-grouped", workspaceId, perAgent],
     queryFn: () => imApi.topicSessions.getGrouped(perAgent),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     enabled: !!workspaceId,
   });

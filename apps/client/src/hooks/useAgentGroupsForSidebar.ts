@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TopicSessionGroup } from "@/services/api/im";
 import type { AgentType } from "@/types/im";
 import { useChannelsByType } from "./useChannels";
@@ -76,11 +76,19 @@ export function getAgentSidebarSubtitle(agent: SidebarAgentMetadata) {
  * deliberately instead of losing it on a config change.
  */
 export function useAgentGroupsForSidebar(perAgent = 5) {
+  const [perAgentLimit, setPerAgentLimit] = useState(perAgent);
   const { directChannels = [] } = useChannelsByType();
   const { agents: availableAgents, isLoading: isLoadingAgents } =
     useDashboardAgents(directChannels);
-  const { data: activityGroups = [], isLoading: isLoadingActivity } =
-    useTopicSessionsGrouped(perAgent);
+  const {
+    data: activityGroups = [],
+    isLoading: isLoadingActivity,
+    isFetching: isFetchingActivity,
+  } = useTopicSessionsGrouped(perAgentLimit);
+
+  useEffect(() => {
+    setPerAgentLimit(perAgent);
+  }, [perAgent]);
 
   const groups = useMemo<TopicSessionGroup[]>(() => {
     const activityByUserId = new Map(
@@ -139,8 +147,26 @@ export function useAgentGroupsForSidebar(perAgent = 5) {
     return merged;
   }, [availableAgents, activityGroups]);
 
+  const loadMoreTopicSessions = useCallback(
+    (agentUserId: string) => {
+      const targetTotal =
+        groups.find((group) => group.agentUserId === agentUserId)?.totalCount ??
+        null;
+
+      setPerAgentLimit((currentLimit) => {
+        const expandedLimit = currentLimit + perAgent;
+        if (targetTotal == null) return expandedLimit;
+        return Math.max(currentLimit, Math.min(expandedLimit, targetTotal));
+      });
+    },
+    [groups, perAgent],
+  );
+
   return {
     groups,
     isLoading: isLoadingAgents || isLoadingActivity,
+    loadMoreTopicSessions,
+    isLoadingMoreTopicSessions:
+      perAgentLimit > perAgent && isFetchingActivity && !isLoadingActivity,
   };
 }

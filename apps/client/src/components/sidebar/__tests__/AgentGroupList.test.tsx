@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AgentGroupList } from "../AgentGroupList";
 import type { TopicSessionGroup } from "@/services/api/im";
@@ -25,6 +25,19 @@ function makeGroup(overrides: Partial<TopicSessionGroup>): TopicSessionGroup {
     recentSessions: [],
     ...overrides,
   };
+}
+
+function makeRecentSessions(
+  count: number,
+): TopicSessionGroup["recentSessions"] {
+  return Array.from({ length: count }, (_, index) => ({
+    channelId: `channel-${index + 1}`,
+    sessionId: `session-${index + 1}`,
+    title: `Topic ${index + 1}`,
+    lastMessageAt: `2026-05-13T00:0${index}:00.000Z`,
+    unreadCount: 0,
+    createdAt: `2026-05-13T00:0${index}:00.000Z`,
+  }));
 }
 
 describe("AgentGroupList", () => {
@@ -82,5 +95,36 @@ describe("AgentGroupList", () => {
       "absolute",
       "right-2",
     );
+  });
+
+  it("shows a compact more row when an expanded agent has hidden topic sessions", () => {
+    const onLoadMoreTopicSessions = vi.fn();
+
+    render(
+      <AgentGroupList
+        linkPrefix="/channels"
+        groups={[
+          makeGroup({
+            agentUserId: "agent-user-1",
+            totalCount: 7,
+            recentSessions: makeRecentSessions(5),
+          }),
+        ]}
+        initiallyExpandedAgentUserId="agent-user-1"
+        onLoadMoreTopicSessions={onLoadMoreTopicSessions}
+      />,
+    );
+
+    const loadMore = screen.getByRole("button", {
+      name: "More",
+    });
+
+    expect(screen.getByText("Topic 1")).toBeInTheDocument();
+    expect(loadMore).toBeInTheDocument();
+    expect(screen.queryByText("+2")).not.toBeInTheDocument();
+
+    fireEvent.click(loadMore);
+
+    expect(onLoadMoreTopicSessions).toHaveBeenCalledWith("agent-user-1");
   });
 });
