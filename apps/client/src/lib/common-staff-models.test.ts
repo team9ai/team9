@@ -36,6 +36,25 @@ describe("COMMON_STAFF_MODELS", () => {
     expect(DEFAULT_STAFF_MODEL.family).toBe("anthropic");
   });
 
+  it("includes the current GPT and DeepSeek OpenRouter entries", () => {
+    expect(COMMON_STAFF_MODELS).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "openrouter",
+          id: "openai/gpt-5.5",
+          label: "GPT-5.5",
+          family: "openai",
+        }),
+        expect.objectContaining({
+          provider: "openrouter",
+          id: "deepseek/deepseek-v4-pro",
+          label: "DeepSeek V4 Pro",
+          family: "other",
+        }),
+      ]),
+    );
+  });
+
   it("filtering by agentModelFamily keeps only matching models (strict filter)", () => {
     const family = BASE_MODEL_PRODUCT_FAMILY.claude;
     const filtered = COMMON_STAFF_MODELS.filter((m) => m.family === family);

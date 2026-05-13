@@ -16,4 +16,16 @@ describe("StaffModelProviderLogo", () => {
     expect(artwork).toHaveClass("block", "size-full", "object-contain");
     expect(artwork).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("recognizes DeepSeek models", () => {
+    render(
+      <StaffModelProviderLogo
+        model={{ provider: "openrouter", id: "deepseek/deepseek-v4-pro" }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("img", { name: "DeepSeek logo" }),
+    ).toBeInTheDocument();
+  });
 });
