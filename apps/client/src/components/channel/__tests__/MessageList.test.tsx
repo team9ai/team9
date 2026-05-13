@@ -991,6 +991,38 @@ describe("MessageList — round auto-fold", () => {
       );
     });
 
+    it("frames an active streaming tool_call like persisted tool event rows", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool-frame",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream",
+            toolName: "invoke_tool",
+            toolArgsText: '{"name":"write_file"}',
+            toolPhase: "args_streaming",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      const block = screen.getByTestId("tool-call-block");
+      const frame = block.closest('[data-testid="tool-event-frame"]');
+      expect(block).toBeInTheDocument();
+      expect(frame).not.toBeNull();
+      expect(frame).toHaveClass("border-l-2");
+    });
+
     it("keeps the bot thinking indicator visible while an active stream exists", () => {
       mockChannelStreams.current = [
         {

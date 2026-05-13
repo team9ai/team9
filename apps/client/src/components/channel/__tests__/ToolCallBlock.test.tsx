@@ -676,6 +676,31 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("2")).toBeInTheDocument();
     });
 
+    it("shows the run_command json toggle only after expansion", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "echo hello",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "hello\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", { name: "json" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Run command on this computer"));
+
+      expect(screen.getByRole("button", { name: "json" })).toBeInTheDocument();
+    });
+
     it("adds a fullscreen control to expanded raw blocks", () => {
       render(
         <ToolCallBlock
@@ -755,6 +780,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
+      fireEvent.click(screen.getByText("Run command on this computer"));
       fireEvent.click(screen.getByRole("button", { name: "json" }));
 
       expect(screen.getByText("Args")).toBeInTheDocument();

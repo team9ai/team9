@@ -548,7 +548,7 @@ export function ToolCallBlock({
             </span>
           </>
         )}
-        {isRunCommandDisplay && (
+        {isRunCommandDisplay && isExpanded && (
           <button
             type="button"
             className={cn(
