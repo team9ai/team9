@@ -38,6 +38,10 @@ fn apply_app_name_override() {
 fn apply_app_name_override() {}
 use serde::Serialize;
 use tauri::{Emitter, State};
+#[cfg(not(debug_assertions))]
+use tauri::Manager;
+#[cfg(not(debug_assertions))]
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
