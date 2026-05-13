@@ -218,6 +218,8 @@
         "localBadge": "本机",
         "localTooltip": "本机 · {{backend}}",
         "runningBadge": "执行中",
+        "ranBadge": "执行",
+        "failedBadge": "执行失败",
         "ahandDevice": "aHand 设备",
         "cloudComputer": "在云计算机'{{name}}'执行命令",
         "cloudSandbox": "在云沙箱执行",

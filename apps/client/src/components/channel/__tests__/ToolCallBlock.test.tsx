@@ -600,10 +600,10 @@ describe("ToolCallBlock", () => {
           "Cloud Worker Sandbox (just-base)",
         );
         expect(targetIcon).toBeInTheDocument();
-        expect(targetIcon).toHaveAttribute(
-          "title",
-          "Cloud Worker Sandbox (just-base)",
-        );
+        expect(targetIcon).not.toHaveAttribute("title");
+        expect(targetIcon).toHaveClass("text-muted-foreground");
+        expect(targetIcon).not.toHaveClass("text-sky-500");
+        expect(screen.getByText("执行")).toBeInTheDocument();
         expect(screen.queryByText("在云沙箱执行")).not.toBeInTheDocument();
         expect(
           screen.queryByText(/在云沙箱.*just-bash/),
@@ -643,6 +643,7 @@ describe("ToolCallBlock", () => {
       expect(
         screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
       ).toBeInTheDocument();
+      expect(screen.getByText("Ran")).toBeInTheDocument();
       expect(
         screen.queryByText("Run in cloud sandbox"),
       ).not.toBeInTheDocument();
@@ -651,7 +652,7 @@ describe("ToolCallBlock", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("shows a running label next to the cloud sandbox target while executing", () => {
+    it("shows Running before the cloud sandbox target while executing", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("run_command", undefined, {
@@ -670,7 +671,33 @@ describe("ToolCallBlock", () => {
         screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
       ).toBeInTheDocument();
       expect(screen.getByText("Running")).toBeInTheDocument();
+      expect(screen.queryByText("Ran")).not.toBeInTheDocument();
       expect(screen.getByText("pnpm test")).toBeInTheDocument();
+    });
+
+    it("shows the cloud sandbox tooltip immediately with custom UI", async () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "just-bash-team9-workspace",
+            command: "pwd",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "/workspace\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.focus(
+        screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
+      );
+
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "Cloud Worker Sandbox (just-base)",
+      );
     });
 
     it("renders non-local ahand backends as server targets with backend tooltip", () => {
@@ -691,10 +718,41 @@ describe("ToolCallBlock", () => {
 
       const targetIcon = screen.getByLabelText("ahand:office-linux:ff01");
       expect(targetIcon).toBeInTheDocument();
-      expect(targetIcon).toHaveAttribute("title", "ahand:office-linux:ff01");
+      expect(targetIcon).not.toHaveAttribute("title");
       expect(
         screen.queryByText(/Run command on ahand/),
       ).not.toBeInTheDocument();
+    });
+
+    it("renders the local ahand target with a neutral icon and custom tooltip", async () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "echo hello",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "hello\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      const targetIcon = screen.getByLabelText(
+        "Local · ahand:user-computer:ff00",
+      );
+      expect(targetIcon).toBeInTheDocument();
+      expect(targetIcon).toHaveClass("text-muted-foreground");
+      expect(targetIcon).not.toHaveClass("text-emerald-600");
+      expect(targetIcon).not.toHaveAttribute("title");
+
+      fireEvent.focus(targetIcon);
+
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "Local · ahand:user-computer:ff00",
+      );
     });
 
     it("hides empty run_command streams and zero exitCode when stdout has content", () => {

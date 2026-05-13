@@ -12,6 +12,12 @@ import {
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getLabelKey } from "@/config/toolLabels";
 import { useFullContent } from "@/hooks/useMessages";
@@ -359,24 +365,38 @@ function getRunCommandTargetKey(
 function RunCommandSummary({
   execution,
   isRunning,
+  isError,
   t,
 }: {
   execution: CommandExecutionDisplay;
   isRunning: boolean;
+  isError: boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const targetLabel = t(getRunCommandTargetKey(execution.targetKind), {
     name: execution.targetName ?? execution.backend ?? "",
   });
+  const actionLabel = isRunning
+    ? t("tracking.toolCall.runCommand.runningBadge")
+    : isError
+      ? t("tracking.toolCall.runCommand.failedBadge")
+      : t("tracking.toolCall.runCommand.ranBadge");
 
   return (
     <>
+      <span
+        className={cn(
+          "text-xs font-medium leading-none",
+          isRunning
+            ? "text-amber-600 dark:text-amber-300"
+            : isError
+              ? "text-red-500"
+              : "text-muted-foreground",
+        )}
+      >
+        {actionLabel}
+      </span>
       <RunCommandTarget execution={execution} label={targetLabel} t={t} />
-      {isRunning && (
-        <span className="ml-1 text-[11px] font-medium leading-none text-amber-600 dark:text-amber-300">
-          {t("tracking.toolCall.runCommand.runningBadge")}
-        </span>
-      )}
       <code className="ml-1 rounded bg-muted px-1 py-0.5 font-mono text-[0.92em] text-foreground">
         {execution.command}
       </code>
@@ -421,36 +441,63 @@ function RunCommandTarget({
   switch (execution.targetKind) {
     case "cloud-sandbox":
       return (
-        <span
-          aria-label={tooltip}
-          className={cn(wrapperClassName, "text-sky-500")}
-          title={tooltip}
-        >
-          <Cloud className={iconClassName} strokeWidth={2.25} />
-        </span>
+        <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                aria-label={tooltip}
+                className={cn(wrapperClassName, "ml-1")}
+                tabIndex={0}
+              >
+                <Cloud className={iconClassName} strokeWidth={2.25} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4} className="text-xs">
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     case "local":
       return (
-        <span
-          aria-label={tooltip}
-          className={cn(wrapperClassName, "text-emerald-600")}
-          title={tooltip}
-        >
-          <Monitor className={iconClassName} strokeWidth={2.25} />
-          <span className="text-[11px] font-medium leading-none">
-            {t("tracking.toolCall.runCommand.localBadge")}
-          </span>
-        </span>
+        <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                aria-label={tooltip}
+                className={cn(wrapperClassName, "ml-1")}
+                tabIndex={0}
+              >
+                <Monitor className={iconClassName} strokeWidth={2.25} />
+                <span className="text-[11px] font-medium leading-none">
+                  {t("tracking.toolCall.runCommand.localBadge")}
+                </span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4} className="text-xs">
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     case "ahand-device":
       return (
-        <span
-          aria-label={tooltip}
-          className={cn(wrapperClassName, "text-muted-foreground")}
-          title={tooltip}
-        >
-          <Server className={iconClassName} strokeWidth={2.25} />
-        </span>
+        <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                aria-label={tooltip}
+                className={cn(wrapperClassName, "ml-1 text-muted-foreground")}
+                tabIndex={0}
+              >
+                <Server className={iconClassName} strokeWidth={2.25} />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={4} className="text-xs">
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       );
     default:
       return <span>{label}</span>;
@@ -942,6 +989,7 @@ export function ToolCallBlock({
           >
             <RunCommandSummary
               execution={commandExecution}
+              isError={isError}
               isRunning={isRunning}
               t={translate}
             />

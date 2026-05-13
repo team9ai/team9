@@ -218,6 +218,8 @@
         "localBadge": "Local",
         "localTooltip": "Local · {{backend}}",
         "runningBadge": "Running",
+        "ranBadge": "Ran",
+        "failedBadge": "Failed",
         "ahandDevice": "aHand device",
         "cloudComputer": "Run command on cloud computer '{{name}}'",
         "cloudSandbox": "Run in cloud sandbox",
