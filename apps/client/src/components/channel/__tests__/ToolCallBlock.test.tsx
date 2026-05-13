@@ -597,11 +597,12 @@ describe("ToolCallBlock", () => {
         );
 
         const targetIcon = screen.getByLabelText(
-          "Cloud Worker Sandbox (just-base)",
+          "Cloud Worker Sandbox (just-bash)",
         );
         expect(targetIcon).toBeInTheDocument();
         expect(targetIcon).not.toHaveAttribute("title");
         expect(targetIcon).toHaveClass("text-muted-foreground");
+        expect(targetIcon).toHaveClass("mx-0.5");
         expect(targetIcon).not.toHaveClass("text-sky-500");
         expect(screen.getByText("执行")).toBeInTheDocument();
         expect(screen.queryByText("在云沙箱执行")).not.toBeInTheDocument();
@@ -641,7 +642,7 @@ describe("ToolCallBlock", () => {
       );
 
       expect(
-        screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
+        screen.getByLabelText("Cloud Worker Sandbox (just-bash)"),
       ).toBeInTheDocument();
       expect(screen.getByText("Ran")).toBeInTheDocument();
       expect(screen.getByTestId("run-command-summary")).toHaveClass(
@@ -672,7 +673,7 @@ describe("ToolCallBlock", () => {
       );
 
       expect(
-        screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
+        screen.getByLabelText("Cloud Worker Sandbox (just-bash)"),
       ).toBeInTheDocument();
       expect(screen.getByText("Running")).toBeInTheDocument();
       expect(screen.queryByText("Ran")).not.toBeInTheDocument();
@@ -696,11 +697,11 @@ describe("ToolCallBlock", () => {
       );
 
       fireEvent.focus(
-        screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
+        screen.getByLabelText("Cloud Worker Sandbox (just-bash)"),
       );
 
       expect(await screen.findByRole("tooltip")).toHaveTextContent(
-        "Cloud Worker Sandbox (just-base)",
+        "Cloud Worker Sandbox (just-bash)",
       );
     });
 

@@ -439,7 +439,7 @@ function RunCommandTarget({
   const tooltip = getRunCommandTargetTooltip(execution, t);
   const iconClassName = "size-3.5 shrink-0";
   const wrapperClassName =
-    "inline-flex shrink-0 items-center gap-0.5 text-muted-foreground";
+    "mx-0.5 inline-flex shrink-0 items-center gap-0.5 text-muted-foreground";
 
   switch (execution.targetKind) {
     case "cloud-sandbox":

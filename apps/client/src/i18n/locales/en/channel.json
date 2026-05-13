@@ -223,7 +223,7 @@
         "ahandDevice": "aHand device",
         "cloudComputer": "Run command on cloud computer '{{name}}'",
         "cloudSandbox": "Run in cloud sandbox",
-        "cloudSandboxTooltip": "Cloud Worker Sandbox (just-base)",
+        "cloudSandboxTooltip": "Cloud Worker Sandbox (just-bash)",
         "backend": "Run command on {{name}}"
       },
       "unknownTool": "Unknown tool"
