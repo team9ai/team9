@@ -337,6 +337,75 @@ describe('ClawHiveService', () => {
     });
   });
 
+  describe('session component and status helpers', () => {
+    it('GETs session components with tenant header', async () => {
+      const body = {
+        sessionId: 'team9/tenant/agent/dm/channel',
+        components: [
+          {
+            id: 'persona',
+            typeKey: 'persona',
+            runtimeInjectedOnly: false,
+            effectiveConfig: {},
+            latestData: {
+              data: { mood: 'focused' },
+              capturedAtCallId: 'call-1',
+              capturedAt: 1700000000000,
+            },
+          },
+        ],
+      };
+      mockFetch.mockResolvedValueOnce(jsonResponse(body));
+
+      const result = await service.getSessionComponents(
+        'team9/tenant/agent/dm/channel',
+        'tenant-123',
+      );
+
+      expect(result).toEqual(body);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/team9%2Ftenant%2Fagent%2Fdm%2Fchannel/components',
+        {
+          method: 'GET',
+          headers: expect.objectContaining({
+            'X-Hive-Auth': 'test-token',
+            'X-Hive-Tenant': 'tenant-123',
+          }),
+        },
+      );
+    });
+
+    it('returns null when session components are missing', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ error: 'missing' }, 404));
+
+      await expect(service.getSessionComponents('missing')).resolves.toBeNull();
+    });
+
+    it('GETs session status', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          sessionId: 's1',
+          isStreaming: false,
+          queueLength: 2,
+          ownedBy: 'worker-1',
+        }),
+      );
+
+      await expect(
+        service.getSessionStatus('team9/tenant/s1'),
+      ).resolves.toEqual({
+        sessionId: 's1',
+        isStreaming: false,
+        queueLength: 2,
+        ownedBy: 'worker-1',
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/team9%2Ftenant%2Fs1/status',
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+  });
+
   // ── sendInput ────────────────────────────────────────────────────────────
 
   describe('sendInput', () => {

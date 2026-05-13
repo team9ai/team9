@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Param,
+  Header,
   UseGuards,
   ForbiddenException,
   Inject,
@@ -36,6 +37,7 @@ import {
   UpdateStreamingMetadataDto,
   EndStreamingDto,
 } from './dto/streaming.dto.js';
+import { mergeStreamingMetadataSnapshot } from './streaming-metadata.js';
 
 const STREAM_TTL = 120;
 
@@ -46,6 +48,9 @@ interface StreamingSession {
   metadata?: Record<string, unknown>;
   startedAt: number;
 }
+
+const STREAMING_REST_DEPRECATION_MESSAGE =
+  'Deprecated: use authenticated Socket.IO streaming events for ordered bot streaming';
 
 @Controller({ path: 'im', version: '1' })
 @UseGuards(AuthGuard)
@@ -88,6 +93,8 @@ export class StreamingController {
   // ── POST /v1/im/channels/:channelId/streaming/start ────────────────
 
   @Post('channels/:channelId/streaming/start')
+  @Header('Deprecation', 'true')
+  @Header('X-Team9-Deprecated', STREAMING_REST_DEPRECATION_MESSAGE)
   async startStreaming(
     @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
@@ -153,6 +160,8 @@ export class StreamingController {
   // ── POST /v1/im/streaming/:streamId/content ────────────────────────
 
   @Post('streaming/:streamId/content')
+  @Header('Deprecation', 'true')
+  @Header('X-Team9-Deprecated', STREAMING_REST_DEPRECATION_MESSAGE)
   async updateContent(
     @CurrentUser('sub') userId: string,
     @Param('streamId') streamId: string,
@@ -199,6 +208,8 @@ export class StreamingController {
   // ── POST /v1/im/streaming/:streamId/thinking ────────────────────────
 
   @Post('streaming/:streamId/thinking')
+  @Header('Deprecation', 'true')
+  @Header('X-Team9-Deprecated', STREAMING_REST_DEPRECATION_MESSAGE)
   async updateThinkingContent(
     @CurrentUser('sub') userId: string,
     @Param('streamId') streamId: string,
@@ -245,6 +256,8 @@ export class StreamingController {
   // ── POST /v1/im/streaming/:streamId/metadata ────────────────────────
 
   @Post('streaming/:streamId/metadata')
+  @Header('Deprecation', 'true')
+  @Header('X-Team9-Deprecated', STREAMING_REST_DEPRECATION_MESSAGE)
   async updateMetadata(
     @CurrentUser('sub') userId: string,
     @Param('streamId') streamId: string,
@@ -268,10 +281,7 @@ export class StreamingController {
     // argument streaming without persisting every intermediate delta.
     const nextSession: StreamingSession = {
       ...session,
-      metadata: {
-        ...(session.metadata ?? {}),
-        ...dto.metadata,
-      },
+      metadata: mergeStreamingMetadataSnapshot(session.metadata, dto.metadata),
     };
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(streamId),
@@ -300,6 +310,8 @@ export class StreamingController {
   // ── POST /v1/im/streaming/:streamId/end ────────────────────────────
 
   @Post('streaming/:streamId/end')
+  @Header('Deprecation', 'true')
+  @Header('X-Team9-Deprecated', STREAMING_REST_DEPRECATION_MESSAGE)
   async endStreaming(
     @CurrentUser('sub') userId: string,
     @Param('streamId') streamId: string,

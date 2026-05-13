@@ -46,6 +46,8 @@
   "deleteConfirmDescription": "Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.",
   "deleteConfirm": "Supprimer",
   "deleteCancel": "Annuler",
+  "expandFullContent": "Afficher le contenu complet",
+  "remainingChars": " ({{chars}} restants)",
   "loadingFullContent": "Chargement du contenu complet...",
   "loadFullContentFailed": "Échec du chargement du contenu complet. Veuillez annuler et réessayer."
 }

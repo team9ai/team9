@@ -4,6 +4,7 @@ import { useStreamingStore } from "./useStreamingStore";
 describe("useStreamingStore", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    sessionStorage.clear();
     useStreamingStore.setState({ streams: new Map() });
   });
 
@@ -123,6 +124,65 @@ describe("useStreamingStore", () => {
       toolName: "RunScript",
       toolArgsText: '{"cmd":"pnpm test -- --runInBand"}',
       toolPhase: "executing",
+    });
+  });
+
+  it("appends tool arg deltaData and restores accumulated metadata after refresh", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      metadata: {
+        agentEventType: "tool_call",
+        status: "running",
+        toolCallId: "tc-1",
+        toolName: "RunScript",
+      },
+    });
+
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      deltaData: { toolArgsText: '{"cmd":"pnpm' },
+      toolPhase: "args_streaming",
+    });
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      deltaData: { toolArgsText: ' test"}' },
+      toolPhase: "args_streaming",
+    });
+
+    expect(
+      useStreamingStore.getState().streams.get("stream-1")?.metadata,
+    ).toEqual({
+      agentEventType: "tool_call",
+      status: "running",
+      toolCallId: "tc-1",
+      toolName: "RunScript",
+      toolArgsText: '{"cmd":"pnpm test"}',
+      toolPhase: "args_streaming",
+    });
+
+    // Simulate a page refresh: Zustand state is gone, sessionStorage remains.
+    useStreamingStore.setState({ streams: new Map() });
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 2000,
+    });
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      deltaData: { toolArgsText: "\n" },
+      toolPhase: "args_streaming",
+    });
+
+    expect(
+      useStreamingStore.getState().streams.get("stream-1")?.metadata,
+    ).toEqual({
+      agentEventType: "tool_call",
+      status: "running",
+      toolCallId: "tc-1",
+      toolName: "RunScript",
+      toolArgsText: '{"cmd":"pnpm test"}\n',
+      toolPhase: "args_streaming",
     });
   });
 

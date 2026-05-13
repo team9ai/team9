@@ -46,6 +46,8 @@
   "deleteConfirmDescription": "确定要删除这条消息吗？此操作无法撤销。",
   "deleteConfirm": "删除",
   "deleteCancel": "取消",
+  "expandFullContent": "展开完整内容",
+  "remainingChars": "（还剩 {{chars}} 字）",
   "loadingFullContent": "加载完整内容中...",
   "loadFullContentFailed": "加载完整内容失败，请取消后重试。"
 }

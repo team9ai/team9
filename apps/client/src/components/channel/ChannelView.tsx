@@ -33,6 +33,8 @@ import type {
 } from "@/types/properties";
 import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import { useChannelModel } from "@/hooks/useChannelModel";
+import { useChannelAgentSession } from "@/hooks/useChannelAgentSession";
+import { useAgentSessionComponents } from "@/hooks/useAgentSessionComponents";
 import {
   applyBotThinkingMessage,
   getBotThinkingIds,
@@ -53,6 +55,7 @@ import type {
 } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
 import { fileApi } from "@/services/api/file";
+import { AgentSessionPanel } from "./agent-session/AgentSessionPanel";
 
 // ==================== ChannelFilesList ====================
 
@@ -380,11 +383,49 @@ export function ChannelView({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
   const [threadPanelWidth, setThreadPanelWidth] = useState(600);
+  const [agentPanelWidth, setAgentPanelWidth] = useState(360);
+  const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
-  const threadPanelCount =
-    (primaryThread.isOpen ? 1 : 0) + (secondaryThread.isOpen ? 1 : 0);
+  useEffect(() => {
+    setIsAgentSessionPanelOpen(false);
+  }, [channelId]);
+
+  const isAgentSessionCandidate =
+    !isPreviewMode &&
+    (isBotDm ||
+      channel?.type === "topic-session" ||
+      channel?.type === "routine-session" ||
+      channel?.type === "tracking" ||
+      channel?.type === "task");
+  const agentSession = useChannelAgentSession(
+    channelId,
+    isAgentSessionCandidate,
+  );
+  const shouldShowAgentSessionPanel =
+    !!agentSession.data &&
+    (agentSession.data.supported ||
+      (!!agentSession.data.unsupportedReason &&
+        agentSession.data.unsupportedReason !== "no_bot"));
+  const isAgentSessionPanelVisible =
+    shouldShowAgentSessionPanel && isAgentSessionPanelOpen;
+  const agentComponents = useAgentSessionComponents(
+    channelId,
+    isAgentSessionPanelVisible && agentSession.data?.supported === true,
+    agentSession.data?.sessionId,
+  );
+  const agentPanelCount = isAgentSessionPanelVisible ? 1 : 0;
+  const openThreadPanelCount =
+    (primaryThread.isOpen && primaryThread.rootMessageId ? 1 : 0) +
+    (secondaryThread.isOpen && secondaryThread.rootMessageId ? 1 : 0);
+  const sidePanelCount = agentPanelCount + openThreadPanelCount;
+
+  useEffect(() => {
+    if (!shouldShowAgentSessionPanel) {
+      setIsAgentSessionPanelOpen(false);
+    }
+  }, [shouldShowAgentSessionPanel]);
 
   // Bot response indicator state (local)
   const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
@@ -562,7 +603,7 @@ export function ChannelView({
   // because the outer container size doesn't change when children resize).
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || threadPanelCount === 0) {
+    if (!el || sidePanelCount === 0) {
       setIsSnapped(false);
       return;
     }
@@ -570,8 +611,10 @@ export function ChannelView({
     const recalc = () => {
       const containerWidth = el.getBoundingClientRect().width;
       const mainChatWidth =
-        containerWidth - threadPanelCount * threadPanelWidthRef.current;
-      setIsSnapped(mainChatWidth < 400);
+        containerWidth -
+        agentPanelCount * agentPanelWidth -
+        openThreadPanelCount * threadPanelWidthRef.current;
+      setIsSnapped(openThreadPanelCount > 0 && mainChatWidth < 400);
     };
 
     // Recalculate immediately for threadPanelWidth changes
@@ -580,7 +623,13 @@ export function ChannelView({
     const observer = new ResizeObserver(() => recalc());
     observer.observe(el);
     return () => observer.disconnect();
-  }, [threadPanelCount, threadPanelWidth]);
+  }, [
+    agentPanelCount,
+    agentPanelWidth,
+    openThreadPanelCount,
+    sidePanelCount,
+    threadPanelWidth,
+  ]);
 
   const handleSendMessage = async (
     payload: { content: string; contentAst?: Record<string, unknown> },
@@ -623,7 +672,15 @@ export function ChannelView({
         className={`flex-1 flex flex-col min-w-0 select-text ${isSnapped ? "hidden" : ""}`}
       >
         {!hideHeader && (
-          <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
+          <ChannelHeader
+            channel={channel}
+            currentUserRole={currentUserRole}
+            showAgentSessionToggle={shouldShowAgentSessionPanel}
+            isAgentSessionPanelOpen={isAgentSessionPanelVisible}
+            onToggleAgentSessionPanel={() =>
+              setIsAgentSessionPanelOpen((open) => !open)
+            }
+          />
         )}
 
         {/* Channel tabs - only show for non-direct, non-preview channels.
@@ -741,6 +798,17 @@ export function ChannelView({
           />
         )}
       </div>
+
+      {agentSession.data && isAgentSessionPanelVisible && (
+        <AgentSessionPanel
+          binding={agentSession.data}
+          components={agentComponents.data}
+          isLoading={agentComponents.isLoading}
+          isError={agentComponents.isError}
+          width={agentPanelWidth}
+          onWidthChange={setAgentPanelWidth}
+        />
+      )}
 
       {/* Thread panel sidebars - up to 2 layers (hidden for direct messages) */}
       {channel?.type !== "direct" &&

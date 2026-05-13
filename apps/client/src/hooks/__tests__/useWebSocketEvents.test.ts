@@ -620,6 +620,26 @@ describe("useWebSocketEvents", () => {
         },
       ],
     );
+    queryCache.set(JSON.stringify(["channels", "workspace-1"]), [
+      {
+        id: "channel-1",
+        type: "direct",
+        otherUser: {
+          id: "bot-user-1",
+          username: "bot_b155",
+          displayName: "Personal Staff",
+        },
+      },
+    ]);
+    queryCache.set(JSON.stringify(["channels", "channel-1"]), {
+      id: "channel-1",
+      type: "direct",
+      otherUser: {
+        id: "bot-user-1",
+        username: "bot_b155",
+        displayName: "Personal Staff",
+      },
+    });
 
     renderHook(() => useWebSocketEvents());
 
@@ -657,9 +677,17 @@ describe("useWebSocketEvents", () => {
     const groups = queryCache.get(
       JSON.stringify(["topic-sessions-grouped", "workspace-1", 5]),
     ) as Array<{ agentDisplayName: string }>;
+    const channels = queryCache.get(
+      JSON.stringify(["channels", "workspace-1"]),
+    ) as Array<{ otherUser?: { displayName: string | null } }>;
+    const activeChannel = queryCache.get(
+      JSON.stringify(["channels", "channel-1"]),
+    ) as { otherUser?: { displayName: string | null } };
 
     expect(apps[0].bots[0].displayName).toBe("夏夏夏");
     expect(groups[0].agentDisplayName).toBe("夏夏夏");
+    expect(channels[0].otherUser?.displayName).toBe("夏夏夏");
+    expect(activeChannel.otherUser?.displayName).toBe("夏夏夏");
     expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["installed-applications-with-bots", "workspace-1"],
     });

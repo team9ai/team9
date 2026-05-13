@@ -180,6 +180,49 @@ export function useWebSocketEvents() {
           message.sender.displayName || message.sender.username;
 
         if (senderDisplayName) {
+          queryClient.setQueriesData<ChannelWithUnread | ChannelWithUnread[]>(
+            { queryKey: ["channels"] },
+            (old) => {
+              if (!old) return old;
+
+              const patchChannel = (channel: ChannelWithUnread) => {
+                if (channel.otherUser?.id !== message.senderId) {
+                  return channel;
+                }
+                if (channel.otherUser.displayName === senderDisplayName) {
+                  return channel;
+                }
+                return {
+                  ...channel,
+                  otherUser: {
+                    ...channel.otherUser,
+                    displayName: senderDisplayName,
+                  },
+                };
+              };
+
+              if (Array.isArray(old)) {
+                let changed = false;
+                const next = old.map((channel) => {
+                  const patched = patchChannel(channel);
+                  if (patched !== channel) changed = true;
+                  return patched;
+                });
+                return changed ? next : old;
+              }
+
+              return patchChannel(old);
+            },
+          );
+
+          queryClient.setQueryData(
+            ["im-users", message.senderId],
+            (old: Message["sender"] | undefined) => {
+              if (!old || old.displayName === senderDisplayName) return old;
+              return { ...old, displayName: senderDisplayName };
+            },
+          );
+
           queryClient.setQueriesData<InstalledApplicationWithBots[]>(
             { queryKey: ["installed-applications-with-bots", workspaceId] },
             (old) => {

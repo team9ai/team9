@@ -14,7 +14,7 @@ import {
   BOT_TOKEN_VALIDATOR,
   type BotTokenValidatorInterface,
 } from '@team9/auth';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import { AuthService } from '../../auth/auth.service.js';
 import { UsersService } from '../users/users.service.js';
@@ -49,7 +49,8 @@ import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
-import { GatewayMQService } from '@team9/rabbitmq';
+import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
+import type { PostBroadcastTask } from '@team9/shared';
 import { ClusterNodeService } from '../../cluster/cluster-node.service.js';
 import { SessionService } from '../../cluster/session/session.service.js';
 import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
@@ -57,6 +58,10 @@ import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.ser
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
 import { appMetrics } from '@team9/observability';
+import { mergeStreamingMetadataSnapshot } from '../streaming/streaming-metadata.js';
+import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { determineMessageType } from '../messages/message-utils.js';
+import { normalizeToolEventMetadata } from '../messages/utils/tool-event-metadata.js';
 
 interface SocketHandshakeAuth {
   token?: string;
@@ -72,6 +77,8 @@ interface StreamingSessionPayload {
   metadata?: Record<string, unknown>;
   startedAt: number;
 }
+
+const STREAM_TTL = 120;
 
 @WebSocketGateway({
   cors: {
@@ -113,6 +120,10 @@ export class WebsocketGateway
     @Optional()
     @Inject(BOT_TOKEN_VALIDATOR)
     private readonly botTokenValidator?: BotTokenValidatorInterface,
+    @Optional()
+    private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
+    @Optional()
+    private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   private getHandshakeAuth(client: Socket): SocketHandshakeAuth {
@@ -132,6 +143,202 @@ export class WebsocketGateway
 
   private parseStreamingSession(sessionData: string): StreamingSessionPayload {
     return JSON.parse(sessionData) as StreamingSessionPayload;
+  }
+
+  private shouldPublishChannelMessageTrigger(
+    message: MessageResponse,
+  ): boolean {
+    const sender = message.sender;
+    return sender?.userType === 'human' && sender.agentType === null;
+  }
+
+  private async getOwnedStreamingSession(
+    streamId: string,
+    userId: string,
+  ): Promise<{ session?: StreamingSessionPayload; error?: string }> {
+    const sessionRaw = await this.redisService.get(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+    );
+    if (!sessionRaw) {
+      return { error: 'Streaming session not found or expired' };
+    }
+
+    const session = this.parseStreamingSession(sessionRaw);
+    if (session.senderId !== userId) {
+      return { error: 'Not the owner of this stream' };
+    }
+
+    return { session };
+  }
+
+  private async refreshStreamingTtl(
+    streamId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.redisService.expire(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+      STREAM_TTL,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
+      STREAM_TTL,
+    );
+  }
+
+  private async finalizeSocketStream(
+    userId: string,
+    streamId: string,
+    content: string,
+    thinking?: string,
+  ): Promise<{ success: true; messageId: string } | { error: string }> {
+    if (!this.imWorkerGrpcClientService) {
+      return { error: 'Streaming finalizer unavailable' };
+    }
+
+    const { session, error } = await this.getOwnedStreamingSession(
+      streamId,
+      userId,
+    );
+    if (!session) {
+      return { error: error ?? 'Streaming session not found or expired' };
+    }
+
+    const channelId = session.channelId;
+
+    await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(streamId));
+    await this.redisService.srem(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
+      streamId,
+    );
+
+    const channel = await this.channelsService.findById(channelId);
+    const workspaceId = channel?.tenantId ?? undefined;
+
+    const baseMetadata: Record<string, unknown> = {
+      ...(session.metadata ?? {}),
+    };
+    if (thinking) {
+      baseMetadata.thinking = thinking;
+    }
+    const metadata = normalizeToolEventMetadata(
+      Object.keys(baseMetadata).length > 0 ? baseMetadata : undefined,
+      content,
+    );
+
+    const result = await this.imWorkerGrpcClientService.createMessage({
+      clientMsgId: uuidv7(),
+      channelId,
+      senderId: userId,
+      content,
+      parentId: session.parentId,
+      type: determineMessageType(content, false),
+      workspaceId,
+      metadata,
+    });
+
+    let message: MessageResponse | null = null;
+    try {
+      message = await this.messagesService.getMessageWithDetails(result.msgId);
+    } catch (detailsError) {
+      this.logger.warn(
+        `[streaming_end] getMessageWithDetails failed for ${result.msgId}: ${(detailsError as Error).message}`,
+      );
+    }
+
+    const streamingEndDelivered = await this.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.STREAMING.END,
+      {
+        streamId,
+        channelId,
+        senderId: userId,
+        message,
+      },
+    );
+
+    if (message) {
+      const newMsgDelivered = await this.sendToChannelMembers(
+        channelId,
+        WS_EVENTS.MESSAGE.NEW,
+        message,
+      );
+
+      if (!streamingEndDelivered && !newMsgDelivered) {
+        this.logger.error(
+          `[streaming_end] Both streaming_end and new_message broadcasts failed for channel ${channelId}, message ${result.msgId}. ` +
+            `Message was persisted but clients will not see it until they refresh.`,
+        );
+      }
+    } else if (!streamingEndDelivered) {
+      this.logger.error(
+        `[streaming_end] streaming_end broadcast failed AND getMessageWithDetails returned null for channel ${channelId}, message ${result.msgId}. ` +
+          `Message was persisted but clients will not see it until they refresh.`,
+      );
+    }
+
+    if (message) {
+      this.eventEmitter?.emit('message.created', {
+        message: {
+          id: message.id,
+          channelId: message.channelId,
+          senderId: message.senderId,
+          content: message.content,
+          type: message.type,
+          isPinned: message.isPinned,
+          parentId: message.parentId,
+          createdAt: message.createdAt,
+        },
+        channel,
+        sender: message.sender
+          ? {
+              id: message.sender.id,
+              username: message.sender.username,
+              displayName: message.sender.displayName,
+            }
+          : undefined,
+      });
+    }
+
+    if (this.gatewayMQService?.isReady()) {
+      if (message && this.shouldPublishChannelMessageTrigger(message)) {
+        this.gatewayMQService
+          .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+            channelId: message.channelId,
+            messageId: message.id,
+            content: message.content,
+            messageType: message.type,
+            senderId: message.senderId,
+            senderUserType: message.sender?.userType ?? null,
+            senderAgentType: message.sender?.agentType ?? null,
+          })
+          .catch((publishError) => {
+            this.logger.warn(
+              `Failed to publish message.created event: ${publishError}`,
+            );
+          });
+      } else if (message) {
+        this.logger.debug(
+          `[streaming_end] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+        );
+      }
+
+      const postBroadcastTask: PostBroadcastTask = {
+        msgId: result.msgId,
+        channelId,
+        senderId: userId,
+        workspaceId,
+        broadcastAt: Date.now(),
+      };
+      this.gatewayMQService
+        .publishPostBroadcast(postBroadcastTask)
+        .catch((publishError) => {
+          this.logger.warn(
+            `Failed to publish post-broadcast task: ${publishError}`,
+          );
+        });
+    }
+
+    return { success: true, messageId: result.msgId };
   }
 
   /**
@@ -937,13 +1144,13 @@ export class WebsocketGateway
       return { error: 'Not a member of this channel' };
     }
 
-    // Store streaming session in Redis with TTL for auto-cleanup
-    const STREAM_TTL = 120;
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
       JSON.stringify({
         channelId: data.channelId,
         senderId: socketClient.userId,
+        parentId: data.parentId,
+        metadata: data.metadata,
         startedAt: Date.now(),
       }),
       STREAM_TTL,
@@ -984,17 +1191,22 @@ export class WebsocketGateway
       return { error: 'Only bot users can stream messages' };
     }
 
-    // Refresh TTL on streaming session
-    await this.redisService.expire(
-      REDIS_KEYS.STREAMING_SESSION(data.streamId),
-      120,
+    const { session, error } = await this.getOwnedStreamingSession(
+      data.streamId,
+      socketClient.userId,
     );
+    if (!session) {
+      return { error: error ?? 'Streaming session not found or expired' };
+    }
+
+    await this.refreshStreamingTtl(data.streamId, socketClient.userId);
 
     await this.sendToChannelMembers(
-      data.channelId,
+      session.channelId,
       WS_EVENTS.STREAMING.CONTENT,
       {
         ...data,
+        channelId: session.channelId,
         senderId: socketClient.userId,
       },
     );
@@ -1012,16 +1224,22 @@ export class WebsocketGateway
       return { error: 'Only bot users can stream messages' };
     }
 
-    await this.redisService.expire(
-      REDIS_KEYS.STREAMING_SESSION(data.streamId),
-      120,
+    const { session, error } = await this.getOwnedStreamingSession(
+      data.streamId,
+      socketClient.userId,
     );
+    if (!session) {
+      return { error: error ?? 'Streaming session not found or expired' };
+    }
+
+    await this.refreshStreamingTtl(data.streamId, socketClient.userId);
 
     await this.sendToChannelMembers(
-      data.channelId,
+      session.channelId,
       WS_EVENTS.STREAMING.THINKING_CONTENT,
       {
         ...data,
+        channelId: session.channelId,
         senderId: socketClient.userId,
       },
     );
@@ -1039,16 +1257,36 @@ export class WebsocketGateway
       return { error: 'Only bot users can stream messages' };
     }
 
-    await this.redisService.expire(
+    const { session, error } = await this.getOwnedStreamingSession(
+      data.streamId,
+      socketClient.userId,
+    );
+    if (!session) {
+      return { error: error ?? 'Streaming session not found or expired' };
+    }
+
+    await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
-      120,
+      JSON.stringify({
+        ...session,
+        metadata: mergeStreamingMetadataSnapshot(
+          session.metadata,
+          data.metadata,
+        ),
+      }),
+      STREAM_TTL,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      STREAM_TTL,
     );
 
     await this.sendToChannelMembers(
-      data.channelId,
+      session.channelId,
       WS_EVENTS.STREAMING.METADATA,
       {
         ...data,
+        channelId: session.channelId,
         senderId: socketClient.userId,
       },
     );
@@ -1064,6 +1302,19 @@ export class WebsocketGateway
     const socketClient = client as SocketWithUser;
     if (!socketClient.isBot) {
       return { error: 'Only bot users can stream messages' };
+    }
+
+    const finalContent =
+      typeof (data as unknown as { content?: unknown }).content === 'string'
+        ? (data as unknown as { content: string }).content
+        : undefined;
+    if (finalContent !== undefined) {
+      return this.finalizeSocketStream(
+        socketClient.userId,
+        data.streamId,
+        finalContent,
+        (data as unknown as { thinking?: string }).thinking,
+      );
     }
 
     // Clean up Redis state

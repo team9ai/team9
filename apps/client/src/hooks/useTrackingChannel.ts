@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { normalizeTrackingSnapshot } from "@/lib/agent-event-metadata";
+import {
+  clearPersistedStreamMetadata,
+  loadPersistedStreamMetadata,
+  mergeStreamingMetadata,
+  persistStreamMetadata,
+} from "@/lib/streaming-metadata";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import { WS_EVENTS } from "@/types/ws-events";
@@ -9,6 +15,7 @@ import type { Message, ChannelSnapshot } from "@/types/im";
 import type {
   StreamingStartEvent,
   StreamingContentEvent,
+  StreamingMetadataEvent,
   StreamingEndEvent,
   TrackingDeactivatedEvent,
 } from "@/types/ws-events";
@@ -37,6 +44,7 @@ interface TrackingChannelState {
  * Handles initial loading, observe subscription, and streaming updates.
  */
 export function useTrackingChannel(trackingChannelId: string | undefined) {
+  const queryClient = useQueryClient();
   const [activeStream, setActiveStream] =
     useState<TrackingChannelState["activeStream"]>(null);
   const [extraMessages, setExtraMessages] = useState<
@@ -94,11 +102,16 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
 
     const handleStreamStart = (event: StreamingStartEvent) => {
       if (event.channelId !== trackingChannelId) return;
+      const metadata = mergeStreamingMetadata(
+        loadPersistedStreamMetadata(event.streamId),
+        event.metadata,
+      );
       setActiveStream({
         streamId: event.streamId,
         content: "",
-        metadata: event.metadata,
+        metadata,
       });
+      persistStreamMetadata(event.streamId, metadata);
     };
 
     const handleStreamContent = (event: StreamingContentEvent) => {
@@ -108,24 +121,59 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
       });
     };
 
+    const handleStreamMetadata = (event: StreamingMetadataEvent) => {
+      if (event.channelId !== trackingChannelId) return;
+      setActiveStream((prev) => {
+        const base =
+          prev && prev.streamId === event.streamId
+            ? prev.metadata
+            : loadPersistedStreamMetadata(event.streamId);
+        const metadata = mergeStreamingMetadata(base, event.metadata);
+        persistStreamMetadata(event.streamId, metadata);
+        if (!prev || prev.streamId !== event.streamId) {
+          return {
+            streamId: event.streamId,
+            content: "",
+            metadata,
+          };
+        }
+        return {
+          ...prev,
+          metadata,
+        };
+      });
+    };
+
     const handleStreamEnd = (event: StreamingEndEvent) => {
+      if (event.channelId !== trackingChannelId) return;
+      clearPersistedStreamMetadata(event.streamId);
       setActiveStream((prev) => {
         if (!prev || prev.streamId !== event.streamId) return prev;
         return null;
       });
-      // The new_message event will add the persisted message
+      if (!event.message) {
+        queryClient.invalidateQueries({
+          queryKey: ["trackingMessages", trackingChannelId],
+          refetchType: "all",
+        });
+      }
+      // The new_message event will add the persisted message when present.
     };
 
     const handleDeactivated = (event: TrackingDeactivatedEvent) => {
       if (event.channelId !== trackingChannelId) return;
       setIsDeactivated(true);
       setSnapshot(normalizeTrackingSnapshot(event.snapshot));
-      setActiveStream(null);
+      setActiveStream((prev) => {
+        if (prev) clearPersistedStreamMetadata(prev.streamId);
+        return null;
+      });
     };
 
     wsService.onNewMessage(handleNewMessage);
     wsService.on(WS_EVENTS.STREAMING.START, handleStreamStart);
     wsService.on(WS_EVENTS.STREAMING.CONTENT, handleStreamContent);
+    wsService.on(WS_EVENTS.STREAMING.METADATA, handleStreamMetadata);
     wsService.on(WS_EVENTS.STREAMING.END, handleStreamEnd);
     wsService.onTrackingDeactivated(handleDeactivated);
 
@@ -133,10 +181,11 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
       wsService.off(WS_EVENTS.MESSAGE.NEW, handleNewMessage);
       wsService.off(WS_EVENTS.STREAMING.START, handleStreamStart);
       wsService.off(WS_EVENTS.STREAMING.CONTENT, handleStreamContent);
+      wsService.off(WS_EVENTS.STREAMING.METADATA, handleStreamMetadata);
       wsService.off(WS_EVENTS.STREAMING.END, handleStreamEnd);
       wsService.offTrackingDeactivated(handleDeactivated);
     };
-  }, [trackingChannelId, isDeactivated]);
+  }, [trackingChannelId, isDeactivated, queryClient]);
 
   // Compute latest 3 messages
   const allMessages: TrackingChannelState["latestMessages"] = [

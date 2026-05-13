@@ -14,7 +14,7 @@ import {
   type StateSnapshot,
 } from "react-virtuoso";
 import { Loader2 } from "lucide-react";
-import type { Message, ChannelMember } from "@/types/im";
+import type { Message, ChannelMember, AgentEventMetadata } from "@/types/im";
 import {
   getAgentMeta,
   pairToolEvents,
@@ -105,6 +105,28 @@ function findRoundStartedAt(
   }
 
   return undefined;
+}
+
+function resolveA2UISurfaceMetadata(
+  surfaceMetadata: AgentEventMetadata,
+  responseMetadata: AgentEventMetadata | undefined,
+): AgentEventMetadata {
+  if (!responseMetadata || surfaceMetadata.status !== "running") {
+    return surfaceMetadata;
+  }
+
+  return {
+    ...surfaceMetadata,
+    status: "resolved",
+    completedAt: surfaceMetadata.completedAt ?? responseMetadata.completedAt,
+    updatedAt: surfaceMetadata.updatedAt ?? responseMetadata.updatedAt,
+    selections: surfaceMetadata.selections ?? responseMetadata.selections,
+    responderId: surfaceMetadata.responderId ?? responseMetadata.responderId,
+    responderName:
+      surfaceMetadata.responderName ?? responseMetadata.responderName,
+    responderAvatarUrl:
+      surfaceMetadata.responderAvatarUrl ?? responseMetadata.responderAvatarUrl,
+  };
 }
 
 // Per-channel scroll position snapshots for restoring on channel switch
@@ -216,6 +238,31 @@ export function MessageList({
     [messages],
   );
   const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
+  const a2uiResponsesBySurfaceId = useMemo(() => {
+    const responses = new Map<string, AgentEventMetadata>();
+
+    for (const message of chronoMessages) {
+      const meta = getAgentMeta(message);
+      if (meta?.agentEventType !== "a2ui_response" || !meta.surfaceId) {
+        continue;
+      }
+
+      responses.set(meta.surfaceId, {
+        ...meta,
+        completedAt: meta.completedAt ?? message.createdAt,
+        updatedAt: meta.updatedAt ?? message.updatedAt,
+        responderId: meta.responderId ?? message.senderId ?? undefined,
+        responderName:
+          meta.responderName ??
+          message.sender?.displayName ??
+          message.sender?.username,
+        responderAvatarUrl:
+          meta.responderAvatarUrl ?? message.sender?.avatarUrl ?? undefined,
+      });
+    }
+
+    return responses;
+  }, [chronoMessages]);
   const listData = useMemo<ChannelListItem[]>(() => {
     const items: ChannelListItem[] = chronoMessages.map((message) => ({
       type: "message",
@@ -616,7 +663,8 @@ export function MessageList({
       }
 
       // Hide tool_result already rendered in the combined block above.
-      // Use min-h-px (1px) instead of h-0 to avoid react-virtuoso zero-size warnings.
+      // Keep a measurable 1px item for react-virtuoso, then pull it back up so
+      // the consumed result does not leave a visible hairline between rows.
       if (agentMeta?.agentEventType === "tool_result" && agentMeta.toolCallId) {
         const prevItem = listDataRef.current[itemIndex - 1];
         const prevMsg =
@@ -628,18 +676,24 @@ export function MessageList({
           prevMeta.toolCallId === agentMeta.toolCallId
         ) {
           return (
-            <div className="min-h-px overflow-hidden" aria-hidden="true" />
+            <div className="-mt-px h-px overflow-hidden" aria-hidden="true" />
           );
         }
       }
 
       // A2UI surface block — render always, pass readOnly to suppress interactivity
       if (agentMeta?.agentEventType === "a2ui_surface_update") {
+        const surfaceMeta = agentMeta.surfaceId
+          ? resolveA2UISurfaceMetadata(
+              agentMeta,
+              a2uiResponsesBySurfaceId.get(agentMeta.surfaceId),
+            )
+          : agentMeta;
         return (
-          <div id={`message-${message.id}`} className="px-4 py-1">
+          <div id={`message-${message.id}`} className="ml-14 mr-4 py-1">
             <A2UISurfaceBlock
               message={message}
-              metadata={agentMeta}
+              metadata={surfaceMeta}
               readOnly={readOnly}
               channelId={channelId}
             />
@@ -652,7 +706,7 @@ export function MessageList({
         return (
           <div
             id={`message-${message.id}`}
-            className="ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4 py-0.5"
+            className="ml-14 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4 py-0.5"
             style={{ paddingLeft: "9px" }}
           >
             <A2UIResponseItem message={message} metadata={agentMeta} />
@@ -747,6 +801,7 @@ export function MessageList({
       thinkingStatuses,
       toggleRoundExpanded,
       foldMaps,
+      a2uiResponsesBySurfaceId,
       editingMessageId,
       updateMessage.isPending,
       handleEditStart,

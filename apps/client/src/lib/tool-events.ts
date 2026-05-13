@@ -87,8 +87,20 @@ function canInferLegacyFailure(
 }
 
 function formatArgs(toolName: string, metadata: AgentEventMetadata): string {
+  if (metadata.toolPhase === "args_streaming" && metadata.toolArgsText) {
+    return metadata.toolArgsText;
+  }
   if (metadata.toolArgs) return formatParams(toolName, metadata.toolArgs);
   return metadata.toolArgsText ?? "";
+}
+
+function formatArgsText(metadata: AgentEventMetadata): string {
+  if (metadata.toolPhase === "args_streaming" && metadata.toolArgsText) {
+    return metadata.toolArgsText;
+  }
+  return metadata.toolArgs
+    ? JSON.stringify(metadata.toolArgs, null, 2)
+    : (metadata.toolArgsText ?? "");
 }
 
 export function buildToolDisplayState({
@@ -133,9 +145,7 @@ export function buildToolDisplayState({
     indicator:
       status === "success" ? "check" : status === "error" ? "cross" : "none",
     argsSummary: formatArgs(toolName, callMetadata),
-    argsText: callMetadata.toolArgs
-      ? JSON.stringify(callMetadata.toolArgs, null, 2)
-      : (callMetadata.toolArgsText ?? ""),
+    argsText: formatArgsText(callMetadata),
     resultText,
     ...(errorMessage ? { errorMessage } : {}),
   };

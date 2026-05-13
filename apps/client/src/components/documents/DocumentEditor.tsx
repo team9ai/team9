@@ -127,10 +127,10 @@ export function DocumentEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className={cn("flex flex-col", className)}>
+      <div className={cn("flex h-full min-h-0 flex-col", className)}>
         <div
           className={cn(
-            "relative flex-1 overflow-y-auto mt-2",
+            "relative mt-2 min-h-0 flex-1 overflow-y-auto",
             readOnly && "bg-muted/30 rounded-md p-2",
           )}
         >

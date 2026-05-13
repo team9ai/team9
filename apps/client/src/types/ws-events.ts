@@ -629,7 +629,9 @@ export interface StreamingEndEvent {
   streamId: string;
   channelId: string;
   senderId: string;
-  message: Message;
+  content?: string;
+  thinking?: string;
+  message?: Message | null;
 }
 
 /** Streaming abort - stream terminated before completion */

@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import {
+  clearPersistedStreamMetadata,
+  loadPersistedStreamMetadata,
+  mergeStreamingMetadata,
+  persistStreamMetadata,
+} from "@/lib/streaming-metadata";
 
 export interface StreamingMessage {
   streamId: string;
@@ -157,25 +163,36 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
       const newStreams = new Map(state.streams);
       const existing = newStreams.get(event.streamId);
       if (existing) {
+        const metadata = mergeStreamingMetadata(
+          existing.metadata,
+          event.metadata,
+        );
         newStreams.set(event.streamId, {
           ...existing,
           ...event,
           parentId: event.parentId ?? existing.parentId,
-          metadata: event.metadata ?? existing.metadata,
+          metadata,
           startedAt: existing.startedAt,
           isStreaming: true,
         });
+        persistStreamMetadata(event.streamId, metadata);
         return { streams: newStreams };
       }
 
+      const metadata = mergeStreamingMetadata(
+        loadPersistedStreamMetadata(event.streamId),
+        event.metadata,
+      );
       newStreams.set(event.streamId, {
         ...event,
+        metadata,
         content: "",
         thinking: "",
         isThinking: false,
         isStreaming: true,
         parts: [],
       });
+      persistStreamMetadata(event.streamId, metadata);
       return { streams: newStreams };
     });
   },
@@ -226,14 +243,16 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
+      const nextMetadata = mergeStreamingMetadata(
+        stream.metadata ?? loadPersistedStreamMetadata(streamId),
+        metadata,
+      );
       const newStreams = new Map(state.streams);
       newStreams.set(streamId, {
         ...stream,
-        metadata: {
-          ...(stream.metadata ?? {}),
-          ...metadata,
-        },
+        metadata: nextMetadata,
       });
+      persistStreamMetadata(streamId, nextMetadata);
       return { streams: newStreams };
     });
   },
@@ -247,6 +266,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const newStreams = new Map(state.streams);
       newStreams.delete(streamId);
+      clearPersistedStreamMetadata(streamId);
       return { streams: newStreams };
     });
   },
@@ -260,6 +280,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const newStreams = new Map(state.streams);
       newStreams.delete(streamId);
+      clearPersistedStreamMetadata(streamId);
       return { streams: newStreams };
     });
   },

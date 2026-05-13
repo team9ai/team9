@@ -40,6 +40,11 @@
   "yesterday": "Ontem",
   "copy": "Copiar",
   "copied": "Copiado",
+  "imagePreview": {
+    "download": "Baixar",
+    "openInNewTab": "Abrir em nova aba",
+    "copyFailed": "Não foi possível copiar a imagem"
+  },
   "selected": "Selecionado",
   "warning": "Aviso:",
   "seconds": "s",

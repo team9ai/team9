@@ -103,6 +103,19 @@ describe("buildToolDisplayState", () => {
     expect(state.argsText).toBe(JSON.stringify({ message: "hello" }, null, 2));
   });
 
+  it("uses streaming args text while structured args are still being generated", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolArgs: {},
+        toolArgsText: '{"message":"hel',
+        toolPhase: "args_streaming",
+      }),
+    });
+
+    expect(state.argsSummary).toBe('{"message":"hel');
+    expect(state.argsText).toBe('{"message":"hel');
+  });
+
   it("uses completed result as success when no failure evidence exists", () => {
     const state = buildToolDisplayState({
       callMetadata: callMeta(),

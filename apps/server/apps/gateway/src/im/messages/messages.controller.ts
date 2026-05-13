@@ -79,7 +79,21 @@ export class MessagesController {
     metadata: Record<string, unknown> | undefined,
   ): boolean {
     const agentEventType = metadata?.agentEventType;
-    return typeof agentEventType === 'string' && agentEventType !== 'writing';
+    if (typeof agentEventType !== 'string') {
+      return false;
+    }
+
+    if (agentEventType !== 'writing') {
+      return true;
+    }
+
+    const status = metadata?.status;
+    return (
+      status === 'completed' ||
+      status === 'failed' ||
+      status === 'timeout' ||
+      status === 'cancelled'
+    );
   }
 
   private async createChannelMessage(
@@ -88,217 +102,248 @@ export class MessagesController {
     dto: CreateMessageDto,
   ): Promise<MessageResponse> {
     const t0 = Date.now();
-
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    const t1 = Date.now();
-
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
-
     const clientMsgId = dto.clientMsgId || uuidv7();
+    let stage = 'start';
 
-    // Get workspaceId (tenantId) from channel for message context
-    const channel = await this.channelsService.findById(channelId);
-    const t2 = Date.now();
-    const workspaceId = channel?.tenantId ?? undefined;
+    this.logger.log(
+      `[createMessage] START channel=${channelId} user=${userId} clientMsgId=${clientMsgId} parentId=${dto.parentId ?? 'none'} attachments=${dto.attachments?.length ?? 0} hasContent=${Boolean(dto.content || dto.contentAst)}`,
+    );
 
-    // Reject messages to deactivated tracking/task channels
-    if (channel && !channel.isActivated) {
-      throw new ForbiddenException(
-        'Channel is deactivated — execution has completed',
-      );
-    }
+    try {
+      stage = 'membership';
+      const isMember = await this.channelsService.isMember(channelId, userId);
+      const t1 = Date.now();
 
-    // Reject messages to archived channels (e.g. one-time routine-creation
-    // channels archived on finishRoutineCreation). Without this, agent tools
-    // like SendToChannel and Reply's non-streaming fallback appear successful
-    // but the message never reaches anyone.
-    if (channel && channel.isArchived) {
-      throw new ForbiddenException(
-        'Channel is archived and no longer accepts new messages',
-      );
-    }
-
-    // Validate @mention permissions (block mentions of restricted personal staff)
-    if (dto.content) {
-      const mentions = parseMentions(dto.content);
-      const mentionedIds = extractMentionedUserIds(mentions);
-      if (mentionedIds.length > 0) {
-        await this.channelsService.assertMentionsAllowed(userId, mentionedIds);
+      if (!isMember) {
+        throw new ForbiddenException('Access denied');
       }
-    }
 
-    // Normalize and split representation:
-    //  - `contentAst` (new Lexical-composer clients) is the canonical source;
-    //    we re-derive `content` from it so search/preview/notifications
-    //    always see the plaintext form.
-    //  - `content` only (old clients, bot, OpenClaw) stays as-is and we
-    //    leave `contentAst` null so the renderer falls back to the sanitized
-    //    HTML/Markdown path.
-    let normalizedContent = dto.content;
-    let normalizedContentAst: Record<string, unknown> | undefined;
-    if (dto.contentAst) {
-      const ast = normalizeAst(dto.contentAst);
-      normalizedContent = astToPlaintext(ast);
-      normalizedContentAst = ast as unknown as Record<string, unknown>;
-    }
+      // Get workspaceId (tenantId) from channel for message context
+      stage = 'channel';
+      const channel = await this.channelsService.findById(channelId);
+      const t2 = Date.now();
+      const workspaceId = channel?.tenantId ?? undefined;
 
-    // Determine message type based on attachments and content length
-    const messageType = determineMessageType(
-      normalizedContent,
-      !!dto.attachments?.length,
-    );
+      // Reject messages to deactivated tracking/task channels
+      if (channel && !channel.isActivated) {
+        throw new ForbiddenException(
+          'Channel is deactivated — execution has completed',
+        );
+      }
 
-    // Merge top-level clientContext into metadata.clientContext — Stream E
-    // client sends it at the top level per the Tauri/Web contract; im-worker's
-    // AhandBlueprintExtender reads messages.metadata.clientContext.
-    const rawMetadata = dto.clientContext
-      ? { ...(dto.metadata ?? {}), clientContext: dto.clientContext }
-      : dto.metadata;
-    const metadata = normalizeToolEventMetadata(rawMetadata, normalizedContent);
+      // Reject messages to archived channels (e.g. one-time routine-creation
+      // channels archived on finishRoutineCreation). Without this, agent tools
+      // like SendToChannel and Reply's non-streaming fallback appear successful
+      // but the message never reaches anyone.
+      if (channel && channel.isArchived) {
+        throw new ForbiddenException(
+          'Channel is archived and no longer accepts new messages',
+        );
+      }
 
-    // Create message via gRPC
-    const result = await this.imWorkerGrpcClientService.createMessage({
-      clientMsgId,
-      channelId,
-      senderId: userId,
-      content: normalizedContent,
-      contentAst: normalizedContentAst,
-      parentId: dto.parentId,
-      type: messageType,
-      workspaceId,
-      attachments: dto.attachments,
-      metadata,
-    });
-    const t3 = Date.now();
+      // Validate @mention permissions (block mentions of restricted personal staff)
+      if (dto.content) {
+        const mentions = parseMentions(dto.content);
+        const mentionedIds = extractMentionedUserIds(mentions);
+        if (mentionedIds.length > 0) {
+          stage = 'mentions';
+          await this.channelsService.assertMentionsAllowed(
+            userId,
+            mentionedIds,
+          );
+        }
+      }
 
-    // Fetch the full message details for response
-    const message = await this.messagesService.getMessageWithDetails(
-      result.msgId,
-    );
-    const t4 = Date.now();
+      // Normalize and split representation:
+      //  - `contentAst` (new Lexical-composer clients) is the canonical source;
+      //    we re-derive `content` from it so search/preview/notifications
+      //    always see the plaintext form.
+      //  - `content` only (old clients, bot, OpenClaw) stays as-is and we
+      //    leave `contentAst` null so the renderer falls back to the sanitized
+      //    HTML/Markdown path.
+      let normalizedContent = dto.content;
+      let normalizedContentAst: Record<string, unknown> | undefined;
+      if (dto.contentAst) {
+        const ast = normalizeAst(dto.contentAst);
+        normalizedContent = astToPlaintext(ast);
+        normalizedContentAst = ast as unknown as Record<string, unknown>;
+      }
 
-    // Set properties if provided
-    if (dto.properties && Object.keys(dto.properties).length > 0) {
-      await this.messagePropertiesService.batchSet(
-        result.msgId,
-        Object.entries(dto.properties).map(([key, value]) => ({ key, value })),
-        userId,
+      // Determine message type based on attachments and content length
+      const messageType = determineMessageType(
+        normalizedContent,
+        !!dto.attachments?.length,
       );
-    }
 
-    // Merge properties into message response
-    const [messageWithProps] = await this.messagesService.mergeProperties([
-      message,
-    ]);
-    const previewMessage =
-      this.messagesService.truncateForPreview(messageWithProps);
-
-    // Immediately broadcast to online users via Socket.io Redis Adapter
-    // Skip broadcast when the message is part of a streaming session (bot will
-    // emit streaming_end with the persisted message, which handles the broadcast)
-    if (
-      !dto.skipBroadcast ||
-      this.shouldForceBroadcastForAgentEvent(metadata)
-    ) {
-      // No excludeUserId — sender's other devices need this
-      await this.websocketGateway.sendToChannelMembers(
-        channelId,
-        WS_EVENTS.MESSAGE.NEW,
-        previewMessage,
+      // Merge top-level clientContext into metadata.clientContext — Stream E
+      // client sends it at the top level per the Tauri/Web contract; im-worker's
+      // AhandBlueprintExtender reads messages.metadata.clientContext.
+      const rawMetadata = dto.clientContext
+        ? { ...(dto.metadata ?? {}), clientContext: dto.clientContext }
+        : dto.metadata;
+      const metadata = normalizeToolEventMetadata(
+        rawMetadata,
+        normalizedContent,
       );
-    }
 
-    const broadcastAt = Date.now();
-
-    // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
-    // This handles: unread counts, outbox completion
-    if (this.gatewayMQService?.isReady()) {
-      const postBroadcastTask: PostBroadcastTask = {
-        msgId: result.msgId,
+      // Create message via gRPC
+      stage = 'gRPC';
+      const result = await this.imWorkerGrpcClientService.createMessage({
+        clientMsgId,
         channelId,
         senderId: userId,
+        content: normalizedContent,
+        contentAst: normalizedContentAst,
+        parentId: dto.parentId,
+        type: messageType,
         workspaceId,
-        broadcastAt,
-      };
+        attachments: dto.attachments,
+        metadata,
+      });
+      const t3 = Date.now();
 
-      // Fire-and-forget: don't block response for post-broadcast processing
-      this.gatewayMQService
-        .publishPostBroadcast(postBroadcastTask)
-        .catch((err) => {
-          this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
-          // Outbox processor will handle it as fallback
-        });
-    } else {
-      this.logger.warn(
-        `[sendMessage] GatewayMQService not ready, skipping post-broadcast task`,
+      // Fetch the full message details for response
+      stage = 'details';
+      const message = await this.messagesService.getMessageWithDetails(
+        result.msgId,
       );
-    }
+      const t4 = Date.now();
 
-    const total = Date.now() - t0;
-    const timing = `isMember=${t1 - t0}ms findById=${t2 - t1}ms gRPC=${t3 - t2}ms getDetails=${t4 - t3}ms total=${total}ms`;
-    if (total > 1000) {
-      this.logger.warn(
-        `[createMessage] SLOW channel=${channelId} msgId=${result.msgId} ${timing}`,
-      );
-    } else {
-      this.logger.debug(
-        `[createMessage] channel=${channelId} msgId=${result.msgId} ${timing}`,
-      );
-    }
+      // Set properties if provided
+      if (dto.properties && Object.keys(dto.properties).length > 0) {
+        stage = 'properties';
+        await this.messagePropertiesService.batchSet(
+          result.msgId,
+          Object.entries(dto.properties).map(([key, value]) => ({
+            key,
+            value,
+          })),
+          userId,
+        );
+      }
 
-    // Emit event for search indexing
-    this.eventEmitter.emit('message.created', {
-      message: {
-        id: message.id,
-        channelId: message.channelId,
-        senderId: message.senderId,
-        content: message.content,
-        type: message.type,
-        isPinned: message.isPinned,
-        parentId: message.parentId,
-        createdAt: message.createdAt,
-      },
-      channel: channel,
-      sender: message.sender
-        ? {
-            id: message.sender.id,
-            username: message.sender.username,
-            displayName: message.sender.displayName,
-          }
-        : undefined,
-    });
+      // Merge properties into message response
+      const [messageWithProps] = await this.messagesService.mergeProperties([
+        message,
+      ]);
+      const previewMessage =
+        this.messagesService.truncateForPreview(messageWithProps);
 
-    // Publish to RabbitMQ for channel-message triggers (task-worker).
-    // Only human-authored messages should trigger agent tasks.
-    if (
-      this.gatewayMQService &&
-      this.shouldPublishChannelMessageTrigger(message)
-    ) {
-      this.gatewayMQService
-        .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+      // Immediately broadcast to online users via Socket.io Redis Adapter
+      // Skip broadcast when the message is part of a streaming session (bot will
+      // emit streaming_end with the persisted message, which handles the broadcast)
+      if (
+        !dto.skipBroadcast ||
+        this.shouldForceBroadcastForAgentEvent(metadata)
+      ) {
+        // No excludeUserId — sender's other devices need this
+        stage = 'broadcast';
+        await this.websocketGateway.sendToChannelMembers(
+          channelId,
+          WS_EVENTS.MESSAGE.NEW,
+          previewMessage,
+        );
+      }
+
+      const broadcastAt = Date.now();
+
+      // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
+      // This handles: unread counts, outbox completion
+      if (this.gatewayMQService?.isReady()) {
+        const postBroadcastTask: PostBroadcastTask = {
+          msgId: result.msgId,
+          channelId,
+          senderId: userId,
+          workspaceId,
+          broadcastAt,
+        };
+
+        // Fire-and-forget: don't block response for post-broadcast processing
+        this.gatewayMQService
+          .publishPostBroadcast(postBroadcastTask)
+          .catch((err) => {
+            this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
+            // Outbox processor will handle it as fallback
+          });
+      } else {
+        this.logger.warn(
+          `[sendMessage] GatewayMQService not ready, skipping post-broadcast task`,
+        );
+      }
+
+      const total = Date.now() - t0;
+      const timing = `isMember=${t1 - t0}ms findById=${t2 - t1}ms gRPC=${t3 - t2}ms getDetails=${t4 - t3}ms total=${total}ms`;
+      if (total > 1000) {
+        this.logger.warn(
+          `[createMessage] SLOW channel=${channelId} msgId=${result.msgId} ${timing}`,
+        );
+      } else {
+        this.logger.debug(
+          `[createMessage] channel=${channelId} msgId=${result.msgId} ${timing}`,
+        );
+      }
+
+      // Emit event for search indexing
+      this.eventEmitter.emit('message.created', {
+        message: {
+          id: message.id,
           channelId: message.channelId,
-          messageId: message.id,
-          content: message.content,
-          messageType: message.type,
           senderId: message.senderId,
-          senderUserType: message.sender?.userType ?? null,
-          senderAgentType: message.sender?.agentType ?? null,
-        })
-        .catch((err) => {
-          this.logger.warn(`Failed to publish message.created event: ${err}`);
-        });
-    } else if (this.gatewayMQService) {
-      this.logger.debug(
-        `[createMessage] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+          content: message.content,
+          type: message.type,
+          isPinned: message.isPinned,
+          parentId: message.parentId,
+          createdAt: message.createdAt,
+        },
+        channel: channel,
+        sender: message.sender
+          ? {
+              id: message.sender.id,
+              username: message.sender.username,
+              displayName: message.sender.displayName,
+            }
+          : undefined,
+      });
+
+      // Publish to RabbitMQ for channel-message triggers (task-worker).
+      // Only human-authored messages should trigger agent tasks.
+      stage = 'trigger-publish';
+      if (
+        this.gatewayMQService &&
+        this.shouldPublishChannelMessageTrigger(message)
+      ) {
+        this.gatewayMQService
+          .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+            channelId: message.channelId,
+            messageId: message.id,
+            content: message.content,
+            messageType: message.type,
+            senderId: message.senderId,
+            senderUserType: message.sender?.userType ?? null,
+            senderAgentType: message.sender?.agentType ?? null,
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to publish message.created event: ${err}`);
+          });
+      } else if (this.gatewayMQService) {
+        this.logger.debug(
+          `[createMessage] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+        );
+      }
+
+      // Fire-and-forget AI auto-fill for root messages in public/private channels
+      stage = 'autofill';
+      this.triggerAiAutoFill(message, userId);
+
+      return previewMessage;
+    } catch (error) {
+      const total = Date.now() - t0;
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[createMessage] FAIL channel=${channelId} user=${userId} clientMsgId=${clientMsgId} stage=${stage} total=${total}ms error=${message}`,
       );
+      throw error;
     }
-
-    // Fire-and-forget AI auto-fill for root messages in public/private channels
-    this.triggerAiAutoFill(message, userId);
-
-    return previewMessage;
   }
 
   @Get('channels/:channelId/messages')

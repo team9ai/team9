@@ -292,6 +292,11 @@ function SkillFolderPanel({ skillId }: { skillId: string }) {
             </p>
           )}
         </div>
+        <AgentAccessControl
+          value={skill.agentAccess}
+          onChange={(next) => updateSkill.mutate({ agentAccess: next })}
+          disabled={updateSkill.isPending}
+        />
         <Button
           variant="ghost"
           size="icon"
@@ -301,14 +306,6 @@ function SkillFolderPanel({ skillId }: { skillId: string }) {
         >
           <Trash2 size={17} />
         </Button>
-      </div>
-
-      <div className="px-6 py-3 border-b border-border">
-        <AgentAccessControl
-          value={skill.agentAccess}
-          onChange={(next) => updateSkill.mutate({ agentAccess: next })}
-          disabled={updateSkill.isPending}
-        />
       </div>
 
       <div className="flex-1 min-h-0">

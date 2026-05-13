@@ -37,8 +37,8 @@ fn apply_app_name_override() {
 #[cfg(not(target_os = "macos"))]
 fn apply_app_name_override() {}
 use serde::Serialize;
-use tauri::{Emitter, Manager, State};
-use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
+use tauri::{Emitter, State};
+use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 

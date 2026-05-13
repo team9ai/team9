@@ -128,6 +128,11 @@ export function getOptionalAgentEventMetadata(
       ? { toolCallId: value.toolCallId }
       : {}),
     ...(isRecord(value.toolArgs) ? { toolArgs: value.toolArgs } : {}),
+    ...(value.toolPhase === "args_streaming" &&
+    typeof value.toolArgs === "string" &&
+    typeof value.toolArgsText !== "string"
+      ? { toolArgsText: value.toolArgs }
+      : {}),
     ...(typeof value.toolArgsText === "string"
       ? { toolArgsText: value.toolArgsText }
       : {}),
@@ -172,6 +177,9 @@ export function getOptionalAgentEventMetadata(
       : {}),
     ...(typeof value.responderName === "string"
       ? { responderName: value.responderName }
+      : {}),
+    ...(typeof value.responderAvatarUrl === "string"
+      ? { responderAvatarUrl: value.responderAvatarUrl }
       : {}),
     // === Thinking event fields ===
     ...(typeof value.thinking === "string" ? { thinking: value.thinking } : {}),

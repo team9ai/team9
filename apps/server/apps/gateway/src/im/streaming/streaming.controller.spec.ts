@@ -338,6 +338,62 @@ describe('StreamingController', () => {
         },
       );
     });
+
+    it('accumulates tool arg deltaData into the stored metadata snapshot', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_call',
+              status: 'running',
+              toolCallId: 'tc-1',
+              toolName: 'RunScript',
+              toolArgsText: '{"cmd":"pnpm',
+              toolPhase: 'args_streaming',
+            },
+          }),
+        ),
+      );
+
+      await expect(
+        controller.updateMetadata(BOT_USER_ID, STREAM_ID, {
+          metadata: {
+            deltaData: { toolArgsText: ' test"}' },
+            toolPhase: 'args_streaming',
+          },
+        }),
+      ).resolves.toEqual({ success: true });
+
+      expect(redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              agentEventType: 'tool_call',
+              status: 'running',
+              toolCallId: 'tc-1',
+              toolName: 'RunScript',
+              toolArgsText: '{"cmd":"pnpm test"}',
+              toolPhase: 'args_streaming',
+            },
+          }),
+        ),
+        120,
+      );
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.STREAMING.METADATA,
+        {
+          streamId: STREAM_ID,
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          metadata: {
+            deltaData: { toolArgsText: ' test"}' },
+            toolPhase: 'args_streaming',
+          },
+        },
+      );
+    });
   });
 
   // ── updateContent ────────────────────────────────────────────────────────────

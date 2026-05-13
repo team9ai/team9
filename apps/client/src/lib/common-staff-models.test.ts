@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
+  formatStaffModelDisplayLabel,
   type StaffModelFamily,
 } from "./common-staff-models";
 import { BASE_MODEL_PRODUCT_FAMILY } from "./base-model-agent";
@@ -58,5 +59,17 @@ describe("COMMON_STAFF_MODELS", () => {
       ).length;
       expect(count).toBeGreaterThan(0);
     }
+  });
+
+  it("formats picker display labels without preview suffixes", () => {
+    expect(formatStaffModelDisplayLabel("Gemini 3.1 Pro (Preview)")).toBe(
+      "Gemini 3.1 Pro",
+    );
+    expect(formatStaffModelDisplayLabel("Gemini 3 Flash Preview")).toBe(
+      "Gemini 3 Flash",
+    );
+    expect(formatStaffModelDisplayLabel("Claude Sonnet 4.6")).toBe(
+      "Claude Sonnet 4.6",
+    );
   });
 });

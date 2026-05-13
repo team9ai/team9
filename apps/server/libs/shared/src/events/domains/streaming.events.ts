@@ -62,8 +62,12 @@ export interface StreamingEndEvent {
   streamId: string;
   channelId: string;
   senderId: string;
-  /** The final persisted message (from HTTP API response) */
-  message: Record<string, unknown>;
+  /** Final content when the authenticated bot finalizes over Socket.IO */
+  content?: string;
+  /** Optional final thinking content when finalized over Socket.IO */
+  thinking?: string;
+  /** The final persisted message broadcast by the gateway */
+  message?: Record<string, unknown> | null;
 }
 
 /**

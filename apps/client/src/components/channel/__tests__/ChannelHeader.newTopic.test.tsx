@@ -67,6 +67,31 @@ describe("ChannelHeader — new topic button", () => {
     });
   });
 
+  it("places the agent-session toggle after the new-topic button", () => {
+    const onToggle = vi.fn();
+    render(
+      <ChannelHeader
+        channel={makeChannel({})}
+        showAgentSessionToggle
+        isAgentSessionPanelOpen={false}
+        onToggleAgentSessionPanel={onToggle}
+      />,
+    );
+
+    const newTopic = screen.getByRole("button", { name: "新建话题" });
+    const toggle = screen.getByRole("button", {
+      name: "Show agent session panel",
+    });
+
+    expect(
+      newTopic.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the new-topic button for a direct DM with a bot", () => {
     render(<ChannelHeader channel={makeChannel({ type: "direct" })} />);
     expect(newTopicButton()).toBeInTheDocument();

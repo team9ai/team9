@@ -20,10 +20,14 @@ import { KEY_ESCAPE_COMMAND, COMMAND_PRIORITY_LOW } from "lexical";
 import { $generateNodesFromDOM } from "@lexical/html";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
-import { ArrowUp, Sparkles, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowUp, ChevronDown, Loader2 } from "lucide-react";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
-import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
+import {
+  COMMON_STAFF_MODELS,
+  formatStaffModelDisplayLabel,
+} from "@/lib/common-staff-models";
+import { StaffModelProviderLogo } from "@/components/ai-staff/StaffModelProviderLogo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -418,6 +422,13 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
   const hasAttachments = uploadingFiles.some((f) => f.status === "completed");
+  const botModelLogoIdentity = botModelSwitch
+    ? {
+        provider: botModelSwitch.currentModel?.provider,
+        id: botModelSwitch.currentModel?.id,
+        label: botModelSwitch.currentModelLabel,
+      }
+    : null;
 
   const initialConfig: InitialConfigType = {
     namespace: "MessageEditor",
@@ -540,15 +551,23 @@ export function RichTextEditor({
                         {botModelSwitch.isUpdating ? (
                           <Loader2 size={14} className="animate-spin" />
                         ) : (
-                          <Sparkles size={14} />
+                          <StaffModelProviderLogo
+                            model={botModelLogoIdentity}
+                            className="size-3.5"
+                          />
                         )}
-                        <span>{botModelSwitch.currentModelLabel}</span>
+                        <span className="min-w-0 truncate">
+                          {formatStaffModelDisplayLabel(
+                            botModelSwitch.currentModelLabel,
+                          )}
+                        </span>
                         <ChevronDown size={11} />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="w-60 rounded-xl p-1.5"
+                      sideOffset={8}
+                      className="max-h-[min(21rem,var(--radix-dropdown-menu-content-available-height))] w-max max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[1.1rem] border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl"
                     >
                       <DropdownMenuRadioGroup
                         value={
@@ -570,9 +589,12 @@ export function RichTextEditor({
                           <DropdownMenuRadioItem
                             key={`${model.provider}::${model.id}`}
                             value={`${model.provider}::${model.id}`}
-                            className="cursor-pointer rounded-lg py-2.5"
+                            className="!cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
                           >
-                            {model.label}
+                            <StaffModelProviderLogo model={model} />
+                            <span className="block max-w-[calc(100vw-4rem)] truncate">
+                              {formatStaffModelDisplayLabel(model.label)}
+                            </span>
                           </DropdownMenuRadioItem>
                         ))}
                       </DropdownMenuRadioGroup>
@@ -585,8 +607,15 @@ export function RichTextEditor({
                 !botModelSwitch.canSwitchModel &&
                 botModelSwitch.currentModelLabel && (
                   <div className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-muted-foreground">
-                    <Sparkles size={14} />
-                    <span>{botModelSwitch.currentModelLabel}</span>
+                    <StaffModelProviderLogo
+                      model={botModelLogoIdentity}
+                      className="size-3.5"
+                    />
+                    <span className="min-w-0 truncate">
+                      {formatStaffModelDisplayLabel(
+                        botModelSwitch.currentModelLabel,
+                      )}
+                    </span>
                   </div>
                 )}
               <SendButton

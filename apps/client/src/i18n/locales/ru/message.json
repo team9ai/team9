@@ -37,5 +37,9 @@
   "botThinking": "Размышляет",
   "botAnalyzing": "Анализирует",
   "selectUserToChat": "Выберите пользователя, чтобы начать личную беседу",
-  "botGenerating": "Генерирует ответ"
+  "botGenerating": "Генерирует ответ",
+  "expandFullContent": "Показать полный текст",
+  "remainingChars": " (ещё {{chars}})",
+  "loadingFullContent": "Загрузка полного текста...",
+  "loadFullContentFailed": "Не удалось загрузить полный текст. Отмените и попробуйте ещё раз."
 }

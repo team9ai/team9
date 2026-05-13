@@ -10,6 +10,7 @@ import {
   Users,
   UserPlus,
   Pencil,
+  PanelRight,
   SquarePen,
   X,
 } from "lucide-react";
@@ -36,17 +37,24 @@ import type { Channel, ChannelWithUnread, MemberRole } from "@/types/im";
 interface ChannelHeaderProps {
   channel: Channel | ChannelWithUnread;
   currentUserRole?: MemberRole;
+  showAgentSessionToggle?: boolean;
+  isAgentSessionPanelOpen?: boolean;
+  onToggleAgentSessionPanel?: () => void;
 }
 
 export function ChannelHeader({
   channel,
   currentUserRole,
+  showAgentSessionToggle,
+  isAgentSessionPanelOpen,
+  onToggleAgentSessionPanel,
 }: ChannelHeaderProps) {
   const { t } = useTranslation(["channel", "navigation"]);
   const navigate = useNavigate();
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [copiedUsername, setCopiedUsername] = useState(false);
+  const [copiedAgentIdentifier, setCopiedAgentIdentifier] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState(channel.name ?? "");
   const [defaultTab, setDefaultTab] = useState<
@@ -62,12 +70,9 @@ export function ChannelHeader({
 
   // For direct/echo messages, show the other user's info
   const isDirect = channel.type === "direct" || channel.type === "echo";
-  // Topic / routine sessions are one-on-one agent conversations. Like DMs they
-  // have no meaningful member roster, invitations, or channel-details surface,
-  // so the group-management chrome (member count, Invite, info) is hidden.
-  const isAgentSession =
-    channel.type === "topic-session" || channel.type === "routine-session";
-  const isPrivateConversation = isDirect || isAgentSession;
+  const isOneOnOneSession =
+    channel.type === "routine-session" || channel.type === "topic-session";
+  const showChannelManagementActions = !isDirect && !isOneOnOneSession;
   const channelWithUnread = channel as ChannelWithUnread;
   const otherUser =
     "otherUser" in channelWithUnread ? channelWithUnread.otherUser : undefined;
@@ -123,6 +128,16 @@ export function ChannelHeader({
     }
   };
 
+  const handleCopyAgentIdentifier = async (identifier: string) => {
+    try {
+      await navigator.clipboard.writeText(identifier);
+      setCopiedAgentIdentifier(true);
+      setTimeout(() => setCopiedAgentIdentifier(false), 1500);
+    } catch (err) {
+      console.error("Failed to copy agent id:", err);
+    }
+  };
+
   const startEditingTitle = () => {
     setTitleInput(channel.name ?? "");
     setIsEditingTitle(true);
@@ -150,7 +165,7 @@ export function ChannelHeader({
   return (
     <>
       <div className="min-h-14 py-2 px-4 flex items-center justify-between select-none">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {isDirect && otherUser ? (
             <div className="relative">
               <UserAvatar
@@ -305,9 +320,43 @@ export function ChannelHeader({
                 )}
                 <AgentTypeBadge agentType={associatedAgent?.agentType} />
                 {agentIdentifier && (
-                  <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
-                    {agentIdentifier}
-                  </span>
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip
+                      key={
+                        copiedAgentIdentifier
+                          ? "copied-agent-identifier"
+                          : "agent-identifier"
+                      }
+                      open={copiedAgentIdentifier ? true : undefined}
+                    >
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`Copy agent id ${agentIdentifier}`}
+                          onClick={() =>
+                            void handleCopyAgentIdentifier(agentIdentifier)
+                          }
+                          className="group flex min-w-0 max-w-[24rem] items-center gap-1 rounded-sm font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <span className="truncate">{agentIdentifier}</span>
+                          {copiedAgentIdentifier ? (
+                            <Check
+                              size={12}
+                              className="shrink-0 text-success"
+                            />
+                          ) : (
+                            <Copy
+                              size={12}
+                              className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                            />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" sideOffset={6}>
+                        {copiedAgentIdentifier ? t("copied") : t("clickToCopy")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             ) : otherUser?.agentType === "base_model" ? (
@@ -333,7 +382,7 @@ export function ChannelHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {isOneOnOneAgentChat && associatedAgent && (
             <Button
               type="button"
@@ -346,7 +395,35 @@ export function ChannelHeader({
               {t("newTopic", { ns: "navigation" as const })}
             </Button>
           )}
-          {!isPrivateConversation && (
+          {showAgentSessionToggle && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={isAgentSessionPanelOpen ? "secondary" : "ghost"}
+                    size="icon"
+                    aria-label={
+                      isAgentSessionPanelOpen
+                        ? "Hide agent session panel"
+                        : "Show agent session panel"
+                    }
+                    aria-pressed={isAgentSessionPanelOpen}
+                    onClick={onToggleAgentSessionPanel}
+                    className="size-8"
+                  >
+                    <PanelRight size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>
+                  {isAgentSessionPanelOpen
+                    ? "Hide agent session"
+                    : "Show agent session"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {showChannelManagementActions && (
             <Button
               variant="ghost"
               className="h-8 px-2 gap-1"
@@ -367,7 +444,7 @@ export function ChannelHeader({
             <Search size={18} />
           </Button> */}
 
-          {!isPrivateConversation && (
+          {showChannelManagementActions && (
             <Button
               variant="outline"
               size="sm"
@@ -378,7 +455,7 @@ export function ChannelHeader({
               Invite
             </Button>
           )}
-          {!isPrivateConversation && (
+          {showChannelManagementActions && (
             <Button
               variant="ghost"
               size="icon"
@@ -392,14 +469,16 @@ export function ChannelHeader({
       </div>
 
       {/* Add Member Dialog */}
-      <AddMemberDialog
-        isOpen={isAddMemberOpen}
-        onClose={() => setIsAddMemberOpen(false)}
-        channelId={channel.id}
-      />
+      {showChannelManagementActions && (
+        <AddMemberDialog
+          isOpen={isAddMemberOpen}
+          onClose={() => setIsAddMemberOpen(false)}
+          channelId={channel.id}
+        />
+      )}
 
       {/* Channel Details Modal */}
-      {!isPrivateConversation && (
+      {showChannelManagementActions && (
         <ChannelDetailsModal
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}

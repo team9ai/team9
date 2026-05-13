@@ -1,9 +1,17 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSendMessage } from "@/hooks/useMessages";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { formatAbsoluteTooltip } from "@/lib/date-format";
+import { formatMessageTime, parseApiDate } from "@/lib/date-utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { AgentEventMetadata, Message } from "@/types/im";
 import {
   parseChoicesPayload,
@@ -46,6 +54,85 @@ function buildInitialOtherTexts(tabs: ParsedTab[]): Record<string, string> {
   return result;
 }
 
+function findNextIncompleteTabIndex(
+  tabs: ParsedTab[],
+  selections: Record<string, string[]>,
+  fromIndex: number,
+): number {
+  for (let offset = 1; offset < tabs.length; offset += 1) {
+    const index = (fromIndex + offset) % tabs.length;
+    const tab = tabs[index];
+    if ((selections[tab.title] ?? []).length === 0) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function findFirstIncompleteTabIndex(
+  tabs: ParsedTab[],
+  selections: Record<string, string[]>,
+): number {
+  return tabs.findIndex((tab) => (selections[tab.title] ?? []).length === 0);
+}
+
+function buildSelectionText(
+  metadata: AgentEventMetadata,
+  parsed: ParsedChoicesSurface | null,
+): string {
+  if (!metadata.selections) return "";
+
+  const parts: string[] = [];
+  for (const [tabTitle, sel] of Object.entries(metadata.selections)) {
+    const parsedTab = parsed?.tabs.find((t) => t.title === tabTitle);
+    const labels = sel.selected
+      .filter((v) => v !== "__other__")
+      .map((v) => parsedTab?.options.find((o) => o.value === v)?.label ?? v);
+    if (sel.selected.includes("__other__")) {
+      labels.push(sel.otherText ? `Other — "${sel.otherText}"` : "Other");
+    }
+
+    const text = labels.join(", ");
+    parts.push(
+      parsed && parsed.tabs.length > 1 ? `${tabTitle}：${text}` : text,
+    );
+  }
+
+  return parts.join("；");
+}
+
+function ChoiceIndicator({
+  checked,
+  type,
+  disabled,
+}: {
+  checked: boolean;
+  type: ParsedTab["type"];
+  disabled?: boolean;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center border transition-colors",
+        type === "single-select" ? "rounded-full" : "rounded-[4px]",
+        checked
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-muted-foreground/55 bg-background",
+        disabled && "opacity-60",
+      )}
+    >
+      {checked &&
+        (type === "single-select" ? (
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+        ) : (
+          <Check className="h-3 w-3" />
+        ))}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Tab Bar (shared by active & read-only views)
 // ---------------------------------------------------------------------------
@@ -60,17 +147,17 @@ function TabBar({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div className="flex gap-1 mb-2">
+    <div className="mb-3 flex gap-1.5">
       {tabs.map((tab, i) => (
         <button
           type="button"
           key={tab.title}
           onClick={() => onSelect(i)}
           className={cn(
-            "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+            "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
             i === activeIndex
               ? "bg-primary text-primary-foreground"
-              : "bg-muted text-foreground hover:bg-accent",
+              : "bg-muted/55 text-foreground hover:bg-muted/80",
           )}
         >
           {tab.title}
@@ -107,14 +194,22 @@ function ReadOnlyChoicesForm({
         />
       )}
       <p className="text-sm font-medium mb-2">{tab.prompt}</p>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {tab.options.map((opt) => (
-          <label key={opt.value} className="flex items-start gap-2 opacity-60">
+          <label
+            key={opt.value}
+            className="grid grid-cols-[1rem_1fr] items-start gap-2 opacity-60"
+          >
             <input
               type={tab.type === "single-select" ? "radio" : "checkbox"}
               checked={selected.includes(opt.value)}
               disabled
-              className="mt-0.5"
+              className="sr-only"
+            />
+            <ChoiceIndicator
+              checked={selected.includes(opt.value)}
+              type={tab.type}
+              disabled
             />
             <div>
               <span className="text-sm font-semibold">{opt.label}</span>
@@ -128,12 +223,17 @@ function ReadOnlyChoicesForm({
         ))}
         {tab.hasOther && (
           <div className="opacity-60">
-            <label className="flex items-start gap-2">
+            <label className="grid grid-cols-[1rem_1fr] items-start gap-2">
               <input
                 type={tab.type === "single-select" ? "radio" : "checkbox"}
                 checked={selected.includes("__other__")}
                 disabled
-                className="mt-0.5"
+                className="sr-only"
+              />
+              <ChoiceIndicator
+                checked={selected.includes("__other__")}
+                type={tab.type}
+                disabled
               />
               <span className="text-sm font-semibold">Other</span>
             </label>
@@ -142,7 +242,7 @@ function ReadOnlyChoicesForm({
                 type="text"
                 value={otherText}
                 disabled
-                className="mt-1 ml-5 w-full bg-card border border-border rounded px-2 py-1 text-xs opacity-60"
+                className="mt-1 ml-6 w-full bg-card border border-border rounded px-2 py-1 text-xs opacity-60"
               />
             )}
           </div>
@@ -161,69 +261,85 @@ function CollapsedHeader({
   parsed,
   expanded,
   onToggle,
+  currentUserId,
 }: {
   metadata: AgentEventMetadata;
   parsed: ParsedChoicesSurface | null;
   expanded: boolean;
   onToggle: () => void;
+  currentUserId?: string;
 }) {
   const status = metadata.status as string;
 
   const isResolved = status === "resolved" || status === "completed";
   const isTimeout = status === "timeout";
-  // cancelled is whatever remains
-
-  const icon = isResolved ? "\u2713" : isTimeout ? "\u23F1" : "\u2717";
-  const colorClass = isResolved
-    ? "text-emerald-500"
+  const completedAt = metadata.completedAt ?? metadata.updatedAt;
+  const completedDate = completedAt ? parseApiDate(completedAt) : null;
+  const timeLabel = completedDate ? formatMessageTime(completedDate) : null;
+  const responderName = metadata.responderName ?? "User";
+  const actorLabel = `${responderName}${
+    metadata.responderId && metadata.responderId === currentUserId ? "(你)" : ""
+  }`;
+  const selectionText = buildSelectionText(metadata, parsed);
+  const summary = isResolved
+    ? `${actorLabel}${timeLabel ? `在${timeLabel}` : ""}已选择了${
+        selectionText || "选项"
+      }`
     : isTimeout
-      ? "text-amber-500"
-      : "text-red-500";
-
-  // Build summary text
-  let summary: string;
-  if (isResolved && metadata.selections && parsed) {
-    const parts: string[] = [];
-    for (const [tabTitle, sel] of Object.entries(metadata.selections)) {
-      const parsedTab = parsed.tabs.find((t) => t.title === tabTitle);
-      const labels = sel.selected
-        .filter((v) => v !== "__other__")
-        .map((v) => parsedTab?.options.find((o) => o.value === v)?.label ?? v);
-      if (sel.selected.includes("__other__")) {
-        labels.push(
-          sel.otherText ? `Other \u2014 "${sel.otherText}"` : "Other",
-        );
-      }
-      parts.push(labels.join(", "));
-    }
-    const responder = metadata.responderName ?? "User";
-    summary = `${responder} selected: ${parts.join("; ")}`;
-  } else if (isResolved) {
-    // Resolved but no parsed data (e.g., payload parse failed)
-    summary = "Choices submitted";
-  } else if (isTimeout) {
-    summary = "Selection timed out";
-  } else {
-    summary = "Selection cancelled";
-  }
+      ? "Selection timed out"
+      : "Selection cancelled";
 
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
+    <div className="group/a2ui-surface bg-card border border-border rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-accent/50 transition-colors group cursor-pointer"
+        className="group/header flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/30"
       >
-        <span className={cn("text-sm shrink-0", colorClass)}>{icon}</span>
+        {isResolved ? (
+          <UserAvatar
+            userId={metadata.responderId}
+            name={responderName}
+            avatarUrl={metadata.responderAvatarUrl}
+            className="h-6 w-6"
+            fallbackClassName="text-[10px] font-semibold"
+          />
+        ) : (
+          <span
+            className={cn(
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs",
+              isTimeout
+                ? "bg-amber-500/10 text-amber-600"
+                : "bg-red-500/10 text-red-600",
+            )}
+          >
+            {isTimeout ? "\u23F1" : "\u2717"}
+          </span>
+        )}
         <span className="text-sm text-foreground truncate flex-1 min-w-0">
           {summary}
         </span>
+        {completedDate && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="shrink-0 text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover/a2ui-surface:opacity-100">
+                {timeLabel}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="bg-foreground text-background border-foreground text-xs font-medium"
+            >
+              {formatAbsoluteTooltip(completedDate)}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <ChevronRight
           size={14}
           className={cn(
             "shrink-0 text-muted-foreground transition-transform duration-200",
-            "group-hover:text-foreground",
+            "group-hover/header:text-foreground",
             expanded && "rotate-90",
           )}
         />
@@ -274,6 +390,7 @@ function ActiveSurface({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const surfaceId = metadata.surfaceId ?? parsed.surfaceId;
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   // Scope Esc to this surface via container focus
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -288,39 +405,48 @@ function ActiveSurface({
   const tabKey = tab.title;
   const selected = selectedValues[tabKey] ?? [];
   const otherText = otherTexts[tabKey] ?? "";
+  const firstIncompleteTabIndex = findFirstIncompleteTabIndex(
+    parsed.tabs,
+    selectedValues,
+  );
+  const hasIncompleteTabs = firstIncompleteTabIndex >= 0;
+  const primaryButtonLabel = hasIncompleteTabs ? "下一个" : "提交";
 
   const handleOptionChange = (value: string) => {
     if (validationError) setValidationError(null);
-    setSelectedValues((prev) => {
-      const current = prev[tabKey] ?? [];
-      if (tab.type === "single-select") {
-        return { ...prev, [tabKey]: [value] };
+    const current = selectedValues[tabKey] ?? [];
+    const nextForTab =
+      tab.type === "single-select"
+        ? [value]
+        : current.includes(value)
+          ? current.filter((v) => v !== value)
+          : [...current, value];
+    const nextSelections = { ...selectedValues, [tabKey]: nextForTab };
+
+    setSelectedValues(nextSelections);
+
+    if (
+      tab.type === "single-select" &&
+      current.length === 0 &&
+      nextForTab.length > 0 &&
+      value !== "__other__"
+    ) {
+      const nextTabIndex = findNextIncompleteTabIndex(
+        parsed.tabs,
+        nextSelections,
+        activeTabIndex,
+      );
+      if (nextTabIndex >= 0) {
+        setActiveTabIndex(nextTabIndex);
       }
-      // multi-select: toggle
-      const next = current.includes(value)
-        ? current.filter((v) => v !== value)
-        : [...current, value];
-      return { ...prev, [tabKey]: next };
-    });
+    }
   };
 
   const handleOtherTextChange = (text: string) => {
     setOtherTexts((prev) => ({ ...prev, [tabKey]: text }));
   };
 
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  const handleSubmit = () => {
-    if (sendMessage.isPending) return;
-
-    // Validate: single-select tabs must have a selection
-    for (const t of parsed.tabs) {
-      const sel = selectedValues[t.title] ?? [];
-      if (t.type === "single-select" && sel.length === 0) {
-        setValidationError(`Please select an option for "${t.title}"`);
-        return;
-      }
-    }
+  const submitSelections = () => {
     setValidationError(null);
 
     const selections: Record<
@@ -393,6 +519,7 @@ function ActiveSurface({
                               responderName:
                                 currentUser.data?.displayName ??
                                 currentUser.data?.username,
+                              responderAvatarUrl: currentUser.data?.avatarUrl,
                             },
                           }
                         : m,
@@ -410,23 +537,68 @@ function ActiveSurface({
     );
   };
 
+  const handlePrimaryAction = () => {
+    if (sendMessage.isPending) return;
+
+    const currentSelection = selectedValues[tabKey] ?? [];
+    if (currentSelection.length === 0) {
+      setValidationError(`请先选择“${tab.title}”`);
+      return;
+    }
+
+    const nextTabIndex = findNextIncompleteTabIndex(
+      parsed.tabs,
+      selectedValues,
+      activeTabIndex,
+    );
+    if (nextTabIndex >= 0) {
+      setValidationError(null);
+      setActiveTabIndex(nextTabIndex);
+      return;
+    }
+
+    submitSelections();
+  };
+
   return (
     <div
       ref={containerRef}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
-      className="bg-card border border-border rounded-lg overflow-hidden px-3 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="bg-card border border-border rounded-lg p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
+      <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <UserAvatar
+          userId={message.senderId ?? undefined}
+          name={message.sender?.displayName}
+          username={message.sender?.username}
+          avatarUrl={message.sender?.avatarUrl}
+          isBot={message.sender?.userType === "bot"}
+          className="h-5 w-5"
+          fallbackClassName="text-[10px] font-semibold"
+        />
+        <span>
+          <span className="font-semibold text-foreground">
+            {message.sender?.displayName ?? message.sender?.username ?? "Agent"}
+            (agent)
+          </span>
+          向你提问
+        </span>
+      </div>
+
       {parsed.tabs.length > 1 && (
         <TabBar
           tabs={parsed.tabs}
           activeIndex={activeTabIndex}
-          onSelect={setActiveTabIndex}
+          onSelect={(index) => {
+            setActiveTabIndex(index);
+            setValidationError(null);
+          }}
         />
       )}
 
       <fieldset className="border-none p-0 m-0">
-        <legend className="text-sm font-medium mb-2">{tab.prompt}</legend>
+        <legend className="mb-3 text-sm font-semibold">{tab.prompt}</legend>
 
         <div
           className="space-y-1.5"
@@ -435,14 +607,18 @@ function ActiveSurface({
           {tab.options.map((opt) => (
             <label
               key={opt.value}
-              className="flex items-start gap-2 cursor-pointer"
+              className="grid cursor-pointer grid-cols-[1rem_1fr] items-start gap-2 rounded-md py-0.5"
             >
               <input
                 type={tab.type === "single-select" ? "radio" : "checkbox"}
                 name={`a2ui-${surfaceId}-${tabKey}`}
                 checked={selected.includes(opt.value)}
                 onChange={() => handleOptionChange(opt.value)}
-                className="mt-0.5"
+                className="sr-only"
+              />
+              <ChoiceIndicator
+                checked={selected.includes(opt.value)}
+                type={tab.type}
               />
               <div>
                 <span className="text-sm font-semibold">{opt.label}</span>
@@ -457,13 +633,17 @@ function ActiveSurface({
 
           {tab.hasOther && (
             <div>
-              <label className="flex items-start gap-2 cursor-pointer">
+              <label className="grid cursor-pointer grid-cols-[1rem_1fr] items-start gap-2 rounded-md py-0.5">
                 <input
                   type={tab.type === "single-select" ? "radio" : "checkbox"}
                   name={`a2ui-${surfaceId}-${tabKey}`}
                   checked={selected.includes("__other__")}
                   onChange={() => handleOptionChange("__other__")}
-                  className="mt-0.5"
+                  className="sr-only"
+                />
+                <ChoiceIndicator
+                  checked={selected.includes("__other__")}
+                  type={tab.type}
                 />
                 <span className="text-sm font-semibold">Other</span>
               </label>
@@ -473,7 +653,7 @@ function ActiveSurface({
                   value={otherText}
                   onChange={(e) => handleOtherTextChange(e.target.value)}
                   placeholder="Enter your answer..."
-                  className="mt-1 ml-5 w-full bg-card border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 ml-6 w-[calc(100%-1.5rem)] bg-card border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               )}
             </div>
@@ -483,11 +663,11 @@ function ActiveSurface({
 
       <button
         type="button"
-        onClick={handleSubmit}
+        onClick={handlePrimaryAction}
         disabled={sendMessage.isPending}
         className="w-full mt-3 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {sendMessage.isPending ? "Submitting..." : "Submit answers"}
+        {sendMessage.isPending ? "提交中..." : primaryButtonLabel}
       </button>
       {validationError && (
         <p className="text-center text-xs text-red-500 mt-1">
@@ -516,6 +696,7 @@ export function A2UISurfaceBlock({
   readOnly = false,
 }: A2UISurfaceBlockProps) {
   const [expanded, setExpanded] = useState(false);
+  const currentUser = useCurrentUser();
 
   const payload = metadata.payload;
   const parsed = payload ? parseChoicesPayload(payload) : null;
@@ -550,6 +731,7 @@ export function A2UISurfaceBlock({
       parsed={parsed}
       expanded={expanded}
       onToggle={() => setExpanded(!expanded)}
+      currentUserId={currentUser.data?.id}
     />
   );
 }

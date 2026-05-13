@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { Badge } from "@/components/ui/badge";
+import { StaffModelProviderLogo } from "@/components/ai-staff/StaffModelProviderLogo";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -48,6 +49,7 @@ import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
+  formatStaffModelDisplayLabel,
   type StaffModelFamily,
 } from "@/lib/common-staff-models";
 import {
@@ -137,6 +139,10 @@ function DashboardModelControl({
   onSelectModel: (model: DashboardAgentModel) => void;
 }) {
   const currentLabel = getAgentModelLabel(agent, model, fallbackLabel);
+  const displayCurrentLabel = formatStaffModelDisplayLabel(currentLabel);
+  const currentModelLogoIdentity = model
+    ? { ...model, label: currentLabel }
+    : { label: currentLabel };
   const currentValue = model ? `${model.provider}::${model.id}` : undefined;
   const agentModelFamily: StaffModelFamily | null =
     agent?.agentModelFamily ?? null;
@@ -147,8 +153,11 @@ function DashboardModelControl({
   if (!agent?.canSwitchModel) {
     return (
       <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f]">
-        <Sparkles size={12} className="text-[#2c3647]" />
-        <span>{currentLabel}</span>
+        <StaffModelProviderLogo
+          model={currentModelLogoIdentity}
+          className="size-3.5"
+        />
+        <span className="max-w-[11rem] truncate">{displayCurrentLabel}</span>
       </div>
     );
   }
@@ -158,17 +167,21 @@ function DashboardModelControl({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] cursor-pointer"
+          className="dashboard-composer-model inline-flex h-[2.05rem] max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25"
         >
-          <Sparkles size={12} className="text-[#2c3647]" />
-          <span>{currentLabel}</span>
+          <StaffModelProviderLogo
+            model={currentModelLogoIdentity}
+            className="size-3.5"
+          />
+          <span className="min-w-0 truncate">{displayCurrentLabel}</span>
           <ChevronDown size={11} className="text-[#93887b]" />
         </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="end"
-        className="w-[15rem] rounded-3xl border-white/70 bg-white/95 p-2 shadow-[0_20px_50px_rgba(140,121,93,0.18)] backdrop-blur"
+        sideOffset={8}
+        className="max-h-[min(21rem,var(--radix-dropdown-menu-content-available-height))] w-max max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[1.1rem] border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl"
       >
         <DropdownMenuRadioGroup
           value={currentValue}
@@ -182,9 +195,12 @@ function DashboardModelControl({
             <DropdownMenuRadioItem
               key={`${model.provider}::${model.id}`}
               value={`${model.provider}::${model.id}`}
-              className="!cursor-pointer rounded-2xl py-2.5 pr-3"
+              className="!cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
             >
-              {model.label}
+              <StaffModelProviderLogo model={model} />
+              <span className="block max-w-[calc(100vw-4rem)] truncate">
+                {formatStaffModelDisplayLabel(model.label)}
+              </span>
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

@@ -37,5 +37,9 @@
   "botThinking": "Denken",
   "botAnalyzing": "Analyseren",
   "selectUserToChat": "Selecteer een gebruiker om een direct gesprek te starten",
-  "botGenerating": "Antwoord genereren"
+  "botGenerating": "Antwoord genereren",
+  "expandFullContent": "Volledige inhoud tonen",
+  "remainingChars": " (nog {{chars}})",
+  "loadingFullContent": "Volledige inhoud laden...",
+  "loadFullContentFailed": "Volledige inhoud laden mislukt. Annuleer en probeer het opnieuw."
 }

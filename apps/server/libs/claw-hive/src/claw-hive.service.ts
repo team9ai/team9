@@ -38,6 +38,33 @@ export interface HiveSessionDetail {
   [key: string]: unknown;
 }
 
+export interface HiveSessionComponentItem {
+  id: string;
+  typeKey: string;
+  priority?: number;
+  declaredConfig?: Record<string, unknown>;
+  effectiveConfig: Record<string, unknown>;
+  schema?: unknown[];
+  runtimeInjectedOnly: boolean;
+  latestData: {
+    data: Record<string, unknown>;
+    capturedAtCallId: string | null;
+    capturedAt: number;
+  } | null;
+}
+
+export interface HiveSessionComponentsResponse {
+  sessionId: string;
+  components: HiveSessionComponentItem[];
+}
+
+export interface HiveSessionStatusResponse {
+  sessionId: string;
+  isStreaming: boolean;
+  queueLength: number;
+  ownedBy: string | null;
+}
+
 @Injectable()
 export class ClawHiveService {
   private readonly logger = new Logger(ClawHiveService.name);
@@ -186,6 +213,40 @@ export class ClawHiveService {
       throw new Error(`Failed to get session: ${res.status} ${text}`);
     }
     return res.json() as Promise<HiveSessionDetail>;
+  }
+
+  async getSessionComponents(
+    sessionId: string,
+    tenantId?: string,
+  ): Promise<HiveSessionComponentsResponse | null> {
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/components`,
+      { method: 'GET', headers: this.headers(tenantId) },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(
+        `Failed to get session components: ${res.status} ${text}`,
+      );
+    }
+    return res.json() as Promise<HiveSessionComponentsResponse>;
+  }
+
+  async getSessionStatus(
+    sessionId: string,
+    tenantId?: string,
+  ): Promise<HiveSessionStatusResponse | null> {
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/status`,
+      { method: 'GET', headers: this.headers(tenantId) },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to get session status: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<HiveSessionStatusResponse>;
   }
 
   /**

@@ -48,6 +48,8 @@ import { getHttpErrorMessage } from "@/lib/http-error";
 const pendingByClientMsgId = new Map<string, string>();
 // Set of server message IDs already resolved by WebSocket (so onSuccess can skip)
 const resolvedServerIds = new Set<string>();
+const PENDING_SEND_RECONCILE_MS = 5 * 60 * 1000;
+const SEND_TIMEOUT_FAIL_DELAY_MS = 2 * 60 * 1000;
 
 type MessagesPage = Message[] | PaginatedMessagesResponse;
 type MessagesQueryData = InfiniteData<MessagesPage>;
@@ -58,6 +60,77 @@ type MessageReplier = NonNullable<Message["lastRepliers"]>[number];
 function findPendingTempId(clientMsgId?: string | null): string | undefined {
   if (!clientMsgId) return undefined;
   return pendingByClientMsgId.get(clientMsgId);
+}
+
+function registerPendingSend(clientMsgId: string, tempId: string): void {
+  pendingByClientMsgId.set(clientMsgId, tempId);
+  setTimeout(
+    () => pendingByClientMsgId.delete(clientMsgId),
+    PENDING_SEND_RECONCILE_MS,
+  );
+}
+
+function isRequestTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  return (
+    ("code" in error && error.code === "ECONNABORTED") ||
+    error.message === "Request timeout"
+  );
+}
+
+function markOptimisticMessageFailed(
+  queryClient: ReturnType<typeof useQueryClient>,
+  channelId: string,
+  tempId: string,
+  sendError: string | undefined,
+  retryData: CreateMessageDto,
+): void {
+  queryClient.setQueriesData(
+    { queryKey: ["messages", channelId] },
+    (old: MessagesQueryData | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) =>
+          setMessages(
+            page,
+            getMessages(page).map((msg) =>
+              msg.id === tempId
+                ? {
+                    ...msg,
+                    sendStatus: "failed" as MessageSendStatus,
+                    sendError,
+                    _retryData: retryData,
+                  }
+                : msg,
+            ),
+          ),
+        ),
+      };
+    },
+  );
+}
+
+function scheduleTimeoutSendFailure(
+  queryClient: ReturnType<typeof useQueryClient>,
+  channelId: string,
+  clientMsgId: string,
+  tempId: string,
+  sendError: string | undefined,
+  retryData: CreateMessageDto,
+): void {
+  setTimeout(() => {
+    if (pendingByClientMsgId.get(clientMsgId) !== tempId) return;
+    pendingByClientMsgId.delete(clientMsgId);
+    markOptimisticMessageFailed(
+      queryClient,
+      channelId,
+      tempId,
+      sendError,
+      retryData,
+    );
+  }, SEND_TIMEOUT_FAIL_DELAY_MS);
 }
 
 function buildUpdatedRepliers(
@@ -476,6 +549,7 @@ export function useMessages(channelId: string | undefined) {
 
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
+      const stream = useStreamingStore.getState().streams.get(event.streamId);
       useStreamingStore.getState().endStream(event.streamId);
 
       // Proactively insert the final message into cache as a safety net,
@@ -493,6 +567,16 @@ export function useMessages(channelId: string | undefined) {
             refetchType: "all",
           });
         }
+      } else if (stream?.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["thread", stream.parentId],
+          refetchType: "all",
+        });
+      } else {
+        queryClient.invalidateQueries({
+          queryKey: ["messages", channelId],
+          refetchType: "all",
+        });
       }
     };
 
@@ -932,6 +1016,7 @@ export function useChannelMessages(
 
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
+      const stream = useStreamingStore.getState().streams.get(event.streamId);
       useStreamingStore.getState().endStream(event.streamId);
       if (event.message) {
         const msg = event.message;
@@ -944,6 +1029,16 @@ export function useChannelMessages(
             refetchType: "all",
           });
         }
+      } else if (stream?.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["thread", stream.parentId],
+          refetchType: "all",
+        });
+      } else {
+        queryClient.invalidateQueries({
+          queryKey: ["messages", channelId],
+          refetchType: "all",
+        });
       }
     };
 
@@ -1402,8 +1497,7 @@ export function useSendMessage(channelId: string) {
       const clientMsgId = crypto.randomUUID();
 
       // Register for WS coordination using clientMsgId
-      pendingByClientMsgId.set(clientMsgId, tempId);
-      setTimeout(() => pendingByClientMsgId.delete(clientMsgId), 60000);
+      registerPendingSend(clientMsgId, tempId);
 
       // Attach clientMsgId to the request data so it's sent to the server
       newMessageData.clientMsgId = clientMsgId;
@@ -1416,6 +1510,7 @@ export function useSendMessage(channelId: string) {
         senderId: currentUser?.id || "",
         content: newMessageData.content,
         contentAst: newMessageData.contentAst,
+        metadata: newMessageData.metadata,
         type: "text",
         isPinned: false,
         isEdited: false,
@@ -1588,36 +1683,31 @@ export function useSendMessage(channelId: string) {
     },
 
     onError: (err, variables, context) => {
+      const sendError = getHttpErrorMessage(err);
+      if (variables.clientMsgId && context?.tempId && isRequestTimeout(err)) {
+        scheduleTimeoutSendFailure(
+          queryClient,
+          channelId,
+          variables.clientMsgId,
+          context.tempId,
+          sendError,
+          variables,
+        );
+        return;
+      }
+
       if (variables.clientMsgId) {
         // Clean up pending tracking
         pendingByClientMsgId.delete(variables.clientMsgId);
       }
-      const sendError = getHttpErrorMessage(err);
       // Mark the optimistic message as failed instead of rolling back
       if (context?.tempId) {
-        queryClient.setQueriesData(
-          { queryKey: ["messages", channelId] },
-          (old: MessagesQueryData | undefined) => {
-            if (!old) return old;
-            return {
-              ...old,
-              pages: old.pages.map((page) =>
-                setMessages(
-                  page,
-                  getMessages(page).map((msg) =>
-                    msg.id === context.tempId
-                      ? {
-                          ...msg,
-                          sendStatus: "failed" as MessageSendStatus,
-                          sendError,
-                          _retryData: variables,
-                        }
-                      : msg,
-                  ),
-                ),
-              ),
-            };
-          },
+        markOptimisticMessageFailed(
+          queryClient,
+          channelId,
+          context.tempId,
+          sendError,
+          variables,
         );
       }
     },
@@ -1644,8 +1734,7 @@ export function useRetryMessage(channelId: string) {
     onMutate: async ({ tempId, retryData }) => {
       const clientMsgId = crypto.randomUUID();
       retryData.clientMsgId = clientMsgId;
-      pendingByClientMsgId.set(clientMsgId, tempId);
-      setTimeout(() => pendingByClientMsgId.delete(clientMsgId), 60000);
+      registerPendingSend(clientMsgId, tempId);
 
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
@@ -1760,33 +1849,28 @@ export function useRetryMessage(channelId: string) {
     },
 
     onError: (err, { tempId, retryData }) => {
+      const sendError = getHttpErrorMessage(err);
+      if (retryData.clientMsgId && isRequestTimeout(err)) {
+        scheduleTimeoutSendFailure(
+          queryClient,
+          channelId,
+          retryData.clientMsgId,
+          tempId,
+          sendError,
+          retryData,
+        );
+        return;
+      }
+
       if (retryData.clientMsgId) {
         pendingByClientMsgId.delete(retryData.clientMsgId);
       }
-      const sendError = getHttpErrorMessage(err);
-      queryClient.setQueriesData(
-        { queryKey: ["messages", channelId] },
-        (old: MessagesQueryData | undefined) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) =>
-              setMessages(
-                page,
-                getMessages(page).map((msg) =>
-                  msg.id === tempId
-                    ? {
-                        ...msg,
-                        sendStatus: "failed" as MessageSendStatus,
-                        sendError,
-                        _retryData: retryData,
-                      }
-                    : msg,
-                ),
-              ),
-            ),
-          };
-        },
+      markOptimisticMessageFailed(
+        queryClient,
+        channelId,
+        tempId,
+        sendError,
+        retryData,
       );
     },
   });
