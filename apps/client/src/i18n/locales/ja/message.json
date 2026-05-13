@@ -49,5 +49,29 @@
   "expandFullContent": "全文を表示",
   "remainingChars": "（残り {{chars}} 文字）",
   "loadingFullContent": "全文を読み込み中...",
-  "loadFullContentFailed": "全文の読み込みに失敗しました。キャンセルして再試行してください。"
+  "loadFullContentFailed": "全文の読み込みに失敗しました。キャンセルして再試行してください。",
+  "a2ui": {
+    "optionFallback": "選択肢",
+    "other": "その他",
+    "agentFallback": "Agent",
+    "userFallback": "ユーザー",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(あなた)",
+    "asked": "質問",
+    "askedYou": "あなたに質問",
+    "answeredBy": "回答者",
+    "selected": "選択",
+    "selectedPast": "選択しました",
+    "in": "で",
+    "expand": "クリックして展開",
+    "next": "次へ",
+    "submit": "送信",
+    "submitting": "送信中...",
+    "timeout": "選択がタイムアウトしました",
+    "cancelled": "選択がキャンセルされました",
+    "validationSelect": "「{{title}}」を選択してください",
+    "otherPlaceholder": "回答を入力...",
+    "cancelHint": "Esc でキャンセル",
+    "parseError": "A2UI surface payload の解析に失敗しました"
+  }
 }

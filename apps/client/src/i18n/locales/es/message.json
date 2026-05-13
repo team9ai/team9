@@ -49,5 +49,29 @@
   "expandFullContent": "Mostrar contenido completo",
   "remainingChars": " ({{chars}} más)",
   "loadingFullContent": "Cargando contenido completo...",
-  "loadFullContentFailed": "Error al cargar el contenido completo. Cancela e inténtalo de nuevo."
+  "loadFullContentFailed": "Error al cargar el contenido completo. Cancela e inténtalo de nuevo.",
+  "a2ui": {
+    "optionFallback": "Opción",
+    "other": "Otro",
+    "agentFallback": "Agent",
+    "userFallback": "Usuario",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(tú)",
+    "asked": "preguntó",
+    "askedYou": "te preguntó",
+    "answeredBy": "respondido por",
+    "selected": "seleccionó",
+    "selectedPast": "seleccionó",
+    "in": "en",
+    "expand": "Haz clic para expandir",
+    "next": "Siguiente",
+    "submit": "Enviar",
+    "submitting": "Enviando...",
+    "timeout": "La selección agotó el tiempo",
+    "cancelled": "La selección fue cancelada",
+    "validationSelect": "Selecciona “{{title}}”",
+    "otherPlaceholder": "Escribe tu respuesta...",
+    "cancelHint": "Pulsa Esc para cancelar",
+    "parseError": "No se pudo analizar el payload de surface A2UI"
+  }
 }

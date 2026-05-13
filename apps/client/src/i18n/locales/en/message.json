@@ -49,5 +49,29 @@
   "expandFullContent": "Show full content",
   "remainingChars": " ({{chars}} more)",
   "loadingFullContent": "Loading full content...",
-  "loadFullContentFailed": "Failed to load full content. Please cancel and try again."
+  "loadFullContentFailed": "Failed to load full content. Please cancel and try again.",
+  "a2ui": {
+    "optionFallback": "Option",
+    "other": "Other",
+    "agentFallback": "Agent",
+    "userFallback": "User",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(you)",
+    "asked": "asked",
+    "askedYou": "asked you",
+    "answeredBy": "answered by",
+    "selected": "selected",
+    "selectedPast": "selected",
+    "in": "in",
+    "expand": "Click to expand",
+    "next": "Next",
+    "submit": "Submit",
+    "submitting": "Submitting...",
+    "timeout": "Selection timed out",
+    "cancelled": "Selection cancelled",
+    "validationSelect": "Please select “{{title}}”",
+    "otherPlaceholder": "Enter your answer...",
+    "cancelHint": "Press Esc to cancel",
+    "parseError": "Failed to parse A2UI surface payload"
+  }
 }

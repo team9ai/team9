@@ -41,5 +41,29 @@
   "expandFullContent": "Показать полный текст",
   "remainingChars": " (ещё {{chars}})",
   "loadingFullContent": "Загрузка полного текста...",
-  "loadFullContentFailed": "Не удалось загрузить полный текст. Отмените и попробуйте ещё раз."
+  "loadFullContentFailed": "Не удалось загрузить полный текст. Отмените и попробуйте ещё раз.",
+  "a2ui": {
+    "optionFallback": "Вариант",
+    "other": "Другое",
+    "agentFallback": "Agent",
+    "userFallback": "Пользователь",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(вы)",
+    "asked": "спросил",
+    "askedYou": "спросил вас",
+    "answeredBy": "ответил",
+    "selected": "выбрал",
+    "selectedPast": "выбрал",
+    "in": "в",
+    "expand": "Нажмите, чтобы развернуть",
+    "next": "Далее",
+    "submit": "Отправить",
+    "submitting": "Отправка...",
+    "timeout": "Время выбора истекло",
+    "cancelled": "Выбор отменён",
+    "validationSelect": "Выберите «{{title}}»",
+    "otherPlaceholder": "Введите ответ...",
+    "cancelHint": "Нажмите Esc для отмены",
+    "parseError": "Не удалось разобрать payload surface A2UI"
+  }
 }

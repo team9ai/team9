@@ -41,5 +41,29 @@
   "expandFullContent": "Mostra contenuto completo",
   "remainingChars": " ({{chars}} in più)",
   "loadingFullContent": "Caricamento del contenuto completo...",
-  "loadFullContentFailed": "Impossibile caricare il contenuto completo. Annulla e riprova."
+  "loadFullContentFailed": "Impossibile caricare il contenuto completo. Annulla e riprova.",
+  "a2ui": {
+    "optionFallback": "Opzione",
+    "other": "Altro",
+    "agentFallback": "Agent",
+    "userFallback": "Utente",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(tu)",
+    "asked": "ha chiesto",
+    "askedYou": "ti ha chiesto",
+    "answeredBy": "risposto da",
+    "selected": "selezionato",
+    "selectedPast": "ha selezionato",
+    "in": "in",
+    "expand": "Clicca per espandere",
+    "next": "Avanti",
+    "submit": "Invia",
+    "submitting": "Invio...",
+    "timeout": "La selezione è scaduta",
+    "cancelled": "La selezione è stata annullata",
+    "validationSelect": "Seleziona “{{title}}”",
+    "otherPlaceholder": "Inserisci la tua risposta...",
+    "cancelHint": "Premi Esc per annullare",
+    "parseError": "Impossibile analizzare il payload surface A2UI"
+  }
 }

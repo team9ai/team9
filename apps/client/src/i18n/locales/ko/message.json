@@ -49,5 +49,29 @@
   "expandFullContent": "전체 내용 보기",
   "remainingChars": " ({{chars}}자 더)",
   "loadingFullContent": "전체 내용 로딩 중...",
-  "loadFullContentFailed": "전체 내용을 불러오지 못했습니다. 취소 후 다시 시도해 주세요."
+  "loadFullContentFailed": "전체 내용을 불러오지 못했습니다. 취소 후 다시 시도해 주세요.",
+  "a2ui": {
+    "optionFallback": "옵션",
+    "other": "기타",
+    "agentFallback": "Agent",
+    "userFallback": "사용자",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(나)",
+    "asked": "질문",
+    "askedYou": "나에게 질문",
+    "answeredBy": "응답자",
+    "selected": "선택",
+    "selectedPast": "선택함",
+    "in": "에서",
+    "expand": "클릭하여 펼치기",
+    "next": "다음",
+    "submit": "제출",
+    "submitting": "제출 중...",
+    "timeout": "선택 시간이 초과되었습니다",
+    "cancelled": "선택이 취소되었습니다",
+    "validationSelect": "“{{title}}”을(를) 먼저 선택하세요",
+    "otherPlaceholder": "답변을 입력하세요...",
+    "cancelHint": "Esc 키로 취소",
+    "parseError": "A2UI surface payload를 파싱하지 못했습니다"
+  }
 }
