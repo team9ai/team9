@@ -275,6 +275,47 @@ describe("HomeMainContent", () => {
     });
   });
 
+  it("submits the dashboard prompt on Enter outside IME composition", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "hello alpha" },
+    });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByPlaceholderText(/message dashboard/i), {
+        key: "Enter",
+        code: "Enter",
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTopicSessionMutate).toHaveBeenCalledWith({
+        botUserId: "agent-1",
+        initialMessage: "hello alpha",
+        model: { provider: "openrouter", id: "openai/gpt-4.1" },
+      });
+    });
+  });
+
+  it("does not submit when Enter commits an IME candidate", () => {
+    renderWithProviders(<HomeMainContent />);
+
+    const input = screen.getByPlaceholderText(/message dashboard/i);
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, {
+      target: { value: "n" },
+    });
+    // Mirrors WKWebView/Safari ordering: compositionend can arrive before the
+    // Enter keydown that commits the candidate.
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    expect(mockCreateTopicSessionMutate).not.toHaveBeenCalled();
+  });
+
   it("shows a static model label for unrecognized base-model agents that cannot switch", () => {
     mockUseDashboardAgents.mockReturnValue({
       agents: [

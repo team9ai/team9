@@ -81,9 +81,7 @@ class WebSocketService {
   private authErrorRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private authErrorRetryCount = 0;
   private authRecoveryInFlight: Promise<void> | null = null;
-  // Queue for event listeners to register when connection is established
-  private pendingListeners: Array<{ event: string; callback: EventCallback }> =
-    [];
+  private eventListeners = new Map<string, Set<EventCallback>>();
   // Connection status observers
   private connectionChangeCallbacks: Set<ConnectionChangeCallback> = new Set();
   private _connectionStatus: ConnectionStatus = "disconnected";
@@ -182,6 +180,7 @@ class WebSocketService {
     });
 
     this.setupEventHandlers();
+    this.attachRegisteredListeners();
   }
 
   private setupEventHandlers(): void {
@@ -202,8 +201,6 @@ class WebSocketService {
         message: "WebSocket connected",
         level: "info",
       });
-      // Process pending event listeners
-      this.processPendingListeners();
     });
 
     this.socket.on("disconnect", (reason) => {
@@ -394,13 +391,13 @@ class WebSocketService {
     }, 500);
   }
 
-  private processPendingListeners(): void {
+  private attachRegisteredListeners(): void {
     if (!this.socket) return;
-    for (const { event, callback } of this.pendingListeners) {
-      console.log("[WS] Processing pending listener for event:", event);
-      this.socket.on(event, callback);
+    for (const [event, callbacks] of this.eventListeners) {
+      for (const callback of callbacks) {
+        this.socket.on(event, callback);
+      }
     }
-    this.pendingListeners = [];
   }
 
   // Read status
@@ -434,24 +431,27 @@ class WebSocketService {
   // Event listeners
   on<TEvent>(event: string, callback: EventCallback<TEvent>): void {
     const listener = callback as EventCallback;
-    if (!this.socket?.connected) {
-      this.pendingListeners.push({ event, callback: listener });
-      return;
+    const listeners =
+      this.eventListeners.get(event) ?? new Set<EventCallback>();
+    listeners.add(listener);
+    this.eventListeners.set(event, listeners);
+
+    if (this.socket) {
+      this.socket.off(event, listener);
+      this.socket.on(event, listener);
     }
-    this.socket.on(event, listener);
   }
 
   off<TEvent>(event: string, callback?: EventCallback<TEvent>): void {
     const listener = callback as EventCallback | undefined;
-    // Remove from pending listeners if not yet connected
     if (listener) {
-      this.pendingListeners = this.pendingListeners.filter(
-        (l) => !(l.event === event && l.callback === listener),
-      );
+      const listeners = this.eventListeners.get(event);
+      listeners?.delete(listener);
+      if (listeners?.size === 0) {
+        this.eventListeners.delete(event);
+      }
     } else {
-      this.pendingListeners = this.pendingListeners.filter(
-        (l) => l.event !== event,
-      );
+      this.eventListeners.delete(event);
     }
     if (!this.socket) return;
     this.socket.off(event, listener);
@@ -577,9 +577,7 @@ class WebSocketService {
 
   // Notification events
   onNotificationNew(callback: (event: NotificationNewEvent) => void): void {
-    this.on<NotificationNewEvent>(WS_EVENTS.NOTIFICATION.NEW, (event) => {
-      callback(event);
-    });
+    this.on<NotificationNewEvent>(WS_EVENTS.NOTIFICATION.NEW, callback);
   }
 
   onNotificationCountsUpdated(
@@ -587,9 +585,7 @@ class WebSocketService {
   ): void {
     this.on<NotificationCountsUpdatedEvent>(
       WS_EVENTS.NOTIFICATION.COUNTS_UPDATED,
-      (event) => {
-        callback(event);
-      },
+      callback,
     );
   }
 
@@ -870,19 +866,10 @@ class WebSocketService {
   onRelationChanged(
     callback: (event: MessageRelationChangedEvent) => void,
   ): () => void {
-    const listener = callback as EventCallback;
-    if (!this.socket?.connected) {
-      this.pendingListeners.push({
-        event: WS_EVENTS.PROPERTY.RELATION_CHANGED,
-        callback: listener,
-      });
-      return () =>
-        this.off<MessageRelationChangedEvent>(
-          WS_EVENTS.PROPERTY.RELATION_CHANGED,
-          callback,
-        );
-    }
-    this.socket.on(WS_EVENTS.PROPERTY.RELATION_CHANGED, listener);
+    this.on<MessageRelationChangedEvent>(
+      WS_EVENTS.PROPERTY.RELATION_CHANGED,
+      callback,
+    );
     return () =>
       this.off<MessageRelationChangedEvent>(
         WS_EVENTS.PROPERTY.RELATION_CHANGED,
@@ -902,19 +889,10 @@ class WebSocketService {
   onRelationsPurged(
     callback: (event: MessageRelationsPurgedEvent) => void,
   ): () => void {
-    const listener = callback as EventCallback;
-    if (!this.socket?.connected) {
-      this.pendingListeners.push({
-        event: WS_EVENTS.PROPERTY.RELATIONS_PURGED,
-        callback: listener,
-      });
-      return () =>
-        this.off<MessageRelationsPurgedEvent>(
-          WS_EVENTS.PROPERTY.RELATIONS_PURGED,
-          callback,
-        );
-    }
-    this.socket.on(WS_EVENTS.PROPERTY.RELATIONS_PURGED, listener);
+    this.on<MessageRelationsPurgedEvent>(
+      WS_EVENTS.PROPERTY.RELATIONS_PURGED,
+      callback,
+    );
     return () =>
       this.off<MessageRelationsPurgedEvent>(
         WS_EVENTS.PROPERTY.RELATIONS_PURGED,

@@ -1,20 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserPlus } from "lucide-react";
-import {
-  useWorkspaceInvitations,
-  useCreateInvitation,
-} from "@/hooks/useWorkspace";
-import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
+import { useWorkspaceInviteLink } from "@/hooks/useWorkspaceInviteLink";
 import { useTranslation } from "react-i18next";
-
-const DEFAULT_INVITATION_OPTIONS = {
-  role: "member" as const,
-  maxUses: 1000,
-  expiresInDays: 100,
-};
 
 interface InviteManagementDialogProps {
   isOpen: boolean;
@@ -30,31 +20,7 @@ export function InviteManagementDialog({
   const { t } = useTranslation(["navigation", "common"]);
   const [copied, setCopied] = useState(false);
 
-  const { data: invitations = [] } = useWorkspaceInvitations(workspaceId);
-  const createInvitation = useCreateInvitation(workspaceId);
-
-  const validInvitation = useMemo(
-    () =>
-      invitations.find((inv) => {
-        if (!inv.isActive) return false;
-        if (inv.expiresAt && new Date(inv.expiresAt) < new Date()) return false;
-        if (inv.maxUses && inv.usedCount >= inv.maxUses) return false;
-        return true;
-      }),
-    [invitations],
-  );
-
-  useEffectOncePerKey(
-    workspaceId,
-    Boolean(workspaceId) && !validInvitation,
-    () => {
-      createInvitation.mutate({
-        ...DEFAULT_INVITATION_OPTIONS,
-      });
-    },
-  );
-
-  const inviteUrl = validInvitation?.url;
+  const { url: inviteUrl } = useWorkspaceInviteLink(workspaceId, isOpen);
 
   const handleCopyLink = async () => {
     if (!inviteUrl) return;
