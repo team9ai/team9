@@ -7,6 +7,7 @@ import {
   memo,
   forwardRef,
   type ComponentPropsWithoutRef,
+  type ReactNode,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useFullContent } from "@/hooks/useMessages";
@@ -30,6 +31,7 @@ interface MessageContentProps {
   content: string;
   className?: string;
   message?: Message;
+  trailingInline?: ReactNode;
 }
 
 interface HoveredMention {
@@ -39,8 +41,8 @@ interface HoveredMention {
 }
 
 interface MarkdownNodePosition {
-  start?: { line?: number };
-  end?: { line?: number };
+  start?: { line?: number; offset?: number };
+  end?: { line?: number; offset?: number };
 }
 
 interface MarkdownNode {
@@ -285,11 +287,23 @@ function HtmlMessageContent({ content, className }: MessageContentProps) {
 /**
  * Renders plain text / Markdown messages (from bots/API) using react-markdown.
  */
-function MarkdownMessageContent({ content, className }: MessageContentProps) {
+function MarkdownMessageContent({
+  content,
+  className,
+  trailingInline,
+}: MessageContentProps) {
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
   } | null>(null);
+  const finalContentOffset = content.trimEnd().length;
+
+  const renderTrailingInline = (node?: MarkdownNode) => {
+    if (!trailingInline) return null;
+    const endOffset = node?.position?.end?.offset;
+    if (typeof endOffset !== "number") return null;
+    return endOffset >= finalContentOffset ? trailingInline : null;
+  };
 
   return (
     <div className={`${className ?? ""} markdown-message-content`}>
@@ -335,7 +349,12 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
             if (hasImage) {
               return <>{children}</>;
             }
-            return <p>{children}</p>;
+            return (
+              <p>
+                {children}
+                {renderTrailingInline(node)}
+              </p>
+            );
           },
         }}
       >
@@ -394,6 +413,7 @@ export function MessageContent({
   content,
   className,
   message,
+  trailingInline,
 }: MessageContentProps) {
   // Prefer the Lexical AST when the message was authored in the rich-text
   // composer. This path renders React elements directly — no HTML sink, so
@@ -436,9 +456,10 @@ export function MessageContent({
         <MarkdownMessageContent
           content={displayContent}
           className={className}
+          trailingInline={trailingInline}
         />
       ),
-    [hasAst, isHtml, displayContent, className, message],
+    [hasAst, isHtml, displayContent, className, message, trailingInline],
   );
 
   const handleMouseUp = useCallback(() => {
