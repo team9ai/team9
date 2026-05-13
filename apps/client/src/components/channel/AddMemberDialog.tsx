@@ -52,8 +52,8 @@ export function AddMemberDialog({
   const handleCopyInvite = async () => {
     if (!inviteUrl) return;
     await navigator.clipboard.writeText(inviteUrl);
+    // Keep the "copied" state until the dialog is reopened.
     setInviteCopied(true);
-    setTimeout(() => setInviteCopied(false), 2000);
   };
 
   // Flatten paginated data
