@@ -215,8 +215,13 @@
       "emptyStream": "（空）",
       "runCommand": {
         "local": "在本机执行命令",
+        "localBadge": "本机",
+        "localTooltip": "本机 · {{backend}}",
+        "runningBadge": "执行中",
+        "ahandDevice": "aHand 设备",
         "cloudComputer": "在云计算机'{{name}}'执行命令",
-        "cloudSandbox": "在云沙箱({{name}})执行命令",
+        "cloudSandbox": "在云沙箱执行",
+        "cloudSandboxTooltip": "Cloud Worker Sandbox (just-base)",
         "backend": "在 {{name}} 执行命令"
       },
       "unknownTool": "未知工具"

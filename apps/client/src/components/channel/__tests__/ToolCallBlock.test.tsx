@@ -494,7 +494,10 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("Run command locally")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Local · ahand:user-computer:ff00"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Local")).toBeInTheDocument();
       expect(screen.getByText("pnpm test")).toBeInTheDocument();
       expect(screen.queryByText(/run_command\(/)).not.toBeInTheDocument();
       expect(screen.queryByText("Args")).not.toBeInTheDocument();
@@ -552,10 +555,13 @@ describe("ToolCallBlock", () => {
           />,
         );
 
-        expect(screen.getByText("在本机执行命令")).toBeInTheDocument();
+        expect(
+          screen.getByLabelText("本机 · ahand:user-computer:ff00"),
+        ).toBeInTheDocument();
+        expect(screen.getByText("本机")).toBeInTheDocument();
         expect(screen.getByText("echo hello")).toBeInTheDocument();
 
-        fireEvent.click(screen.getByText("在本机执行命令"));
+        fireEvent.click(screen.getByText("echo hello"));
 
         expect(screen.getByText("stdout")).toBeInTheDocument();
         expect(screen.getByText("hello")).toBeInTheDocument();
@@ -568,6 +574,127 @@ describe("ToolCallBlock", () => {
           await i18n.changeLanguage("en");
         });
       }
+    });
+
+    it("renders cloud sandbox as a cloud icon with tooltip and shows backend after expansion", async () => {
+      await act(async () => {
+        await changeLanguage("zh-CN");
+      });
+      try {
+        render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("run_command", {
+              backend: "just-bash-team9-workspace",
+              command: "cat /workspace/session/tmp/result.txt",
+            })}
+            resultMetadata={makeResultMeta("completed")}
+            resultContent={JSON.stringify({
+              stdout: "ok\n",
+              stderr: "",
+              exitCode: 0,
+            })}
+          />,
+        );
+
+        const targetIcon = screen.getByLabelText(
+          "Cloud Worker Sandbox (just-base)",
+        );
+        expect(targetIcon).toBeInTheDocument();
+        expect(targetIcon).toHaveAttribute(
+          "title",
+          "Cloud Worker Sandbox (just-base)",
+        );
+        expect(screen.queryByText("在云沙箱执行")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(/在云沙箱.*just-bash/),
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(
+          screen.getByText("cat /workspace/session/tmp/result.txt"),
+        );
+
+        expect(screen.getByText("backend")).toBeInTheDocument();
+        expect(
+          screen.getByText("just-bash-team9-workspace"),
+        ).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
+
+    it("renders English cloud sandbox as a cloud icon without backend name", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "just-bash-team9-workspace",
+            command: "pwd",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "/workspace\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      expect(
+        screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Run in cloud sandbox"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Run in cloud sandbox.*just-bash/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows a running label next to the cloud sandbox target while executing", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", undefined, {
+            status: "running",
+            toolArgsText: JSON.stringify({
+              backend: "just-bash-team9-workspace",
+              command: "pnpm test",
+            }),
+            toolPhase: "executing",
+          })}
+          resultContent=""
+        />,
+      );
+
+      expect(
+        screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Running")).toBeInTheDocument();
+      expect(screen.getByText("pnpm test")).toBeInTheDocument();
+    });
+
+    it("renders non-local ahand backends as server targets with backend tooltip", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:office-linux:ff01",
+            command: "hostname",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "office-linux\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      const targetIcon = screen.getByLabelText("ahand:office-linux:ff01");
+      expect(targetIcon).toBeInTheDocument();
+      expect(targetIcon).toHaveAttribute("title", "ahand:office-linux:ff01");
+      expect(
+        screen.queryByText(/Run command on ahand/),
+      ).not.toBeInTheDocument();
     });
 
     it("hides empty run_command streams and zero exitCode when stdout has content", () => {
@@ -586,7 +713,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command locally"));
+      fireEvent.click(screen.getByText("echo hello"));
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("hello")).toBeInTheDocument();
@@ -610,7 +737,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command locally"));
+      fireEvent.click(screen.getByText("true"));
 
       expect(screen.queryByText("stdout")).not.toBeInTheDocument();
       expect(screen.queryByText("stderr")).not.toBeInTheDocument();
@@ -635,7 +762,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command locally"));
+      fireEvent.click(screen.getByText("python3 long-script.py"));
 
       expect(screen.getByText("command")).toBeInTheDocument();
       expect(screen.getAllByText("python3 long-script.py").length).toBe(2);
@@ -665,7 +792,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command locally"));
+      fireEvent.click(screen.getByText("false"));
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("failed")).toBeInTheDocument();
@@ -694,7 +821,7 @@ describe("ToolCallBlock", () => {
         screen.queryByRole("button", { name: "json" }),
       ).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByText("Run command locally"));
+      fireEvent.click(screen.getByText("echo hello"));
 
       expect(screen.getByRole("button", { name: "json" })).toBeInTheDocument();
     });
@@ -826,7 +953,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command locally"));
+      fireEvent.click(screen.getByText("echo hello"));
       fireEvent.click(screen.getByRole("button", { name: "json" }));
 
       expect(screen.getByText("Args")).toBeInTheDocument();

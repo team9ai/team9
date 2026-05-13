@@ -5,6 +5,7 @@ import type { AgentEventMetadata } from "@/types/im";
 export type ToolIndicator = "check" | "cross" | "none";
 export type CommandTargetKind =
   | "local"
+  | "ahand-device"
   | "cloud-computer"
   | "cloud-sandbox"
   | "backend";
@@ -344,7 +345,10 @@ function resolveCommandTarget(
     return { targetKind: "local" };
   }
   if (normalized.includes("just-bash")) {
-    return { targetKind: "cloud-sandbox", targetName: "just-bash" };
+    return { targetKind: "cloud-sandbox" };
+  }
+  if (normalized.includes("ahand")) {
+    return { targetKind: "ahand-device" };
   }
   if (normalized.includes("e2b")) {
     return {

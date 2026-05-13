@@ -172,7 +172,26 @@ describe("buildToolDisplayState", () => {
     expect(cloudComputer?.targetKind).toBe("cloud-computer");
     expect(cloudComputer?.targetName).toBe("e2b_id_xxxxx");
     expect(cloudSandbox?.targetKind).toBe("cloud-sandbox");
-    expect(cloudSandbox?.targetName).toBe("just-bash");
+    expect(cloudSandbox?.targetName).toBeUndefined();
+    expect(cloudSandbox?.backend).toBe("just-bash-team9-workspace");
+  });
+
+  it("classifies non-local ahand run_command backends separately from generic backends", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "run_command",
+        toolArgs: {
+          backend: "ahand:office-linux:ff01",
+          command: "hostname",
+        },
+      }),
+      resultMetadata: resultMeta({ success: true }),
+      resultContent: '{"stdout":"office-linux\\n","stderr":""}',
+    });
+
+    expect(state.commandExecution?.targetKind).toBe("ahand-device");
+    expect(state.commandExecution?.targetName).toBeUndefined();
+    expect(state.commandExecution?.backend).toBe("ahand:office-linux:ff01");
   });
 
   it("treats success false as failure even when status is completed", () => {

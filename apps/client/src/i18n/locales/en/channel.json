@@ -215,8 +215,13 @@
       "emptyStream": "(empty)",
       "runCommand": {
         "local": "Run command locally",
+        "localBadge": "Local",
+        "localTooltip": "Local · {{backend}}",
+        "runningBadge": "Running",
+        "ahandDevice": "aHand device",
         "cloudComputer": "Run command on cloud computer '{{name}}'",
-        "cloudSandbox": "Run command in cloud sandbox ({{name}})",
+        "cloudSandbox": "Run in cloud sandbox",
+        "cloudSandboxTooltip": "Cloud Worker Sandbox (just-base)",
         "backend": "Run command on {{name}}"
       },
       "unknownTool": "Unknown tool"

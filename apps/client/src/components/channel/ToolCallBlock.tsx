@@ -3,8 +3,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Circle,
+  Cloud,
   Expand,
   Loader2,
+  Monitor,
+  Server,
   Wrench,
   X,
 } from "lucide-react";
@@ -355,23 +358,103 @@ function getRunCommandTargetKey(
 
 function RunCommandSummary({
   execution,
+  isRunning,
   t,
 }: {
   execution: CommandExecutionDisplay;
+  isRunning: boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
+  const targetLabel = t(getRunCommandTargetKey(execution.targetKind), {
+    name: execution.targetName ?? execution.backend ?? "",
+  });
+
   return (
     <>
-      <span>
-        {t(getRunCommandTargetKey(execution.targetKind), {
-          name: execution.targetName ?? execution.backend ?? "",
-        })}
-      </span>
+      <RunCommandTarget execution={execution} label={targetLabel} t={t} />
+      {isRunning && (
+        <span className="ml-1 text-[11px] font-medium leading-none text-amber-600 dark:text-amber-300">
+          {t("tracking.toolCall.runCommand.runningBadge")}
+        </span>
+      )}
       <code className="ml-1 rounded bg-muted px-1 py-0.5 font-mono text-[0.92em] text-foreground">
         {execution.command}
       </code>
     </>
   );
+}
+
+function getRunCommandTargetTooltip(
+  execution: CommandExecutionDisplay,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  switch (execution.targetKind) {
+    case "cloud-sandbox":
+      return t("tracking.toolCall.runCommand.cloudSandboxTooltip");
+    case "local":
+      return t("tracking.toolCall.runCommand.localTooltip", {
+        backend: execution.backend ?? "",
+      });
+    case "ahand-device":
+      return execution.backend ?? t("tracking.toolCall.runCommand.ahandDevice");
+    default:
+      return t(getRunCommandTargetKey(execution.targetKind), {
+        name: execution.targetName ?? execution.backend ?? "",
+      });
+  }
+}
+
+function RunCommandTarget({
+  execution,
+  label,
+  t,
+}: {
+  execution: CommandExecutionDisplay;
+  label: string;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  const tooltip = getRunCommandTargetTooltip(execution, t);
+  const iconClassName = "size-3.5 shrink-0";
+  const wrapperClassName =
+    "inline-flex shrink-0 items-center gap-0.5 align-[-2px] text-muted-foreground";
+
+  switch (execution.targetKind) {
+    case "cloud-sandbox":
+      return (
+        <span
+          aria-label={tooltip}
+          className={cn(wrapperClassName, "text-sky-500")}
+          title={tooltip}
+        >
+          <Cloud className={iconClassName} strokeWidth={2.25} />
+        </span>
+      );
+    case "local":
+      return (
+        <span
+          aria-label={tooltip}
+          className={cn(wrapperClassName, "text-emerald-600")}
+          title={tooltip}
+        >
+          <Monitor className={iconClassName} strokeWidth={2.25} />
+          <span className="text-[11px] font-medium leading-none">
+            {t("tracking.toolCall.runCommand.localBadge")}
+          </span>
+        </span>
+      );
+    case "ahand-device":
+      return (
+        <span
+          aria-label={tooltip}
+          className={cn(wrapperClassName, "text-muted-foreground")}
+          title={tooltip}
+        >
+          <Server className={iconClassName} strokeWidth={2.25} />
+        </span>
+      );
+    default:
+      return <span>{label}</span>;
+  }
 }
 
 function LoadedToolsSummary({
@@ -857,7 +940,11 @@ export function ToolCallBlock({
               isRunning && "animate-pulse",
             )}
           >
-            <RunCommandSummary execution={commandExecution} t={translate} />
+            <RunCommandSummary
+              execution={commandExecution}
+              isRunning={isRunning}
+              t={translate}
+            />
           </span>
         ) : (
           <>
@@ -932,6 +1019,15 @@ export function ToolCallBlock({
         <div className="mt-1 mb-1.5 space-y-2">
           {isRunCommandDisplay && !showRawJson ? (
             <>
+              {commandExecution.backend && (
+                <StreamBlock
+                  label="backend"
+                  value={commandExecution.backend}
+                  tone="neutral"
+                  emptyText={translate("tracking.toolCall.emptyStream")}
+                  t={translate}
+                />
+              )}
               <StreamBlock
                 label="command"
                 value={commandExecution.command}
