@@ -415,8 +415,11 @@ describe("HomeMainContent", () => {
 
     const menu = within(screen.getByRole("menu"));
     expect(menu.getAllByRole("img", { name: "Claude logo" })).toHaveLength(2);
-    expect(menu.getAllByRole("img", { name: "ChatGPT logo" })).toHaveLength(2);
+    expect(menu.getAllByRole("img", { name: "ChatGPT logo" })).toHaveLength(3);
     expect(menu.getAllByRole("img", { name: "Gemini logo" })).toHaveLength(2);
+    expect(
+      menu.getByRole("img", { name: "DeepSeek logo" }),
+    ).toBeInTheDocument();
     expect(menu.getByRole("img", { name: "Qwen logo" })).toBeInTheDocument();
     expect(menu.getByRole("img", { name: "GLM logo" })).toBeInTheDocument();
     expect(menu.getByRole("img", { name: "Kimi logo" })).toBeInTheDocument();

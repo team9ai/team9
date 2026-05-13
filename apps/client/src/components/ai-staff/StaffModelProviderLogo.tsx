@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 
 import chatgptLogo from "@/assets/base-model/chatgpt.svg";
 import claudeLogo from "@/assets/base-model/claude.png";
+import deepseekLogo from "@/assets/base-model/deepseek.svg";
 import geminiLogo from "@/assets/base-model/gemini.svg";
 import kimiLogo from "@/assets/base-model/kimi.svg";
 import qwenLogo from "@/assets/base-model/qwen.svg";
@@ -42,6 +43,10 @@ function getStaffModelLogoMeta(
 
   if (identity.includes("google") || identity.includes("gemini")) {
     return { type: "image", alt: "Gemini logo", src: geminiLogo };
+  }
+
+  if (identity.includes("deepseek")) {
+    return { type: "image", alt: "DeepSeek logo", src: deepseekLogo };
   }
 
   if (identity.includes("qwen") || identity.includes("alibaba")) {

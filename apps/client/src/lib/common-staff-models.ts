@@ -24,6 +24,12 @@ export const COMMON_STAFF_MODELS: StaffModel[] = [
   },
   {
     provider: "openrouter",
+    id: "openai/gpt-5.5",
+    label: "GPT-5.5",
+    family: "openai",
+  },
+  {
+    provider: "openrouter",
     id: "openai/gpt-5.4",
     label: "GPT-5.4",
     family: "openai",
@@ -45,6 +51,12 @@ export const COMMON_STAFF_MODELS: StaffModel[] = [
     id: "google/gemini-3-flash-preview",
     label: "Gemini 3 Flash (Preview)",
     family: "google",
+  },
+  {
+    provider: "openrouter",
+    id: "deepseek/deepseek-v4-pro",
+    label: "DeepSeek V4 Pro",
+    family: "other",
   },
   {
     provider: "openrouter",
