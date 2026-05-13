@@ -383,7 +383,10 @@ function RunCommandSummary({
       : t("tracking.toolCall.runCommand.ranBadge");
 
   return (
-    <>
+    <span
+      className="inline-flex min-w-0 max-w-full items-center gap-1 align-middle"
+      data-testid="run-command-summary"
+    >
       <span
         className={cn(
           "text-xs font-medium leading-none",
@@ -397,10 +400,10 @@ function RunCommandSummary({
         {actionLabel}
       </span>
       <RunCommandTarget execution={execution} label={targetLabel} t={t} />
-      <code className="ml-1 rounded bg-muted px-1 py-0.5 font-mono text-[0.92em] text-foreground">
+      <code className="min-w-0 truncate rounded bg-muted px-1 py-0.5 font-mono text-[0.92em] text-foreground">
         {execution.command}
       </code>
-    </>
+    </span>
   );
 }
 
@@ -436,7 +439,7 @@ function RunCommandTarget({
   const tooltip = getRunCommandTargetTooltip(execution, t);
   const iconClassName = "size-3.5 shrink-0";
   const wrapperClassName =
-    "inline-flex shrink-0 items-center gap-0.5 align-[-2px] text-muted-foreground";
+    "inline-flex shrink-0 items-center gap-0.5 text-muted-foreground";
 
   switch (execution.targetKind) {
     case "cloud-sandbox":
@@ -446,7 +449,7 @@ function RunCommandTarget({
             <TooltipTrigger asChild>
               <span
                 aria-label={tooltip}
-                className={cn(wrapperClassName, "ml-1")}
+                className={wrapperClassName}
                 tabIndex={0}
               >
                 <Cloud className={iconClassName} strokeWidth={2.25} />
@@ -465,7 +468,7 @@ function RunCommandTarget({
             <TooltipTrigger asChild>
               <span
                 aria-label={tooltip}
-                className={cn(wrapperClassName, "ml-1")}
+                className={wrapperClassName}
                 tabIndex={0}
               >
                 <Monitor className={iconClassName} strokeWidth={2.25} />

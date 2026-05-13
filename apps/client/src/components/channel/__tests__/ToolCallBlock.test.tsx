@@ -644,6 +644,10 @@ describe("ToolCallBlock", () => {
         screen.getByLabelText("Cloud Worker Sandbox (just-base)"),
       ).toBeInTheDocument();
       expect(screen.getByText("Ran")).toBeInTheDocument();
+      expect(screen.getByTestId("run-command-summary")).toHaveClass(
+        "inline-flex",
+        "items-center",
+      );
       expect(
         screen.queryByText("Run in cloud sandbox"),
       ).not.toBeInTheDocument();
