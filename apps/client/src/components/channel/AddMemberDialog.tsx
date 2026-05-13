@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Search, UserPlus, Check, Loader2 } from "lucide-react";
+import { Search, UserPlus, Check, Loader2, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useWorkspaceMembers } from "@/hooks/useWorkspace";
+import { useWorkspaceInviteLink } from "@/hooks/useWorkspaceInviteLink";
 import { useChannelMembers, useAddChannelMember } from "@/hooks/useChannels";
 import { useSelectedWorkspaceId } from "@/stores";
 import type { WorkspaceMember } from "@/types/workspace";
@@ -40,6 +41,20 @@ export function AddMemberDialog({
 
   const { data: channelMembers = [] } = useChannelMembers(channelId);
   const addMember = useAddChannelMember(channelId);
+
+  // Workspace invite link for pulling in people who aren't workspace members yet
+  const { url: inviteUrl } = useWorkspaceInviteLink(
+    workspaceId ?? undefined,
+    isOpen,
+  );
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const handleCopyInvite = async () => {
+    if (!inviteUrl) return;
+    await navigator.clipboard.writeText(inviteUrl);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 2000);
+  };
 
   // Flatten paginated data
   const workspaceMembers = useMemo(() => {
@@ -101,6 +116,7 @@ export function AddMemberDialog({
     if (!isOpen) {
       setSearch("");
       setSelectedIds(new Set());
+      setInviteCopied(false);
     }
   }, [isOpen]);
 
@@ -165,6 +181,47 @@ export function AddMemberDialog({
             />
           </div>
         </div>
+
+        {/* Invite people who aren't in the workspace yet */}
+        <div className="px-6 pb-2">
+          <div className="flex items-center gap-3 rounded-lg p-3">
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+                inviteCopied
+                  ? "bg-success/15 text-success"
+                  : "bg-info/10 text-info"
+              }`}
+            >
+              {inviteCopied ? <Check size={16} /> : <Link2 size={16} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium leading-tight">
+                {t("inviteExternal")}
+              </p>
+              <p className="truncate text-xs leading-tight text-muted-foreground mt-0.5">
+                {t("inviteExternalDesc")}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={!inviteUrl}
+              onClick={handleCopyInvite}
+            >
+              {inviteCopied ? (
+                <>
+                  <Check size={14} className="mr-1" />
+                  {t("inviteLinkCopied")}
+                </>
+              ) : (
+                t("copyInviteLink")
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mx-6 border-b" />
 
         {/* Members List */}
         <ScrollArea
