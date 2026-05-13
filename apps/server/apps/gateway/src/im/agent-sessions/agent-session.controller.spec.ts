@@ -93,7 +93,7 @@ describe('AgentSessionController', () => {
     );
   });
 
-  it('returns sanitized projected components and strips configs', async () => {
+  it('returns sanitized projected components and redacted configs', async () => {
     bindingService.resolve.mockResolvedValue({
       channelId: 'channel-1',
       channelType: 'direct',
@@ -133,6 +133,8 @@ describe('AgentSessionController', () => {
           id: 'workspace',
           typeKey: 'just-bash-team9-workspace',
           priority: 10,
+          declaredConfig: { token: '[redacted]' },
+          effectiveConfig: { apiKey: '[redacted]' },
           schema: [{ name: 'folder' }],
           runtimeInjectedOnly: false,
           latestData: {

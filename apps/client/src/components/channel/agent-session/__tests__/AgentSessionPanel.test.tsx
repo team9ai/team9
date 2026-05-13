@@ -171,7 +171,13 @@ describe("AgentSessionPanel", () => {
     expect(screen.getByRole("button", { name: /暂停/ })).toBeInTheDocument();
   });
 
-  it("reveals raw component data only through the hidden debug gesture", () => {
+  it("reveals session id, component data, and config through the hidden debug gesture", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
     renderPanel({
       components: {
         sessionId: "session-1",
@@ -180,6 +186,14 @@ describe("AgentSessionPanel", () => {
             id: "persona",
             typeKey: "persona",
             runtimeInjectedOnly: false,
+            declaredConfig: {
+              promptKey: "staff-profile",
+              token: "[redacted]",
+            },
+            effectiveConfig: {
+              promptKey: "staff-profile",
+              temperature: 0.2,
+            },
             latestData: {
               data: { mood: "focused" },
               capturedAtCallId: null,
@@ -194,8 +208,19 @@ describe("AgentSessionPanel", () => {
 
     fireEvent.click(screen.getByText("Agent Session"), { altKey: true });
 
+    expect(screen.getByText("Session ID")).toBeInTheDocument();
+    expect(screen.getByText("session-1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "复制 session id" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("session-1");
+    });
     expect(screen.getByText("persona")).toBeInTheDocument();
+    expect(screen.getByText("data")).toBeInTheDocument();
     expect(screen.getByText(/focused/)).toBeInTheDocument();
+    expect(screen.getByText("config")).toBeInTheDocument();
+    expect(screen.getByText(/temperature/)).toBeInTheDocument();
+    expect(screen.getByText(/\[redacted\]/)).toBeInTheDocument();
   });
 
   it("keeps falsy snapshot data visible in hidden debug mode", () => {

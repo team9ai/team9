@@ -43,6 +43,12 @@ export function projectSafeComponents(
       id: component.id,
       typeKey: component.typeKey,
       ...(component.priority !== undefined && { priority: component.priority }),
+      ...(component.declaredConfig !== undefined && {
+        declaredConfig: redactSensitiveValue(component.declaredConfig),
+      }),
+      ...(component.effectiveConfig !== undefined && {
+        effectiveConfig: redactSensitiveValue(component.effectiveConfig),
+      }),
       runtimeInjectedOnly: component.runtimeInjectedOnly,
       ...(component.schema !== undefined && { schema: component.schema }),
       latestData: component.latestData
