@@ -494,9 +494,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(
-        screen.getByText("Run command on this computer"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Run command locally")).toBeInTheDocument();
       expect(screen.getByText("pnpm test")).toBeInTheDocument();
       expect(screen.queryByText(/run_command\(/)).not.toBeInTheDocument();
       expect(screen.queryByText("Args")).not.toBeInTheDocument();
@@ -588,7 +586,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("hello")).toBeInTheDocument();
@@ -612,7 +610,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.queryByText("stdout")).not.toBeInTheDocument();
       expect(screen.queryByText("stderr")).not.toBeInTheDocument();
@@ -637,7 +635,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByText("command")).toBeInTheDocument();
       expect(screen.getAllByText("python3 long-script.py").length).toBe(2);
@@ -667,7 +665,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("failed")).toBeInTheDocument();
@@ -696,7 +694,7 @@ describe("ToolCallBlock", () => {
         screen.queryByRole("button", { name: "json" }),
       ).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByRole("button", { name: "json" })).toBeInTheDocument();
     });
@@ -780,7 +778,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
       fireEvent.click(screen.getByRole("button", { name: "json" }));
 
       expect(screen.getByText("Args")).toBeInTheDocument();
