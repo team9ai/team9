@@ -257,6 +257,15 @@ export const WS_EVENTS = {
     ABORT: 'streaming_abort',
   },
 
+  // ==================== Agent Timeline ====================
+  /**
+   * Additive v1 agent timeline event protocol.
+   */
+  AGENT_TIMELINE: {
+    /** Agent timeline patch event */
+    EVENT: 'agent_timeline_event',
+  },
+
   // ==================== Property Definitions ====================
   /**
    * Channel property definition events
@@ -338,6 +347,7 @@ export type WsEventName =
   | (typeof WS_EVENTS.ROUTINE)[keyof typeof WS_EVENTS.ROUTINE]
   | (typeof WS_EVENTS.TRACKING)[keyof typeof WS_EVENTS.TRACKING]
   | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING]
+  | (typeof WS_EVENTS.AGENT_TIMELINE)[keyof typeof WS_EVENTS.AGENT_TIMELINE]
   | (typeof WS_EVENTS.PROPERTY)[keyof typeof WS_EVENTS.PROPERTY]
   | (typeof WS_EVENTS.VIEW)[keyof typeof WS_EVENTS.VIEW]
   | (typeof WS_EVENTS.TAB)[keyof typeof WS_EVENTS.TAB]

@@ -9,6 +9,8 @@ import { PropertiesModule } from '../properties/properties.module.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { StreamingController } from '../streaming/streaming.controller.js';
 import { FileModule } from '../../file/file.module.js';
+import { AgentTimelineController } from '../timeline/agent-timeline.controller.js';
+import { AgentTimelineService } from '../timeline/agent-timeline.service.js';
 
 @Module({
   imports: [
@@ -19,8 +21,12 @@ import { FileModule } from '../../file/file.module.js';
     forwardRef(() => ChannelsModule),
     forwardRef(() => WebsocketModule),
   ],
-  controllers: [MessagesController, StreamingController],
-  providers: [MessagesService, ImWorkerGrpcClientService],
-  exports: [MessagesService, ImWorkerGrpcClientService],
+  controllers: [
+    MessagesController,
+    StreamingController,
+    AgentTimelineController,
+  ],
+  providers: [MessagesService, ImWorkerGrpcClientService, AgentTimelineService],
+  exports: [MessagesService, ImWorkerGrpcClientService, AgentTimelineService],
 })
 export class MessagesModule {}

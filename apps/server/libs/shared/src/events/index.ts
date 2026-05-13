@@ -29,6 +29,9 @@
 export { WS_EVENTS } from './event-names.js';
 export type { WsEventName } from './event-names.js';
 
+// Agent timeline protocol
+export * from '../agent-timeline.js';
+
 // All event types
 export * from './domains/index.js';
 
@@ -119,6 +122,10 @@ import type {
   TabUpdatedEvent,
   TabDeletedEvent,
 } from './domains/index.js';
+import type {
+  AgentTimelineAckV1,
+  AgentTimelineEventV1,
+} from '../agent-timeline.js';
 
 /**
  * Client to server events and their payload type mappings
@@ -150,6 +157,10 @@ export interface ClientToServerEvents {
   streaming_metadata: StreamingMetadataEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
+  agent_timeline_event: (
+    event: AgentTimelineEventV1,
+    ack: (response: AgentTimelineAckV1) => void,
+  ) => void;
 }
 
 /**
@@ -212,6 +223,7 @@ export interface ServerToClientEvents {
   streaming_metadata: StreamingMetadataEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
+  agent_timeline_event: AgentTimelineEventV1;
   // Property
   property_definition_created: PropertyDefinitionCreatedEvent;
   property_definition_updated: PropertyDefinitionUpdatedEvent;
@@ -254,14 +266,18 @@ export type TypedSocketServer = {
   ): void;
   on<E extends keyof ClientToServerEvents>(
     event: E,
-    handler: (data: ClientToServerEvents[E]) => void,
+    handler: ClientToServerEvents[E] extends (...args: infer Args) => void
+      ? (...args: Args) => void
+      : (data: ClientToServerEvents[E]) => void,
   ): void;
 };
 
 export type TypedSocket = {
   emit<E extends keyof ClientToServerEvents>(
     event: E,
-    data: ClientToServerEvents[E],
+    ...args: ClientToServerEvents[E] extends (...args: infer Args) => void
+      ? Args
+      : [data: ClientToServerEvents[E]]
   ): void;
   on<E extends keyof ServerToClientEvents>(
     event: E,
