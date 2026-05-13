@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildToolDisplayState, unwrapToolResultContent } from "../tool-events";
+import {
+  buildToolDisplayState,
+  extractToolResultImages,
+  unwrapToolResultContent,
+} from "../tool-events";
 import type { AgentEventMetadata } from "@/types/im";
 
 function callMeta(
@@ -63,6 +67,51 @@ describe("unwrapToolResultContent", () => {
     expect(unwrapped).toContain('"type": "image"');
     expect(unwrapped).toContain('"media_type": "image/jpeg"');
     expect(unwrapped).toContain("/9j/4AAQSkZJRgABAQAAAQABAAD");
+  });
+});
+
+describe("extractToolResultImages", () => {
+  it("extracts direct image blocks with base64 data as data URLs", () => {
+    const images = extractToolResultImages(
+      JSON.stringify({
+        type: "image",
+        data: "/9j/4AAQSkZJRgABAQAAAQABAAD",
+      }),
+    );
+
+    expect(images).toEqual([
+      {
+        alt: "Tool result image 1",
+        mediaType: "image/jpeg",
+        src: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+      },
+    ]);
+  });
+
+  it("extracts Anthropic-style image source blocks from tool result wrappers", () => {
+    const images = extractToolResultImages(
+      JSON.stringify({
+        content: [
+          { type: "text", text: "[read_image] /tmp/shot.png" },
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/png",
+              data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(images).toEqual([
+      {
+        alt: "Tool result image 1",
+        mediaType: "image/png",
+        src: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+      },
+    ]);
   });
 });
 

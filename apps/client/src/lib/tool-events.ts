@@ -36,6 +36,12 @@ export interface TodoWriteItemDisplay {
   status: TodoStatus;
 }
 
+export interface ToolResultImage {
+  src: string;
+  mediaType: string;
+  alt: string;
+}
+
 export interface ToolDisplayState {
   toolName: string;
   status: StatusType;
@@ -46,6 +52,7 @@ export interface ToolDisplayState {
   argsSummary: string;
   argsText: string;
   resultText: string;
+  resultImages: ToolResultImage[];
   commandExecution?: CommandExecutionDisplay;
   loadedToolNames?: string[];
   todoWrite?: TodoWriteDisplay;
@@ -93,6 +100,79 @@ function textFromValue(value: unknown): string {
     return String(value);
   }
   return JSON.stringify(value);
+}
+
+function sanitizeImageMediaType(value: unknown): string | undefined {
+  return typeof value === "string" && /^image\/[a-z0-9.+-]+$/i.test(value)
+    ? value
+    : undefined;
+}
+
+function inferImageMediaType(data: string): string {
+  const dataUrlMatch = data.match(/^data:(image\/[a-z0-9.+-]+);base64,/i);
+  if (dataUrlMatch?.[1]) return dataUrlMatch[1];
+  if (data.startsWith("/9j/")) return "image/jpeg";
+  if (data.startsWith("iVBOR")) return "image/png";
+  if (data.startsWith("R0lGOD")) return "image/gif";
+  if (data.startsWith("UklGR")) return "image/webp";
+  return "image/png";
+}
+
+function toImageDataUrl(data: string, mediaType: string): string {
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(data)) return data;
+  return `data:${mediaType};base64,${data}`;
+}
+
+function imageFromBlock(
+  block: Record<string, unknown>,
+  index: number,
+): ToolResultImage | undefined {
+  if (block.type !== "image") return undefined;
+
+  const directData = typeof block.data === "string" ? block.data : undefined;
+  const directMediaType =
+    sanitizeImageMediaType(block.media_type) ??
+    sanitizeImageMediaType(block.mime_type) ??
+    sanitizeImageMediaType(block.mediaType) ??
+    sanitizeImageMediaType(block.mimeType);
+
+  const source = isRecord(block.source) ? block.source : undefined;
+  const sourceData = typeof source?.data === "string" ? source.data : undefined;
+  const sourceMediaType =
+    sanitizeImageMediaType(source?.media_type) ??
+    sanitizeImageMediaType(source?.mime_type) ??
+    sanitizeImageMediaType(source?.mediaType) ??
+    sanitizeImageMediaType(source?.mimeType);
+
+  const data = directData ?? sourceData;
+  if (!data) return undefined;
+
+  const mediaType =
+    directMediaType ?? sourceMediaType ?? inferImageMediaType(data);
+  return {
+    alt: `Tool result image ${index + 1}`,
+    mediaType,
+    src: toImageDataUrl(data, mediaType),
+  };
+}
+
+export function extractToolResultImages(raw = ""): ToolResultImage[] {
+  const parsed = tryParseJson(raw);
+  const imageBlocks = Array.isArray(parsed)
+    ? parsed
+    : isRecord(parsed) && Array.isArray(parsed.content)
+      ? parsed.content
+      : isRecord(parsed)
+        ? [parsed]
+        : [];
+
+  const images: ToolResultImage[] = [];
+  for (const block of imageBlocks) {
+    if (!isRecord(block)) continue;
+    const image = imageFromBlock(block, images.length);
+    if (image) images.push(image);
+  }
+  return images;
 }
 
 function decodeJsonStringFragment(value: string): string {
@@ -416,6 +496,7 @@ export function buildToolDisplayState({
   const resolvedToolCall = resolveToolCall(callMetadata, resultMetadata);
   const toolName = resolvedToolCall.toolName;
   const resultText = unwrapToolResultContent(resultContent);
+  const resultImages = extractToolResultImages(resultContent);
   const explicitFailure =
     resultMetadata?.success === false ||
     resultMetadata?.status === "failed" ||
@@ -461,6 +542,7 @@ export function buildToolDisplayState({
       resolvedToolCall.streamingArgsText,
     ),
     resultText,
+    resultImages,
     commandExecution: buildCommandExecution(
       toolName,
       resolvedToolCall.toolArgs,

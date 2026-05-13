@@ -699,7 +699,7 @@ describe("ToolCallBlock", () => {
       expect(screen.getByRole("button", { name: "json" })).toBeInTheDocument();
     });
 
-    it("adds a fullscreen control to expanded raw blocks", () => {
+    it("adds a fullscreen control to expanded blocks", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("QueryChannel", {
@@ -720,25 +720,26 @@ describe("ToolCallBlock", () => {
       expect(dialog).toHaveClass("pt-12");
 
       const fullscreenPanel = within(dialog)
-        .getByText(/"channelId": "ch-456"/)
+        .getByTestId("json-tree-view")
         .closest("[data-fullscreen-panel]");
       expect(fullscreenPanel).toHaveClass("h-full");
+      expect(within(dialog).getByText("channelId")).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "raw" }));
+
       expect(within(dialog).getByText(/"channelId": "ch-456"/)).toHaveClass(
         "!max-h-none",
       );
-      expect(
-        within(dialog).getByText(/"channelId": "ch-456"/),
-      ).toBeInTheDocument();
     });
 
-    it("formats fullscreen JSON and can switch to raw", () => {
+    it("renders fullscreen JSON as a colored collapsible tree and can switch to raw", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("QueryChannel", {
             channelId: "ch-456",
           })}
           resultMetadata={makeResultMeta("completed")}
-          resultContent='{"name":"general","count":2}'
+          resultContent='{"name":"general","count":2,"details":{"enabled":true}}'
         />,
       );
 
@@ -748,17 +749,64 @@ describe("ToolCallBlock", () => {
       );
 
       const dialog = screen.getByRole("dialog", { name: "Result" });
-      expect(within(dialog).getByText(/"name": "general"/)).toBeInTheDocument();
-      expect(within(dialog).getByText(/"count": 2/)).toBeInTheDocument();
+      expect(
+        within(dialog).getByRole("button", { name: "tree" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(dialog).getByRole("button", { name: "raw" }),
+      ).toHaveAttribute("aria-pressed", "false");
+      expect(within(dialog).getByTestId("json-tree-view")).toBeInTheDocument();
+      expect(within(dialog).getByText("name")).toHaveClass("text-sky-700");
+      expect(within(dialog).getByText('"general"')).toHaveClass(
+        "text-emerald-700",
+      );
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Collapse details" }),
+      );
+
+      expect(within(dialog).queryByText("enabled")).not.toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("button", { name: "raw" }));
 
       expect(
-        within(dialog).getByText('{"name":"general","count":2}'),
+        within(dialog).getByText(
+          '{"name":"general","count":2,"details":{"enabled":true}}',
+        ),
       ).toBeInTheDocument();
       expect(
-        within(dialog).getByRole("button", { name: "formatted" }),
-      ).toBeInTheDocument();
+        within(dialog).getByRole("button", { name: "tree" }),
+      ).toHaveAttribute("aria-pressed", "false");
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "tree" }));
+
+      expect(within(dialog).getByTestId("json-tree-view")).toBeInTheDocument();
+    });
+
+    it("renders non-JSON text results with a file-extension preview when possible", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("ReadFile", {
+            path: "/workspace/config.yaml",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={"name: Team9\nenabled: true\n"}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Fullscreen Result" }),
+      );
+
+      const dialog = screen.getByRole("dialog", { name: "Result" });
+      const preview = within(dialog).getByTestId("syntax-preview");
+
+      expect(
+        within(dialog).getByRole("button", { name: "preview" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(preview.querySelector("code.language-yaml")).not.toBeNull();
+      expect(preview.textContent).toContain("enabled");
     });
 
     it("toggles raw JSON for run_command from the json button", () => {
@@ -986,6 +1034,30 @@ describe("ToolCallBlock", () => {
 
       // No text-type blocks → unwrap falls through to raw content
       expect(screen.getByText(/"type": "image"/)).toBeInTheDocument();
+    });
+
+    it("renders image result blocks as actual images when expanded", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("read_image", {
+            path: "/Users/winrey/Downloads/example.jpg",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            type: "image",
+            data: "/9j/4AAQSkZJRgABAQAAAQABAAD",
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      const image = screen.getByRole("img", { name: "Tool result image 1" });
+      expect(image).toHaveAttribute(
+        "src",
+        "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+      );
+      expect(image).toHaveClass("object-contain");
     });
 
     it("gracefully handles non-JSON result content in the expanded pre", () => {

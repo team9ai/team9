@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronRight,
@@ -13,8 +13,11 @@ import { cn } from "@/lib/utils";
 import { getLabelKey } from "@/config/toolLabels";
 import { useFullContent } from "@/hooks/useMessages";
 import { buildToolDisplayState } from "@/lib/tool-events";
+import Prism from "@/lib/prism";
+import { sanitizeMessageHtml } from "@/lib/sanitize";
 import type {
   CommandExecutionDisplay,
+  ToolResultImage,
   TodoStatus,
   TodoWriteDisplay,
 } from "@/lib/tool-events";
@@ -41,14 +44,298 @@ function formatJson(text: string): string {
   }
 }
 
-function formatStructuredJson(text: string): string | undefined {
+type JsonObject = { [key: string]: JsonValue };
+type JsonArray = JsonValue[];
+type JsonValue = JsonObject | JsonArray | string | number | boolean | null;
+type JsonContainer = JsonObject | JsonArray;
+
+function parseStructuredJson(text: string): JsonContainer | undefined {
   try {
-    const parsed = JSON.parse(text);
-    if (typeof parsed !== "object" || parsed === null) return undefined;
-    return JSON.stringify(parsed, null, 2);
+    const parsed = JSON.parse(text) as unknown;
+    if (Array.isArray(parsed)) return parsed as JsonArray;
+    if (typeof parsed === "object" && parsed !== null) {
+      return parsed as JsonObject;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
+}
+
+const LANGUAGE_ALIASES: Record<string, string> = {
+  dockerfile: "docker",
+  htm: "markup",
+  html: "markup",
+  js: "javascript",
+  jsx: "jsx",
+  md: "markdown",
+  py: "python",
+  rb: "ruby",
+  sh: "bash",
+  shell: "bash",
+  ts: "typescript",
+  tsx: "tsx",
+  xml: "markup",
+  yml: "yaml",
+  zsh: "bash",
+};
+
+const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  bash: "bash",
+  c: "c",
+  cpp: "cpp",
+  cs: "csharp",
+  css: "css",
+  dart: "dart",
+  diff: "diff",
+  go: "go",
+  h: "c",
+  hpp: "cpp",
+  java: "java",
+  json: "json",
+  kt: "kotlin",
+  kts: "kotlin",
+  md: "markdown",
+  php: "php",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  scss: "css",
+  sh: "bash",
+  sql: "sql",
+  swift: "swift",
+  ts: "typescript",
+  tsx: "tsx",
+  yaml: "yaml",
+  yml: "yaml",
+  zsh: "bash",
+};
+
+function normalizeLanguage(language?: string): string | undefined {
+  if (!language) return undefined;
+  const normalized = language.toLowerCase().replace(/^language-/, "");
+  const aliased = LANGUAGE_ALIASES[normalized] ?? normalized;
+  return Prism.languages[aliased] ? aliased : undefined;
+}
+
+function languageFromPath(path?: string): string | undefined {
+  if (!path) return undefined;
+  const basename = path.split(/[\\/]/).pop()?.toLowerCase();
+  if (!basename) return undefined;
+  if (basename === "dockerfile") return "docker";
+  const extension = basename.match(/\.([a-z0-9]+)$/)?.[1];
+  return normalizeLanguage(
+    extension ? (LANGUAGE_BY_EXTENSION[extension] ?? extension) : undefined,
+  );
+}
+
+function languageFromContent(text: string): string | undefined {
+  const trimmed = text.trimStart();
+  if (!trimmed) return undefined;
+  if (/^#!.*\b(?:bash|zsh|sh)\b/.test(trimmed)) return "bash";
+  if (/^(?:SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|WITH)\b/i.test(trimmed)) {
+    return "sql";
+  }
+  if (/^(?:---\s*\n)?[A-Za-z0-9_.-]+\s*:\s+/m.test(trimmed)) return "yaml";
+  if (/^<[\w!/?]/.test(trimmed)) return "markup";
+  if (/^(?:diff --git|@@\s+-\d+)/m.test(trimmed)) return "diff";
+  return undefined;
+}
+
+function extractPreviewSourceName(argsText: string): string | undefined {
+  try {
+    const parsed = JSON.parse(argsText) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return undefined;
+    }
+    const record = parsed as Record<string, unknown>;
+    for (const key of ["path", "filePath", "filename", "file", "name"]) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function getSyntaxPreview(
+  rawText: string,
+  sourceName?: string,
+): { language: string; text: string } | undefined {
+  const language = languageFromPath(sourceName) ?? languageFromContent(rawText);
+  if (!language) return undefined;
+  return { language, text: rawText };
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function SyntaxPreview({
+  className,
+  language,
+  text,
+}: {
+  className: string;
+  language: string;
+  text: string;
+}) {
+  const highlightedHtml = useMemo(() => {
+    const grammar = Prism.languages[language];
+    const raw = grammar
+      ? Prism.highlight(text, grammar, language)
+      : escapeHtml(text);
+    return sanitizeMessageHtml(raw);
+  }, [language, text]);
+
+  return (
+    <pre
+      data-testid="syntax-preview"
+      className={cn(
+        className,
+        "m-0 min-h-0 flex-1 overflow-auto rounded-none border-0 !max-h-none",
+      )}
+    >
+      <code
+        className={`language-${language}`}
+        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+      />
+    </pre>
+  );
+}
+
+function isJsonContainer(value: JsonValue): value is JsonContainer {
+  return typeof value === "object" && value !== null;
+}
+
+function getJsonEntries(value: JsonContainer): Array<[string, JsonValue]> {
+  if (Array.isArray(value)) {
+    return value.map((item, index) => [String(index), item]);
+  }
+  return Object.entries(value);
+}
+
+function JsonScalar({ value }: { value: Exclude<JsonValue, JsonContainer> }) {
+  if (typeof value === "string") {
+    return (
+      <span className="text-emerald-700 dark:text-emerald-300">
+        {JSON.stringify(value)}
+      </span>
+    );
+  }
+
+  if (typeof value === "number") {
+    return <span className="text-amber-700 dark:text-amber-300">{value}</span>;
+  }
+
+  if (typeof value === "boolean") {
+    return (
+      <span className="text-violet-700 dark:text-violet-300">
+        {String(value)}
+      </span>
+    );
+  }
+
+  return <span className="text-muted-foreground">null</span>;
+}
+
+function JsonNode({
+  label,
+  path,
+  value,
+}: {
+  label?: string;
+  path: string;
+  value: JsonValue;
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  if (!isJsonContainer(value)) {
+    return (
+      <div className="flex min-w-0 items-baseline gap-1">
+        {label !== undefined && (
+          <>
+            <span className="text-sky-700 dark:text-sky-300">{label}</span>
+            <span className="text-muted-foreground">:</span>
+          </>
+        )}
+        <JsonScalar value={value} />
+      </div>
+    );
+  }
+
+  const entries = getJsonEntries(value);
+  const isArray = Array.isArray(value);
+  const openToken = isArray ? "[" : "{";
+  const closeToken = isArray ? "]" : "}";
+  const nodeName = label ?? "root";
+
+  return (
+    <div>
+      <div className="flex min-w-0 items-center gap-1">
+        <button
+          type="button"
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} ${nodeName}`}
+          className="grid size-4 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => setIsExpanded((value) => !value)}
+        >
+          <ChevronRight
+            size={12}
+            className={cn(
+              "transition-transform duration-150",
+              isExpanded && "rotate-90",
+            )}
+          />
+        </button>
+        {label !== undefined && (
+          <>
+            <span className="text-sky-700 dark:text-sky-300">{label}</span>
+            <span className="text-muted-foreground">:</span>
+          </>
+        )}
+        <span className="text-foreground/80">{openToken}</span>
+        {!isExpanded && entries.length > 0 && (
+          <span className="text-muted-foreground">...</span>
+        )}
+        {!isExpanded && (
+          <span className="text-foreground/80">{closeToken}</span>
+        )}
+        <span className="text-muted-foreground">
+          {entries.length} {entries.length === 1 ? "item" : "items"}
+        </span>
+      </div>
+      {isExpanded && (
+        <>
+          <div className="ml-2 border-l border-border/70 pl-4">
+            {entries.map(([key, childValue]) => (
+              <JsonNode
+                key={`${path}.${key}`}
+                label={key}
+                path={`${path}.${key}`}
+                value={childValue}
+              />
+            ))}
+          </div>
+          <div className="ml-4 text-foreground/80">{closeToken}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function JsonTreeView({ data }: { data: JsonContainer }) {
+  return (
+    <div
+      data-testid="json-tree-view"
+      className="m-0 min-h-0 flex-1 overflow-auto rounded-none border-0 bg-background p-4 font-mono text-xs leading-5 text-foreground"
+    >
+      <JsonNode path="root" value={data} />
+    </div>
+  );
 }
 
 function getRunCommandTargetKey(
@@ -205,11 +492,13 @@ function ExpandablePre({
   className,
   label,
   rawValue,
+  previewSourceName,
   t,
   value,
 }: {
   className: string;
   label: string;
+  previewSourceName?: string;
   rawValue?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
   value: string;
@@ -217,8 +506,11 @@ function ExpandablePre({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const rawText = rawValue ?? value;
-  const formattedJson = formatStructuredJson(rawText);
-  const fullscreenValue = formattedJson && !showRaw ? formattedJson : rawText;
+  const structuredJson = parseStructuredJson(rawText);
+  const syntaxPreview = structuredJson
+    ? undefined
+    : getSyntaxPreview(rawText, previewSourceName);
+  const hasPreview = !!structuredJson || !!syntaxPreview;
 
   return (
     <div className="relative">
@@ -257,16 +549,31 @@ function ExpandablePre({
                 {label}
               </span>
               <div className="flex items-center gap-2">
-                {formattedJson && (
-                  <button
-                    type="button"
-                    className="rounded border border-border px-2 py-1 text-[11px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => setShowRaw((value) => !value)}
-                  >
-                    {showRaw
-                      ? t("tracking.toolCall.formattedJson")
-                      : t("tracking.toolCall.rawJson")}
-                  </button>
+                {hasPreview && (
+                  <div className="flex overflow-hidden rounded border border-border bg-muted/40 p-0.5">
+                    <button
+                      type="button"
+                      aria-pressed={!showRaw}
+                      className={cn(
+                        "rounded-sm px-2 py-1 text-[11px] leading-none text-muted-foreground hover:text-foreground",
+                        !showRaw && "bg-background text-foreground shadow-sm",
+                      )}
+                      onClick={() => setShowRaw(false)}
+                    >
+                      {structuredJson ? "tree" : "preview"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={showRaw}
+                      className={cn(
+                        "rounded-sm px-2 py-1 text-[11px] leading-none text-muted-foreground hover:text-foreground",
+                        showRaw && "bg-background text-foreground shadow-sm",
+                      )}
+                      onClick={() => setShowRaw(true)}
+                    >
+                      {t("tracking.toolCall.rawJson")}
+                    </button>
+                  </div>
                 )}
                 <button
                   type="button"
@@ -278,14 +585,24 @@ function ExpandablePre({
                 </button>
               </div>
             </div>
-            <pre
-              className={cn(
-                className,
-                "m-0 min-h-0 flex-1 overflow-auto rounded-none border-0 !max-h-none",
-              )}
-            >
-              {fullscreenValue}
-            </pre>
+            {structuredJson && !showRaw ? (
+              <JsonTreeView data={structuredJson} />
+            ) : syntaxPreview && !showRaw ? (
+              <SyntaxPreview
+                className={className}
+                language={syntaxPreview.language}
+                text={syntaxPreview.text}
+              />
+            ) : (
+              <pre
+                className={cn(
+                  className,
+                  "m-0 min-h-0 flex-1 overflow-auto rounded-none border-0 !max-h-none",
+                )}
+              >
+                {rawText}
+              </pre>
+            )}
           </div>
         </div>
       )}
@@ -339,17 +656,20 @@ function StreamBlock({
 
 function RawToolDetails({
   argsText,
+  resultImages,
   resultText,
   isError,
   t,
 }: {
   argsText: string;
+  resultImages: ToolResultImage[];
   resultText: string;
   isError: boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const argsLabel = t("tracking.toolCall.argsLabel");
   const resultLabel = t("tracking.toolCall.resultLabel");
+  const resultPreviewSourceName = extractPreviewSourceName(argsText);
 
   return (
     <>
@@ -369,7 +689,7 @@ function RawToolDetails({
           />
         </div>
       )}
-      {resultText !== "" && (
+      {(resultText !== "" || resultImages.length > 0) && (
         <div>
           <span
             className={cn(
@@ -379,18 +699,37 @@ function RawToolDetails({
           >
             {resultLabel}
           </span>
-          <ExpandablePre
-            className={cn(
-              "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all font-mono",
-              isError
-                ? "bg-red-500/5 border border-red-500/20 text-red-700 dark:text-red-300"
-                : "bg-muted/60 border border-border text-foreground/85",
-            )}
-            label={resultLabel}
-            rawValue={resultText}
-            t={t}
-            value={formatJson(resultText)}
-          />
+          {resultImages.length > 0 && (
+            <div className="mt-1 grid gap-2">
+              {resultImages.map((image) => (
+                <img
+                  key={image.alt}
+                  alt={image.alt}
+                  src={image.src}
+                  className={cn(
+                    "max-h-96 w-fit max-w-full rounded-md border border-border bg-muted/30 object-contain",
+                    "shadow-sm",
+                  )}
+                />
+              ))}
+            </div>
+          )}
+          {resultText !== "" && (
+            <ExpandablePre
+              className={cn(
+                "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all font-mono",
+                isError
+                  ? "bg-red-500/5 border border-red-500/20 text-red-700 dark:text-red-300"
+                  : "bg-muted/60 border border-border text-foreground/85",
+                resultImages.length > 0 && "mt-2",
+              )}
+              label={resultLabel}
+              previewSourceName={resultPreviewSourceName}
+              rawValue={resultText}
+              t={t}
+              value={formatJson(resultText)}
+            />
+          )}
         </div>
       )}
     </>
@@ -430,6 +769,7 @@ export function ToolCallBlock({
     ? `${toolName}(${paramsSummary})`
     : toolName;
   const unwrapped = displayState.resultText;
+  const resultImages = displayState.resultImages;
   const isRunning = displayState.isRunning;
   const isError = displayState.isError;
   const hasResultContent = unwrapped !== "";
@@ -640,6 +980,7 @@ export function ToolCallBlock({
             <RawToolDetails
               argsText={displayState.argsText}
               resultText={hasResultContent ? unwrapped : ""}
+              resultImages={resultImages}
               isError={isError}
               t={translate}
             />
