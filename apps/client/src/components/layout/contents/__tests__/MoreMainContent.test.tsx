@@ -3,19 +3,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseCurrentWorkspaceRole = vi.hoisted(() => vi.fn());
+const mockIsTauriApp = vi.hoisted(() => vi.fn());
+const mockTauriInvoke = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, opts?: unknown) => {
+      const translations: Record<string, string> = {
+        version: "Version {{version}}",
+        copyright: "copyright",
+      };
+
       if (typeof opts === "string") return opts;
+      let result = translations[key] ?? key;
       if (opts && typeof opts === "object") {
-        let result = key;
         for (const [k, v] of Object.entries(opts as Record<string, unknown>)) {
           result = result.replace(`{{${k}}}`, String(v));
         }
-        return result;
       }
-      return key;
+      return result;
     },
     i18n: { language: "en", changeLanguage: vi.fn() },
   }),
@@ -45,6 +51,18 @@ vi.mock("@/hooks/useTheme", () => ({
   }),
 }));
 
+vi.mock("@/lib/tauri", () => ({
+  isTauriApp: mockIsTauriApp,
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: mockTauriInvoke,
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(),
+}));
+
 vi.mock("@/stores", () => ({
   useWorkspaceStore: () => ({
     selectedWorkspaceId: "ws-1",
@@ -68,6 +86,8 @@ import { MoreMainContent } from "../MoreMainContent";
 describe("MoreMainContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsTauriApp.mockReturnValue(false);
+    mockTauriInvoke.mockResolvedValue("0.1.0");
   });
 
   it("shows workspace settings only for owner or admin", () => {
@@ -116,6 +136,22 @@ describe("MoreMainContent", () => {
       "invitations",
       "members",
     ]);
+  });
+
+  it("renders the desktop app version from packaged metadata", async () => {
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: false,
+      isAdmin: false,
+      isOwnerOrAdmin: false,
+    });
+    mockIsTauriApp.mockReturnValue(true);
+    mockTauriInvoke.mockResolvedValue("2.3.4");
+
+    render(<MoreMainContent />);
+
+    expect(await screen.findByText("Version 2.3.4")).toBeInTheDocument();
+    expect(mockTauriInvoke).toHaveBeenCalledWith("desktop_get_app_version");
+    expect(screen.queryByText("Version 1.0.0")).not.toBeInTheDocument();
   });
 
   it("hides unfinished settings entries and shows Team9 branding", () => {
