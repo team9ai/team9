@@ -23,7 +23,11 @@ vi.mock("../normalize-reactions", () => ({
   normalizeMessages: (messages: unknown) => messages,
 }));
 
-import { CHANNEL_DETAIL_TIMEOUT_MS, channelsApi } from "../im";
+import {
+  CHANNEL_DETAIL_TIMEOUT_MS,
+  channelsApi,
+  topicSessionsApi,
+} from "../im";
 
 describe("channelsApi", () => {
   beforeEach(() => {
@@ -40,5 +44,15 @@ describe("channelsApi", () => {
       timeout: CHANNEL_DETAIL_TIMEOUT_MS,
     });
     expect(result).toBe(channel);
+  });
+
+  it("passes permanent topic-session delete through as a query parameter", async () => {
+    mockHttp.delete.mockResolvedValueOnce({ data: { ok: true } });
+
+    await topicSessionsApi.delete("ch-1", { permanent: true });
+
+    expect(mockHttp.delete).toHaveBeenCalledWith("/v1/im/topic-sessions/ch-1", {
+      params: { permanent: true },
+    });
   });
 });

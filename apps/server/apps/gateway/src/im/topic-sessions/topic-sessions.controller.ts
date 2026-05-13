@@ -78,11 +78,13 @@ export class TopicSessionsController {
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string | undefined,
     @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Query('permanent') permanentRaw?: string,
   ): Promise<{ ok: true }> {
     await this.service.delete({
       userId,
       tenantId: tenantId ?? null,
       channelId,
+      permanent: permanentRaw === 'true',
     });
     return { ok: true };
   }

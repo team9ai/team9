@@ -61,6 +61,7 @@ function mockDb() {
     'groupBy',
     'having',
     'delete',
+    'transaction',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
@@ -71,6 +72,9 @@ function mockDb() {
   // tests override with `.mockResolvedValueOnce([...])` when needed.
   chain.limit.mockResolvedValue([]);
   chain.returning.mockResolvedValue([]);
+  chain.transaction.mockImplementation(async (callback: any) =>
+    callback(chain),
+  );
   return chain;
 }
 
@@ -404,6 +408,45 @@ describe('TopicSessionsService', () => {
       });
 
       expect(db.update).toHaveBeenCalled();
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(clawHive.deleteSession).toHaveBeenCalledWith(
+        SESSION_ID,
+        TENANT_ID,
+      );
+      expect(ws.sendToUser).toHaveBeenCalledWith(
+        CREATOR_ID,
+        'topic_session_deleted',
+        { channelId: CHANNEL_ID },
+      );
+    });
+
+    it('permanently deletes the channel and emits search index removal when requested', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          id: CHANNEL_ID,
+          type: 'topic-session',
+          isArchived: false,
+          propertySettings: {
+            topicSession: { sessionId: SESSION_ID, agentId: AGENT_ID },
+          },
+          createdBy: CREATOR_ID,
+        },
+      ]);
+
+      await service.delete({
+        userId: CREATOR_ID,
+        tenantId: TENANT_ID,
+        channelId: CHANNEL_ID,
+        permanent: true,
+      });
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(db.delete).toHaveBeenCalledTimes(2);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'channel.deleted',
+        CHANNEL_ID,
+      );
       await new Promise((resolve) => setImmediate(resolve));
       expect(clawHive.deleteSession).toHaveBeenCalledWith(
         SESSION_ID,
