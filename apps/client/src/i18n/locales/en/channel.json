@@ -214,7 +214,7 @@
       "formattedJson": "formatted",
       "emptyStream": "(empty)",
       "runCommand": {
-        "local": "Run command on this computer",
+        "local": "Run command locally",
         "cloudComputer": "Run command on cloud computer '{{name}}'",
         "cloudSandbox": "Run command in cloud sandbox ({{name}})",
         "backend": "Run command on {{name}}"

@@ -25,10 +25,12 @@ import { InviteManagementDialog } from "@/components/workspace/InviteManagementD
 import { NotificationPreferencesDialog } from "@/components/settings/NotificationPreferencesDialog";
 import { FontSizeDialog } from "@/components/settings/FontSizeDialog";
 import { useWorkspaceStore } from "@/stores";
+import { useDesktopUpdater } from "@/hooks/useDesktopUpdater";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
 import { supportedLanguages } from "@/i18n";
 import { changeLanguage, useLanguageLoading } from "@/i18n/loadLanguage";
 import { cn } from "@/lib/utils";
+import { TEAM9_APP_VERSION } from "@/constants/app-version";
 
 const settingsGroups = [
   {
@@ -58,6 +60,8 @@ export function MoreMainContent() {
   const [isFontSizeDialogOpen, setIsFontSizeDialogOpen] = useState(false);
   const { isLoading: isLanguageLoading } = useLanguageLoading();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
+  const { currentVersion } = useDesktopUpdater();
+  const appVersion = currentVersion ?? TEAM9_APP_VERSION;
 
   // Get current selected workspace
   const { selectedWorkspaceId } = useWorkspaceStore();
@@ -169,7 +173,7 @@ export function MoreMainContent() {
                 className="w-20 h-20 mx-auto mb-6 object-cover rounded-2xl"
               />
               <p className="text-sm text-muted-foreground mb-2">
-                {t("version", { version: "1.0.0" })}
+                {t("version", { version: appVersion })}
               </p>
               <p className="text-xs text-muted-foreground/70">
                 {t("copyright", { year: new Date().getFullYear() })}

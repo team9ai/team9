@@ -3,6 +3,7 @@ const DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com";
 const posthogKey = import.meta.env.VITE_POSTHOG_KEY?.trim();
 const posthogHost =
   import.meta.env.VITE_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
+export { TEAM9_APP_VERSION } from "@/constants/app-version";
 
 export interface Team9PostHogBrowserConfig {
   key: string;
@@ -17,6 +18,3 @@ export const posthogBrowserConfig: Team9PostHogBrowserConfig | null = posthogKey
   : null;
 
 export const isPostHogBrowserEnabled = posthogBrowserConfig !== null;
-
-export const TEAM9_APP_VERSION =
-  (import.meta.env.VITE_APP_VERSION as string | undefined) || "0.1.0";

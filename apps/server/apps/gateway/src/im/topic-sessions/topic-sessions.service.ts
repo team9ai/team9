@@ -577,8 +577,9 @@ export class TopicSessionsService {
     userId: string;
     tenantId: string | null;
     channelId: string;
+    permanent?: boolean;
   }): Promise<void> {
-    const { userId, tenantId, channelId } = params;
+    const { userId, tenantId, channelId, permanent = false } = params;
 
     const [row] = await this.db
       .select({
@@ -608,7 +609,17 @@ export class TopicSessionsService {
         } | null
       )?.topicSession?.sessionId ?? null;
 
-    if (!row.isArchived) {
+    if (permanent) {
+      await this.db.transaction(async (tx) => {
+        await tx
+          .delete(schema.auditLogs)
+          .where(eq(schema.auditLogs.channelId, channelId));
+        await tx
+          .delete(schema.channels)
+          .where(eq(schema.channels.id, channelId));
+      });
+      this.eventEmitter.emit('channel.deleted', channelId);
+    } else if (!row.isArchived) {
       await this.db
         .update(schema.channels)
         .set({ isArchived: true, updatedAt: new Date() })

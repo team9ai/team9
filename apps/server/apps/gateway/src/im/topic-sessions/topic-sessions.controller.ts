@@ -19,6 +19,8 @@ import type {
   TopicSessionResponse,
 } from './dto/topic-session.response.js';
 
+const MAX_GROUPED_TOPIC_SESSIONS_PER_AGENT = 1000;
+
 @Controller({
   path: 'im/topic-sessions',
   version: '1',
@@ -76,11 +78,13 @@ export class TopicSessionsController {
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string | undefined,
     @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Query('permanent') permanentRaw?: string,
   ): Promise<{ ok: true }> {
     await this.service.delete({
       userId,
       tenantId: tenantId ?? null,
       channelId,
+      permanent: permanentRaw === 'true',
     });
     return { ok: true };
   }
@@ -88,6 +92,6 @@ export class TopicSessionsController {
   private parsePerAgent(raw: string | undefined): number {
     const parsed = raw ? parseInt(raw, 10) : NaN;
     if (!Number.isFinite(parsed) || parsed < 1) return 5;
-    return Math.min(parsed, 20);
+    return Math.min(parsed, MAX_GROUPED_TOPIC_SESSIONS_PER_AGENT);
   }
 }

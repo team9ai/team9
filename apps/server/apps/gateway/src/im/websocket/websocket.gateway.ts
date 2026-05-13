@@ -8,6 +8,7 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
+import { createHash } from 'node:crypto';
 import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import {
@@ -26,8 +27,12 @@ import {
 import { RedisService } from '@team9/redis';
 import {
   env,
+  isAgentTimelineEventV1,
   PingMessage,
   PongMessage,
+  type AgentTimelineAckV1,
+  type AgentTimelineAckCodeV1,
+  type AgentTimelineEventV1,
   type MessageRelationChangedEvent,
   type MessageRelationsPurgedEvent,
 } from '@team9/shared';
@@ -62,6 +67,7 @@ import { mergeStreamingMetadataSnapshot } from '../streaming/streaming-metadata.
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { determineMessageType } from '../messages/message-utils.js';
 import { normalizeToolEventMetadata } from '../messages/utils/tool-event-metadata.js';
+import { AgentTimelineService } from '../timeline/agent-timeline.service.js';
 
 interface SocketHandshakeAuth {
   token?: string;
@@ -124,6 +130,8 @@ export class WebsocketGateway
     private readonly imWorkerGrpcClientService?: ImWorkerGrpcClientService,
     @Optional()
     private readonly eventEmitter?: EventEmitter2,
+    @Optional()
+    private readonly agentTimelineService?: AgentTimelineService,
   ) {}
 
   private getHandshakeAuth(client: Socket): SocketHandshakeAuth {
@@ -150,6 +158,237 @@ export class WebsocketGateway
   ): boolean {
     const sender = message.sender;
     return sender?.userType === 'human' && sender.agentType === null;
+  }
+
+  async persistFinalTimelineResponse(
+    event: AgentTimelineEventV1,
+    senderId: string,
+  ): Promise<MessageResponse | null> {
+    if (!isFinalResponseTimelineEvent(event)) return null;
+
+    if (!this.imWorkerGrpcClientService) {
+      this.logger.warn(
+        `[agent_timeline] final response cannot be persisted because IM worker client is unavailable timeline=${event.timelineId} item=${event.itemId}`,
+      );
+      return null;
+    }
+
+    const snapshot = event.patch.snapshot;
+    const channel = await this.channelsService.findById(event.channelId);
+    const workspaceId = channel?.tenantId ?? undefined;
+    const parentId =
+      getUuidField(event.parentMessageId) ?? getUuidField(event.parentItemId);
+    const metadata: Record<string, unknown> = {
+      agentTimeline: event,
+    };
+    if (snapshot.thinking?.text) {
+      metadata.thinking = snapshot.thinking.text;
+    }
+    const clientMsgId = makeTimelineMessageClientMsgId(
+      event.timelineId,
+      event.itemId,
+    );
+
+    const existingMessage =
+      await this.messagesService.getMessageByClientMsgId(clientMsgId);
+    if (existingMessage) return existingMessage;
+
+    const lockToken = await this.acquireTimelineMessageLock(clientMsgId);
+    if (!lockToken) {
+      return this.waitForTimelineMessage(clientMsgId);
+    }
+
+    let result: { msgId: string };
+    try {
+      const messageCreatedWhileWaiting =
+        await this.messagesService.getMessageByClientMsgId(clientMsgId);
+      if (messageCreatedWhileWaiting) return messageCreatedWhileWaiting;
+
+      result = await this.imWorkerGrpcClientService.createMessage({
+        clientMsgId,
+        channelId: event.channelId,
+        senderId,
+        content: snapshot.text,
+        parentId,
+        type: determineMessageType(snapshot.text, false),
+        workspaceId,
+        metadata,
+      });
+    } catch (error) {
+      this.logger.error(
+        `[agent_timeline] final response persist failed timeline=${event.timelineId} item=${event.itemId} channel=${event.channelId} error=${(error as Error).message}`,
+      );
+      return null;
+    } finally {
+      await this.releaseTimelineMessageLock(clientMsgId, lockToken);
+    }
+
+    let message: MessageResponse | null = null;
+    try {
+      message = await this.messagesService.getMessageWithDetails(result.msgId);
+    } catch (error) {
+      this.logger.warn(
+        `[agent_timeline] getMessageWithDetails failed for ${result.msgId}: ${(error as Error).message}`,
+      );
+    }
+
+    if (!message) return null;
+
+    const delivered = await this.sendToChannelMembers(
+      event.channelId,
+      WS_EVENTS.MESSAGE.NEW,
+      message,
+    );
+    if (!delivered) {
+      this.logger.error(
+        `[agent_timeline] new_message broadcast failed for channel ${event.channelId}, message ${message.id}. Message was persisted and will appear after refresh.`,
+      );
+    }
+
+    this.eventEmitter?.emit('message.created', {
+      message: {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        parentId: message.parentId,
+        createdAt: message.createdAt,
+      },
+      channel,
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            username: message.sender.username,
+            displayName: message.sender.displayName,
+          }
+        : undefined,
+    });
+
+    if (this.gatewayMQService?.isReady()) {
+      if (this.shouldPublishChannelMessageTrigger(message)) {
+        this.gatewayMQService
+          .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+            channelId: message.channelId,
+            messageId: message.id,
+            content: message.content,
+            messageType: message.type,
+            senderId: message.senderId,
+            senderUserType: message.sender?.userType ?? null,
+            senderAgentType: message.sender?.agentType ?? null,
+          })
+          .catch((publishError) => {
+            this.logger.warn(
+              `Failed to publish message.created event: ${publishError}`,
+            );
+          });
+      } else {
+        this.logger.debug(
+          `[agent_timeline] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+        );
+      }
+
+      const postBroadcastTask: PostBroadcastTask = {
+        msgId: message.id,
+        channelId: event.channelId,
+        senderId,
+        workspaceId,
+        broadcastAt: Date.now(),
+      };
+      this.gatewayMQService
+        .publishPostBroadcast(postBroadcastTask)
+        .catch((publishError) => {
+          this.logger.warn(
+            `Failed to publish post-broadcast task: ${publishError}`,
+          );
+        });
+    }
+
+    return message;
+  }
+
+  private async emitStreamingEndForExistingMessage(
+    channelId: string,
+    streamId: string,
+    userId: string,
+    message: MessageResponse,
+    startedAt: number,
+    source: string,
+  ): Promise<{ success: true; messageId: string }> {
+    const delivered = await this.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.STREAMING.END,
+      {
+        streamId,
+        channelId,
+        senderId: userId,
+        message,
+      },
+    );
+
+    this.logger.log(
+      `[streaming_end] reused ${source} stream=${streamId} channel=${channelId} user=${userId} msg=${message.id} streamingEndDelivered=${delivered} totalMs=${Date.now() - startedAt}`,
+    );
+
+    return { success: true, messageId: message.id };
+  }
+
+  private async acquireTimelineMessageLock(
+    clientMsgId: string,
+  ): Promise<string | null> {
+    const client = this.getRedisClient();
+    if (!client) return 'local';
+
+    const token = uuidv7();
+    const result = await client.set(
+      this.getTimelineMessageLockKey(clientMsgId),
+      token,
+      'EX',
+      60,
+      'NX',
+    );
+    return result === 'OK' ? token : null;
+  }
+
+  private async releaseTimelineMessageLock(
+    clientMsgId: string,
+    token: string,
+  ): Promise<void> {
+    if (token === 'local') return;
+    const client = this.getRedisClient();
+    if (!client) return;
+
+    await client.eval(
+      "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+      1,
+      this.getTimelineMessageLockKey(clientMsgId),
+      token,
+    );
+  }
+
+  private async waitForTimelineMessage(
+    clientMsgId: string,
+  ): Promise<MessageResponse | null> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await sleep(50);
+      const message =
+        await this.messagesService.getMessageByClientMsgId(clientMsgId);
+      if (message) return message;
+    }
+    return null;
+  }
+
+  private getTimelineMessageLockKey(clientMsgId: string): string {
+    return `im:agent_timeline_message_lock:${clientMsgId}`;
+  }
+
+  private getRedisClient(): ReturnType<RedisService['getClient']> | null {
+    const maybeRedisService = this.redisService as RedisService & {
+      getClient?: () => ReturnType<RedisService['getClient']>;
+    };
+    if (typeof maybeRedisService.getClient !== 'function') return null;
+    return maybeRedisService.getClient();
   }
 
   private async getOwnedStreamingSession(
@@ -234,11 +473,62 @@ export class WebsocketGateway
       Object.keys(baseMetadata).length > 0 ? baseMetadata : undefined,
       content,
     );
+    const timelineClientMsgId =
+      getTimelineMessageClientMsgIdFromMetadata(metadata);
+    const existingTimelineMessage = timelineClientMsgId
+      ? await this.messagesService.getMessageByClientMsgId(timelineClientMsgId)
+      : null;
+    if (existingTimelineMessage) {
+      return this.emitStreamingEndForExistingMessage(
+        channelId,
+        streamId,
+        userId,
+        existingTimelineMessage,
+        startedAt,
+        'existing timeline message',
+      );
+    }
 
     let result: { msgId: string };
+    let timelineLockToken: string | null = null;
     try {
+      if (timelineClientMsgId) {
+        timelineLockToken =
+          await this.acquireTimelineMessageLock(timelineClientMsgId);
+        if (!timelineLockToken) {
+          const message =
+            await this.waitForTimelineMessage(timelineClientMsgId);
+          if (message) {
+            return this.emitStreamingEndForExistingMessage(
+              channelId,
+              streamId,
+              userId,
+              message,
+              startedAt,
+              'concurrent timeline message',
+            );
+          }
+          return { error: 'Timeline message finalization in progress' };
+        } else {
+          const messageCreatedWhileWaiting =
+            await this.messagesService.getMessageByClientMsgId(
+              timelineClientMsgId,
+            );
+          if (messageCreatedWhileWaiting) {
+            return this.emitStreamingEndForExistingMessage(
+              channelId,
+              streamId,
+              userId,
+              messageCreatedWhileWaiting,
+              startedAt,
+              'locked timeline message',
+            );
+          }
+        }
+      }
+
       result = await this.imWorkerGrpcClientService.createMessage({
-        clientMsgId: uuidv7(),
+        clientMsgId: timelineClientMsgId ?? uuidv7(),
         channelId,
         senderId: userId,
         content,
@@ -252,6 +542,13 @@ export class WebsocketGateway
         `[streaming_end] persist failed stream=${streamId} channel=${channelId} user=${userId} contentChars=${content.length} error=${(persistError as Error).message}`,
       );
       throw persistError;
+    } finally {
+      if (timelineClientMsgId && timelineLockToken) {
+        await this.releaseTimelineMessageLock(
+          timelineClientMsgId,
+          timelineLockToken,
+        );
+      }
     }
 
     let message: MessageResponse | null = null;
@@ -1400,6 +1697,70 @@ export class WebsocketGateway
     return { success: true };
   }
 
+  // ==================== Agent Timeline (Bot Only) ====================
+
+  @SubscribeMessage(WS_EVENTS.AGENT_TIMELINE.EVENT)
+  async handleAgentTimelineEvent(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: unknown,
+  ): Promise<AgentTimelineAckV1> {
+    const socketClient = client as SocketWithUser;
+
+    if (!socketClient.isBot) {
+      return makeAgentTimelineRejectedAck(data, 'FORBIDDEN', false);
+    }
+
+    if (!this.agentTimelineService) {
+      return makeAgentTimelineRejectedAck(data, 'TRANSIENT_FAILURE', true);
+    }
+
+    if (!isAgentTimelineEventV1(data)) {
+      return this.agentTimelineService.makeRejectedAck(
+        data,
+        'SCHEMA_VERSION_UNSUPPORTED',
+        false,
+      );
+    }
+
+    const isMember = await this.channelsService.isMember(
+      data.channelId,
+      socketClient.userId,
+    );
+    if (!isMember) {
+      return this.agentTimelineService.makeRejectedAck(
+        data,
+        'FORBIDDEN',
+        false,
+      );
+    }
+
+    const ack = await this.agentTimelineService.applyEvent(data);
+    if (ack.ok) {
+      const message = await this.persistFinalTimelineResponse(
+        data,
+        socketClient.userId,
+      );
+      if (isFinalResponseTimelineEvent(data) && !message) {
+        return {
+          ...ack,
+          ok: false,
+          code: 'TRANSIENT_FAILURE',
+          retryable: true,
+        };
+      }
+    }
+
+    if (ack.ok && shouldBroadcastTimelineEvent(ack, data)) {
+      await this.sendToChannelMembers(
+        data.channelId,
+        WS_EVENTS.AGENT_TIMELINE.EVENT,
+        data,
+      );
+    }
+
+    return ack;
+  }
+
   // ── channel:observe / channel:unobserve ────────────────────────
 
   @SubscribeMessage(WS_EVENTS.CHANNEL.OBSERVE)
@@ -1490,4 +1851,106 @@ export class WebsocketGateway
       );
     }
   }
+}
+
+function isFinalResponseTimelineEvent(
+  event: AgentTimelineEventV1,
+): event is AgentTimelineEventV1 & {
+  kind: 'response';
+  op: 'end';
+  patch: {
+    mode: 'final';
+    snapshot: { role: 'assistant'; text: string; thinking?: { text: string } };
+  };
+} {
+  return (
+    event.kind === 'response' &&
+    event.op === 'end' &&
+    event.patch.mode === 'final'
+  );
+}
+
+function shouldBroadcastTimelineEvent(
+  ack: AgentTimelineAckV1,
+  event: AgentTimelineEventV1,
+): boolean {
+  return ack.code !== 'STALE_SEQ' || isFinalResponseTimelineEvent(event);
+}
+
+function makeTimelineMessageClientMsgId(
+  timelineId: string,
+  itemId: string,
+): string {
+  const digest = createHash('sha256')
+    .update(`${timelineId}:${itemId}`)
+    .digest('hex');
+  return `atl_${digest.slice(0, 32)}`;
+}
+
+function getTimelineMessageClientMsgIdFromMetadata(
+  metadata: Record<string, unknown> | undefined,
+): string | null {
+  const agentTimeline = metadata?.agentTimeline;
+  if (!isRecord(agentTimeline)) return null;
+
+  const timelineId =
+    typeof agentTimeline.timelineId === 'string'
+      ? agentTimeline.timelineId
+      : undefined;
+  const itemId =
+    typeof agentTimeline.itemId === 'string' ? agentTimeline.itemId : undefined;
+  if (!timelineId || !itemId) return null;
+
+  return makeTimelineMessageClientMsgId(timelineId, itemId);
+}
+
+function getUuidField(value: string | undefined): string | undefined {
+  return isUuid(value) ? value : undefined;
+}
+
+function isUuid(value: string | undefined): boolean {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
+}
+
+function makeAgentTimelineRejectedAck(
+  event: unknown,
+  code: AgentTimelineAckCodeV1,
+  retryable: boolean,
+): AgentTimelineAckV1 {
+  return {
+    ok: false,
+    eventId: getStringField(event, 'eventId') ?? '',
+    timelineId: getStringField(event, 'timelineId') ?? '',
+    seq: getNumberField(event, 'seq') ?? -1,
+    lastAppliedSeq: -1,
+    code,
+    retryable,
+  };
+}
+
+function getStringField(value: unknown, field: string): string | undefined {
+  return isRecord(value) && typeof value[field] === 'string'
+    ? value[field]
+    : undefined;
+}
+
+function getNumberField(value: unknown, field: string): number | undefined {
+  return isRecord(value) && typeof value[field] === 'number'
+    ? value[field]
+    : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import imApi, {
   type CreateTopicSessionDto,
   type TopicSessionGroup,
@@ -20,6 +25,7 @@ export function useTopicSessionsGrouped(perAgent = 5) {
   return useQuery<TopicSessionGroup[]>({
     queryKey: ["topic-sessions-grouped", workspaceId, perAgent],
     queryFn: () => imApi.topicSessions.getGrouped(perAgent),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     enabled: !!workspaceId,
   });
@@ -51,14 +57,16 @@ export function useCreateTopicSession() {
 }
 
 /**
- * Archive a topic session. Only the creator succeeds; others get 403.
+ * Archive a topic session by default, or permanently delete it when requested.
+ * Only the creator succeeds; others get 403.
  */
 export function useDeleteTopicSession() {
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
-  return useMutation<void, Error, { channelId: string }>({
-    mutationFn: ({ channelId }) => imApi.topicSessions.delete(channelId),
+  return useMutation<void, Error, { channelId: string; permanent?: boolean }>({
+    mutationFn: ({ channelId, permanent }) =>
+      imApi.topicSessions.delete(channelId, { permanent }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["channels", workspaceId],

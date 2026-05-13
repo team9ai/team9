@@ -3,8 +3,47 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SafeSessionComponentItem } from "@/types/im";
 
-function formatSnapshotData(data: unknown): string {
+function formatJson(data: unknown): string {
   return JSON.stringify(data, null, 2) ?? "undefined";
+}
+
+function hasComponentConfig(component: SafeSessionComponentItem): boolean {
+  return (
+    component.declaredConfig !== undefined ||
+    component.effectiveConfig !== undefined
+  );
+}
+
+function formatComponentConfig(component: SafeSessionComponentItem): string {
+  if (!hasComponentConfig(component)) return "No config";
+
+  return formatJson({
+    ...(component.declaredConfig !== undefined && {
+      declaredConfig: component.declaredConfig,
+    }),
+    ...(component.effectiveConfig !== undefined && {
+      effectiveConfig: component.effectiveConfig,
+    }),
+  });
+}
+
+function DebugJsonBlock({
+  label,
+  children,
+}: {
+  label: string;
+  children: string;
+}) {
+  return (
+    <div className="mt-2">
+      <div className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">
+        {label}
+      </div>
+      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border border-border/60 bg-muted/30 p-2 text-[11px] leading-4 text-muted-foreground">
+        {children}
+      </pre>
+    </div>
+  );
 }
 
 export function SessionComponentRow({
@@ -38,9 +77,14 @@ export function SessionComponentRow({
         )}
       </button>
       {open && (
-        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border border-border/60 bg-muted/30 p-2 text-[11px] leading-4 text-muted-foreground">
-          {hasSnapshot ? formatSnapshotData(data) : "No snapshot yet"}
-        </pre>
+        <>
+          <DebugJsonBlock label="data">
+            {hasSnapshot ? formatJson(data) : "No snapshot yet"}
+          </DebugJsonBlock>
+          <DebugJsonBlock label="config">
+            {formatComponentConfig(component)}
+          </DebugJsonBlock>
+        </>
       )}
     </div>
   );

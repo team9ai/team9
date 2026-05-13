@@ -49,5 +49,29 @@
   "expandFullContent": "Vollständigen Inhalt anzeigen",
   "remainingChars": " ({{chars}} weitere Zeichen)",
   "loadingFullContent": "Vollständigen Inhalt laden...",
-  "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen."
+  "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen.",
+  "a2ui": {
+    "optionFallback": "Option",
+    "other": "Andere",
+    "agentFallback": "Agent",
+    "userFallback": "Benutzer",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(du)",
+    "asked": "fragte",
+    "askedYou": "fragte dich",
+    "answeredBy": "beantwortet von",
+    "selected": "ausgewählt",
+    "selectedPast": "ausgewählt",
+    "in": "in",
+    "expand": "Zum Erweitern klicken",
+    "next": "Weiter",
+    "submit": "Absenden",
+    "submitting": "Wird gesendet...",
+    "timeout": "Auswahl ist abgelaufen",
+    "cancelled": "Auswahl wurde abgebrochen",
+    "validationSelect": "Bitte „{{title}}“ auswählen",
+    "otherPlaceholder": "Antwort eingeben...",
+    "cancelHint": "Esc zum Abbrechen drücken",
+    "parseError": "A2UI-surface-payload konnte nicht geparst werden"
+  }
 }

@@ -41,6 +41,8 @@ export interface SafeSessionComponentItem {
   id: string;
   typeKey: string;
   priority?: number;
+  declaredConfig?: unknown;
+  effectiveConfig?: unknown;
   runtimeInjectedOnly: boolean;
   schema?: unknown[];
   latestData: {

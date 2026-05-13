@@ -104,7 +104,10 @@ export function AgentSessionPanel({
                   </p>
                 )}
                 {!isLoading && !isError && (
-                  <SessionComponentList components={components} />
+                  <SessionComponentList
+                    components={components}
+                    sessionId={components?.sessionId ?? binding.sessionId}
+                  />
                 )}
               </>
             )}

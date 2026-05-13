@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import i18n from "@/i18n";
 import type { AgentEventMetadata, Message } from "@/types/im";
 import { A2UISurfaceBlock } from "../A2UISurfaceBlock";
 
@@ -235,6 +236,10 @@ function renderSurfaceWithPayload(
 }
 
 describe("A2UISurfaceBlock", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
   it("renders the active question header aligned as text", () => {
     renderSurface();
 
@@ -245,10 +250,10 @@ describe("A2UISurfaceBlock", () => {
       "cursor-pointer",
       "hover:underline",
     );
-    expect(screen.getByText(/向你提问/)).toBeInTheDocument();
+    expect(screen.getByText(/asked you/)).toBeInTheDocument();
   });
 
-  it("renders resolved surfaces as an agent question summary", () => {
+  it("renders resolved surfaces with translated chrome and untranslated payload text", () => {
     renderSurfaceWithPayload(makeMultiTabPayload(), {
       status: "resolved",
       selections: {
@@ -259,24 +264,24 @@ describe("A2UISurfaceBlock", () => {
     });
 
     const agentLabel = screen.getByText("Lia(agent)");
-    const userLabel = screen.getByText("Winrey Ma(你)");
+    const userLabel = screen.getByText("Winrey Ma(you)");
 
     expect(agentLabel).toBeInTheDocument();
     expect(agentLabel.parentElement).toHaveClass(
       "cursor-pointer",
       "hover:underline",
     );
-    expect(screen.getByText(/提问/)).toBeInTheDocument();
+    expect(screen.getByText(/asked/)).toBeInTheDocument();
     expect(screen.getByText("“颜色 / 水果 / 心情”")).toBeInTheDocument();
-    expect(screen.getByText(/已被/)).toBeInTheDocument();
+    expect(screen.getByText(/answered by/)).toBeInTheDocument();
     expect(userLabel).toBeInTheDocument();
     expect(userLabel.parentElement).toHaveClass(
       "cursor-pointer",
       "hover:underline",
     );
-    expect(screen.getByText(/选择/)).toBeInTheDocument();
+    expect(screen.getByText(/selected/)).toBeInTheDocument();
     expect(screen.getByText("“蓝色”")).toBeInTheDocument();
-    expect(screen.getByText("点击展开")).toBeInTheDocument();
+    expect(screen.getByText("Click to expand")).toBeInTheDocument();
   });
 
   it("auto-advances after an unanswered single-select tab receives its first selection", () => {
@@ -292,36 +297,36 @@ describe("A2UISurfaceBlock", () => {
   it("uses next while unanswered tabs remain and submit once all tabs are answered", () => {
     renderSurface();
 
-    expect(screen.getByRole("button", { name: "下一个" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("蓝色"));
     expect(screen.getByText("选一个水果：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一个" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("香蕉"));
     expect(screen.getByText("选一个心情：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一个" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("开心"));
     expect(screen.getByText("选一个心情：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "提交" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
   });
 
   it("disables the primary action until the current tab has a selection", () => {
     renderSurface();
 
-    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
 
     fireEvent.click(screen.getByLabelText("蓝色"));
     expect(screen.getByText("选一个水果：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
 
     fireEvent.click(screen.getByLabelText("香蕉"));
     expect(screen.getByText("选一个心情：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
 
     fireEvent.click(screen.getByLabelText("开心"));
-    expect(screen.getByRole("button", { name: "提交" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
   });
 
   it("keeps multi-select tabs in place until the user clicks next", () => {
@@ -332,7 +337,7 @@ describe("A2UISurfaceBlock", () => {
 
     fireEvent.click(screen.getByLabelText("苹果"));
     expect(screen.getByText("可以多选水果：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "提交" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
   });
 
   it("keeps unanswered tabs in place with a disabled primary action", () => {
@@ -341,6 +346,6 @@ describe("A2UISurfaceBlock", () => {
     fireEvent.click(screen.getByRole("button", { name: "心情" }));
 
     expect(screen.getByText("选一个心情：")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一个" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 });

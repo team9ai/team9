@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useSendMessage } from "@/hooks/useMessages";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -81,9 +82,11 @@ function findFirstIncompleteTabIndex(
 function buildSelectionDisplay(
   metadata: AgentEventMetadata,
   parsed: ParsedChoicesSurface | null,
+  fallbackOptionLabel: string,
+  otherLabel: string,
 ): { title: string; selection: string } {
   if (!metadata.selections) {
-    return { title: "选项", selection: "选项" };
+    return { title: fallbackOptionLabel, selection: fallbackOptionLabel };
   }
 
   const titles: string[] = [];
@@ -95,15 +98,17 @@ function buildSelectionDisplay(
       .filter((v) => v !== "__other__")
       .map((v) => parsedTab?.options.find((o) => o.value === v)?.label ?? v);
     if (sel.selected.includes("__other__")) {
-      labels.push(sel.otherText ? `Other — "${sel.otherText}"` : "Other");
+      labels.push(
+        sel.otherText ? `${otherLabel} — "${sel.otherText}"` : otherLabel,
+      );
     }
 
     selections.push(labels.join(", "));
   }
 
   return {
-    title: titles.filter(Boolean).join(" / ") || "选项",
-    selection: selections.filter(Boolean).join("；") || "选项",
+    title: titles.filter(Boolean).join(" / ") || fallbackOptionLabel,
+    selection: selections.filter(Boolean).join("；") || fallbackOptionLabel,
   };
 }
 
@@ -276,6 +281,7 @@ function CollapsedHeader({
   onToggle: () => void;
   currentUserId?: string;
 }) {
+  const { t } = useTranslation("message");
   const status = metadata.status as string;
 
   const isResolved = status === "resolved" || status === "completed";
@@ -283,19 +289,28 @@ function CollapsedHeader({
   const completedAt = metadata.completedAt ?? metadata.updatedAt;
   const completedDate = completedAt ? parseApiDate(completedAt) : null;
   const timeLabel = completedDate ? formatMessageTime(completedDate) : null;
-  const responderName = metadata.responderName ?? "User";
+  const responderName = metadata.responderName ?? t("a2ui.userFallback");
   const actorLabel = `${responderName}${
-    metadata.responderId && metadata.responderId === currentUserId ? "(你)" : ""
+    metadata.responderId && metadata.responderId === currentUserId
+      ? t("a2ui.currentUserSuffix")
+      : ""
   }`;
-  const selectionDisplay = buildSelectionDisplay(metadata, parsed);
+  const selectionDisplay = buildSelectionDisplay(
+    metadata,
+    parsed,
+    t("a2ui.optionFallback"),
+    t("a2ui.other"),
+  );
   const agentName =
-    message.sender?.displayName ?? message.sender?.username ?? "Agent";
+    message.sender?.displayName ??
+    message.sender?.username ??
+    t("a2ui.agentFallback");
   const askedTitle =
     parsed?.tabs
       .map((tab) => tab.title)
       .filter(Boolean)
       .join(" / ") || selectionDisplay.title;
-  const summary = isTimeout ? "Selection timed out" : "Selection cancelled";
+  const summary = isTimeout ? t("a2ui.timeout") : t("a2ui.cancelled");
 
   return (
     <div className="group/a2ui-surface bg-card border border-border rounded-lg overflow-hidden">
@@ -334,13 +349,14 @@ function CollapsedHeader({
                   fallbackClassName="text-[9px] font-semibold"
                 />
                 <span className="font-semibold text-foreground">
-                  {agentName}(agent)
+                  {agentName}
+                  {t("a2ui.agentSuffix")}
                 </span>
               </span>
             </UserHoverCard>
-            <span className="mx-1.5">提问</span>
+            <span className="mx-1.5">{t("a2ui.asked")}</span>
             <span className="font-medium text-foreground">“{askedTitle}”</span>
-            <span className="mx-1.5">已被</span>
+            <span className="mx-1.5">{t("a2ui.answeredBy")}</span>
             <UserHoverCard
               userId={metadata.responderId}
               displayName={responderName}
@@ -358,7 +374,7 @@ function CollapsedHeader({
                 </span>
               </span>
             </UserHoverCard>
-            <span className="mx-1.5">选择</span>
+            <span className="mx-1.5">{t("a2ui.selected")}</span>
             <span className="font-medium text-foreground">
               “{selectionDisplay.selection}”
             </span>
@@ -385,7 +401,7 @@ function CollapsedHeader({
         )}
         {isResolved && (
           <span className="shrink-0 text-[11px] text-muted-foreground">
-            点击展开
+            {t("a2ui.expand")}
           </span>
         )}
         <ChevronRight
@@ -429,6 +445,7 @@ function ActiveSurface({
   onSubmit?: A2UISurfaceBlockProps["onSubmit"];
   onCancel?: A2UISurfaceBlockProps["onCancel"];
 }) {
+  const { t } = useTranslation("message");
   const sendMessage = useSendMessage(channelId);
   const queryClient = useQueryClient();
   const currentUser = useCurrentUser();
@@ -459,13 +476,17 @@ function ActiveSurface({
   const selected = selectedValues[tabKey] ?? [];
   const otherText = otherTexts[tabKey] ?? "";
   const agentName =
-    message.sender?.displayName ?? message.sender?.username ?? "Agent";
+    message.sender?.displayName ??
+    message.sender?.username ??
+    t("a2ui.agentFallback");
   const firstIncompleteTabIndex = findFirstIncompleteTabIndex(
     parsed.tabs,
     selectedValues,
   );
   const hasIncompleteTabs = firstIncompleteTabIndex >= 0;
-  const primaryButtonLabel = hasIncompleteTabs ? "下一个" : "提交";
+  const primaryButtonLabel = hasIncompleteTabs
+    ? t("a2ui.next")
+    : t("a2ui.submit");
   const currentTabHasSelection = selected.length > 0;
   const primaryButtonDisabled =
     sendMessage.isPending || !currentTabHasSelection;
@@ -528,7 +549,8 @@ function ActiveSurface({
           .map(
             (v) => parsedTab?.options.find((o) => o.value === v)?.label ?? v,
           );
-        if (sel.otherText) labels.push(`Other — "${sel.otherText}"`);
+        if (sel.otherText)
+          labels.push(`${t("a2ui.other")} — "${sel.otherText}"`);
         return `${title}: ${labels.join(", ")}`;
       })
       .join("; ");
@@ -600,7 +622,7 @@ function ActiveSurface({
 
     const currentSelection = selectedValues[tabKey] ?? [];
     if (currentSelection.length === 0) {
-      setValidationError(`请先选择“${tab.title}”`);
+      setValidationError(t("a2ui.validationSelect", { title: tab.title }));
       return;
     }
 
@@ -641,11 +663,12 @@ function ActiveSurface({
               fallbackClassName="text-[9px] font-semibold"
             />
             <span className="font-semibold text-foreground">
-              {agentName}(agent)
+              {agentName}
+              {t("a2ui.agentSuffix")}
             </span>
           </span>
         </UserHoverCard>
-        <span className="ml-1.5">向你提问</span>
+        <span className="ml-1.5">{t("a2ui.askedYou")}</span>
       </div>
 
       {parsed.tabs.length > 1 && (
@@ -707,14 +730,14 @@ function ActiveSurface({
                   checked={selected.includes("__other__")}
                   type={tab.type}
                 />
-                <span className="text-sm font-semibold">Other</span>
+                <span className="text-sm font-semibold">{t("a2ui.other")}</span>
               </label>
               {selected.includes("__other__") && (
                 <input
                   type="text"
                   value={otherText}
                   onChange={(e) => handleOtherTextChange(e.target.value)}
-                  placeholder="Enter your answer..."
+                  placeholder={t("a2ui.otherPlaceholder")}
                   className="mt-1 ml-6 w-[calc(100%-1.5rem)] bg-card border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               )}
@@ -734,7 +757,7 @@ function ActiveSurface({
             : "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
       >
-        {sendMessage.isPending ? "提交中..." : primaryButtonLabel}
+        {sendMessage.isPending ? t("a2ui.submitting") : primaryButtonLabel}
       </button>
       {validationError && (
         <p className="text-center text-xs text-red-500 mt-1">
@@ -743,7 +766,7 @@ function ActiveSurface({
       )}
       {onCancel && (
         <p className="text-center text-xs text-muted-foreground mt-1">
-          Press Esc to cancel
+          {t("a2ui.cancelHint")}
         </p>
       )}
     </div>
@@ -762,6 +785,7 @@ export function A2UISurfaceBlock({
   onCancel,
   readOnly = false,
 }: A2UISurfaceBlockProps) {
+  const { t } = useTranslation("message");
   const [expanded, setExpanded] = useState(false);
   const currentUser = useCurrentUser();
 
@@ -773,9 +797,7 @@ export function A2UISurfaceBlock({
     if (!parsed) {
       return (
         <div className="bg-card border border-border rounded-lg px-3 py-2 text-sm">
-          <span className="text-red-500">
-            Failed to parse A2UI surface payload
-          </span>
+          <span className="text-red-500">{t("a2ui.parseError")}</span>
         </div>
       );
     }

@@ -5,6 +5,7 @@ import {
   useEffect,
   useState,
   type ComponentProps,
+  type ReactNode,
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
@@ -88,6 +89,31 @@ type ChannelListItem =
   | { type: "message"; message: Message }
   | { type: "stream"; stream: StreamingMessage }
   | { type: "thinking"; key: string };
+
+function ToolEventFrame({
+  children,
+  id,
+  isFirstInGroup,
+}: {
+  children: ReactNode;
+  id?: string;
+  isFirstInGroup?: boolean;
+}) {
+  return (
+    <div
+      id={id}
+      className={cn(
+        "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
+        isFirstInGroup ? "mt-1 pt-1.5" : "",
+        "pb-0.5",
+      )}
+      data-testid="tool-event-frame"
+      style={{ paddingLeft: "9px" }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function findRoundStartedAt(
   items: ChannelListItem[],
@@ -517,7 +543,9 @@ export function MessageList({
               {hasStreamBody && (
                 <StreamingMessageParts stream={item.stream} members={members} />
               )}
-              <ToolCallBlock callMetadata={streamMeta} resultContent="" />
+              <ToolEventFrame isFirstInGroup>
+                <ToolCallBlock callMetadata={streamMeta} resultContent="" />
+              </ToolEventFrame>
             </div>
           );
         }
@@ -628,14 +656,9 @@ export function MessageList({
           const isFirstInGroup = !prevIsAgentEvent;
 
           return (
-            <div
+            <ToolEventFrame
               id={`message-${message.id}`}
-              className={cn(
-                "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
-                isFirstInGroup ? "mt-1 pt-1.5" : "",
-                "pb-0.5",
-              )}
-              style={{ paddingLeft: "9px" }}
+              isFirstInGroup={isFirstInGroup}
             >
               <ToolCallBlock
                 callMetadata={agentMeta}
@@ -643,7 +666,7 @@ export function MessageList({
                 resultContent={nextMsg?.content ?? ""}
                 resultMessage={nextMsg}
               />
-            </div>
+            </ToolEventFrame>
           );
         }
       }
@@ -655,17 +678,12 @@ export function MessageList({
         const isFirstInGroup = !prevIsAgentEvent;
 
         return (
-          <div
+          <ToolEventFrame
             id={`message-${message.id}`}
-            className={cn(
-              "ml-2 mr-4 border-l-2 border-border bg-muted/30 rounded-r-md pr-4",
-              isFirstInGroup ? "mt-1 pt-1.5" : "",
-              "pb-0.5",
-            )}
-            style={{ paddingLeft: "9px" }}
+            isFirstInGroup={isFirstInGroup}
           >
             <ToolCallBlock callMetadata={agentMeta} resultContent="" />
-          </div>
+          </ToolEventFrame>
         );
       }
 

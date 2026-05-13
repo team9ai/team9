@@ -36,6 +36,34 @@ describe("unwrapToolResultContent", () => {
 
     expect(unwrapToolResultContent(raw)).toBe('{"success":false}');
   });
+
+  it("keeps image content blocks so read_image base64 is visible", () => {
+    const raw = JSON.stringify({
+      content: [
+        {
+          type: "text",
+          text: "[read_image] /Users/winrey/Downloads/example.jpg",
+        },
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/jpeg",
+            data: "/9j/4AAQSkZJRgABAQAAAQABAAD",
+          },
+        },
+      ],
+    });
+
+    const unwrapped = unwrapToolResultContent(raw);
+
+    expect(unwrapped).toContain(
+      "[read_image] /Users/winrey/Downloads/example.jpg",
+    );
+    expect(unwrapped).toContain('"type": "image"');
+    expect(unwrapped).toContain('"media_type": "image/jpeg"');
+    expect(unwrapped).toContain("/9j/4AAQSkZJRgABAQAAAQABAAD");
+  });
 });
 
 describe("buildToolDisplayState", () => {
@@ -173,6 +201,26 @@ describe("buildToolDisplayState", () => {
 
     expect(state.argsSummary).toBe('{"message":"hel');
     expect(state.argsText).toBe('{"message":"hel');
+  });
+
+  it("surfaces the nested invoke_tool target and params while args are still streaming", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "invoke_tool",
+        toolArgs: undefined,
+        toolArgsText:
+          '{"name":"write_file","params":{"path":"/tmp/lia_stream_v7.py","content":"import time',
+        toolPhase: "args_streaming",
+      }),
+    });
+
+    expect(state.toolName).toBe("write_file");
+    expect(state.argsSummary).toBe(
+      '{"path":"/tmp/lia_stream_v7.py","content":"import time',
+    );
+    expect(state.argsText).toBe(
+      '{"path":"/tmp/lia_stream_v7.py","content":"import time',
+    );
   });
 
   it("parses completed streaming args text once the tool call starts executing", () => {

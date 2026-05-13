@@ -95,6 +95,7 @@ function createDeps() {
     removeReaction: jest.fn<any>().mockResolvedValue(undefined),
     getMessageChannelId: jest.fn<any>().mockResolvedValue('channel-1'),
     truncateForPreview: jest.fn<any>().mockImplementation((msg) => msg),
+    getMessageByClientMsgId: jest.fn<any>().mockResolvedValue(null),
     getMessageWithDetails: jest.fn<any>().mockResolvedValue({
       id: 'msg-1',
       channelId: 'channel-1',
@@ -175,6 +176,24 @@ function createDeps() {
   const botTokenValidator = {
     validateBotToken: jest.fn<any>().mockResolvedValue(null),
   };
+  const agentTimelineService = {
+    applyEvent: jest.fn<any>().mockResolvedValue({
+      ok: true,
+      eventId: 'channel-1:session-1#turn:0:1',
+      timelineId: 'channel-1:session-1#turn:0',
+      seq: 1,
+      lastAppliedSeq: 1,
+    }),
+    makeRejectedAck: jest.fn<any>().mockResolvedValue({
+      ok: false,
+      eventId: 'channel-1:session-1#turn:0:1',
+      timelineId: 'channel-1:session-1#turn:0',
+      seq: 1,
+      lastAppliedSeq: -1,
+      code: 'FORBIDDEN',
+      retryable: false,
+    }),
+  };
 
   return {
     authService,
@@ -194,6 +213,7 @@ function createDeps() {
     eventEmitter,
     socketRedisAdapterService,
     botTokenValidator,
+    agentTimelineService,
   };
 }
 
@@ -220,10 +240,40 @@ function createGateway(overrides: Partial<ReturnType<typeof createDeps>> = {}) {
     deps.botTokenValidator as never,
     deps.imWorkerGrpcClientService as never,
     deps.eventEmitter as never,
+    deps.agentTimelineService as never,
   );
   const { server, emits } = makeServer();
   gateway.server = server as never;
   return { gateway, deps, server, emits };
+}
+
+function makeTimelineEvent(overrides: Record<string, unknown> = {}): any {
+  const timelineId = 'channel-1:session-1#turn:0';
+  const seq = typeof overrides.seq === 'number' ? overrides.seq : 1;
+  return {
+    type: 'agent_timeline_event',
+    schema: 'team9.agent.timeline.v1',
+    timelineId,
+    eventId: `${timelineId}:${seq}`,
+    seq,
+    sessionId: 'session-1',
+    channelId: 'channel-1',
+    turnId: 'session-1#turn:0',
+    turnIndex: 0,
+    itemId: 'response-1',
+    op: 'patch',
+    kind: 'response',
+    status: 'running',
+    patch: {
+      mode: 'checkpoint',
+      checkpointSeq: seq,
+      snapshot: {
+        role: 'assistant',
+        text: 'hello',
+      },
+    },
+    ...overrides,
+  };
 }
 
 async function flushMicrotasks() {
@@ -1274,6 +1324,294 @@ describe('WebsocketGateway', () => {
     });
   });
 
+  describe('agent timeline handler', () => {
+    it('applies and broadcasts valid bot timeline events', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      const event = makeTimelineEvent();
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toEqual({
+        ok: true,
+        eventId: event.eventId,
+        timelineId: 'channel-1:session-1#turn:0',
+        seq: event.seq,
+        lastAppliedSeq: event.seq,
+      });
+
+      expect(deps.channelsService.isMember).toHaveBeenCalledWith(
+        'channel-1',
+        'bot-1',
+      );
+      expect(deps.agentTimelineService.applyEvent).toHaveBeenCalledWith(event);
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.AGENT_TIMELINE.EVENT,
+        event,
+      );
+    });
+
+    it('persists final response timeline events as ordinary messages for compatibility', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+      const event = makeTimelineEvent({
+        parentMessageId: '123e4567-e89b-12d3-a456-426614174000',
+        op: 'end',
+        status: 'completed',
+        patch: {
+          mode: 'final',
+          snapshot: {
+            role: 'assistant',
+            text: 'done',
+            thinking: {
+              text: 'reasoning',
+            },
+          },
+        },
+      });
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toMatchObject({ ok: true });
+
+      expect(deps.imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientMsgId: expect.stringMatching(/^atl_[0-9a-f]{32}$/),
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          content: 'done',
+          parentId: '123e4567-e89b-12d3-a456-426614174000',
+          type: 'text',
+          workspaceId: 'tenant-1',
+          metadata: expect.objectContaining({
+            agentTimeline: event,
+            thinking: 'reasoning',
+          }),
+        }),
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.AGENT_TIMELINE.EVENT,
+        event,
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.MESSAGE.NEW,
+        expect.objectContaining({
+          id: 'msg-1',
+          content: 'done',
+        }),
+      );
+    });
+
+    it('does not broadcast idempotent stale timeline replays', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      const event = makeTimelineEvent();
+      deps.agentTimelineService.applyEvent.mockResolvedValueOnce({
+        ok: true,
+        eventId: event.eventId,
+        timelineId: event.timelineId,
+        seq: event.seq,
+        lastAppliedSeq: event.seq,
+        code: 'STALE_SEQ',
+      });
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toMatchObject({ ok: true, code: 'STALE_SEQ' });
+
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not recreate ordinary messages for stale final replays', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+      const existingMessage = {
+        id: 'msg-existing',
+        content: 'done',
+      };
+      const event = makeTimelineEvent({
+        op: 'end',
+        status: 'completed',
+        patch: {
+          mode: 'final',
+          snapshot: {
+            role: 'assistant',
+            text: 'done',
+          },
+        },
+      });
+      deps.agentTimelineService.applyEvent.mockResolvedValueOnce({
+        ok: true,
+        eventId: event.eventId,
+        timelineId: event.timelineId,
+        seq: event.seq,
+        lastAppliedSeq: event.seq,
+        code: 'STALE_SEQ',
+      });
+      deps.messagesService.getMessageByClientMsgId.mockResolvedValueOnce(
+        existingMessage,
+      );
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toMatchObject({ ok: true, code: 'STALE_SEQ' });
+
+      expect(deps.messagesService.getMessageByClientMsgId).toHaveBeenCalledWith(
+        expect.stringMatching(/^atl_[0-9a-f]{32}$/),
+      );
+      expect(
+        deps.imWorkerGrpcClientService.createMessage,
+      ).not.toHaveBeenCalled();
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.AGENT_TIMELINE.EVENT,
+        event,
+      );
+      expect(sendSpy).not.toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.MESSAGE.NEW,
+        expect.anything(),
+      );
+    });
+
+    it('returns a retryable ack and does not broadcast when final response persistence fails', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+      const event = makeTimelineEvent({
+        op: 'end',
+        status: 'completed',
+        patch: {
+          mode: 'final',
+          snapshot: {
+            role: 'assistant',
+            text: 'done',
+          },
+        },
+      });
+      deps.imWorkerGrpcClientService.createMessage.mockRejectedValueOnce(
+        new Error('persist down'),
+      );
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toMatchObject({
+        ok: false,
+        code: 'TRANSIENT_FAILURE',
+        retryable: true,
+      });
+
+      expect(sendSpy).not.toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.AGENT_TIMELINE.EVENT,
+        event,
+      );
+      expect(sendSpy).not.toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.MESSAGE.NEW,
+        expect.anything(),
+      );
+    });
+
+    it('rejects timeline events from non-bot sockets', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'user-1', isBot: false });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      const event = makeTimelineEvent();
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toMatchObject({
+        ok: false,
+        code: 'FORBIDDEN',
+        retryable: false,
+      });
+
+      expect(deps.agentTimelineService.makeRejectedAck).not.toHaveBeenCalled();
+      expect(deps.agentTimelineService.applyEvent).not.toHaveBeenCalled();
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('rejects timeline events when the bot is not a channel member', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      const event = makeTimelineEvent();
+      deps.channelsService.isMember.mockResolvedValueOnce(false);
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, event),
+      ).resolves.toMatchObject({
+        ok: false,
+        code: 'FORBIDDEN',
+        retryable: false,
+      });
+
+      expect(deps.agentTimelineService.makeRejectedAck).toHaveBeenCalledWith(
+        event,
+        'FORBIDDEN',
+        false,
+      );
+      expect(deps.agentTimelineService.applyEvent).not.toHaveBeenCalled();
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns schema acks for invalid timeline events without broadcasting', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      const invalidEvent = { type: 'agent_timeline_event', schema: 'bad' };
+      deps.agentTimelineService.makeRejectedAck.mockResolvedValueOnce({
+        ok: false,
+        eventId: '',
+        timelineId: '',
+        seq: -1,
+        lastAppliedSeq: -1,
+        code: 'SCHEMA_VERSION_UNSUPPORTED',
+        retryable: false,
+      });
+
+      await expect(
+        gateway.handleAgentTimelineEvent(client as never, invalidEvent),
+      ).resolves.toMatchObject({
+        ok: false,
+        code: 'SCHEMA_VERSION_UNSUPPORTED',
+        retryable: false,
+      });
+
+      expect(deps.agentTimelineService.makeRejectedAck).toHaveBeenCalledWith(
+        invalidEvent,
+        'SCHEMA_VERSION_UNSUPPORTED',
+        false,
+      );
+      expect(deps.agentTimelineService.applyEvent).not.toHaveBeenCalled();
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('streaming handlers', () => {
     it('rejects streaming start for non-bot users', async () => {
       const { gateway } = createGateway();
@@ -1605,6 +1943,79 @@ describe('WebsocketGateway', () => {
       expect(deps.redisService.srem).toHaveBeenCalledWith(
         REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
         'stream-1',
+      );
+    });
+
+    it('reuses an existing timeline final message when legacy streaming_end also finalizes', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+      const existingMessage = {
+        id: 'msg-existing',
+        channelId: 'channel-1',
+        senderId: 'bot-1',
+        content: 'done',
+        type: 'text',
+        isPinned: false,
+        parentId: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      };
+      const timelineEvent = makeTimelineEvent({
+        op: 'end',
+        status: 'completed',
+        patch: {
+          mode: 'final',
+          snapshot: {
+            role: 'assistant',
+            text: 'done',
+          },
+        },
+      });
+      deps.redisService.get.mockResolvedValue(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          metadata: {
+            agentTimeline: {
+              timelineId: timelineEvent.timelineId,
+              itemId: timelineEvent.itemId,
+            },
+          },
+          startedAt: 123,
+        }),
+      );
+      deps.messagesService.getMessageByClientMsgId.mockResolvedValueOnce(
+        existingMessage,
+      );
+
+      await expect(
+        gateway.handleStreamingEnd(
+          client as never,
+          {
+            streamId: 'stream-1',
+            channelId: 'channel-1',
+            content: 'done',
+          } as never,
+        ),
+      ).resolves.toEqual({ success: true, messageId: 'msg-existing' });
+
+      expect(
+        deps.imWorkerGrpcClientService.createMessage,
+      ).not.toHaveBeenCalled();
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.STREAMING.END,
+        expect.objectContaining({
+          streamId: 'stream-1',
+          message: existingMessage,
+        }),
+      );
+      expect(sendSpy).not.toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.MESSAGE.NEW,
+        expect.anything(),
       );
     });
 

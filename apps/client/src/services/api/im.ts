@@ -658,6 +658,10 @@ export interface TopicSessionGroup {
   recentSessions: TopicSessionRecentEntry[];
 }
 
+export interface DeleteTopicSessionOptions {
+  permanent?: boolean;
+}
+
 export const topicSessionsApi = {
   /**
    * Create a new topic session: atomically provisions an agent-pi session,
@@ -687,9 +691,15 @@ export const topicSessionsApi = {
     return response.data;
   },
 
-  /** Archive a topic session (creator-only on server). */
-  delete: async (channelId: string): Promise<void> => {
-    await http.delete(`/v1/im/topic-sessions/${channelId}`);
+  /** Archive a topic session by default, or permanently delete it when requested. */
+  delete: async (
+    channelId: string,
+    options: DeleteTopicSessionOptions = {},
+  ): Promise<void> => {
+    await http.delete(
+      `/v1/im/topic-sessions/${channelId}`,
+      options.permanent ? { params: { permanent: true } } : undefined,
+    );
   },
 };
 

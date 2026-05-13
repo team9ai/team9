@@ -36,7 +36,7 @@ describe('agent session redaction', () => {
     });
   });
 
-  it('strips component configs and keeps redacted latest data', () => {
+  it('keeps redacted component configs and latest data', () => {
     expect(
       projectSafeComponents({
         sessionId: 's1',
@@ -63,6 +63,8 @@ describe('agent session redaction', () => {
           id: 'persona',
           typeKey: 'persona',
           runtimeInjectedOnly: false,
+          declaredConfig: { token: '[redacted]' },
+          effectiveConfig: { token: '[redacted]' },
           latestData: {
             data: { mood: 'calm', credential: '[redacted]' },
             capturedAtCallId: 'call-1',

@@ -358,6 +358,24 @@ export class MessagesService {
     };
   }
 
+  async getMessageByClientMsgId(
+    clientMsgId: string,
+  ): Promise<MessageResponse | null> {
+    const [message] = await this.db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.clientMsgId, clientMsgId),
+          eq(schema.messages.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (!message) return null;
+    return this.getMessageWithDetails(message.id);
+  }
+
   /**
    * Batch get message details for multiple messages
    * Optimized to use only 4 queries instead of N*4 queries

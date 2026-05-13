@@ -494,9 +494,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(
-        screen.getByText("Run command on this computer"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Run command locally")).toBeInTheDocument();
       expect(screen.getByText("pnpm test")).toBeInTheDocument();
       expect(screen.queryByText(/run_command\(/)).not.toBeInTheDocument();
       expect(screen.queryByText("Args")).not.toBeInTheDocument();
@@ -588,7 +586,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("hello")).toBeInTheDocument();
@@ -612,7 +610,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.queryByText("stdout")).not.toBeInTheDocument();
       expect(screen.queryByText("stderr")).not.toBeInTheDocument();
@@ -637,7 +635,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByText("command")).toBeInTheDocument();
       expect(screen.getAllByText("python3 long-script.py").length).toBe(2);
@@ -667,13 +665,38 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Run command on this computer"));
+      fireEvent.click(screen.getByText("Run command locally"));
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("failed")).toBeInTheDocument();
       expect(screen.queryByText("stderr")).not.toBeInTheDocument();
       expect(screen.getByText("exitCode")).toBeInTheDocument();
       expect(screen.getByText("2")).toBeInTheDocument();
+    });
+
+    it("shows the run_command json toggle only after expansion", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command: "echo hello",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "hello\n",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", { name: "json" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Run command locally"));
+
+      expect(screen.getByRole("button", { name: "json" })).toBeInTheDocument();
     });
 
     it("adds a fullscreen control to expanded raw blocks", () => {
@@ -755,6 +778,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
+      fireEvent.click(screen.getByText("Run command locally"));
       fireEvent.click(screen.getByRole("button", { name: "json" }));
 
       expect(screen.getByText("Args")).toBeInTheDocument();

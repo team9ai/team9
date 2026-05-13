@@ -18,6 +18,7 @@ import {
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
 import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
+import { useDeleteTopicSession } from "@/hooks/useTopicSessions";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
@@ -38,8 +39,14 @@ export function MessagesSubSidebar() {
     isLoading: isLoadingChannels,
   } = useChannelsByType();
   const setSidebarVisibility = useSetSidebarVisibility();
-  const { groups: agentGroups, isLoading: isLoadingAgents } =
-    useAgentGroupsForSidebar(5);
+  const {
+    groups: agentGroups,
+    isLoading: isLoadingAgents,
+    loadMoreTopicSessions,
+    isLoadingMoreTopicSessions,
+  } = useAgentGroupsForSidebar(5);
+  const archiveTopicSession = useDeleteTopicSession();
+  const deleteTopicSession = useDeleteTopicSession();
   // Use selected workspace or fallback to first workspace
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
@@ -147,6 +154,20 @@ export function MessagesSubSidebar() {
                 selectedChannelId={selectedChannelId}
                 linkPrefix="/messages"
                 isLoading={isLoadingAgents}
+                onLoadMoreTopicSessions={loadMoreTopicSessions}
+                isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
+                onArchiveTopicSession={(channelId) =>
+                  archiveTopicSession.mutateAsync({ channelId })
+                }
+                onDeleteTopicSession={(channelId) =>
+                  deleteTopicSession.mutateAsync({
+                    channelId,
+                    permanent: true,
+                  })
+                }
+                isTopicSessionActionPending={
+                  archiveTopicSession.isPending || deleteTopicSession.isPending
+                }
               />
             </div>
           )}

@@ -1,6 +1,7 @@
 import type { AgentEventMetadata, Message } from "@/types/im";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useTranslation } from "react-i18next";
 import { formatAbsoluteTooltip } from "@/lib/date-format";
 import { formatMessageTime, parseApiDate } from "@/lib/date-utils";
 import {
@@ -17,6 +18,7 @@ export interface A2UIResponseItemProps {
 
 function parseContentSelection(
   content: string,
+  fallbackOptionLabel: string,
 ): { title: string; selection: string } | null {
   const trimmed = content.trim();
   if (!trimmed) return null;
@@ -34,7 +36,7 @@ function parseContentSelection(
         selection: parts[0].slice(delimiterIndex + 1).trim(),
       };
     }
-    return { title: "选项", selection: parts[0] };
+    return { title: fallbackOptionLabel, selection: parts[0] };
   }
 
   const parsedParts = parts.map((part) => {
@@ -51,7 +53,7 @@ function parseContentSelection(
       parsedParts
         .map((part) => part.title)
         .filter(Boolean)
-        .join(" / ") || "选项",
+        .join(" / ") || fallbackOptionLabel,
     selection: parsedParts
       .map((part) => part.selection)
       .filter(Boolean)
@@ -61,12 +63,13 @@ function parseContentSelection(
 
 function buildFallbackSelectionDisplay(
   selections: AgentEventMetadata["selections"],
+  otherLabel: string,
 ): { title: string; selection: string } | null {
   if (!selections) return null;
 
   const parts = Object.entries(selections).map(([title, sel]) => {
     const vals = (sel.selected ?? []).filter((v) => v !== "__other__");
-    if (sel.otherText) vals.push(`Other — "${sel.otherText}"`);
+    if (sel.otherText) vals.push(`${otherLabel} — "${sel.otherText}"`);
     return { title, selection: vals.join(", ") };
   });
 
@@ -86,21 +89,27 @@ function buildFallbackSelectionDisplay(
  * Compact single-line display for an A2UI response message.
  */
 export function A2UIResponseItem({ message, metadata }: A2UIResponseItemProps) {
+  const { t } = useTranslation("message");
   const currentUser = useCurrentUser();
   const displayName =
     metadata.responderName ??
     message.sender?.displayName ??
     message.sender?.username ??
-    "User";
+    t("a2ui.userFallback");
   const isCurrentUser =
     !!message.senderId && message.senderId === currentUser.data?.id;
-  const actorLabel = `${displayName}${isCurrentUser ? "(你)" : ""}`;
+  const actorLabel = `${displayName}${
+    isCurrentUser ? t("a2ui.currentUserSuffix") : ""
+  }`;
   const actorUserId = metadata.responderId ?? message.senderId ?? undefined;
   const createdAt = parseApiDate(message.createdAt);
   const timeLabel = formatMessageTime(createdAt);
-  const selectionDisplay = parseContentSelection(message.content) ??
-    buildFallbackSelectionDisplay(metadata.selections) ?? {
-      title: "选项",
+  const selectionDisplay = parseContentSelection(
+    message.content,
+    t("a2ui.optionFallback"),
+  ) ??
+    buildFallbackSelectionDisplay(metadata.selections, t("a2ui.other")) ?? {
+      title: t("a2ui.optionFallback"),
       selection: "—",
     };
 
@@ -124,11 +133,11 @@ export function A2UIResponseItem({ message, metadata }: A2UIResponseItemProps) {
             “{actorLabel}”
           </span>
         </UserHoverCard>
-        <span className="mx-1">在</span>
+        <span className="mx-1">{t("a2ui.in")}</span>
         <span className="font-medium text-foreground">
           “{selectionDisplay.title}”
         </span>
-        <span className="mx-1">选择了</span>
+        <span className="mx-1">{t("a2ui.selectedPast")}</span>
         <span className="font-medium text-foreground">
           “{selectionDisplay.selection}”
         </span>

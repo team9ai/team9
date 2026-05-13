@@ -49,5 +49,29 @@
   "expandFullContent": "展开完整内容",
   "remainingChars": "（还剩 {{chars}} 字）",
   "loadingFullContent": "加载完整内容中...",
-  "loadFullContentFailed": "加载完整内容失败，请取消后重试。"
+  "loadFullContentFailed": "加载完整内容失败，请取消后重试。",
+  "a2ui": {
+    "optionFallback": "选项",
+    "other": "其他",
+    "agentFallback": "Agent",
+    "userFallback": "用户",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(你)",
+    "asked": "提问",
+    "askedYou": "向你提问",
+    "answeredBy": "已被",
+    "selected": "选择",
+    "selectedPast": "选择了",
+    "in": "在",
+    "expand": "点击展开",
+    "next": "下一个",
+    "submit": "提交",
+    "submitting": "提交中...",
+    "timeout": "选择已超时",
+    "cancelled": "选择已取消",
+    "validationSelect": "请先选择“{{title}}”",
+    "otherPlaceholder": "请输入你的回答...",
+    "cancelHint": "按 Esc 取消",
+    "parseError": "无法解析 A2UI surface payload"
+  }
 }

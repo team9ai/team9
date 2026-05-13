@@ -61,6 +61,7 @@ interface BuildToolDisplayStateInput {
 interface ResolvedToolCall {
   toolName: string;
   toolArgs?: Record<string, unknown>;
+  streamingArgsText?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,19 +95,84 @@ function textFromValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function decodeJsonStringFragment(value: string): string {
+  try {
+    return JSON.parse(`"${value}"`) as string;
+  } catch {
+    return value;
+  }
+}
+
+function extractPartialJsonStringField(
+  text: string,
+  fieldName: string,
+): string | undefined {
+  const match = text.match(
+    new RegExp(`"${fieldName}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`),
+  );
+  return match?.[1] ? decodeJsonStringFragment(match[1]) : undefined;
+}
+
+function extractPartialJsonFieldValue(
+  text: string,
+  fieldName: string,
+): string | undefined {
+  const keyIndex = text.indexOf(`"${fieldName}"`);
+  if (keyIndex < 0) return undefined;
+
+  let cursor = keyIndex + fieldName.length + 2;
+  while (cursor < text.length && /\s/.test(text[cursor]!)) cursor += 1;
+  if (text[cursor] !== ":") return undefined;
+  cursor += 1;
+  while (cursor < text.length && /\s/.test(text[cursor]!)) cursor += 1;
+
+  const value = text.slice(cursor).trim();
+  return value || undefined;
+}
+
+function resolvePartialInvokeToolCall(
+  metadata: AgentEventMetadata,
+): ResolvedToolCall | undefined {
+  if (
+    metadata.toolName !== "invoke_tool" ||
+    metadata.toolPhase !== "args_streaming" ||
+    typeof metadata.toolArgsText !== "string"
+  ) {
+    return undefined;
+  }
+
+  const nestedToolName = extractPartialJsonStringField(
+    metadata.toolArgsText,
+    "name",
+  );
+  if (!nestedToolName?.trim()) return undefined;
+
+  const nestedParamsText = extractPartialJsonFieldValue(
+    metadata.toolArgsText,
+    "params",
+  );
+
+  return {
+    toolName: nestedToolName,
+    ...(nestedParamsText ? { streamingArgsText: nestedParamsText } : {}),
+  };
+}
+
 export function unwrapToolResultContent(raw = ""): string {
   const parsed = tryParseJson(raw);
   if (isRecord(parsed) && Array.isArray(parsed.content)) {
-    const texts = parsed.content
-      .filter((block): block is { type: string; text: string } => {
-        return (
-          isRecord(block) &&
-          block.type === "text" &&
-          typeof block.text === "string"
-        );
+    const chunks = parsed.content
+      .map((block) => {
+        if (isRecord(block)) {
+          if (block.type === "text" && typeof block.text === "string") {
+            return block.text;
+          }
+          return JSON.stringify(block, null, 2);
+        }
+        return textFromValue(block);
       })
-      .map((block) => block.text);
-    if (texts.length > 0) return texts.join("\n");
+      .filter((chunk) => chunk.trim() !== "");
+    if (chunks.length > 0) return chunks.join("\n");
   }
   return raw;
 }
@@ -149,6 +215,9 @@ function resolveToolCall(
   callMetadata: AgentEventMetadata,
   resultMetadata?: AgentEventMetadata,
 ): ResolvedToolCall {
+  const partialInvokeToolCall = resolvePartialInvokeToolCall(callMetadata);
+  if (partialInvokeToolCall) return partialInvokeToolCall;
+
   const fallbackToolName =
     callMetadata.toolName ?? resultMetadata?.toolName ?? "Unknown tool";
   const toolArgs =
@@ -317,9 +386,10 @@ function formatArgs(
   toolName: string,
   metadata: AgentEventMetadata,
   toolArgs?: Record<string, unknown>,
+  streamingArgsText?: string,
 ): string {
   if (metadata.toolPhase === "args_streaming" && metadata.toolArgsText) {
-    return metadata.toolArgsText;
+    return streamingArgsText ?? metadata.toolArgsText;
   }
   if (toolArgs) return formatParams(toolName, toolArgs);
   return metadata.toolArgsText ?? "";
@@ -328,9 +398,10 @@ function formatArgs(
 function formatArgsText(
   metadata: AgentEventMetadata,
   toolArgs?: Record<string, unknown>,
+  streamingArgsText?: string,
 ): string {
   if (metadata.toolPhase === "args_streaming" && metadata.toolArgsText) {
-    return metadata.toolArgsText;
+    return streamingArgsText ?? metadata.toolArgsText;
   }
   return toolArgs
     ? JSON.stringify(toolArgs, null, 2)
@@ -378,8 +449,17 @@ export function buildToolDisplayState({
     isSuccess: status === "success",
     indicator:
       status === "success" ? "check" : status === "error" ? "cross" : "none",
-    argsSummary: formatArgs(toolName, callMetadata, resolvedToolCall.toolArgs),
-    argsText: formatArgsText(callMetadata, resolvedToolCall.toolArgs),
+    argsSummary: formatArgs(
+      toolName,
+      callMetadata,
+      resolvedToolCall.toolArgs,
+      resolvedToolCall.streamingArgsText,
+    ),
+    argsText: formatArgsText(
+      callMetadata,
+      resolvedToolCall.toolArgs,
+      resolvedToolCall.streamingArgsText,
+    ),
     resultText,
     commandExecution: buildCommandExecution(
       toolName,

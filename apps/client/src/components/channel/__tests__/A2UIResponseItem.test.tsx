@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import i18n from "@/i18n";
 import type { AgentEventMetadata, Message } from "@/types/im";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { A2UIResponseItem } from "../A2UIResponseItem";
@@ -37,6 +38,10 @@ function makeMessage(): Message {
 }
 
 describe("A2UIResponseItem", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
   it("renders the selected response as actor, time, and selected values", () => {
     const metadata: AgentEventMetadata = {
       agentEventType: "a2ui_response",
@@ -55,10 +60,10 @@ describe("A2UIResponseItem", () => {
 
     expect(screen.getByText("WM")).toBeInTheDocument();
     expect(screen.queryByText("✓")).not.toBeInTheDocument();
-    expect(screen.getByText("“Winrey Ma(你)”")).toBeInTheDocument();
-    expect(screen.getByText("在")).toBeInTheDocument();
+    expect(screen.getByText("“Winrey Ma(you)”")).toBeInTheDocument();
+    expect(screen.getByText("in")).toBeInTheDocument();
     expect(screen.getByText("“这次可以选多个，随便选！”")).toBeInTheDocument();
-    expect(screen.getByText("选择了")).toBeInTheDocument();
+    expect(screen.getByText("selected")).toBeInTheDocument();
     expect(
       screen.getByText('“选项 B, 选项 D, Other — "测试"”'),
     ).toBeInTheDocument();
@@ -81,7 +86,7 @@ describe("A2UIResponseItem", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByText("“Winrey Ma(你)”")).toHaveClass(
+    expect(screen.getByText("“Winrey Ma(you)”")).toHaveClass(
       "cursor-pointer",
       "hover:underline",
     );

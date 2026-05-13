@@ -41,5 +41,29 @@
   "expandFullContent": "Volledige inhoud tonen",
   "remainingChars": " (nog {{chars}})",
   "loadingFullContent": "Volledige inhoud laden...",
-  "loadFullContentFailed": "Volledige inhoud laden mislukt. Annuleer en probeer het opnieuw."
+  "loadFullContentFailed": "Volledige inhoud laden mislukt. Annuleer en probeer het opnieuw.",
+  "a2ui": {
+    "optionFallback": "Optie",
+    "other": "Anders",
+    "agentFallback": "Agent",
+    "userFallback": "Gebruiker",
+    "agentSuffix": "(agent)",
+    "currentUserSuffix": "(jij)",
+    "asked": "vroeg",
+    "askedYou": "vroeg jou",
+    "answeredBy": "beantwoord door",
+    "selected": "geselecteerd",
+    "selectedPast": "selecteerde",
+    "in": "in",
+    "expand": "Klik om uit te vouwen",
+    "next": "Volgende",
+    "submit": "Verzenden",
+    "submitting": "Verzenden...",
+    "timeout": "Selectie is verlopen",
+    "cancelled": "Selectie is geannuleerd",
+    "validationSelect": "Selecteer “{{title}}”",
+    "otherPlaceholder": "Voer je antwoord in...",
+    "cancelHint": "Druk op Esc om te annuleren",
+    "parseError": "Kan A2UI surface payload niet parseren"
+  }
 }
