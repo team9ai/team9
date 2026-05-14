@@ -3,6 +3,7 @@ export * from './im/index.js';
 export * from './tenant/index.js';
 export * from './document/index.js';
 export * from './routine/index.js';
+export * from './task/index.js';
 export * from './resource/index.js';
 export * from './skill/index.js';
 export * from './wiki/index.js';

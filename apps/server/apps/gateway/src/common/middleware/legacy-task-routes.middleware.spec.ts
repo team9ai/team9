@@ -17,4 +17,17 @@ describe('LegacyTaskRoutesMiddleware', () => {
     );
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it('does not rewrite user-facing task run routes', () => {
+    const middleware = new LegacyTaskRoutesMiddleware();
+    const req = {
+      url: '/api/v1/tasks/run-1',
+    } as Request;
+    const next = jest.fn();
+
+    middleware.use(req, {} as Response, next);
+
+    expect(req.url).toBe('/api/v1/tasks/run-1');
+    expect(next).toHaveBeenCalledTimes(1);
+  });
 });

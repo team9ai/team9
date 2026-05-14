@@ -462,15 +462,11 @@ export function HomeSubSidebar() {
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
-        >
-          <span className="font-semibold text-lg">
+        <div className="flex h-auto w-full items-center px-2 py-1.5 text-nav-foreground">
+          <span className="truncate text-lg font-semibold">
             {currentWorkspace?.name || "Workspace"}
           </span>
-          <ChevronDown size={16} className="text-nav-foreground-subtle" />
-        </Button>
+        </div>
       </div>
 
       <Separator className="bg-nav-border" />

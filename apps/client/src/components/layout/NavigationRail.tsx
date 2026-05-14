@@ -9,6 +9,7 @@ import {
   Box,
   Library,
   LayoutGrid,
+  PanelsTopLeft,
   Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +23,7 @@ import {
   appActions,
   getLastVisitedPath,
   getSectionFromPath,
+  useActiveSidebar,
   type SidebarSection,
 } from "@/stores";
 import {
@@ -32,6 +34,7 @@ import {
 
 export const navigationItems = [
   { id: "home", labelKey: "home" as const, icon: Home },
+  { id: "workspace", labelKey: "workspace" as const, icon: PanelsTopLeft },
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   { id: "aiStaff", labelKey: "staff" as const, icon: IdCard },
@@ -54,6 +57,7 @@ export function NavigationRail() {
   const { t: tNav } = useTranslation("navigation");
   const navigate = useNavigate();
   const location = useLocation();
+  const activeSidebar = useActiveSidebar();
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
   const [hiddenNavUnlocked, setHiddenNavUnlocked] = useState(() =>
@@ -74,9 +78,14 @@ export function NavigationRail() {
       {getVisibleNavigationItems(navigationItems, hiddenNavUnlocked).map(
         (item) => {
           const Icon = item.icon;
+          const isChannelsIndex =
+            location.pathname === "/channels" ||
+            location.pathname === "/channels/";
           const currentSection = location.pathname.startsWith("/profile")
             ? null
-            : getSectionFromPath(location.pathname);
+            : isChannelsIndex && activeSidebar === "workspace"
+              ? "workspace"
+              : getSectionFromPath(location.pathname);
           const isActive = currentSection === item.id;
           const label = tNav(item.labelKey);
 

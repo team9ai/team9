@@ -309,10 +309,27 @@ describe('RoutinesService — TaskCast integration', () => {
           createdAt: new Date('2024-01-01T10:45:00.000Z'),
         },
       ];
+      const taskDeliverables = [
+        {
+          id: 'del-1',
+          runId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
+          createdAt: new Date('2024-01-01T11:15:00.000Z'),
+        },
+      ];
       const deliverables = [
         {
           id: 'del-1',
           executionId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
           createdAt: new Date('2024-01-01T11:15:00.000Z'),
         },
       ];
@@ -325,7 +342,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockImplementationOnce(() => db as any)
         .mockImplementationOnce(() => db as any)
         .mockResolvedValueOnce(interventions as any)
-        .mockResolvedValueOnce(deliverables as any);
+        .mockResolvedValueOnce(taskDeliverables as any);
 
       await expect(service.getById('task-1', 'tenant-1')).resolves.toEqual({
         ...task,
@@ -397,11 +414,27 @@ describe('RoutinesService — TaskCast integration', () => {
           orderIndex: 1,
         },
       ];
+      const taskDeliverables = [
+        {
+          id: 'del-1',
+          runId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
+        },
+      ];
       const deliverables = [
         {
           id: 'del-1',
-          routineId: 'task-1',
           executionId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
+          createdAt: undefined,
         },
       ];
       const interventions = [
@@ -427,7 +460,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockImplementationOnce(() => db as any)
         .mockImplementationOnce(() => db as any)
         .mockImplementationOnce(() => db as any)
-        .mockResolvedValueOnce(deliverables as any)
+        .mockResolvedValueOnce(taskDeliverables as any)
         .mockResolvedValueOnce(interventions as any);
       db.orderBy.mockResolvedValueOnce(steps as any);
 
@@ -457,11 +490,27 @@ describe('RoutinesService — TaskCast integration', () => {
 
   describe('getDeliverables', () => {
     it('returns deliverables for the requested execution', async () => {
+      const taskDeliverables = [
+        {
+          id: 'del-1',
+          runId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
+          createdAt: new Date('2024-01-01T12:00:00.000Z'),
+        },
+      ];
       const deliverables = [
         {
           id: 'del-1',
-          routineId: 'task-1',
           executionId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
           createdAt: new Date('2024-01-01T12:00:00.000Z'),
         },
       ];
@@ -471,7 +520,7 @@ describe('RoutinesService — TaskCast integration', () => {
           ...BASE_TASK,
         },
       ] as any);
-      db.orderBy.mockResolvedValueOnce(deliverables as any);
+      db.orderBy.mockResolvedValueOnce(taskDeliverables as any);
 
       await expect(
         service.getDeliverables('task-1', 'exec-1', 'tenant-1'),
@@ -539,10 +588,27 @@ describe('RoutinesService — TaskCast integration', () => {
           createdAt: new Date('2024-01-01T09:30:00.000Z'),
         },
       ];
+      const taskDeliverables = [
+        {
+          id: 'del-1',
+          runId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
+          createdAt: undefined,
+        },
+      ];
       const deliverables = [
         {
           id: 'del-1',
           executionId: 'exec-1',
+          routineId: 'task-1',
+          fileName: 'result.md',
+          fileSize: 128,
+          mimeType: 'text/markdown',
+          fileUrl: 'https://files.example/result.md',
           createdAt: undefined,
         },
       ];
@@ -554,7 +620,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockImplementationOnce(() => db as any)
         .mockResolvedValueOnce(steps as any)
         .mockResolvedValueOnce(interventions as any)
-        .mockResolvedValueOnce(deliverables as any);
+        .mockResolvedValueOnce(taskDeliverables as any);
 
       await expect(
         service.getExecutionEntries('task-1', 'exec-1', 'tenant-1'),

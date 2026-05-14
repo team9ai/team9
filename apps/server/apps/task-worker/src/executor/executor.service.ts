@@ -90,6 +90,7 @@ export class ExecutorService {
         documentId: schema.routines.documentId,
         creatorId: schema.routines.creatorId,
         title: schema.routines.title,
+        description: schema.routines.description,
         version: schema.routines.version,
         status: schema.routines.status,
       });
@@ -105,6 +106,7 @@ export class ExecutorService {
           documentId: schema.routines.documentId,
           creatorId: schema.routines.creatorId,
           title: schema.routines.title,
+          description: schema.routines.description,
           version: schema.routines.version,
           status: schema.routines.status,
         })
@@ -226,6 +228,32 @@ export class ExecutorService {
         },
       });
 
+      await this.db.insert(schema.taskRuns).values({
+        id: executionId,
+        tenantId: routine.tenantId,
+        routineId,
+        routineVersion: routine.version,
+        botId: routine.botId,
+        creatorId: routine.creatorId,
+        title: routine.title,
+        description: routine.description,
+        status: 'failed',
+        channelId,
+        triggerId: opts?.triggerId ?? null,
+        triggerType: opts?.triggerType ?? null,
+        triggerContext:
+          (opts?.triggerContext as unknown as schema.TriggerContext) ?? null,
+        documentVersionId: opts?.documentVersionId ?? null,
+        sourceRunId: opts?.sourceExecutionId ?? null,
+        startedAt: failedAt,
+        completedAt: failedAt,
+        duration: 0,
+        error: {
+          code: 'FOLDER9_PREFLIGHT_FAILED',
+          message: errorMessage,
+        },
+      });
+
       // Mark the routine as failed and point it at the failed execution so
       // clients can surface the attempted run instead of showing an
       // unexpandable routine.
@@ -268,6 +296,27 @@ export class ExecutorService {
         (opts?.triggerContext as unknown as schema.TriggerContext) ?? null,
       documentVersionId: documentVersionId ?? null,
       sourceExecutionId: opts?.sourceExecutionId ?? null,
+      startedAt: new Date(),
+    });
+
+    await this.db.insert(schema.taskRuns).values({
+      id: executionId,
+      tenantId: routine.tenantId,
+      routineId,
+      routineVersion: routine.version,
+      botId: routine.botId,
+      creatorId: routine.creatorId,
+      title: routine.title,
+      description: routine.description,
+      status: 'in_progress',
+      channelId,
+      taskcastTaskId,
+      triggerId: opts?.triggerId ?? null,
+      triggerType: opts?.triggerType ?? null,
+      triggerContext:
+        (opts?.triggerContext as unknown as schema.TriggerContext) ?? null,
+      documentVersionId: documentVersionId ?? null,
+      sourceRunId: opts?.sourceExecutionId ?? null,
       startedAt: new Date(),
     });
 
@@ -346,6 +395,16 @@ export class ExecutorService {
             error: { message: errorMessage, details: errorStack },
           })
           .where(eq(schema.routineExecutions.id, executionId));
+
+        await this.db
+          .update(schema.taskRuns)
+          .set({
+            status: 'failed',
+            completedAt: now,
+            error: { message: errorMessage, details: errorStack },
+            updatedAt: now,
+          })
+          .where(eq(schema.taskRuns.id, executionId));
 
         await this.db
           .update(schema.routines)
@@ -484,6 +543,22 @@ export class ExecutorService {
       .where(eq(schema.routineExecutions.id, execution.id));
 
     await this.db
+      .update(schema.taskRuns)
+      .set({
+        status: 'stopped',
+        completedAt: now,
+        updatedAt: now,
+        ...(execution.startedAt
+          ? {
+              duration: Math.round(
+                (now.getTime() - execution.startedAt.getTime()) / 1000,
+              ),
+            }
+          : {}),
+      })
+      .where(eq(schema.taskRuns.id, execution.id));
+
+    await this.db
       .update(schema.routines)
       .set({
         status: 'stopped',
@@ -592,6 +667,11 @@ export class ExecutorService {
         .update(schema.routineExecutions)
         .set({ status: 'paused' })
         .where(eq(schema.routineExecutions.id, execution.id));
+
+      await this.db
+        .update(schema.taskRuns)
+        .set({ status: 'paused', updatedAt: new Date() })
+        .where(eq(schema.taskRuns.id, execution.id));
 
       await this.db
         .update(schema.routines)
@@ -705,6 +785,11 @@ export class ExecutorService {
         .where(eq(schema.routineExecutions.id, execution.id));
 
       await this.db
+        .update(schema.taskRuns)
+        .set({ status: 'in_progress', updatedAt: new Date() })
+        .where(eq(schema.taskRuns.id, execution.id));
+
+      await this.db
         .update(schema.routines)
         .set({ status: 'in_progress', updatedAt: new Date() })
         .where(eq(schema.routines.id, routineId));
@@ -739,6 +824,16 @@ export class ExecutorService {
         error,
       })
       .where(eq(schema.routineExecutions.id, executionId));
+
+    await this.db
+      .update(schema.taskRuns)
+      .set({
+        status: 'failed',
+        completedAt: now,
+        error,
+        updatedAt: now,
+      })
+      .where(eq(schema.taskRuns.id, executionId));
 
     await this.db
       .update(schema.routines)

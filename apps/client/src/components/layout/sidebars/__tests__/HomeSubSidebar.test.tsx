@@ -185,6 +185,17 @@ describe("HomeSubSidebar", () => {
     ).toHaveClass("w-9", "h-9");
   });
 
+  it("renders the workspace title as static text without dropdown affordances", () => {
+    render(<HomeSubSidebar />);
+
+    const workspaceTitle = screen.getByText("winrey's Workspace");
+    const titleContainer = workspaceTitle.parentElement;
+
+    expect(workspaceTitle.closest("button")).toBeNull();
+    expect(workspaceTitle.nextElementSibling).toBeNull();
+    expect(titleContainer).not.toHaveClass("hover:bg-nav-hover");
+  });
+
   it("lets channel names use the available row width before truncating", () => {
     render(<HomeSubSidebar />);
 

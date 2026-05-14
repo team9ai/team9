@@ -22,77 +22,86 @@ export class TimeoutService {
   ) {}
 
   /**
-   * Scans every 5 minutes for executions that have been in_progress
+   * Scans every 5 minutes for task runs that have been in_progress
    * for longer than 24 hours and marks them as timed out.
    */
   @Interval(300_000)
   async scanTimedOutExecutions(): Promise<void> {
     const cutoff = new Date(Date.now() - TIMEOUT_THRESHOLD_MS);
 
-    const staleExecutions = await this.db
+    const staleRuns = await this.db
       .select()
-      .from(schema.routineExecutions)
+      .from(schema.taskRuns)
       .where(
         and(
-          eq(schema.routineExecutions.status, 'in_progress'),
-          lte(schema.routineExecutions.startedAt, cutoff),
+          eq(schema.taskRuns.status, 'in_progress'),
+          lte(schema.taskRuns.startedAt, cutoff),
         ),
       );
 
-    if (staleExecutions.length === 0) {
+    if (staleRuns.length === 0) {
       return;
     }
 
     this.logger.warn(
-      `Found ${staleExecutions.length} timed-out execution(s), marking as timeout`,
+      `Found ${staleRuns.length} timed-out task run(s), marking as timeout`,
     );
 
     const now = new Date();
 
-    for (const execution of staleExecutions) {
+    for (const run of staleRuns) {
       try {
-        // Update execution status to timeout (only if still in_progress)
         const [updated] = await this.db
-          .update(schema.routineExecutions)
+          .update(schema.taskRuns)
           .set({
             status: 'timeout',
             completedAt: now,
+            updatedAt: now,
           })
           .where(
             and(
-              eq(schema.routineExecutions.id, execution.id),
-              eq(schema.routineExecutions.status, 'in_progress'),
+              eq(schema.taskRuns.id, run.id),
+              eq(schema.taskRuns.status, 'in_progress'),
             ),
           )
           .returning();
 
         if (!updated) {
           this.logger.debug(
-            `Execution ${execution.id} already transitioned, skipping timeout`,
+            `Task run ${run.id} already transitioned, skipping timeout`,
           );
           continue;
         }
 
-        // Update the parent task status to timeout
         await this.db
-          .update(schema.routines)
+          .update(schema.routineExecutions)
           .set({
             status: 'timeout',
-            updatedAt: now,
+            completedAt: now,
           })
-          .where(
-            and(
-              eq(schema.routines.id, execution.routineId),
-              eq(schema.routines.status, 'in_progress'),
-            ),
-          );
+          .where(eq(schema.routineExecutions.id, run.id));
+
+        if (run.routineId) {
+          await this.db
+            .update(schema.routines)
+            .set({
+              status: 'timeout',
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(schema.routines.id, run.routineId),
+                eq(schema.routines.status, 'in_progress'),
+              ),
+            );
+        }
 
         this.logger.warn(
-          `Execution ${execution.id} for routine ${execution.routineId} marked as timeout (started at ${execution.startedAt?.toISOString()})`,
+          `Task run ${run.id} marked as timeout (routine ${run.routineId ?? 'none'}, started at ${run.startedAt?.toISOString()})`,
         );
       } catch (error) {
         this.logger.error(
-          `Failed to mark execution ${execution.id} as timeout: ${error}`,
+          `Failed to mark task run ${run.id} as timeout: ${error}`,
         );
       }
     }

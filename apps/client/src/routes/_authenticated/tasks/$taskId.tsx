@@ -1,18 +1,17 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Loader2, PanelRightClose } from "lucide-react";
+import { Loader2, PanelRightClose } from "lucide-react";
 import { ChannelView } from "@/components/channel/ChannelView";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { routinesApi } from "@/services/api/routines";
-import { cn } from "@/lib/utils";
-import type { Routine, RoutineStatus } from "@/types/routine";
+import { tasksApi } from "@/services/api/tasks";
+import type { TaskRunStatus } from "@/types/task";
 
 export const Route = createFileRoute("/_authenticated/tasks/$taskId")({
   component: TaskDetailPage,
 });
 
-const STATUS_LABELS: Record<RoutineStatus, string> = {
+const STATUS_LABELS: Record<TaskRunStatus, string> = {
   draft: "待执行",
   upcoming: "待执行",
   in_progress: "进行中",
@@ -24,7 +23,7 @@ const STATUS_LABELS: Record<RoutineStatus, string> = {
   timeout: "已超时",
 };
 
-const READ_ONLY_STATUSES: RoutineStatus[] = [
+const READ_ONLY_STATUSES: TaskRunStatus[] = [
   "completed",
   "failed",
   "stopped",
@@ -33,7 +32,6 @@ const READ_ONLY_STATUSES: RoutineStatus[] = [
 
 function TaskDetailPage() {
   const { taskId } = Route.useParams();
-  const navigate = useNavigate();
 
   const {
     data: task,
@@ -41,19 +39,14 @@ function TaskDetailPage() {
     isError,
   } = useQuery({
     queryKey: ["task", taskId],
-    queryFn: () => routinesApi.getById(taskId),
+    queryFn: () => tasksApi.getById(taskId),
     refetchInterval: (query) => (query.state.error ? false : 5000),
     retry: 0,
   });
 
-  const { data: tasks = [] } = useQuery({
-    queryKey: ["tasks", "routine-backed"],
-    queryFn: () => routinesApi.list(),
-  });
-
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-[#fbf6ee]">
+      <div className="flex h-full items-center justify-center bg-background">
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -61,7 +54,7 @@ function TaskDetailPage() {
 
   if (!task) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[#fbf6ee] text-sm text-muted-foreground">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-background text-sm text-muted-foreground">
         <p>{isError ? "任务加载失败，请稍后重试。" : "未找到任务"}</p>
         <Link to="/tasks" className="text-primary hover:underline">
           返回任务
@@ -70,24 +63,16 @@ function TaskDetailPage() {
     );
   }
 
-  const channelId =
-    task.status === "draft"
-      ? task.creationChannelId
-      : (task.currentExecution?.execution.channelId ?? null);
+  const channelId = task.channelId;
   const readOnly = READ_ONLY_STATUSES.includes(task.status);
 
   return (
-    <div className="flex h-full min-w-0 bg-[#fbf6ee] text-[#2f261e]">
-      <TaskListSidebar
-        tasks={tasks}
-        activeTaskId={task.id}
-        onOpenTask={(id) =>
-          void navigate({ to: "/tasks/$taskId", params: { taskId: id } })
-        }
-      />
-
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-24 shrink-0 items-start justify-between border-b border-[#e1d3c2] px-6 py-5">
+    <div
+      data-testid="task-detail-main"
+      className="flex h-full min-w-0 flex-col bg-background text-foreground"
+    >
+      <section className="flex min-h-0 flex-1 flex-col">
+        <header className="flex h-20 shrink-0 items-start justify-between border-b border-border bg-background px-6 py-4">
           <div className="min-w-0">
             <div className="mb-2 flex items-center gap-2">
               <h1 className="truncate text-lg font-semibold">{task.title}</h1>
@@ -98,7 +83,7 @@ function TaskDetailPage() {
                 {STATUS_LABELS[task.status]}
               </Badge>
             </div>
-            <p className="line-clamp-1 text-sm text-[#7f6e5a]">
+            <p className="line-clamp-1 text-sm text-muted-foreground">
               任务目标：
               {task.description ?? "等待补充任务目标、上下文和交付要求。"}
             </p>
@@ -124,46 +109,5 @@ function TaskDetailPage() {
         </div>
       </section>
     </div>
-  );
-}
-
-function TaskListSidebar({
-  tasks,
-  activeTaskId,
-  onOpenTask,
-}: {
-  tasks: Routine[];
-  activeTaskId: string;
-  onOpenTask: (id: string) => void;
-}) {
-  return (
-    <aside className="flex w-72 shrink-0 flex-col border-r border-[#e1d3c2] bg-white/70">
-      <div className="border-b border-[#e1d3c2] px-4 py-4">
-        <Link to="/tasks" className="text-sm font-semibold hover:underline">
-          任务
-        </Link>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <div className="space-y-1">
-          {tasks.map((task) => (
-            <button
-              key={task.id}
-              type="button"
-              onClick={() => onOpenTask(task.id)}
-              className={cn(
-                "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-[#6f5f4d] hover:bg-[#efe7dc]",
-                activeTaskId === task.id &&
-                  "bg-[#e9dfd4] font-semibold text-[#2f261e]",
-              )}
-            >
-              <span className="truncate">{task.title}</span>
-              {task.currentExecutionId && (
-                <ChevronRight className="size-4 shrink-0 text-blue-500" />
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-    </aside>
   );
 }

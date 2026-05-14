@@ -12,6 +12,7 @@ interface User {
 
 export type SidebarSection =
   | "home"
+  | "workspace"
   | "messages"
   | "activity"
   | "files"
@@ -26,6 +27,7 @@ export type SidebarSection =
 
 export const ALL_SIDEBAR_SECTIONS: SidebarSection[] = [
   "home",
+  "workspace",
   "messages",
   "activity",
   "files",
@@ -42,6 +44,7 @@ export const ALL_SIDEBAR_SECTIONS: SidebarSection[] = [
 // Default paths for each sidebar section
 export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
   home: "/channels",
+  workspace: "/channels",
   messages: "/messages",
   activity: "/activity",
   files: "/files",
@@ -93,7 +96,8 @@ export function sanitizeLastVisitedPaths(
  * Determines which section a path belongs to.
  */
 export function getSectionFromPath(pathname: string): SidebarSection {
-  if (pathname.startsWith("/channels")) return "home";
+  if (pathname === "/channels" || pathname === "/channels/") return "home";
+  if (pathname.startsWith("/channels")) return "workspace";
   if (pathname.startsWith("/messages")) return "messages";
   if (pathname.startsWith("/activity")) return "activity";
   if (pathname.startsWith("/files")) return "files";

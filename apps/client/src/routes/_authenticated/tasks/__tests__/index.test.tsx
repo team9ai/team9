@@ -2,10 +2,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { JSX, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Routine } from "@/types/routine";
+import type { TaskRun } from "@/types/task";
 
 const mockNavigate = vi.fn();
-const mockListRoutines = vi.fn();
+const mockListTasks = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => ({ __config: config }),
@@ -18,41 +18,37 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("@/services/api/routines", () => ({
-  routinesApi: {
-    list: () => mockListRoutines(),
+vi.mock("@/services/api/tasks", () => ({
+  tasksApi: {
+    list: () => mockListTasks(),
   },
-}));
-
-vi.mock("@/components/routines/AgenticAgentPicker", () => ({
-  AgenticAgentPicker: () => null,
-}));
-
-vi.mock("@/components/routines/CreateRoutineDialog", () => ({
-  CreateRoutineDialog: () => null,
 }));
 
 import { Route as TasksRoute } from "../index";
 
-function makeRoutine(overrides: Partial<Routine>): Routine {
+function makeTask(overrides: Partial<TaskRun>): TaskRun {
   return {
-    id: "routine-1",
+    id: "run-1",
     tenantId: "tenant-1",
+    routineId: null,
+    routineVersion: null,
     botId: "bot-1",
     creatorId: "user-1",
     title: "Task",
     description: null,
     status: "upcoming",
-    scheduleType: "once",
-    scheduleConfig: null,
-    nextRunAt: null,
-    version: 1,
-    documentId: null,
-    folderId: null,
-    currentExecutionId: null,
-    creationChannelId: null,
-    creationSessionId: null,
-    sourceRef: null,
+    channelId: "channel-1",
+    taskcastTaskId: null,
+    tokenUsage: 0,
+    startedAt: null,
+    completedAt: null,
+    duration: null,
+    error: null,
+    triggerId: null,
+    triggerType: null,
+    triggerContext: null,
+    documentVersionId: null,
+    sourceRunId: null,
     createdAt: "2026-05-14T00:00:00.000Z",
     updatedAt: "2026-05-14T00:00:00.000Z",
     ...overrides,
@@ -76,25 +72,23 @@ function renderRoute() {
 describe("/_authenticated/tasks/ index route", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
-    mockListRoutines.mockResolvedValue([
-      makeRoutine({
+    mockListTasks.mockResolvedValue([
+      makeTask({
         id: "pending-1",
         title: "确定 618 营销任务 Brief",
         status: "upcoming",
       }),
-      makeRoutine({
+      makeTask({
         id: "running-1",
         title: "东鹏特饮找20位 KOC",
         status: "in_progress",
-        currentExecutionId: "exec-running-1",
       }),
-      makeRoutine({
+      makeTask({
         id: "done-1",
         title: "整理上周投放复盘",
         status: "completed",
-        currentExecutionId: "exec-done-1",
       }),
-      makeRoutine({
+      makeTask({
         id: "archived-1",
         title: "已停止任务",
         status: "stopped",
@@ -104,6 +98,8 @@ describe("/_authenticated/tasks/ index route", () => {
 
   it("renders routine-backed tasks in kanban status columns", async () => {
     renderRoute();
+
+    expect(screen.getByTestId("tasks-board-page")).toHaveClass("bg-background");
 
     const pendingColumn = await screen.findByTestId("task-column-pending");
     const runningColumn = screen.getByTestId("task-column-running");

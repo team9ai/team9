@@ -1,11 +1,12 @@
 import { useLocation } from "@tanstack/react-router";
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
-import { HomeSubSidebar } from "./sidebars/HomeSubSidebar";
+import { HomeSubSidebar as WorkspaceSubSidebar } from "./sidebars/HomeSubSidebar";
 import { MessagesSubSidebar } from "./sidebars/MessagesSubSidebar";
 import { ActivitySubSidebar } from "./sidebars/ActivitySubSidebar";
 import { FilesSubSidebar } from "./sidebars/FilesSubSidebar";
 import { MoreSubSidebar } from "./sidebars/MoreSubSidebar";
 import { WikiSubSidebar } from "./sidebars/WikiSubSidebar";
+import { TasksSubSidebar } from "./sidebars/TasksSubSidebar";
 import {
   SUB_SIDEBAR_WIDTH_MAX,
   SUB_SIDEBAR_WIDTH_MIN,
@@ -22,8 +23,11 @@ function getSidebarType(
   activeSidebar: SidebarSection,
 ): SidebarType {
   // For channel routes, use the stored activeSidebar to maintain context
+  if (pathname === "/channels" || pathname === "/channels/") {
+    return activeSidebar === "workspace" ? "workspace" : null;
+  }
   if (pathname.startsWith("/channels")) {
-    return activeSidebar;
+    return "workspace";
   }
 
   // Match routes to sidebar types
@@ -38,6 +42,9 @@ function getSidebarType(
   }
   if (pathname.startsWith("/wiki")) {
     return "wiki";
+  }
+  if (pathname.startsWith("/tasks")) {
+    return "tasks";
   }
   if (pathname.startsWith("/files")) {
     return "files";
@@ -56,8 +63,8 @@ export function DynamicSubSidebar() {
   let sidebar: ReactNode = null;
 
   switch (sidebarType) {
-    case "home":
-      sidebar = <HomeSubSidebar />;
+    case "workspace":
+      sidebar = <WorkspaceSubSidebar />;
       break;
     case "messages":
       sidebar = <MessagesSubSidebar />;
@@ -70,6 +77,9 @@ export function DynamicSubSidebar() {
       break;
     case "wiki":
       sidebar = <WikiSubSidebar />;
+      break;
+    case "tasks":
+      sidebar = <TasksSubSidebar />;
       break;
     case "more":
       sidebar = <MoreSubSidebar />;

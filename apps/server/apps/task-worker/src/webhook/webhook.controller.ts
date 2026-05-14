@@ -50,52 +50,61 @@ export class WebhookController {
       `Received timeout webhook for TaskCast task ${taskcastId}`,
     );
 
-    // Parse execution ID from deterministic TaskCast ID (agent_task_exec_{execId})
+    // Parse run ID from deterministic TaskCast ID (agent_task_exec_{runId})
     if (!taskcastId.startsWith(WebhookController.TASKCAST_ID_PREFIX)) {
       this.logger.error(`Unexpected TaskCast ID format: ${taskcastId}`);
       return;
     }
-    const executionId = taskcastId.slice(
-      WebhookController.TASKCAST_ID_PREFIX.length,
-    );
+    const runId = taskcastId.slice(WebhookController.TASKCAST_ID_PREFIX.length);
 
-    // Verify execution exists and get its routineId
-    const [execution] = await this.db
+    // Verify run exists and get its optional routineId
+    const [run] = await this.db
       .select({
-        id: schema.routineExecutions.id,
-        routineId: schema.routineExecutions.routineId,
+        id: schema.taskRuns.id,
+        routineId: schema.taskRuns.routineId,
       })
-      .from(schema.routineExecutions)
-      .where(eq(schema.routineExecutions.id, executionId))
+      .from(schema.taskRuns)
+      .where(eq(schema.taskRuns.id, runId))
       .limit(1);
 
-    if (!execution) {
-      this.logger.error(`Execution not found: ${executionId}`);
+    if (!run) {
+      this.logger.error(`Task run not found: ${runId}`);
       return;
     }
 
     const now = new Date();
 
-    // Update execution status
+    // Update task run status
+    await this.db
+      .update(schema.taskRuns)
+      .set({
+        status: 'timeout',
+        completedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(schema.taskRuns.id, runId));
+
+    // Keep legacy routine execution rows in sync for routine APIs.
     await this.db
       .update(schema.routineExecutions)
       .set({
         status: 'timeout',
         completedAt: now,
       })
-      .where(eq(schema.routineExecutions.id, executionId));
+      .where(eq(schema.routineExecutions.id, runId));
 
-    // Update routine status to timeout
-    await this.db
-      .update(schema.routines)
-      .set({
-        status: 'timeout',
-        updatedAt: now,
-      })
-      .where(eq(schema.routines.id, execution.routineId));
+    if (run.routineId) {
+      await this.db
+        .update(schema.routines)
+        .set({
+          status: 'timeout',
+          updatedAt: now,
+        })
+        .where(eq(schema.routines.id, run.routineId));
+    }
 
     this.logger.warn(
-      `Routine ${execution.routineId} and execution ${executionId} marked as timeout via webhook`,
+      `Task run ${runId} marked as timeout via webhook (routine ${run.routineId ?? 'none'})`,
     );
   }
 }

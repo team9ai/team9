@@ -33,8 +33,11 @@ describe("useAppStore navigation helpers", () => {
   });
 
   it("keeps routines and tasks as separate sidebar sections", () => {
+    expect(DEFAULT_SECTION_PATHS.workspace).toBe("/channels");
     expect(DEFAULT_SECTION_PATHS.routines).toBe("/routines");
     expect(DEFAULT_SECTION_PATHS.tasks).toBe("/tasks");
+    expect(getSectionFromPath("/channels")).toBe("home");
+    expect(getSectionFromPath("/channels/channel-1")).toBe("workspace");
     expect(getSectionFromPath("/routines")).toBe("routines");
     expect(getSectionFromPath("/tasks")).toBe("tasks");
     expect(getSectionFromPath("/tasks/task-1")).toBe("tasks");
@@ -45,6 +48,7 @@ describe("useAppStore navigation helpers", () => {
       activeSidebar: "skills",
       lastVisitedPaths: {
         home: "/channels/channel-1",
+        workspace: "/channels/channel-2",
         messages: "/messages/dm-1",
         activity: "/activity/channel-1",
         files: "/files",
@@ -65,6 +69,7 @@ describe("useAppStore navigation helpers", () => {
     expect(state.activeSidebar).toBe("home");
     expect(state.lastVisitedPaths).toMatchObject({
       home: null,
+      workspace: null,
       messages: null,
       activity: null,
       files: null,

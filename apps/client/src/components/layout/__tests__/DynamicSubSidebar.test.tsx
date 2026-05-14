@@ -37,6 +37,10 @@ vi.mock("../sidebars/WikiSubSidebar", () => ({
   WikiSubSidebar: () => <div data-testid="wiki-sub-sidebar" />,
 }));
 
+vi.mock("../sidebars/TasksSubSidebar", () => ({
+  TasksSubSidebar: () => <div data-testid="tasks-sub-sidebar" />,
+}));
+
 describe("DynamicSubSidebar", () => {
   beforeEach(() => {
     pathname = "/wiki";
@@ -58,6 +62,14 @@ describe("DynamicSubSidebar", () => {
     expect(screen.getByTestId("dynamic-sub-sidebar")).not.toHaveClass(
       "text-primary-foreground",
     );
+  });
+
+  it("uses the tasks secondary sidebar on task routes", () => {
+    pathname = "/tasks/task-1";
+
+    render(<DynamicSubSidebar />);
+
+    expect(screen.getByTestId("tasks-sub-sidebar")).toBeInTheDocument();
   });
 
   it("persists drag resizing and clamps the maximum width", () => {

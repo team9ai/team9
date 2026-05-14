@@ -7,6 +7,7 @@ vi.mock("react-i18next", () => ({
       (
         ({
           home: "Home",
+          workspace: "Workspace",
           dms: "DMs",
           activity: "Activity",
           staff: "Staff",
@@ -60,7 +61,10 @@ vi.mock("@/components/ui/button", () => ({
 import { navigationItems, NavigationRail } from "../NavigationRail";
 
 describe("NavigationRail task entry", () => {
-  it("keeps Routines and Tasks as separate navigation items", () => {
+  it("shows Workspace in the default rail and hides DMs before unlock", () => {
+    expect(
+      navigationItems.find((item) => item.id === "workspace")?.labelKey,
+    ).toBe("workspace");
     expect(
       navigationItems.find((item) => item.id === "routines")?.labelKey,
     ).toBe("routines");
@@ -70,7 +74,21 @@ describe("NavigationRail task entry", () => {
 
     render(<NavigationRail />);
 
-    expect(screen.getByTitle("Tasks")).toBeInTheDocument();
-    expect(screen.getByTitle("Routines")).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("title")),
+    ).toEqual([
+      "Home",
+      "Workspace",
+      "Activity",
+      "Staff",
+      "Tasks",
+      "Routines",
+      "Skills",
+      "Apps",
+      "More",
+    ]);
+    expect(screen.queryByTitle("DMs")).not.toBeInTheDocument();
   });
 });

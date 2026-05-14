@@ -10,6 +10,7 @@ import {
 
 const navigationItems = [
   { id: "home" },
+  { id: "workspace" },
   { id: "messages" },
   { id: "activity" },
   { id: "aiStaff" },
@@ -22,12 +23,12 @@ const navigationItems = [
 ];
 
 describe("mainSidebarUnlock", () => {
-  it("keeps Skills visible before unlock", () => {
+  it("shows Workspace and hides Messages before unlock", () => {
     const visibleItems = getVisibleNavigationItems(navigationItems, false);
 
     expect(visibleItems.map((item) => item.id)).toEqual([
       "home",
-      "messages",
+      "workspace",
       "activity",
       "aiStaff",
       "routines",
@@ -61,6 +62,6 @@ describe("mainSidebarUnlock", () => {
   });
 
   it("keeps the hidden-section list stable", () => {
-    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["resources", "wiki"]);
+    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["messages", "resources", "wiki"]);
   });
 });
