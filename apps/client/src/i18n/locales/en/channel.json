@@ -213,6 +213,8 @@
       "rawJson": "raw",
       "formattedJson": "formatted",
       "emptyStream": "(empty)",
+      "estimatedTokens": "Est. {{count}} tokens",
+      "truncated": "Truncated",
       "runCommand": {
         "local": "Run command locally",
         "localBadge": "Local",

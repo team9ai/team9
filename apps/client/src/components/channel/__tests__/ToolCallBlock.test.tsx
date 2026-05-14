@@ -1092,6 +1092,87 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("permission denied")).toBeInTheDocument();
     });
 
+    it("shows formatted token estimate copy for expanded args and result", () => {
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("SearchFiles", {
+            query: "status report",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent='{"items":["alpha","beta"]}'
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getAllByText(/Est\. \d+ tokens/)).toHaveLength(2);
+      for (const meta of screen.getAllByTestId("tool-detail-meta")) {
+        expect(meta).toHaveClass("text-muted-foreground/70");
+      }
+    });
+
+    it("shows truncated state and estimates total tokens from full content length", () => {
+      const resultMessage: Pick<
+        Message,
+        "id" | "type" | "content" | "isTruncated" | "fullContentLength"
+      > = {
+        id: "msg-result-truncated",
+        type: "tracking",
+        content: "preview",
+        isTruncated: true,
+        fullContentLength: 5000,
+      };
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("ReadLargeResult")}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent="preview"
+          resultMessage={resultMessage}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getByText("Est. 1,250 tokens")).toBeInTheDocument();
+      expect(screen.getByText("Truncated")).toBeInTheDocument();
+    });
+
+    it("uses the natural zh-CN estimate prefix", async () => {
+      await act(async () => {
+        await changeLanguage("zh-CN");
+      });
+      try {
+        const resultMessage: Pick<
+          Message,
+          "id" | "type" | "content" | "isTruncated" | "fullContentLength"
+        > = {
+          id: "msg-result-zh-estimate",
+          type: "tracking",
+          content: "preview",
+          isTruncated: true,
+          fullContentLength: 5000,
+        };
+
+        render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("ReadLargeResult")}
+            resultMetadata={makeResultMeta("completed")}
+            resultContent="preview"
+            resultMessage={resultMessage}
+          />,
+        );
+
+        fireEvent.click(screen.getByText("工具调用完成"));
+
+        expect(screen.getByText("约 1,250 tokens")).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
+
     it("uses fetched full content for expanded truncated result messages", () => {
       const resultMessage: Pick<
         Message,

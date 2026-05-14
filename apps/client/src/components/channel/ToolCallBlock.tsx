@@ -184,6 +184,96 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function estimateTokenCount(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+
+  const cjkChars = trimmed.match(/[\u3400-\u9FFF\uF900-\uFAFF]/gu)?.length ?? 0;
+  const nonCjkChars = trimmed
+    .replace(/[\u3400-\u9FFF\uF900-\uFAFF]/gu, "")
+    .replace(/\s+/g, "").length;
+
+  return Math.max(1, cjkChars + Math.ceil(nonCjkChars / 4));
+}
+
+function estimateTokenCountFromLength(
+  fullContentLength: number | undefined,
+  fallbackText: string,
+): number {
+  if (typeof fullContentLength === "number" && fullContentLength > 0) {
+    return Math.max(1, Math.ceil(fullContentLength / 4));
+  }
+  return estimateTokenCount(fallbackText);
+}
+
+function formatEstimatedTokenCount(count: number): string {
+  return new Intl.NumberFormat("en-US").format(count);
+}
+
+function DetailMeta({
+  fullContentLength,
+  isTruncated = false,
+  t,
+  text,
+}: {
+  fullContentLength?: number;
+  isTruncated?: boolean;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  text: string;
+}) {
+  const tokenCount = estimateTokenCountFromLength(fullContentLength, text);
+  if (tokenCount === 0 && !isTruncated) return null;
+
+  return (
+    <span
+      className="ml-auto flex shrink-0 items-center gap-1 text-[11px] leading-none text-muted-foreground/70"
+      data-testid="tool-detail-meta"
+    >
+      {tokenCount > 0 && (
+        <span>
+          {t("tracking.toolCall.estimatedTokens", {
+            count: formatEstimatedTokenCount(tokenCount),
+          })}
+        </span>
+      )}
+      {isTruncated && (
+        <>
+          {tokenCount > 0 && <span aria-hidden="true">·</span>}
+          <span>{t("tracking.toolCall.truncated")}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
+function DetailHeader({
+  fullContentLength,
+  isTruncated,
+  label,
+  labelClassName,
+  t,
+  text,
+}: {
+  fullContentLength?: number;
+  isTruncated?: boolean;
+  label: string;
+  labelClassName: string;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  text: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className={labelClassName}>{label}</span>
+      <DetailMeta
+        fullContentLength={fullContentLength}
+        isTruncated={isTruncated}
+        t={t}
+        text={text}
+      />
+    </div>
+  );
+}
+
 function SyntaxPreview({
   className,
   language,
@@ -767,16 +857,17 @@ function StreamBlock({
 
   return (
     <div>
-      <span
-        className={cn(
+      <DetailHeader
+        label={label}
+        labelClassName={cn(
           "text-xs font-semibold",
           tone === "error" && hasOutput
             ? "text-red-500"
             : "text-muted-foreground",
         )}
-      >
-        {label}
-      </span>
+        t={t}
+        text={value}
+      />
       <ExpandablePre
         className={preClassName}
         label={label}
@@ -789,13 +880,17 @@ function StreamBlock({
 
 function RawToolDetails({
   argsText,
+  isResultTruncated,
   resultImages,
+  resultFullContentLength,
   resultText,
   isError,
   t,
 }: {
   argsText: string;
+  isResultTruncated?: boolean;
   resultImages: ToolResultImage[];
+  resultFullContentLength?: number;
   resultText: string;
   isError: boolean;
   t: (key: string, options?: Record<string, unknown>) => string;
@@ -808,9 +903,12 @@ function RawToolDetails({
     <>
       {argsText && (
         <div>
-          <span className="text-xs font-semibold text-muted-foreground">
-            {argsLabel}
-          </span>
+          <DetailHeader
+            label={argsLabel}
+            labelClassName="text-xs font-semibold text-muted-foreground"
+            t={t}
+            text={argsText}
+          />
           <ExpandablePre
             className={cn(
               "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap break-all",
@@ -824,14 +922,17 @@ function RawToolDetails({
       )}
       {(resultText !== "" || resultImages.length > 0) && (
         <div>
-          <span
-            className={cn(
+          <DetailHeader
+            fullContentLength={resultFullContentLength}
+            isTruncated={isResultTruncated}
+            label={resultLabel}
+            labelClassName={cn(
               "text-xs font-semibold",
               isError ? "text-red-500" : "text-emerald-500",
             )}
-          >
-            {resultLabel}
-          </span>
+            t={t}
+            text={resultText}
+          />
           {resultImages.length > 0 && (
             <div className="mt-1 grid gap-2">
               {resultImages.map((image) => (
@@ -889,6 +990,15 @@ export function ToolCallBlock({
   );
   const effectiveResultContent =
     fullContentData?.content ?? resultContent ?? resultMessage?.content ?? "";
+  const isResultContentTruncated = Boolean(
+    !fullContentData?.content &&
+    (resultMetadata?.resultTruncated ||
+      resultMetadata?.fullContentMessageId ||
+      resultMessage?.isTruncated),
+  );
+  const resultFullContentLength = isResultContentTruncated
+    ? resultMessage?.fullContentLength
+    : undefined;
   const displayState = buildToolDisplayState({
     callMetadata,
     resultMetadata,
@@ -1126,8 +1236,10 @@ export function ToolCallBlock({
           ) : (
             <RawToolDetails
               argsText={displayState.argsText}
+              isResultTruncated={isResultContentTruncated}
               resultText={hasResultContent ? unwrapped : ""}
               resultImages={resultImages}
+              resultFullContentLength={resultFullContentLength}
               isError={isError}
               t={translate}
             />

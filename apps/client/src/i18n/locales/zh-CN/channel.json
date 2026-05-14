@@ -213,6 +213,8 @@
       "rawJson": "raw",
       "formattedJson": "格式化",
       "emptyStream": "（空）",
+      "estimatedTokens": "约 {{count}} tokens",
+      "truncated": "内容已截断",
       "runCommand": {
         "local": "在本机执行命令",
         "localBadge": "本机",
