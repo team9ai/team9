@@ -12,6 +12,7 @@
   "chatButton": "Chat",
   "dmPermissionDenied": "This is a private assistant and is not open for direct messages.",
   "routines": "Routines",
+  "tasks": "Tasks",
   "resources": "Resources",
   "skills": "Skills",
   "wiki": "Library",

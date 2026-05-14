@@ -35,6 +35,7 @@ export const navigationItems = [
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   { id: "aiStaff", labelKey: "staff" as const, icon: IdCard },
+  { id: "tasks", labelKey: "tasks" as const, icon: ListChecks },
   { id: "routines", labelKey: "routines" as const, icon: ListChecks },
   { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },

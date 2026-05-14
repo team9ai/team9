@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_SECTION_PATHS,
   SUB_SIDEBAR_WIDTH_DEFAULT,
   SUB_SIDEBAR_WIDTH_MAX,
   SUB_SIDEBAR_WIDTH_MIN,
+  getSectionFromPath,
   isRestorableSectionPath,
   sanitizeLastVisitedPaths,
   useAppStore,
@@ -30,6 +32,14 @@ describe("useAppStore navigation helpers", () => {
     });
   });
 
+  it("keeps routines and tasks as separate sidebar sections", () => {
+    expect(DEFAULT_SECTION_PATHS.routines).toBe("/routines");
+    expect(DEFAULT_SECTION_PATHS.tasks).toBe("/tasks");
+    expect(getSectionFromPath("/routines")).toBe("routines");
+    expect(getSectionFromPath("/tasks")).toBe("tasks");
+    expect(getSectionFromPath("/tasks/task-1")).toBe("tasks");
+  });
+
   it("resets all section paths, including skill detail pages, on workspace entry", () => {
     useAppStore.setState({
       activeSidebar: "skills",
@@ -39,6 +49,7 @@ describe("useAppStore navigation helpers", () => {
         activity: "/activity/channel-1",
         files: "/files",
         aiStaff: "/ai-staff/staff-1",
+        tasks: "/tasks",
         routines: "/routines",
         skills: "/skills/skill-1",
         resources: "/resources",
@@ -58,6 +69,7 @@ describe("useAppStore navigation helpers", () => {
       activity: null,
       files: null,
       aiStaff: null,
+      tasks: null,
       routines: null,
       skills: null,
       resources: null,
