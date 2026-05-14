@@ -218,7 +218,7 @@ export function MainSidebar() {
           className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-3"
         >
           {isLoading ? (
-            <Avatar className="w-10 h-10">
+            <Avatar className="w-10 h-10 shrink-0">
               <AvatarFallback className="bg-background text-foreground rounded-lg">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-foreground" />
               </AvatarFallback>
@@ -226,7 +226,7 @@ export function MainSidebar() {
           ) : visibleWorkspaces.length === 0 ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
+                <Avatar className="w-10 h-10 shrink-0 cursor-pointer hover:opacity-80 transition-opacity">
                   <AvatarFallback className="bg-background text-foreground rounded-full font-bold text-base">
                     🏋
                   </AvatarFallback>
@@ -348,7 +348,7 @@ export function MainSidebar() {
                   <TooltipTrigger asChild>
                     <div
                       className={cn(
-                        "cursor-pointer transition-[width,height,opacity,box-shadow] duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
+                        "shrink-0 aspect-square cursor-pointer transition-[width,height,opacity,box-shadow] duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
                         getSeededAvatarGradient(workspace.id),
                         isSelected
                           ? "w-11 h-11 rounded-xl text-base shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
@@ -372,7 +372,7 @@ export function MainSidebar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="w-10 h-10 cursor-pointer hover:opacity-80 transition-all rounded-2xl hover:rounded-xl bg-nav-hover-strong hover:bg-nav-hover-stronger flex items-center justify-center text-nav-foreground border-2 border-dashed border-nav-border-muted"
+                  className="w-10 h-10 shrink-0 aspect-square cursor-pointer hover:opacity-80 transition-all rounded-2xl hover:rounded-xl bg-nav-hover-strong hover:bg-nav-hover-stronger flex items-center justify-center text-nav-foreground border-2 border-dashed border-nav-border-muted"
                   onClick={() => setCreateWorkspaceOpen(true)}
                 >
                   <Plus size={18} />
@@ -386,7 +386,7 @@ export function MainSidebar() {
 
           {/* Navigation Items - shown here when sidebar is collapsed */}
           {sidebarCollapsed && (
-            <nav className="w-full flex flex-col items-center space-y-2 border-border">
+            <nav className="w-full shrink-0 flex flex-col items-center space-y-2 border-border">
               <NavigationRail />
             </nav>
           )}
@@ -398,7 +398,7 @@ export function MainSidebar() {
             <button
               onClick={() => navigate({ to: "/devices" as never })}
               aria-label={tAhand("myDevices")}
-              className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2 cursor-pointer"
+              className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center hover:bg-nav-hover-strong relative mb-2 cursor-pointer"
             >
               {/* Inner wrapper sized to the Laptop glyph so the badge can
                     hug its bottom-right corner (with partial overlap) rather
