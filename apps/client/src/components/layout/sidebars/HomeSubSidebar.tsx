@@ -164,7 +164,10 @@ function DraggableChannel({
             size={16}
             className={cn("shrink-0", !isMember && "opacity-50")}
           />
-          <span className="truncate text-left max-w-35" title={channel.name}>
+          <span
+            className="min-w-0 flex-1 truncate text-left"
+            title={channel.name}
+          >
             {channel.name}
           </span>
           {channel.unreadCount > 0 && (
