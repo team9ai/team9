@@ -91,6 +91,20 @@ function closeActiveParts(
   });
 }
 
+function closeAllActiveParts(
+  parts: StreamingPart[],
+  now: number,
+): StreamingPart[] {
+  return parts.map((part) => {
+    if (!part.isStreaming) return part;
+    return {
+      ...part,
+      isStreaming: false,
+      durationMs: Math.max(0, now - part.startedAt),
+    };
+  });
+}
+
 function aggregateParts(
   parts: StreamingPart[],
   type: StreamingPart["type"],
@@ -243,14 +257,23 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
-      const nextMetadata = mergeStreamingMetadata(
-        stream.metadata ?? loadPersistedStreamMetadata(streamId),
-        metadata,
-      );
+      const nextMetadata =
+        mergeStreamingMetadata(
+          stream.metadata ?? loadPersistedStreamMetadata(streamId),
+          metadata,
+        ) ?? {};
+      const isToolCallMetadata = nextMetadata.agentEventType === "tool_call";
+      const parts = isToolCallMetadata
+        ? closeAllActiveParts(stream.parts, Date.now())
+        : stream.parts;
       const newStreams = new Map(state.streams);
       newStreams.set(streamId, {
         ...stream,
         metadata: nextMetadata,
+        content: aggregateParts(parts, "content"),
+        thinking: aggregateParts(parts, "thinking"),
+        isThinking: isToolCallMetadata ? false : stream.isThinking,
+        parts,
       });
       persistStreamMetadata(streamId, nextMetadata);
       return { streams: newStreams };
