@@ -13,7 +13,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { StaffModelProviderLogo } from "@/components/ai-staff/StaffModelProviderLogo";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
-import { useFileUpload } from "@/hooks/useFileUpload";
+import { useFileUpload, type UploadingFile } from "@/hooks/useFileUpload";
 import { AttachmentPreview } from "@/components/channel/editor/AttachmentPreview";
 import {
   type DashboardAgent,
@@ -57,6 +57,7 @@ import {
   getBaseModelProductKeyFromBotIdentity,
 } from "@/lib/base-model-agent";
 import type { WorkspaceBillingAccount } from "@/types/workspace";
+import type { AttachmentDto } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
@@ -471,6 +472,135 @@ function formatDashboardCredits(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.floor(value));
 }
 
+interface DashboardComposerDraft {
+  prompt: string;
+  attachments: AttachmentDto[];
+  savedAt: number;
+}
+
+const DASHBOARD_COMPOSER_DRAFT_STORAGE_PREFIX = "team9.dashboard.composerDraft";
+const RESTORED_ATTACHMENT_ID_PREFIX = "draft-attachment:";
+
+function buildDashboardComposerDraftKey(
+  workspaceId: string,
+  agentUserId: string,
+) {
+  return `${DASHBOARD_COMPOSER_DRAFT_STORAGE_PREFIX}.${workspaceId}.${agentUserId}`;
+}
+
+function readDashboardComposerDraft(
+  key: string,
+): DashboardComposerDraft | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const draft = parsed as DashboardComposerDraft;
+    if (
+      typeof draft.prompt !== "string" ||
+      typeof draft.savedAt !== "number" ||
+      !Array.isArray(draft.attachments)
+    ) {
+      return null;
+    }
+
+    const attachments = draft.attachments.filter(
+      (attachment): attachment is AttachmentDto =>
+        !!attachment &&
+        typeof attachment.fileKey === "string" &&
+        typeof attachment.fileName === "string" &&
+        typeof attachment.fileSize === "number" &&
+        typeof attachment.mimeType === "string",
+    );
+
+    return {
+      prompt: draft.prompt,
+      attachments,
+      savedAt: draft.savedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mergeDashboardDraftAttachments(
+  ...attachmentGroups: AttachmentDto[][]
+): AttachmentDto[] {
+  const merged = new Map<string, AttachmentDto>();
+
+  for (const attachments of attachmentGroups) {
+    for (const attachment of attachments) {
+      merged.set(attachment.fileKey, attachment);
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
+function writeDashboardComposerDraft(
+  key: string,
+  prompt: string,
+  attachments: AttachmentDto[],
+) {
+  const normalizedAttachments = mergeDashboardDraftAttachments(attachments);
+
+  try {
+    if (!prompt && normalizedAttachments.length === 0) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    const draft: DashboardComposerDraft = {
+      prompt,
+      attachments: normalizedAttachments,
+      savedAt: Date.now(),
+    };
+
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Storage can be unavailable or full; keep the in-memory composer usable.
+  }
+}
+
+function clearDashboardComposerDraft(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+function uploadToDraftAttachment(file: UploadingFile): AttachmentDto | null {
+  if (file.status !== "completed" || !file.result) return null;
+
+  return {
+    fileKey: file.result.key,
+    fileName: file.result.fileName,
+    fileSize: file.result.fileSize,
+    mimeType: file.result.mimeType,
+  };
+}
+
+function restoredAttachmentToUploadingFile(
+  attachment: AttachmentDto,
+): UploadingFile {
+  return {
+    id: `${RESTORED_ATTACHMENT_ID_PREFIX}${attachment.fileKey}`,
+    file: new File([], attachment.fileName, { type: attachment.mimeType }),
+    progress: 100,
+    status: "completed",
+    result: {
+      key: attachment.fileKey,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+    },
+  };
+}
+
 export function HomeMainContent({
   agentId = null,
 }: { agentId?: string | null } = {}) {
@@ -483,7 +613,13 @@ export function HomeMainContent({
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
+  const [draftAttachments, setDraftAttachments] = useState<AttachmentDto[]>([]);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const promptValueRef = useRef("");
+  const draftAttachmentsRef = useRef<AttachmentDto[]>([]);
+  const completedUploadDraftAttachmentsRef = useRef<AttachmentDto[]>([]);
+  const activeDraftKeyRef = useRef<string | null>(null);
+  const skipNextDraftAutosaveRef = useRef(false);
   const isPromptComposingRef = useRef(false);
   const promptCompositionEndFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -499,9 +635,8 @@ export function HomeMainContent({
   const {
     uploadingFiles,
     addFiles,
-    removeFile,
     retryFile,
-    getAttachments,
+    removeFile,
     isUploading,
     clearFiles,
   } = useFileUpload({ visibility: "workspace" });
@@ -516,6 +651,36 @@ export function HomeMainContent({
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
+  const draftKey =
+    workspaceId && selectedAgent
+      ? buildDashboardComposerDraftKey(workspaceId, selectedAgent.userId)
+      : null;
+  const completedUploadDraftAttachments = useMemo(
+    () =>
+      uploadingFiles.flatMap((file) => {
+        const attachment = uploadToDraftAttachment(file);
+        return attachment ? [attachment] : [];
+      }),
+    [uploadingFiles],
+  );
+  const currentDraftAttachments = useMemo(
+    () =>
+      mergeDashboardDraftAttachments(
+        draftAttachments,
+        completedUploadDraftAttachments,
+      ),
+    [completedUploadDraftAttachments, draftAttachments],
+  );
+  const previewFiles = useMemo(() => {
+    const uploadedKeys = new Set(
+      completedUploadDraftAttachments.map((attachment) => attachment.fileKey),
+    );
+    const restoredFiles = draftAttachments
+      .filter((attachment) => !uploadedKeys.has(attachment.fileKey))
+      .map(restoredAttachmentToUploadingFile);
+
+    return [...restoredFiles, ...uploadingFiles];
+  }, [completedUploadDraftAttachments, draftAttachments, uploadingFiles]);
   const effectiveModel = sessionModelOverride ?? selectedAgent?.model ?? null;
   const isSubmitting = createTopicSession.isPending;
   // Allow send if either the prompt has text or there's at least one
@@ -525,8 +690,9 @@ export function HomeMainContent({
   const hasReadyAttachment = uploadingFiles.some(
     (f) => f.status === "completed",
   );
+  const hasDraftAttachment = currentDraftAttachments.length > 0;
   const canSubmit =
-    (prompt.trim().length > 0 || hasReadyAttachment) &&
+    (prompt.trim().length > 0 || hasReadyAttachment || hasDraftAttachment) &&
     !isSubmitting &&
     !isUploading &&
     !!selectedAgent;
@@ -558,6 +724,58 @@ export function HomeMainContent({
     });
   }, [agents]);
 
+  useEffect(() => {
+    const previousDraftKey = activeDraftKeyRef.current;
+    if (previousDraftKey && previousDraftKey !== draftKey) {
+      writeDashboardComposerDraft(
+        previousDraftKey,
+        promptValueRef.current,
+        mergeDashboardDraftAttachments(
+          draftAttachmentsRef.current,
+          completedUploadDraftAttachmentsRef.current,
+        ),
+      );
+    }
+
+    activeDraftKeyRef.current = draftKey;
+    skipNextDraftAutosaveRef.current = true;
+    clearFiles();
+
+    if (!draftKey) {
+      setPrompt("");
+      setDraftAttachments([]);
+      return;
+    }
+
+    const draft = readDashboardComposerDraft(draftKey);
+    setPrompt(draft?.prompt ?? "");
+    setDraftAttachments(draft?.attachments ?? []);
+  }, [clearFiles, draftKey]);
+
+  useEffect(() => {
+    promptValueRef.current = prompt;
+  }, [prompt]);
+
+  useEffect(() => {
+    draftAttachmentsRef.current = draftAttachments;
+  }, [draftAttachments]);
+
+  useEffect(() => {
+    completedUploadDraftAttachmentsRef.current =
+      completedUploadDraftAttachments;
+  }, [completedUploadDraftAttachments]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+
+    if (skipNextDraftAutosaveRef.current) {
+      skipNextDraftAutosaveRef.current = false;
+      return;
+    }
+
+    writeDashboardComposerDraft(draftKey, prompt, currentDraftAttachments);
+  }, [currentDraftAttachments, draftKey, prompt]);
+
   // Reset session model override when the user switches agents — each agent
   // should present its own default model until the user picks one again.
   useEffect(() => {
@@ -581,6 +799,27 @@ export function HomeMainContent({
     });
   };
 
+  const handlePromptChange = (
+    event: React.ChangeEvent<HTMLTextAreaElement>,
+  ) => {
+    setPrompt(event.target.value);
+  };
+
+  const handleRemoveFile = useCallback(
+    (id: string) => {
+      if (id.startsWith(RESTORED_ATTACHMENT_ID_PREFIX)) {
+        const fileKey = id.slice(RESTORED_ATTACHMENT_ID_PREFIX.length);
+        setDraftAttachments((current) =>
+          current.filter((attachment) => attachment.fileKey !== fileKey),
+        );
+        return;
+      }
+
+      removeFile(id);
+    },
+    [removeFile],
+  );
+
   const handleSubmit = async () => {
     const draft = prompt.trim();
     if (!selectedAgent) return;
@@ -589,7 +828,7 @@ export function HomeMainContent({
     // references. Mirror MessageInput's early-return.
     if (isUploading) return;
 
-    const attachments = getAttachments();
+    const attachments = currentDraftAttachments;
     // Empty draft is OK only when at least one attachment is ready —
     // server-side ValidateIf relaxes IsNotEmpty under the same condition.
     if (!draft && attachments.length === 0) return;
@@ -611,7 +850,11 @@ export function HomeMainContent({
       });
 
       setPrompt("");
+      setDraftAttachments([]);
       clearFiles();
+      if (draftKey) {
+        clearDashboardComposerDraft(draftKey);
+      }
       navigate({
         to: "/channels/$channelId",
         params: { channelId: result.channelId },
@@ -824,7 +1067,7 @@ export function HomeMainContent({
                 <Textarea
                   ref={promptRef}
                   value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
+                  onChange={handlePromptChange}
                   onCompositionStart={handlePromptCompositionStart}
                   onCompositionEnd={handlePromptCompositionEnd}
                   onKeyDown={handlePromptKeyDown}
@@ -833,11 +1076,11 @@ export function HomeMainContent({
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
-                {uploadingFiles.length > 0 && (
+                {previewFiles.length > 0 && (
                   <div className="-mx-2 -mt-1">
                     <AttachmentPreview
-                      files={uploadingFiles}
-                      onRemove={removeFile}
+                      files={previewFiles}
+                      onRemove={handleRemoveFile}
                       onRetry={retryFile}
                     />
                   </div>

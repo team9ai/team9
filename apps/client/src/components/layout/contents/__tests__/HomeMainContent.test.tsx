@@ -11,6 +11,31 @@ const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
 const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
+const mockUseFileUpload = vi.hoisted(() => vi.fn());
+const mockUploadState = vi.hoisted(() => ({
+  uploadingFiles: [] as Array<{
+    id: string;
+    file: File;
+    progress: number;
+    status: "completed";
+    result: {
+      key: string;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+    };
+  }>,
+  addFiles: vi.fn(),
+  removeFile: vi.fn((id: string) => {
+    mockUploadState.uploadingFiles = mockUploadState.uploadingFiles.filter(
+      (file) => file.id !== id,
+    );
+  }),
+  retryFile: vi.fn(),
+  clearFiles: vi.fn(() => {
+    mockUploadState.uploadingFiles = [];
+  }),
+}));
 
 const translationMap: Record<
   string,
@@ -81,7 +106,53 @@ vi.mock("@/hooks/useTopicSessions", () => ({
   useCreateTopicSession: mockUseCreateTopicSession,
 }));
 
+vi.mock("@/hooks/useFileUpload", () => ({
+  useFileUpload: mockUseFileUpload,
+}));
+
 import { HomeMainContent } from "../HomeMainContent";
+
+function makeCompletedUpload({
+  id = "upload-1",
+  key = "file-key-1",
+  fileName = "plan.pdf",
+  fileSize = 1234,
+  mimeType = "application/pdf",
+} = {}) {
+  return {
+    id,
+    file: new File(["uploaded"], fileName, { type: mimeType }),
+    progress: 100,
+    status: "completed" as const,
+    result: {
+      key,
+      fileName,
+      fileSize,
+      mimeType,
+    },
+  };
+}
+
+function getStoredDashboardDrafts(): Record<string, string> {
+  const drafts: Record<string, string> = {};
+
+  for (let index = 0; index < localStorage.length; index++) {
+    const key = localStorage.key(index);
+    if (!key?.includes("dashboard")) continue;
+
+    const value = localStorage.getItem(key);
+    if (value !== null) {
+      drafts[key] = value;
+    }
+  }
+
+  return drafts;
+}
+
+async function selectDashboardAgent(name: RegExp) {
+  fireEvent.pointerDown(screen.getByRole("button", { name: /agent/i }));
+  fireEvent.click(await screen.findByRole("menuitemradio", { name }));
+}
 
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -96,6 +167,8 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("HomeMainContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    mockUploadState.uploadingFiles = [];
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
     mockUseWorkspaceBillingSummary.mockReturnValue({
@@ -171,6 +244,28 @@ describe("HomeMainContent", () => {
     mockUseCreateTopicSession.mockReturnValue({
       mutateAsync: mockCreateTopicSessionMutate,
       isPending: false,
+    });
+    mockUseFileUpload.mockImplementation(() => {
+      const completedAttachments = mockUploadState.uploadingFiles
+        .filter((file) => file.status === "completed" && file.result)
+        .map((file) => ({
+          fileKey: file.result.key,
+          fileName: file.result.fileName,
+          fileSize: file.result.fileSize,
+          mimeType: file.result.mimeType,
+        }));
+
+      return {
+        uploadingFiles: mockUploadState.uploadingFiles,
+        addFiles: mockUploadState.addFiles,
+        removeFile: mockUploadState.removeFile,
+        retryFile: mockUploadState.retryFile,
+        clearFiles: mockUploadState.clearFiles,
+        getAttachments: vi.fn(() => completedAttachments),
+        isUploading: false,
+        hasErrors: false,
+        allCompleted: completedAttachments.length > 0,
+      };
     });
   });
 
@@ -314,6 +409,123 @@ describe("HomeMainContent", () => {
     });
 
     expect(mockCreateTopicSessionMutate).not.toHaveBeenCalled();
+  });
+
+  it("keeps dashboard prompt drafts isolated per selected agent", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    const input = screen.getByPlaceholderText(/message dashboard/i);
+    fireEvent.change(input, {
+      target: { value: "alpha draft" },
+    });
+
+    await selectDashboardAgent(/beta agent/i);
+    expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue("");
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "beta draft" },
+    });
+
+    await selectDashboardAgent(/alpha agent/i);
+    expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
+      "alpha draft",
+    );
+
+    await selectDashboardAgent(/beta agent/i);
+    expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
+      "beta draft",
+    );
+  });
+
+  it("persists completed uploads as part of the selected agent dashboard draft", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    mockUploadState.uploadingFiles = [
+      makeCompletedUpload({
+        key: "file-alpha",
+        fileName: "alpha-plan.pdf",
+        fileSize: 2048,
+        mimeType: "application/pdf",
+      }),
+    ];
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "alpha with attachment" },
+    });
+
+    await vi.waitFor(() => {
+      const drafts = getStoredDashboardDrafts();
+      const stored = Object.values(drafts).find((value) =>
+        value?.includes("file-alpha"),
+      );
+      expect(stored).toBeTruthy();
+      expect(stored).toContain("alpha-plan.pdf");
+      expect(stored).toContain("alpha with attachment");
+    });
+
+    mockUploadState.uploadingFiles = [];
+    await selectDashboardAgent(/beta agent/i);
+    await selectDashboardAgent(/alpha agent/i);
+    expect(await screen.findByText("alpha-plan.pdf")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTopicSessionMutate).toHaveBeenCalledWith({
+        botUserId: "agent-1",
+        initialMessage: "alpha with attachment",
+        model: { provider: "openrouter", id: "openai/gpt-4.1" },
+        attachments: [
+          {
+            fileKey: "file-alpha",
+            fileName: "alpha-plan.pdf",
+            fileSize: 2048,
+            mimeType: "application/pdf",
+          },
+        ],
+      });
+    });
+  });
+
+  it("clears the selected agent dashboard draft after a successful send", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    mockUploadState.uploadingFiles = [
+      makeCompletedUpload({
+        key: "file-to-clear",
+        fileName: "clear-me.pdf",
+      }),
+    ];
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "send and clear" },
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        Object.values(getStoredDashboardDrafts()).some((value) =>
+          value?.includes("file-to-clear"),
+        ),
+      ).toBe(true);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue("");
+      expect(
+        Object.values(getStoredDashboardDrafts()).some((value) =>
+          value?.includes("send and clear"),
+        ),
+      ).toBe(false);
+      expect(
+        Object.values(getStoredDashboardDrafts()).some((value) =>
+          value?.includes("file-to-clear"),
+        ),
+      ).toBe(false);
+    });
   });
 
   it("shows a static model label for unrecognized base-model agents that cannot switch", () => {
