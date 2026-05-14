@@ -18,7 +18,10 @@ import {
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
 import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
-import { useDeleteTopicSession } from "@/hooks/useTopicSessions";
+import {
+  useDeleteTopicSession,
+  useRenameTopicSession,
+} from "@/hooks/useTopicSessions";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
@@ -45,6 +48,7 @@ export function MessagesSubSidebar() {
     loadMoreTopicSessions,
     isLoadingMoreTopicSessions,
   } = useAgentGroupsForSidebar(5);
+  const renameTopicSession = useRenameTopicSession();
   const archiveTopicSession = useDeleteTopicSession();
   const deleteTopicSession = useDeleteTopicSession();
   // Use selected workspace or fallback to first workspace
@@ -156,6 +160,9 @@ export function MessagesSubSidebar() {
                 isLoading={isLoadingAgents}
                 onLoadMoreTopicSessions={loadMoreTopicSessions}
                 isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
+                onRenameTopicSession={(channelId, title) =>
+                  renameTopicSession.mutateAsync({ channelId, title })
+                }
                 onArchiveTopicSession={(channelId) =>
                   archiveTopicSession.mutateAsync({ channelId })
                 }
@@ -166,7 +173,9 @@ export function MessagesSubSidebar() {
                   })
                 }
                 isTopicSessionActionPending={
-                  archiveTopicSession.isPending || deleteTopicSession.isPending
+                  renameTopicSession.isPending ||
+                  archiveTopicSession.isPending ||
+                  deleteTopicSession.isPending
                 }
               />
             </div>

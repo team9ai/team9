@@ -48,7 +48,10 @@ import {
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
 import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
-import { useDeleteTopicSession } from "@/hooks/useTopicSessions";
+import {
+  useDeleteTopicSession,
+  useRenameTopicSession,
+} from "@/hooks/useTopicSessions";
 import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
 import {
   useSections,
@@ -315,6 +318,7 @@ export function HomeSubSidebar() {
     loadMoreTopicSessions,
     isLoadingMoreTopicSessions,
   } = useAgentGroupsForSidebar(5);
+  const renameTopicSession = useRenameTopicSession();
   const archiveTopicSession = useDeleteTopicSession();
   const deleteTopicSession = useDeleteTopicSession();
   const setSidebarVisibility = useSetSidebarVisibility();
@@ -738,6 +742,9 @@ export function HomeSubSidebar() {
                   isLoading={isLoadingAgents}
                   onLoadMoreTopicSessions={loadMoreTopicSessions}
                   isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
+                  onRenameTopicSession={(channelId, title) =>
+                    renameTopicSession.mutateAsync({ channelId, title })
+                  }
                   onArchiveTopicSession={(channelId) =>
                     archiveTopicSession.mutateAsync({ channelId })
                   }
@@ -748,6 +755,7 @@ export function HomeSubSidebar() {
                     })
                   }
                   isTopicSessionActionPending={
+                    renameTopicSession.isPending ||
                     archiveTopicSession.isPending ||
                     deleteTopicSession.isPending
                   }

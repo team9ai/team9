@@ -77,3 +77,29 @@ export function useDeleteTopicSession() {
     },
   });
 }
+
+/**
+ * Rename a topic session title. This uses the channel update endpoint because
+ * topic-session titles are mirrored onto `channels.name` server-side.
+ */
+export function useRenameTopicSession() {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useMutation<void, Error, { channelId: string; title: string }>({
+    mutationFn: async ({ channelId, title }) => {
+      await imApi.channels.updateChannel(channelId, { name: title });
+    },
+    onSuccess: (_, { channelId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["channels", workspaceId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["channels", channelId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["topic-sessions-grouped", workspaceId],
+      });
+    },
+  });
+}
