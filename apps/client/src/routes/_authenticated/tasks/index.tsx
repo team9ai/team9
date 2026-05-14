@@ -100,28 +100,9 @@ function TasksPage() {
   }, [indexedRoutines]);
 
   const openTask = (routine: Routine) => {
-    if (routine.currentExecutionId) {
-      void navigate({
-        to: "/routines/$routineId/runs/$executionId",
-        params: {
-          routineId: routine.id,
-          executionId: routine.currentExecutionId,
-        },
-      });
-      return;
-    }
-
-    if (routine.status === "draft" && routine.creationChannelId) {
-      void navigate({
-        to: "/routines/$routineId/runs/$executionId",
-        params: { routineId: routine.id, executionId: "creation" },
-      });
-      return;
-    }
-
     void navigate({
-      to: "/routines/$routineId",
-      params: { routineId: routine.id },
+      to: "/tasks/$taskId",
+      params: { taskId: routine.id },
     });
   };
 
@@ -188,8 +169,8 @@ function TasksPage() {
         }}
         onOpenCreationSession={(id) =>
           void navigate({
-            to: "/routines/$routineId/runs/$executionId",
-            params: { routineId: id, executionId: "creation" },
+            to: "/tasks/$taskId",
+            params: { taskId: id },
           })
         }
       />
