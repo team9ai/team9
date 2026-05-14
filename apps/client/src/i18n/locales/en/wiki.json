@@ -204,6 +204,7 @@
     "newFile": "New file",
     "newFolder": "New folder",
     "uploadFile": "Upload file",
+    "uploadFolder": "Upload folder",
     "delete": "Delete",
     "deleteConfirm": "Delete {{path}}? This can't be undone.",
     "deleting": "Deleting..."

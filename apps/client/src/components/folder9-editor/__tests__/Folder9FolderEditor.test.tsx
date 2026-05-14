@@ -1440,6 +1440,64 @@ describe("Folder9FolderEditor — tree file operations", () => {
     );
   });
 
+  it("uploads a selected local folder while preserving relative paths", async () => {
+    const { api, commit } = makeApi();
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "docs/intro.md",
+            treePosition: "right",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await screen.findByTestId("folder9-folder-folder-upload-input");
+    fireEvent.click(screen.getByRole("button", { name: /upload folder/i }));
+    const input = screen.getByTestId("folder9-folder-folder-upload-input");
+    const skillFile = new File(["# Folder skill"], "SKILL.md", {
+      type: "text/markdown",
+    });
+    const scriptFile = new File(["echo setup"], "setup.sh", {
+      type: "text/x-shellscript",
+    });
+    Object.defineProperty(skillFile, "webkitRelativePath", {
+      value: "my-skill/SKILL.md",
+    });
+    Object.defineProperty(scriptFile, "webkitRelativePath", {
+      value: "my-skill/scripts/setup.sh",
+    });
+
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [skillFile, scriptFile] } });
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Upload my-skill",
+        files: [
+          {
+            path: "docs/my-skill/SKILL.md",
+            content: "# Folder skill",
+            encoding: "text",
+            action: "create",
+          },
+          {
+            path: "docs/my-skill/scripts/setup.sh",
+            content: "echo setup",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+        propose: false,
+      }),
+    );
+  });
+
   it("deletes a file from the tree context menu", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { api, commit } = makeApi();

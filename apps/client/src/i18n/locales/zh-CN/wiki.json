@@ -204,6 +204,7 @@
     "newFile": "新建文件",
     "newFolder": "新建文件夹",
     "uploadFile": "上传文件",
+    "uploadFolder": "上传文件夹",
     "delete": "删除",
     "deleteConfirm": "确定删除 {{path}} 吗？此操作无法撤销。",
     "deleting": "删除中..."

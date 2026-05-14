@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   FilePlus2,
   FolderPlus,
+  FolderUp,
   Loader2,
   Upload,
   X,
@@ -217,6 +218,26 @@ function fileNameFromPath(path: string): string {
   const normalized = normalizeFolderPath(path);
   const parts = normalized.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? "";
+}
+
+function relativePathFromFile(file: File): string {
+  const maybeRelativePath = (file as File & { webkitRelativePath?: string })
+    .webkitRelativePath;
+  return normalizeFolderPath(maybeRelativePath || file.name);
+}
+
+function uploadCommitMessage(relativePaths: string[]): string {
+  if (relativePaths.length === 0) return "Upload files";
+
+  const topLevelNames = new Set(
+    relativePaths
+      .map((path) => normalizeFolderPath(path).split("/").filter(Boolean)[0])
+      .filter(Boolean),
+  );
+  if (topLevelNames.size === 1) {
+    return `Upload ${Array.from(topLevelNames)[0]}`;
+  }
+  return `Upload ${relativePaths.length} files`;
 }
 
 function composeUserPath(input: string, baseDir: string): string | null {
@@ -458,6 +479,7 @@ export function Folder9FolderEditor({
   const failedAutoSaveSignatureRef = useRef<string | null>(null);
   const latestSelectedPathRef = useRef<string | null>(selectedPath);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const folderUploadInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetDirectoryRef = useRef<string>("");
 
   const activeDirectoryPath = useMemo(() => {
@@ -764,12 +786,30 @@ export function Folder9FolderEditor({
     uploadInputRef.current?.click();
   }
 
+  const setFolderUploadInputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      folderUploadInputRef.current = node;
+      if (!node) return;
+      node.setAttribute("webkitdirectory", "");
+      node.setAttribute("directory", "");
+    },
+    [],
+  );
+
+  function handleUploadFolderClick(baseDir = activeDirectoryPath) {
+    if (readOnly || commit.isPending || isTreeOperationPending) return;
+    uploadTargetDirectoryRef.current = normalizeFolderPath(baseDir);
+    folderUploadInputRef.current?.click();
+  }
+
   async function uploadFilesToDirectory(files: File[], baseDir: string) {
     const targetDir = normalizeFolderPath(baseDir);
     const changes: CommitRequest["files"] = [];
+    const relativePaths = files.map(relativePathFromFile);
 
-    for (const file of files) {
-      const path = composeUserPath(file.name, targetDir);
+    for (const [index, file] of files.entries()) {
+      const relativePath = relativePaths[index] ?? file.name;
+      const path = composeUserPath(relativePath, targetDir);
       if (!path) {
         throw new Error(
           t("tree.invalidPath", { defaultValue: "Invalid path" }),
@@ -785,9 +825,7 @@ export function Folder9FolderEditor({
     }
 
     const didCommit = await commitFiles(
-      files.length === 1
-        ? `Upload ${files[0].name}`
-        : `Upload ${files.length} files`,
+      uploadCommitMessage(relativePaths),
       changes,
       {
         pendingLabel: t("tree.uploading", { defaultValue: "Uploading..." }),
@@ -1263,9 +1301,31 @@ export function Folder9FolderEditor({
           >
             <Upload size={15} />
           </button>
+          <button
+            type="button"
+            aria-label={t("tree.uploadFolder", {
+              defaultValue: "Upload folder",
+            })}
+            title={t("tree.uploadFolder", {
+              defaultValue: "Upload folder",
+            })}
+            onClick={() => handleUploadFolderClick(activeDirectoryPath)}
+            disabled={commit.isPending || isTreeOperationPending}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            <FolderUp size={15} />
+          </button>
           <input
             ref={uploadInputRef}
             data-testid="folder9-folder-upload-input"
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => void handleUploadFiles(e)}
+          />
+          <input
+            ref={setFolderUploadInputRef}
+            data-testid="folder9-folder-folder-upload-input"
             type="file"
             multiple
             className="hidden"
