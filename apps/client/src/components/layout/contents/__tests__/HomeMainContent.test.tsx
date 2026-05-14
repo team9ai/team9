@@ -611,6 +611,24 @@ describe("HomeMainContent", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps dashboard composer controls styled for dark mode", () => {
+    renderWithProviders(<HomeMainContent />);
+
+    expect(screen.getByRole("button", { name: /gpt-4.1/i })).toHaveClass(
+      "dark:border-white/10",
+      "dark:bg-white/[0.08]",
+      "dark:text-[#d8d0c5]",
+      "dark:hover:bg-white/[0.12]",
+    );
+    expect(screen.getByRole("button", { name: /send message/i })).toHaveClass(
+      "dark:bg-[#726f68]",
+      "dark:text-[#f6f0e8]",
+      "dark:hover:bg-[#838077]",
+      "dark:disabled:bg-white/[0.08]",
+      "dark:disabled:text-white/30",
+    );
+  });
+
   it("keeps the dashboard model menu visually minimal", async () => {
     renderWithProviders(<HomeMainContent />);
 

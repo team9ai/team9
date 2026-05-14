@@ -153,7 +153,7 @@ function DashboardModelControl({
 
   if (!agent?.canSwitchModel) {
     return (
-      <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f]">
+      <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] dark:border-white/10 dark:bg-white/[0.08] dark:text-[#d8d0c5]">
         <StaffModelProviderLogo
           model={currentModelLogoIdentity}
           className="size-3.5"
@@ -168,21 +168,24 @@ function DashboardModelControl({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="dashboard-composer-model inline-flex h-[2.05rem] max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25"
+          className="dashboard-composer-model inline-flex h-[2.05rem] max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25 dark:border-white/10 dark:bg-white/[0.08] dark:text-[#d8d0c5] dark:hover:bg-white/[0.12] dark:focus-visible:ring-white/15"
         >
           <StaffModelProviderLogo
             model={currentModelLogoIdentity}
             className="size-3.5"
           />
           <span className="min-w-0 truncate">{displayCurrentLabel}</span>
-          <ChevronDown size={11} className="text-[#93887b]" />
+          <ChevronDown
+            size={11}
+            className="text-[#93887b] dark:text-[#bdb5aa]"
+          />
         </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="max-h-[min(21rem,var(--radix-dropdown-menu-content-available-height))] w-max max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[1.1rem] border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl"
+        className="max-h-[min(21rem,var(--radix-dropdown-menu-content-available-height))] w-max max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[1.1rem] border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-[#2b2521]/95 dark:text-[#ece5dc] dark:shadow-[0_18px_44px_rgba(0,0,0,0.28)]"
       >
         <DropdownMenuRadioGroup
           value={currentValue}
@@ -196,7 +199,7 @@ function DashboardModelControl({
             <DropdownMenuRadioItem
               key={`${model.provider}::${model.id}`}
               value={`${model.provider}::${model.id}`}
-              className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
+              className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] dark:text-[#e7ded3] dark:data-[highlighted]:bg-white/[0.08] dark:data-[highlighted]:text-[#f4ece3] dark:data-[state=checked]:bg-[#6e5a45]/35 dark:data-[state=checked]:text-[#f4d2a8] [&>span:first-child]:hidden"
             >
               <StaffModelProviderLogo model={model} />
               <span className="inline-flex max-w-[calc(100vw-4rem)] items-center truncate">
@@ -1153,7 +1156,7 @@ export function HomeMainContent({
                       onClick={handleSubmit}
                       disabled={!canSubmit}
                       aria-label={t("sendMessage", { ns: "message" })}
-                      className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
+                      className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d] dark:bg-[#726f68] dark:text-[#f6f0e8] dark:hover:bg-[#838077] dark:disabled:bg-white/[0.08] dark:disabled:text-white/30 dark:disabled:ring-1 dark:disabled:ring-white/[0.06]"
                     >
                       {isSubmitting ? (
                         <Loader2 size={16} className="animate-spin" />
