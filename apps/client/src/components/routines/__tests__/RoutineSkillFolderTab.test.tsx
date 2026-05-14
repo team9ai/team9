@@ -443,7 +443,11 @@ describe("RoutineSkillFolderTab — references and scripts", () => {
     });
 
     const ta = await screen.findByTestId("routine-script-editor");
-    expect((ta as HTMLTextAreaElement).value).toBe("body of scripts/deploy.sh");
+    await waitFor(() => {
+      expect((ta as HTMLTextAreaElement).value).toBe(
+        "body of scripts/deploy.sh",
+      );
+    });
 
     fireEvent.change(ta, { target: { value: "echo updated" } });
     expect(draftHook.state!.setDraft).toHaveBeenCalledWith(

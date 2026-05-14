@@ -74,6 +74,14 @@ vi.mock("@/hooks/useAgentGroupsForSidebar", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useTopicSessions", () => ({
+  useDeleteTopicSession: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  }),
+}));
+
 vi.mock("@/hooks/useSections", () => ({
   useSections: () => ({
     data: [],
