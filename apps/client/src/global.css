@@ -1158,6 +1158,21 @@
   }
 }
 
+@keyframes tool-call-cursor-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0.08;
+  }
+}
+
+.animate-tool-call-cursor-blink {
+  animation: tool-call-cursor-blink 900ms steps(1, end) infinite;
+}
+
 .route-pending-skeleton {
   position: relative;
   overflow: hidden;

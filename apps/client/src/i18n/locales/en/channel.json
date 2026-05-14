@@ -215,6 +215,7 @@
       "emptyStream": "(empty)",
       "estimatedTokens": "Est. {{count}} tokens",
       "truncated": "Truncated",
+      "generating": "Tool Call Generating",
       "runCommand": {
         "local": "Run command locally",
         "localBadge": "Local",

@@ -637,6 +637,37 @@ function TodoWriteSummary({
   );
 }
 
+function StreamingToolArgsSummary({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <>
+      <span className="text-xs font-semibold shrink-0 whitespace-nowrap text-foreground/70">
+        {label}
+      </span>
+      <span className="ml-2 flex min-w-0 flex-1 items-center gap-1 font-mono text-xs text-foreground/80">
+        <span
+          aria-label={value}
+          className="min-w-0 flex-1 truncate text-left [direction:rtl]"
+          data-testid="streaming-tool-args-preview"
+          title={value}
+        >
+          <span className="[direction:ltr] [unicode-bidi:embed]">{value}</span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="h-3.5 w-0.5 shrink-0 animate-tool-call-cursor-blink rounded-full bg-foreground/90"
+          data-testid="streaming-tool-args-cursor"
+        />
+      </span>
+    </>
+  );
+}
+
 function getTodoStatusLabelKey(status: TodoStatus): string {
   switch (status) {
     case "in_progress":
@@ -1033,7 +1064,7 @@ export function ToolCallBlock({
   const isStreamingArgs =
     callMetadata.toolPhase === "args_streaming" &&
     displayState.argsText.trim() !== "";
-  const showDetails = isExpanded || isStreamingArgs;
+  const showDetails = isExpanded;
   const translate = t as (
     key: string,
     options?: Record<string, unknown>,
@@ -1093,7 +1124,12 @@ export function ToolCallBlock({
             isRunning && "animate-pulse",
           )}
         />
-        {isRunCommandDisplay ? (
+        {isStreamingArgs ? (
+          <StreamingToolArgsSummary
+            label={translate("tracking.toolCall.generating")}
+            value={displayState.argsText}
+          />
+        ) : isRunCommandDisplay ? (
           <span
             className={cn(
               "text-xs truncate flex-1 min-w-0 text-foreground/80",

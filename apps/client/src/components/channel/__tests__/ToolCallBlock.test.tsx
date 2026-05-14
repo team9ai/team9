@@ -462,21 +462,64 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText(/RunScript/)).toBeInTheDocument();
     });
 
-    it("shows streaming tool args immediately while the call is being generated", () => {
+    it("keeps streaming tool args collapsed with a tail preview while the call is being generated", () => {
+      const streamingArgs =
+        '{"cmd":"pnpm test --filter @team9/client -- --run src/components/channel/__tests__/ToolCallBlock.test.tsx","cwd":"/Users/winrey/Projects/weightwave/team9/apps/client"';
+
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("RunScript", undefined, {
             status: "running",
-            toolArgsText: '{"cmd":"pnpm test',
+            toolArgsText: streamingArgs,
             toolPhase: "args_streaming",
           })}
           resultContent=""
         />,
       );
 
-      expect(screen.getByText("Args")).toBeInTheDocument();
-      expect(screen.getByText('{"cmd":"pnpm test')).toBeInTheDocument();
+      expect(screen.getByText("Tool Call Generating")).toBeInTheDocument();
+      expect(screen.queryByText("Calling tool")).not.toBeInTheDocument();
+      expect(screen.queryByText("Args")).not.toBeInTheDocument();
       expect(screen.queryByText("Result")).not.toBeInTheDocument();
+
+      const preview = screen.getByTestId("streaming-tool-args-preview");
+      expect(preview).toHaveTextContent(streamingArgs);
+      expect(preview).toHaveClass("[direction:rtl]");
+      const cursor = screen.getByTestId("streaming-tool-args-cursor");
+      expect(cursor).toHaveClass("w-0.5");
+      expect(cursor).toHaveClass("animate-tool-call-cursor-blink");
+      expect(cursor).not.toHaveClass("animate-pulse");
+
+      fireEvent.click(screen.getByText("Tool Call Generating"));
+
+      expect(screen.getByText("Args")).toBeInTheDocument();
+      expect(screen.getAllByText(streamingArgs)).toHaveLength(2);
+      expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    });
+
+    it("uses the zh-CN streaming generation label", async () => {
+      await act(async () => {
+        await changeLanguage("zh-CN");
+      });
+      try {
+        render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("RunScript", undefined, {
+              status: "running",
+              toolArgsText: '{"cmd":"pnpm test',
+              toolPhase: "args_streaming",
+            })}
+            resultContent=""
+          />,
+        );
+
+        expect(screen.getByText("工具调用生成")).toBeInTheDocument();
+        expect(screen.queryByText("参数")).not.toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
     });
 
     it("formats a completed streaming tool call before the result arrives", () => {
