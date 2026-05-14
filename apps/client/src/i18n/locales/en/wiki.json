@@ -205,6 +205,10 @@
     "newFolder": "New folder",
     "uploadFile": "Upload file",
     "uploadFolder": "Upload folder",
+    "rename": "Rename",
+    "renaming": "Renaming...",
+    "download": "Download",
+    "downloading": "Downloading...",
     "delete": "Delete",
     "deleteConfirm": "Delete {{path}}? This can't be undone.",
     "deleting": "Deleting..."

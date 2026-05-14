@@ -58,6 +58,62 @@ import type {
   TreeEntryDto,
 } from "@/services/api/folder9-folder";
 
+function mockBrowserDownload() {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+  const originalCreateElement = document.createElement.bind(document);
+  const createObjectURL = vi.fn((_: Blob | MediaSource) => {
+    return "blob:folder9-download";
+  });
+  const revokeObjectURL = vi.fn((_: string) => {});
+  let clickedAnchor: HTMLAnchorElement | null = null;
+  const createElement = vi.spyOn(document, "createElement");
+  createElement.mockImplementation(((tagName: string) => {
+    const element = originalCreateElement(tagName);
+    if (tagName.toLowerCase() === "a") {
+      clickedAnchor = element as HTMLAnchorElement;
+      vi.spyOn(clickedAnchor, "click").mockImplementation(() => {});
+    }
+    return element;
+  }) as typeof document.createElement);
+
+  Object.defineProperty(URL, "createObjectURL", {
+    configurable: true,
+    value: createObjectURL,
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    configurable: true,
+    value: revokeObjectURL,
+  });
+
+  return {
+    createObjectURL,
+    revokeObjectURL,
+    get clickedAnchor() {
+      return clickedAnchor;
+    },
+    restore() {
+      createElement.mockRestore();
+      if (originalCreateObjectURL) {
+        Object.defineProperty(URL, "createObjectURL", {
+          configurable: true,
+          value: originalCreateObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(URL, "createObjectURL");
+      }
+      if (originalRevokeObjectURL) {
+        Object.defineProperty(URL, "revokeObjectURL", {
+          configurable: true,
+          value: originalRevokeObjectURL,
+        });
+      } else {
+        Reflect.deleteProperty(URL, "revokeObjectURL");
+      }
+    },
+  };
+}
+
 function makeDraftState(overrides: Partial<DraftState> = {}): DraftState {
   return {
     draft: null,
@@ -1496,6 +1552,236 @@ describe("Folder9FolderEditor — tree file operations", () => {
         propose: false,
       }),
     );
+  });
+
+  it("renames a file from the tree context menu", async () => {
+    const { api, commit, fetchBlob } = makeApi();
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "SKILL.md",
+            treePosition: "right",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+    );
+    fireEvent.contextMenu(
+      await screen.findByRole("treeitem", { name: /SKILL\.md/ }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /rename/i }));
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "README.md" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /rename/i }));
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Rename SKILL.md to README.md",
+        files: [
+          {
+            path: "README.md",
+            content: "# Server body",
+            encoding: "text",
+            action: "create",
+          },
+          {
+            path: "SKILL.md",
+            content: "",
+            encoding: "text",
+            action: "delete",
+          },
+        ],
+        propose: false,
+      }),
+    );
+    await waitFor(() => expect(fetchBlob).toHaveBeenCalledWith("README.md"));
+  });
+
+  it("renames a folder from the tree context menu", async () => {
+    const folderTree: TreeEntryDto[] = [
+      { name: "docs", path: "docs", type: "dir", size: 0 },
+      { name: "intro.md", path: "docs/intro.md", type: "file", size: 10 },
+      { name: "nested", path: "docs/nested", type: "dir", size: 0 },
+      {
+        name: "deep.md",
+        path: "docs/nested/deep.md",
+        type: "file",
+        size: 12,
+      },
+    ];
+    const { api, commit, fetchBlob } = makeApi({
+      fetchTree: vi.fn(async () => folderTree),
+    });
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPath: "docs/intro.md",
+            treePosition: "right",
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("doc-editor")).toHaveValue(
+        "body of docs/intro.md",
+      ),
+    );
+    fireEvent.contextMenu(
+      await screen.findByRole("treeitem", { name: /docs/ }),
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: /rename/i }));
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "guides" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /rename/i }));
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Rename docs to guides",
+        files: [
+          {
+            path: "guides/intro.md",
+            content: "body of docs/intro.md",
+            encoding: "text",
+            action: "create",
+          },
+          {
+            path: "docs/intro.md",
+            content: "",
+            encoding: "text",
+            action: "delete",
+          },
+          {
+            path: "guides/nested/deep.md",
+            content: "body of docs/nested/deep.md",
+            encoding: "text",
+            action: "create",
+          },
+          {
+            path: "docs/nested/deep.md",
+            content: "",
+            encoding: "text",
+            action: "delete",
+          },
+        ],
+        propose: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(fetchBlob).toHaveBeenCalledWith("guides/intro.md"),
+    );
+  });
+
+  it("downloads a file from the tree context menu", async () => {
+    const download = mockBrowserDownload();
+    const { api } = makeApi();
+    const Wrapper = makeWrapper();
+
+    try {
+      render(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({
+              api,
+              initialPath: "SKILL.md",
+              treePosition: "right",
+            })}
+          />
+        </Wrapper>,
+      );
+
+      await waitFor(() =>
+        expect(screen.getByTestId("doc-editor")).toHaveValue("# Server body"),
+      );
+      fireEvent.contextMenu(
+        await screen.findByRole("treeitem", { name: /SKILL\.md/ }),
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("menuitem", { name: /download/i }));
+      });
+
+      await waitFor(() => expect(download.createObjectURL).toHaveBeenCalled());
+      expect(download.clickedAnchor?.download).toBe("SKILL.md");
+      const blobArg = download.createObjectURL.mock.calls[0][0] as Blob;
+      await expect(blobArg.text()).resolves.toBe("# Server body");
+      expect(download.revokeObjectURL).toHaveBeenCalledWith(
+        "blob:folder9-download",
+      );
+    } finally {
+      download.restore();
+    }
+  });
+
+  it("downloads a folder from the tree context menu as a zip", async () => {
+    const download = mockBrowserDownload();
+    const folderTree: TreeEntryDto[] = [
+      { name: "docs", path: "docs", type: "dir", size: 0 },
+      { name: "intro.md", path: "docs/intro.md", type: "file", size: 10 },
+      { name: "nested", path: "docs/nested", type: "dir", size: 0 },
+      {
+        name: "deep.md",
+        path: "docs/nested/deep.md",
+        type: "file",
+        size: 12,
+      },
+    ];
+    const { api, fetchBlob } = makeApi({
+      fetchTree: vi.fn(async () => folderTree),
+    });
+    const Wrapper = makeWrapper();
+
+    try {
+      render(
+        <Wrapper>
+          <Folder9FolderEditor
+            {...baseProps({
+              api,
+              treePosition: "right",
+            })}
+          />
+        </Wrapper>,
+      );
+
+      fireEvent.contextMenu(
+        await screen.findByRole("treeitem", { name: /docs/ }),
+      );
+      await act(async () => {
+        fireEvent.click(screen.getByRole("menuitem", { name: /download/i }));
+      });
+
+      await waitFor(() => expect(download.createObjectURL).toHaveBeenCalled());
+      expect(fetchBlob).toHaveBeenCalledWith("docs/intro.md");
+      expect(fetchBlob).toHaveBeenCalledWith("docs/nested/deep.md");
+      expect(download.clickedAnchor?.download).toBe("docs.zip");
+      const blobArg = download.createObjectURL.mock.calls[0][0] as Blob;
+      expect(blobArg.type).toBe("application/zip");
+      const zipText = new TextDecoder().decode(await blobArg.arrayBuffer());
+      expect(zipText).toContain("intro.md");
+      expect(zipText).toContain("nested/deep.md");
+    } finally {
+      download.restore();
+    }
   });
 
   it("deletes a file from the tree context menu", async () => {

@@ -200,6 +200,17 @@ const FOLDER_PLACEHOLDER_FILE = ".folder9keep";
 type CreateEntryKind = "file" | "folder";
 type FolderEntryKind = "file" | "dir";
 
+interface RenameEntryState {
+  path: string;
+  type: FolderEntryKind;
+  parentDir: string;
+}
+
+interface ZipEntry {
+  path: string;
+  bytes: Uint8Array;
+}
+
 const INTERNAL_FILE_DRAG_TYPE = "application/x-team9-folder-file";
 const INTERNAL_ENTRY_DRAG_TYPE = "application/x-team9-folder-entry";
 
@@ -218,6 +229,13 @@ function fileNameFromPath(path: string): string {
   const normalized = normalizeFolderPath(path);
   const parts = normalized.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? "";
+}
+
+function parentDirectoryFromPath(path: string): string {
+  const normalized = normalizeFolderPath(path);
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 1) return "";
+  return parts.slice(0, -1).join("/");
 }
 
 function relativePathFromFile(file: File): string {
@@ -240,6 +258,20 @@ function uploadCommitMessage(relativePaths: string[]): string {
   return `Upload ${relativePaths.length} files`;
 }
 
+function composeRenamePath(input: string, parentDir: string): string | null {
+  const raw = input.trim();
+  if (
+    !raw ||
+    raw.includes("/") ||
+    raw.includes("\\") ||
+    raw === "." ||
+    raw === ".."
+  ) {
+    return null;
+  }
+  return normalizeFolderPath(parentDir ? `${parentDir}/${raw}` : raw);
+}
+
 function composeUserPath(input: string, baseDir: string): string | null {
   const raw = input.trim();
   if (!raw) return null;
@@ -258,6 +290,144 @@ function isProbablyTextFile(file: File): boolean {
   if (file.type.startsWith("text/")) return true;
   return /\.(md|mdx|txt|json|ya?ml|toml|csv|tsv|xml|html?|css|scss|js|jsx|ts|tsx|mjs|cjs|py|rb|go|rs|java|kt|swift|sh|bash|zsh|sql|env|gitignore)$/i.test(
     file.name,
+  );
+}
+
+function base64ToBytes(content: string): Uint8Array {
+  const binary = atob(content);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function bytesFromBlobDto(blob: Pick<BlobDto, "content" | "encoding">) {
+  if (blob.encoding === "base64") return base64ToBytes(blob.content);
+  return new TextEncoder().encode(blob.content);
+}
+
+function bytesToBlobPart(bytes: Uint8Array): BlobPart {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  );
+}
+
+function blobFromFolderBlob(blob: Pick<BlobDto, "content" | "encoding">) {
+  const bytes = bytesFromBlobDto(blob);
+  return new Blob([bytesToBlobPart(bytes)], {
+    type:
+      blob.encoding === "text"
+        ? "text/plain;charset=utf-8"
+        : "application/octet-stream",
+  });
+}
+
+function triggerBlobDownload(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let c = i;
+    for (let j = 0; j < 8; j += 1) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    table[i] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function currentDosTimestamp() {
+  const now = new Date();
+  const year = Math.max(1980, now.getFullYear());
+  return {
+    time:
+      (now.getHours() << 11) |
+      (now.getMinutes() << 5) |
+      Math.floor(now.getSeconds() / 2),
+    date: ((year - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(),
+  };
+}
+
+function createStoredZipBlob(entries: ZipEntry[]): Blob {
+  const encoder = new TextEncoder();
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  const { time, date } = currentDosTimestamp();
+  let offset = 0;
+
+  for (const entry of entries) {
+    const path = normalizeFolderPath(entry.path);
+    const nameBytes = encoder.encode(path);
+    const checksum = crc32(entry.bytes);
+
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, time, true);
+    localView.setUint16(12, date, true);
+    localView.setUint32(14, checksum, true);
+    localView.setUint32(18, entry.bytes.byteLength, true);
+    localView.setUint32(22, entry.bytes.byteLength, true);
+    localView.setUint16(26, nameBytes.length, true);
+    localHeader.set(nameBytes, 30);
+    localParts.push(localHeader, entry.bytes);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, time, true);
+    centralView.setUint16(14, date, true);
+    centralView.setUint32(16, checksum, true);
+    centralView.setUint32(20, entry.bytes.byteLength, true);
+    centralView.setUint32(24, entry.bytes.byteLength, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint32(42, offset, true);
+    centralHeader.set(nameBytes, 46);
+    centralParts.push(centralHeader);
+
+    offset += localHeader.byteLength + entry.bytes.byteLength;
+  }
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce(
+    (total, part) => total + part.byteLength,
+    0,
+  );
+  const endRecord = new Uint8Array(22);
+  const endView = new DataView(endRecord.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(8, entries.length, true);
+  endView.setUint16(10, entries.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, centralOffset, true);
+
+  return new Blob(
+    [...localParts, ...centralParts, endRecord].map(bytesToBlobPart),
+    { type: "application/zip" },
   );
 }
 
@@ -396,6 +566,9 @@ export function Folder9FolderEditor({
   const [createEntryName, setCreateEntryName] = useState("");
   const [createEntryError, setCreateEntryError] = useState<string | null>(null);
   const [createEntryBaseDir, setCreateEntryBaseDir] = useState("");
+  const [renameEntry, setRenameEntry] = useState<RenameEntryState | null>(null);
+  const [renameEntryName, setRenameEntryName] = useState("");
+  const [renameEntryError, setRenameEntryError] = useState<string | null>(null);
   const [treeOperationLabel, setTreeOperationLabel] = useState<string | null>(
     null,
   );
@@ -940,6 +1113,189 @@ export function Folder9FolderEditor({
     );
   }
 
+  async function readBlobForTreeOperation(path: string) {
+    if (selectedPath === path && blobQuery.data) {
+      return {
+        path,
+        content: body,
+        encoding: blobQuery.data.encoding,
+      };
+    }
+    return readBlobForMove(path);
+  }
+
+  function openRenameEntryDialog(path: string, type: FolderEntryKind) {
+    if (readOnly || commit.isPending || isTreeOperationPending) return;
+    const normalizedPath = normalizeFolderPath(path);
+    const name = fileNameFromPath(normalizedPath);
+    if (!normalizedPath || !name) return;
+    setRenameEntry({
+      path: normalizedPath,
+      type,
+      parentDir: parentDirectoryFromPath(normalizedPath),
+    });
+    setRenameEntryName(name);
+    setRenameEntryError(null);
+  }
+
+  async function submitRenameEntry(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (
+      !renameEntry ||
+      readOnly ||
+      commit.isPending ||
+      isTreeOperationPending
+    ) {
+      return;
+    }
+
+    const targetPath = composeRenamePath(
+      renameEntryName,
+      renameEntry.parentDir,
+    );
+    if (!targetPath || targetPath === renameEntry.path) {
+      setRenameEntryError(
+        t("tree.invalidPath", { defaultValue: "Invalid path" }),
+      );
+      return;
+    }
+
+    try {
+      const changes: CommitRequest["files"] = [];
+      if (renameEntry.type === "file") {
+        const sourceBlob = await readBlobForTreeOperation(renameEntry.path);
+        changes.push(
+          {
+            path: targetPath,
+            content: sourceBlob.content,
+            encoding: sourceBlob.encoding,
+            action: "create",
+          },
+          {
+            path: renameEntry.path,
+            content: "",
+            encoding: "text",
+            action: "delete",
+          },
+        );
+      } else {
+        const sourcePrefix = `${renameEntry.path}/`;
+        const sourceEntries = (treeQuery.data ?? []).filter(
+          (entry) =>
+            entry.type === "file" &&
+            normalizeFolderPath(entry.path).startsWith(sourcePrefix),
+        );
+        if (sourceEntries.length === 0) return;
+
+        for (const entry of sourceEntries) {
+          const sourceFilePath = normalizeFolderPath(entry.path);
+          const relativePath = sourceFilePath
+            .slice(sourcePrefix.length)
+            .replace(/^\/+/, "");
+          const sourceBlob = await readBlobForTreeOperation(sourceFilePath);
+          changes.push(
+            {
+              path: `${targetPath}/${relativePath}`,
+              content: sourceBlob.content,
+              encoding: sourceBlob.encoding,
+              action: "create",
+            },
+            {
+              path: sourceFilePath,
+              content: "",
+              encoding: "text",
+              action: "delete",
+            },
+          );
+        }
+      }
+
+      const didCommit = await commitFiles(
+        `Rename ${renameEntry.path} to ${targetPath}`,
+        changes,
+        {
+          pendingLabel: t("tree.renaming", { defaultValue: "Renaming..." }),
+        },
+      );
+      if (!didCommit) return;
+
+      if (renameEntry.type === "file") {
+        if (selectedPath === renameEntry.path) {
+          clearDraft();
+          setSelectedPath(targetPath);
+        }
+      } else {
+        const sourcePrefix = `${renameEntry.path}/`;
+        if (selectedPath?.startsWith(sourcePrefix)) {
+          const selectedRelative = selectedPath
+            .slice(sourcePrefix.length)
+            .replace(/^\/+/, "");
+          clearDraft();
+          setSelectedPath(`${targetPath}/${selectedRelative}`);
+        }
+        setExpandedDirs((prev) => {
+          const next = new Set<string>();
+          for (const dirPath of prev) {
+            if (dirPath === renameEntry.path) {
+              next.add(targetPath);
+            } else if (dirPath.startsWith(sourcePrefix)) {
+              next.add(`${targetPath}/${dirPath.slice(sourcePrefix.length)}`);
+            } else {
+              next.add(dirPath);
+            }
+          }
+          return next;
+        });
+        expandDirectoryPath(targetPath);
+      }
+      setRenameEntry(null);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Rename failed");
+    }
+  }
+
+  async function downloadEntry(path: string, type: FolderEntryKind) {
+    if (isTreeOperationPending) return;
+    const normalizedPath = normalizeFolderPath(path);
+    if (!normalizedPath) return;
+
+    try {
+      if (type === "file") {
+        const blob = await readBlobForTreeOperation(normalizedPath);
+        triggerBlobDownload(
+          blobFromFolderBlob(blob),
+          fileNameFromPath(normalizedPath) || "download",
+        );
+        return;
+      }
+
+      const sourcePrefix = `${normalizedPath}/`;
+      const sourceEntries = (treeQuery.data ?? []).filter((entry) => {
+        if (entry.type !== "file") return false;
+        const entryPath = normalizeFolderPath(entry.path);
+        if (!entryPath.startsWith(sourcePrefix)) return false;
+        return fileNameFromPath(entryPath) !== FOLDER_PLACEHOLDER_FILE;
+      });
+      const zipEntries: ZipEntry[] = [];
+      for (const entry of sourceEntries) {
+        const sourceFilePath = normalizeFolderPath(entry.path);
+        const relativePath = sourceFilePath
+          .slice(sourcePrefix.length)
+          .replace(/^\/+/, "");
+        const blob = await readBlobForTreeOperation(sourceFilePath);
+        zipEntries.push({
+          path: relativePath,
+          bytes: bytesFromBlobDto(blob),
+        });
+      }
+
+      const fileName = `${fileNameFromPath(normalizedPath) || "folder"}.zip`;
+      triggerBlobDownload(createStoredZipBlob(zipEntries), fileName);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Download failed");
+    }
+  }
+
   function expandDirectoryPath(dirPath: string) {
     setExpandedDirs((prev) => {
       const next = new Set(prev);
@@ -1362,6 +1718,8 @@ export function Folder9FolderEditor({
               openCreateEntryDialog("folder", dirPath)
             }
             onUploadInDirectory={(dirPath) => handleUploadClick(dirPath)}
+            onRenameEntry={(path, type) => openRenameEntryDialog(path, type)}
+            onDownloadEntry={(path, type) => void downloadEntry(path, type)}
             onDeleteEntry={(path, type) => void deleteEntry(path, type)}
             onDropFilesInDirectory={handleDropFilesInDirectory}
             onMoveEntryToDirectory={(sourcePath, sourceType, dirPath) =>
@@ -1523,6 +1881,73 @@ export function Folder9FolderEditor({
                 }
               >
                 {t("common.create", { defaultValue: "Create" })}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={renameEntry !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameEntry(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <form
+            onSubmit={(e) => void submitRenameEntry(e)}
+            className="space-y-4"
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {t("tree.rename", { defaultValue: "Rename" })}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <label
+                className="text-sm font-medium"
+                htmlFor="folder9-rename-entry-name"
+              >
+                {t("tree.name", { defaultValue: "Name" })}
+              </label>
+              <Input
+                id="folder9-rename-entry-name"
+                value={renameEntryName}
+                onChange={(e) => {
+                  setRenameEntryName(e.target.value);
+                  setRenameEntryError(null);
+                }}
+                autoFocus
+              />
+              {renameEntry?.parentDir && (
+                <div className="text-xs text-muted-foreground">
+                  {renameEntry.parentDir}/
+                </div>
+              )}
+              {renameEntryError && (
+                <div className="text-xs text-destructive">
+                  {renameEntryError}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameEntry(null)}
+                disabled={commit.isPending || isTreeOperationPending}
+              >
+                {t("common.cancel", { defaultValue: "Cancel" })}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  commit.isPending ||
+                  isTreeOperationPending ||
+                  renameEntryName.trim().length === 0
+                }
+              >
+                {t("tree.rename", { defaultValue: "Rename" })}
               </Button>
             </DialogFooter>
           </form>
