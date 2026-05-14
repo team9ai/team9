@@ -187,6 +187,7 @@
       "tokens_one": "{{count}} token",
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}}s",
+      "decimalSeconds": "{{value}}s",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
     "roundEnd": {

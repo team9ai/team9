@@ -156,6 +156,7 @@
       "tokens_one": "{{count}} 토큰",
       "tokens_other": "{{count}} 토큰",
       "seconds": "{{count}}초",
+      "decimalSeconds": "{{value}}초",
       "minutesSeconds": "{{minutes}}분 {{seconds}}초"
     },
     "toolCall": {

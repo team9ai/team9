@@ -547,6 +547,18 @@ describe("TrackingEventItem - collapsible", () => {
 });
 
 describe("formatDuration helper", () => {
+  it("formats sub-second durations with one decimal place", () => {
+    expect(formatDuration(450, t, { allowSubSecond: true })).toBe("0.5s");
+  });
+
+  it("rounds sub-second durations to 1.0s when close to one second", () => {
+    expect(formatDuration(999, t, { allowSubSecond: true })).toBe("1.0s");
+  });
+
+  it("formats sub-second durations as 0s by default", () => {
+    expect(formatDuration(450, t)).toBe("0s");
+  });
+
   it("formats sub-minute durations in seconds", () => {
     expect(formatDuration(45_000, t)).toBe("45s");
   });
@@ -582,6 +594,7 @@ describe("formatDuration helper", () => {
   it("honours the zh-CN locale when translating", async () => {
     await changeLanguage("zh-CN");
     const zhT = i18n.getFixedT("zh-CN", "channel");
+    expect(formatDuration(450, zhT, { allowSubSecond: true })).toBe("0.5 秒");
     expect(formatDuration(45_000, zhT)).toBe("45 秒");
     expect(formatDuration(123_000, zhT)).toBe("2 分 3 秒");
   });
@@ -636,6 +649,17 @@ describe("buildThinkingStats helper", () => {
       startedAt: started,
     };
     expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking 45s");
+  });
+
+  it("keeps streaming sub-second elapsed time as whole seconds", () => {
+    const now = 1_700_000_000_000;
+    const started = new Date(now - 450).toISOString();
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "running",
+      startedAt: started,
+    };
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking 0s");
   });
 
   it("shows live elapsed only (ignoring tokens) while streaming", () => {

@@ -156,6 +156,7 @@
       "tokens_one": "{{count}} токен",
       "tokens_other": "{{count}} токенов",
       "seconds": "{{count}} с",
+      "decimalSeconds": "{{value}} с",
       "minutesSeconds": "{{minutes}} мин {{seconds}} с"
     },
     "toolCall": {
