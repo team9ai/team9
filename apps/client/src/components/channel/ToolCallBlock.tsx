@@ -639,17 +639,34 @@ function TodoWriteSummary({
 
 function StreamingToolArgsSummary({
   label,
+  toolName,
   value,
 }: {
   label: string;
+  toolName?: string;
   value: string;
 }) {
+  const visibleToolName = toolName?.trim();
+
   return (
     <>
       <span className="text-xs font-semibold shrink-0 whitespace-nowrap text-foreground/70">
         {label}
       </span>
-      <span className="ml-2 flex min-w-0 flex-1 items-center gap-1 font-mono text-xs text-foreground/80">
+      <span className="ml-2 flex min-w-0 flex-1 items-center font-mono text-xs text-foreground/80">
+        {visibleToolName && (
+          <>
+            <span
+              className="shrink-0 whitespace-nowrap"
+              data-testid="streaming-tool-name"
+            >
+              {visibleToolName}
+            </span>
+            <span className="shrink-0" data-testid="streaming-tool-call-open">
+              (
+            </span>
+          </>
+        )}
         <span
           aria-label={value}
           className="min-w-0 flex-1 truncate text-left [direction:rtl]"
@@ -658,9 +675,14 @@ function StreamingToolArgsSummary({
         >
           <span className="[direction:ltr] [unicode-bidi:embed]">{value}</span>
         </span>
+        {visibleToolName && (
+          <span className="shrink-0" data-testid="streaming-tool-call-close">
+            )
+          </span>
+        )}
         <span
           aria-hidden="true"
-          className="h-3.5 w-0.5 shrink-0 animate-tool-call-cursor-blink rounded-full bg-foreground/90"
+          className="ml-1 h-3.5 w-0.5 shrink-0 animate-tool-call-cursor-blink rounded-full bg-foreground/90"
           data-testid="streaming-tool-args-cursor"
         />
       </span>
@@ -745,6 +767,7 @@ function TodoWriteStatusList({
 function ExpandablePre({
   className,
   label,
+  previewLanguage,
   rawValue,
   previewSourceName,
   t,
@@ -752,6 +775,7 @@ function ExpandablePre({
 }: {
   className: string;
   label: string;
+  previewLanguage?: string;
   previewSourceName?: string;
   rawValue?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
@@ -761,9 +785,12 @@ function ExpandablePre({
   const [showRaw, setShowRaw] = useState(false);
   const rawText = rawValue ?? value;
   const structuredJson = parseStructuredJson(rawText);
+  const normalizedPreviewLanguage = normalizeLanguage(previewLanguage);
   const syntaxPreview = structuredJson
     ? undefined
-    : getSyntaxPreview(rawText, previewSourceName);
+    : normalizedPreviewLanguage
+      ? { language: normalizedPreviewLanguage, text: rawText }
+      : getSyntaxPreview(rawText, previewSourceName);
   const hasPreview = !!structuredJson || !!syntaxPreview;
 
   return (
@@ -869,12 +896,14 @@ function StreamBlock({
   value,
   tone,
   emptyText,
+  previewLanguage,
   t,
 }: {
   label: string;
   value: string;
   tone: "neutral" | "error";
   emptyText: string;
+  previewLanguage?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const hasOutput = value.trim() !== "";
@@ -902,6 +931,7 @@ function StreamBlock({
       <ExpandablePre
         className={preClassName}
         label={label}
+        previewLanguage={previewLanguage}
         t={t}
         value={hasOutput ? value : emptyText}
       />
@@ -1127,6 +1157,7 @@ export function ToolCallBlock({
         {isStreamingArgs ? (
           <StreamingToolArgsSummary
             label={translate("tracking.toolCall.generating")}
+            toolName={displayState.toolName}
             value={displayState.argsText}
           />
         ) : isRunCommandDisplay ? (
@@ -1230,6 +1261,7 @@ export function ToolCallBlock({
                 value={commandExecution.command}
                 tone="neutral"
                 emptyText={translate("tracking.toolCall.emptyStream")}
+                previewLanguage="bash"
                 t={translate}
               />
               {hasCommandMessage && (

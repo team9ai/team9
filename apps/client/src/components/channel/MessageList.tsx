@@ -115,6 +115,26 @@ function ToolEventFrame({
   );
 }
 
+function getStreamMeta(
+  stream: StreamingMessage,
+): AgentEventMetadata | undefined {
+  return stream.metadata
+    ? getAgentEventMetadata(stream.metadata, {
+        agentEventType: "writing",
+        status: "running",
+      })
+    : undefined;
+}
+
+function isAgentEventListItem(item: ChannelListItem | undefined): boolean {
+  if (!item) return false;
+  if (item.type === "message") return !!getAgentMeta(item.message);
+  if (item.type === "stream") {
+    return getStreamMeta(item.stream)?.agentEventType === "tool_call";
+  }
+  return false;
+}
+
 function findRoundStartedAt(
   items: ChannelListItem[],
   itemIndex: number,
@@ -525,28 +545,28 @@ export function MessageList({
   // Render individual message items
   const itemContent = useCallback(
     (index: number, item: ChannelListItem) => {
+      const itemIndex = index - firstItemIndex;
+
       if (item.type === "stream") {
-        const streamMeta = item.stream.metadata
-          ? getAgentEventMetadata(item.stream.metadata, {
-              agentEventType: "writing",
-              status: "running",
-            })
-          : undefined;
+        const streamMeta = getStreamMeta(item.stream);
         if (streamMeta?.agentEventType === "tool_call") {
           const hasStreamBody =
             item.stream.parts.length > 0 ||
             item.stream.content.trim().length > 0 ||
             item.stream.thinking.trim().length > 0;
+          const isFirstInGroup = !isAgentEventListItem(
+            listDataRef.current[itemIndex - 1],
+          );
 
           return (
-            <div className="py-2">
+            <>
               {hasStreamBody && (
                 <StreamingMessageParts stream={item.stream} members={members} />
               )}
-              <ToolEventFrame isFirstInGroup>
+              <ToolEventFrame isFirstInGroup={isFirstInGroup}>
                 <ToolCallBlock callMetadata={streamMeta} resultContent="" />
               </ToolEventFrame>
-            </div>
+            </>
           );
         }
 
@@ -576,7 +596,6 @@ export function MessageList({
       }
 
       const message = item.message;
-      const itemIndex = index - firstItemIndex;
       const agentMeta = getAgentMeta(message);
 
       // Round auto-fold (DM only): if this message belongs to a folded round,

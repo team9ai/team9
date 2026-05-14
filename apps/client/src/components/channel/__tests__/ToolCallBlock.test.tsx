@@ -485,6 +485,15 @@ describe("ToolCallBlock", () => {
       const preview = screen.getByTestId("streaming-tool-args-preview");
       expect(preview).toHaveTextContent(streamingArgs);
       expect(preview).toHaveClass("[direction:rtl]");
+      const toolName = screen.getByTestId("streaming-tool-name");
+      const openParen = screen.getByTestId("streaming-tool-call-open");
+      const closeParen = screen.getByTestId("streaming-tool-call-close");
+      expect(toolName).toHaveTextContent("RunScript");
+      expect(toolName).toHaveClass("shrink-0");
+      expect(openParen).toHaveTextContent("(");
+      expect(openParen).toHaveClass("shrink-0");
+      expect(closeParen).toHaveTextContent(")");
+      expect(closeParen).toHaveClass("shrink-0");
       const cursor = screen.getByTestId("streaming-tool-args-cursor");
       expect(cursor).toHaveClass("w-0.5");
       expect(cursor).toHaveClass("animate-tool-call-cursor-blink");
@@ -1040,6 +1049,45 @@ describe("ToolCallBlock", () => {
       ).toHaveAttribute("aria-pressed", "true");
       expect(preview.querySelector("code.language-yaml")).not.toBeNull();
       expect(preview.textContent).toContain("enabled");
+    });
+
+    it("renders run_command command fullscreen with a bash preview by default", () => {
+      const command =
+        'mkdir -p "$HOME/team9-demo" && cat > "$HOME/team9-demo/long-script-demo.sh" <<\'EOF\'\n' +
+        "#!/usr/bin/env bash\n" +
+        "set -euo pipefail\n" +
+        "\n" +
+        'echo "ready"\n' +
+        "EOF";
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command,
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText(/^Ran$/));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Fullscreen command" }),
+      );
+
+      const dialog = screen.getByRole("dialog", { name: "command" });
+      const preview = within(dialog).getByTestId("syntax-preview");
+
+      expect(
+        within(dialog).getByRole("button", { name: "preview" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(preview.querySelector("code.language-bash")).not.toBeNull();
+      expect(preview.textContent).toContain("set -euo pipefail");
     });
 
     it("toggles raw JSON for run_command from the json button", () => {
