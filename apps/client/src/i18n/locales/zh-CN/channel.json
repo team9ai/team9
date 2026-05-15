@@ -219,7 +219,7 @@
       "timing": {
         "generationStart": "生成开始",
         "toolCallStart": "调用开始",
-        "end": "结束"
+        "end": "调用结束"
       },
       "generating": "工具调用生成",
       "runCommand": {
