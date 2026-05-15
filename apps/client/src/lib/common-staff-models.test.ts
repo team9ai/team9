@@ -55,6 +55,28 @@ describe("COMMON_STAFF_MODELS", () => {
     );
   });
 
+  it("uses tool-capable GPT and Gemini models in the picker", () => {
+    expect(COMMON_STAFF_MODELS).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "openrouter",
+          id: "openai/gpt-5.4",
+          label: "GPT-5.4",
+          family: "openai",
+        }),
+        expect.objectContaining({
+          provider: "openrouter",
+          id: "google/gemini-3-flash-preview",
+          label: "Gemini 3 Flash (Preview)",
+          family: "google",
+        }),
+      ]),
+    );
+    expect(formatStaffModelDisplayLabel("Gemini 3 Flash (Preview)")).toBe(
+      "Gemini 3 Flash",
+    );
+  });
+
   it("filtering by agentModelFamily keeps only matching models (strict filter)", () => {
     const family = BASE_MODEL_PRODUCT_FAMILY.claude;
     const filtered = COMMON_STAFF_MODELS.filter((m) => m.family === family);

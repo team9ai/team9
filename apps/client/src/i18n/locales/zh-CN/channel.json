@@ -216,6 +216,11 @@
       "emptyStream": "（空）",
       "estimatedTokens": "约 {{count}} tokens",
       "truncated": "内容已截断",
+      "timing": {
+        "generationStart": "生成开始",
+        "toolCallStart": "调用开始",
+        "end": "结束"
+      },
       "generating": "工具调用生成",
       "runCommand": {
         "local": "在本机执行命令",

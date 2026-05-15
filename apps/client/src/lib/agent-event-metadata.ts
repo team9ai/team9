@@ -152,6 +152,15 @@ export function getOptionalAgentEventMetadata(
     ...(typeof value.fullContentMessageId === "string"
       ? { fullContentMessageId: value.fullContentMessageId }
       : {}),
+    ...(typeof value.generationStartedAt === "string"
+      ? { generationStartedAt: value.generationStartedAt }
+      : {}),
+    ...(typeof value.toolCallStartedAt === "string"
+      ? { toolCallStartedAt: value.toolCallStartedAt }
+      : {}),
+    ...(typeof value.toolCallCompletedAt === "string"
+      ? { toolCallCompletedAt: value.toolCallCompletedAt }
+      : {}),
     ...(typeof value.completedAt === "string"
       ? { completedAt: value.completedAt }
       : {}),

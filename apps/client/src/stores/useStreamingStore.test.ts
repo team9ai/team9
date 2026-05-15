@@ -161,6 +161,46 @@ describe("useStreamingStore", () => {
     ]);
   });
 
+  it("ignores late thinking deltas after tool call metadata starts streaming", () => {
+    vi.setSystemTime(1000);
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+    });
+    useStreamingStore.getState().setThinkingContent("stream-1", "thinking");
+
+    vi.setSystemTime(2000);
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      agentEventType: "tool_call",
+      status: "running",
+      toolCallId: "tc-1",
+      toolName: "GenerateImage",
+      toolArgsText: '{"prompt":"cat"}',
+      toolPhase: "executing",
+    });
+
+    vi.setSystemTime(2500);
+    useStreamingStore
+      .getState()
+      .setThinkingContent("stream-1", "thinking after tool call");
+
+    const stream = useStreamingStore.getState().streams.get("stream-1");
+    expect(stream?.isThinking).toBe(false);
+    expect(stream?.thinking).toBe("thinking");
+    expect(stream?.parts).toEqual([
+      {
+        id: "stream-1-0",
+        type: "thinking",
+        content: "thinking",
+        startedAt: 1000,
+        isStreaming: false,
+        durationMs: 1000,
+      },
+    ]);
+  });
+
   it("appends tool arg deltaData and restores accumulated metadata after refresh", () => {
     useStreamingStore.getState().startStream({
       streamId: "stream-1",
