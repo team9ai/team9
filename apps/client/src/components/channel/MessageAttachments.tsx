@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   File,
@@ -19,11 +19,11 @@ import { VideoAttachment } from "./VideoAttachment";
 // browser HTTP cache instead of re-fetching on every virtualized row mount.
 const DOWNLOAD_URL_STALE_TIME = 7 * 60 * 60 * 1000;
 
-function useFileDownloadUrl(fileKey: string | null) {
+function useFileDownloadUrl(fileKey: string | null, enabled = true) {
   return useQuery({
     // External pass-through attachments (fileKey === null) have no key to
     // presign — disable the query and let callers fall back to fileUrl.
-    enabled: fileKey !== null,
+    enabled: enabled && fileKey !== null,
     queryKey: ["file-download-url", fileKey],
     queryFn: () => fileApi.getDownloadUrl(fileKey as string),
     staleTime: DOWNLOAD_URL_STALE_TIME,
@@ -124,13 +124,39 @@ function ImageAttachment({
   isOwnMessage?: boolean;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const thumbnailUrl = attachment.thumbnailUrl ?? null;
+  const shouldUseThumbnail =
+    thumbnailUrl !== null && failedImageUrl !== thumbnailUrl;
+  const shouldFetchOriginalUrl =
+    attachment.fileKey !== null && (!shouldUseThumbnail || isPreviewOpen);
   const { data, isLoading, error, refetch } = useFileDownloadUrl(
     attachment.fileKey,
+    shouldFetchOriginalUrl,
   );
   // External attachments resolve via fileUrl directly (no presign needed).
-  const imageUrl =
+  const originalImageUrl =
     attachment.fileKey === null ? attachment.fileUrl : (data?.url ?? null);
+  const imageUrl = shouldUseThumbnail ? thumbnailUrl : originalImageUrl;
+  const previewImageUrl = originalImageUrl ?? imageUrl;
   const box = getImageBox(attachment);
+  const hasImageError =
+    Boolean(error) || (imageUrl !== null && failedImageUrl === imageUrl);
+
+  useEffect(() => {
+    setFailedImageUrl(null);
+  }, [attachment.id, attachment.fileKey, thumbnailUrl]);
+
+  const handleRetry = () => {
+    if (attachment.fileKey === null) {
+      setFailedImageUrl(null);
+      return;
+    }
+
+    void refetch().then((result) => {
+      if (!result.error) setFailedImageUrl(null);
+    });
+  };
 
   if (isLoading && !imageUrl) {
     return (
@@ -146,7 +172,7 @@ function ImageAttachment({
     );
   }
 
-  if (error || !imageUrl) {
+  if (hasImageError || !imageUrl) {
     return (
       <div
         className={cn(
@@ -157,12 +183,12 @@ function ImageAttachment({
       >
         <ImageIcon className="w-8 h-8 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">
-          {error ? "Failed to load image" : "Image not available"}
+          {hasImageError ? "Failed to load image" : "Image not available"}
         </span>
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => void refetch()}
+          onClick={handleRetry}
           className="text-xs"
         >
           Retry
@@ -184,13 +210,17 @@ function ImageAttachment({
           alt={attachment.fileName}
           width={box.width}
           height={box.height}
+          onError={() => setFailedImageUrl(imageUrl)}
+          onLoad={() => {
+            if (failedImageUrl === imageUrl) setFailedImageUrl(null);
+          }}
           className="object-contain"
           style={{ width: box.width, height: box.height }}
         />
       </button>
-      {isPreviewOpen && (
+      {isPreviewOpen && previewImageUrl && (
         <ImagePreviewDialog
-          src={imageUrl}
+          src={previewImageUrl}
           alt={attachment.fileName}
           open={isPreviewOpen}
           onOpenChange={setIsPreviewOpen}

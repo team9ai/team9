@@ -1,4 +1,9 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CirclePlus, Loader2, MessageSquarePlus, Plus } from "lucide-react";
 import { useMemo } from "react";
@@ -21,6 +26,10 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
   timeout: "已归档",
 };
 
+const TASK_NEW_CONVERSATION_PATH = "/tasks/new-conversation";
+const TASK_SIDEBAR_ACTION_CLASS =
+  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
+
 function getTaskGroupLabel(task: TaskRun) {
   return task.routineId ? "@ 日常" : "@ 自己";
 }
@@ -38,11 +47,23 @@ function getStatusClass(status: TaskRunStatus) {
   return "bg-blue-50 text-blue-700";
 }
 
+function getTaskSidebarActionClass(isSelected: boolean) {
+  return cn(
+    TASK_SIDEBAR_ACTION_CLASS,
+    isSelected && "bg-nav-active text-nav-foreground",
+  );
+}
+
 export function TasksSubSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const params = useParams({ strict: false }) as { taskId?: string };
   const selectedTaskId = params.taskId;
+  const isNewConversationSelected =
+    location.pathname === TASK_NEW_CONVERSATION_PATH;
+  const isTaskBoardSelected =
+    location.pathname === "/tasks" || location.pathname === "/tasks/";
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
@@ -79,8 +100,8 @@ export function TasksSubSidebar() {
   }, [tasks]);
 
   const openNewConversation = () => {
-    appActions.setActiveSidebar("home");
-    void navigate({ to: "/channels" });
+    appActions.setActiveSidebar("tasks");
+    void navigate({ to: TASK_NEW_CONVERSATION_PATH });
   };
 
   return (
@@ -102,7 +123,7 @@ export function TasksSubSidebar() {
             <button
               type="button"
               onClick={openNewConversation}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground"
+              className={getTaskSidebarActionClass(isNewConversationSelected)}
             >
               <Plus className="size-4" />
               新对话
@@ -111,7 +132,7 @@ export function TasksSubSidebar() {
               type="button"
               disabled={createTask.isPending}
               onClick={() => createTask.mutate()}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground"
+              className={getTaskSidebarActionClass(false)}
             >
               {createTask.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -122,10 +143,7 @@ export function TasksSubSidebar() {
             </button>
             <Link
               to="/tasks"
-              className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground",
-                !selectedTaskId && "bg-nav-active text-nav-foreground",
-              )}
+              className={getTaskSidebarActionClass(isTaskBoardSelected)}
             >
               <MessageSquarePlus className="size-4" />
               任务看板

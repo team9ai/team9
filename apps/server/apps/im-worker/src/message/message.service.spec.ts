@@ -631,6 +631,63 @@ describe('MessageService', () => {
     );
   });
 
+  it('stores a generated thumbnail URL for owned image attachments', async () => {
+    const { service, db } = makeHarness();
+    const thumbnailService = {
+      createThumbnail: jest
+        .fn<any>()
+        .mockResolvedValue('https://cdn.example/thumbs/image.webp'),
+    };
+    (service as any).attachmentThumbnailService = thumbnailService;
+    const messageInsert = makeInsertChain();
+    const attachmentInsert = makeInsertChain();
+    const outboxInsert = makeInsertChain();
+    const tx = {
+      insert: jest
+        .fn()
+        .mockReturnValueOnce(messageInsert)
+        .mockReturnValueOnce(attachmentInsert)
+        .mockReturnValueOnce(outboxInsert),
+    };
+
+    db.transaction.mockImplementationOnce(async (callback: any) =>
+      callback(tx),
+    );
+    const channelQuery = makeSelectChain();
+    db.select.mockReturnValueOnce(channelQuery);
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
+
+    await service.createAndPersist({
+      clientMsgId: 'client-image-1',
+      channelId: 'channel-1',
+      senderId: 'user-1',
+      content: 'image upload',
+      type: 'image',
+      attachments: [
+        {
+          fileKey: 'uploads/image-1.png',
+          fileName: 'image.png',
+          fileSize: 4096,
+          mimeType: 'image/png',
+        },
+      ],
+      workspaceId: 'workspace-1',
+    });
+
+    expect(thumbnailService.createThumbnail).toHaveBeenCalledWith({
+      fileKey: 'uploads/image-1.png',
+      fileName: 'image.png',
+      fileSize: 4096,
+      mimeType: 'image/png',
+    });
+    expect(attachmentInsert.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        fileKey: 'uploads/image-1.png',
+        thumbnailUrl: 'https://cdn.example/thumbs/image.webp',
+      }),
+    ]);
+  });
+
   it('writes external pass-through attachment with the provided fileUrl and null fileKey', async () => {
     const { service, db, redisService } = makeHarness();
     const messageInsert = makeInsertChain();

@@ -14,6 +14,7 @@ import {
   GetObjectTaggingCommand,
   DeleteObjectTaggingCommand,
   GetObjectCommand,
+  PutObjectCommand,
   PutBucketCorsCommand,
   type LifecycleRule,
 } from '@aws-sdk/client-s3';
@@ -102,6 +103,12 @@ export interface FileInfo {
   lastModified: Date;
   etag?: string;
   url: string;
+}
+
+export interface ObjectBuffer {
+  buffer: Buffer;
+  contentType?: string;
+  contentLength?: number;
 }
 
 /**
@@ -352,6 +359,44 @@ export class StorageService {
   }
 
   // ==================== File Operations ====================
+
+  async getObjectBuffer(bucket: string, key: string): Promise<ObjectBuffer> {
+    const response = await this.s3Client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }),
+    );
+
+    if (!response.Body) {
+      throw new Error(`Object has no body: ${bucket}/${key}`);
+    }
+
+    const bytes = await response.Body.transformToByteArray();
+    return {
+      buffer: Buffer.from(bytes),
+      contentType: response.ContentType,
+      contentLength: response.ContentLength,
+    };
+  }
+
+  async putObject(
+    bucket: string,
+    key: string,
+    body: Buffer | Uint8Array,
+    options?: { contentType?: string },
+  ): Promise<void> {
+    await this.s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: options?.contentType,
+      }),
+    );
+
+    this.logger.debug(`Put object ${bucket}/${key}`);
+  }
 
   /**
    * Delete a file

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren, ReactElement } from "react";
@@ -136,6 +136,70 @@ describe("MessageAttachments", () => {
       expect(screen.getByRole("img", { name: "image.png" })).toHaveAttribute(
         "src",
         "https://cdn.test/image-2.png",
+      );
+    });
+  });
+
+  it("uses thumbnailUrl for the inline image before opening the original", async () => {
+    const getDownloadUrl = vi.mocked(fileApi.getDownloadUrl);
+    getDownloadUrl.mockResolvedValueOnce({
+      url: "https://cdn.test/original-image.png",
+      expiresAt: "2026-04-03T00:00:00Z",
+    });
+
+    renderWithQueryClient(
+      <MessageAttachments
+        attachments={[
+          makeImageAttachment({
+            thumbnailUrl: "https://cdn.test/thumb-image.webp",
+          }),
+        ]}
+      />,
+    );
+
+    const image = screen.getByRole("img", { name: "image.png" });
+    expect(image).toHaveAttribute("src", "https://cdn.test/thumb-image.webp");
+    expect(getDownloadUrl).not.toHaveBeenCalled();
+
+    fireEvent.click(image.closest("button")!);
+
+    await waitFor(() => {
+      expect(getDownloadUrl).toHaveBeenCalledWith("file-1");
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+  });
+
+  it("shows retry UI when the resolved image URL fails to load", async () => {
+    const getDownloadUrl = vi.mocked(fileApi.getDownloadUrl);
+    getDownloadUrl
+      .mockResolvedValueOnce({
+        url: "https://cdn.test/broken-image.png",
+        expiresAt: "2026-04-03T00:00:00Z",
+      })
+      .mockResolvedValueOnce({
+        url: "https://cdn.test/recovered-image.png",
+        expiresAt: "2026-04-03T00:00:00Z",
+      });
+
+    renderWithQueryClient(
+      <MessageAttachments attachments={[makeImageAttachment()]} />,
+    );
+
+    const image = await screen.findByRole("img", { name: "image.png" });
+    fireEvent.error(image);
+
+    expect(screen.getByText("Failed to load image")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => {
+      expect(getDownloadUrl).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("img", { name: "image.png" })).toHaveAttribute(
+        "src",
+        "https://cdn.test/recovered-image.png",
       );
     });
   });

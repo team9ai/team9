@@ -7,21 +7,26 @@ import { useAppStore } from "@/stores";
 const mockNavigate = vi.fn();
 const mockListTasks = vi.fn();
 const mockCreateTask = vi.fn();
+let pathname = "/tasks";
+let params: { taskId?: string } = {};
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,
     onClick,
+    className,
   }: {
     children: ReactNode;
     onClick?: () => void;
+    className?: string;
   }) => (
-    <button type="button" onClick={onClick}>
+    <button type="button" onClick={onClick} className={className}>
       {children}
     </button>
   ),
   useNavigate: () => mockNavigate,
-  useParams: () => ({}),
+  useLocation: () => ({ pathname }),
+  useParams: () => params,
 }));
 
 vi.mock("@/services/api/tasks", () => ({
@@ -47,6 +52,8 @@ function renderTasksSubSidebar() {
 
 describe("TasksSubSidebar", () => {
   beforeEach(() => {
+    pathname = "/tasks";
+    params = {};
     mockNavigate.mockClear();
     mockListTasks.mockResolvedValue([]);
     mockCreateTask.mockResolvedValue({ id: "run-1" });
@@ -54,12 +61,26 @@ describe("TasksSubSidebar", () => {
     useAppStore.getState().setActiveSidebar("tasks");
   });
 
-  it("opens the home dashboard when starting a new conversation", () => {
+  it("keeps the task sidebar when starting a new conversation", () => {
     renderTasksSubSidebar();
 
     fireEvent.click(screen.getByText("新对话"));
 
-    expect(useAppStore.getState().activeSidebar).toBe("home");
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/channels" });
+    expect(useAppStore.getState().activeSidebar).toBe("tasks");
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/tasks/new-conversation",
+    });
+  });
+
+  it("marks the in-task new conversation view as selected", () => {
+    pathname = "/tasks/new-conversation";
+    renderTasksSubSidebar();
+
+    expect(screen.getByText("新对话").closest("button")).toHaveClass(
+      "bg-nav-active",
+    );
+    expect(screen.getByText("任务看板").closest("button")).not.toHaveClass(
+      "bg-nav-active",
+    );
   });
 });
