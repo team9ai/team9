@@ -166,7 +166,7 @@ function TasksPage() {
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="grid h-full min-w-[980px] grid-cols-4 gap-6">
+          <div className="grid min-h-full min-w-[980px] grid-cols-4 gap-6">
             {TASK_COLUMNS.map((column) => (
               <TaskColumn
                 key={column.key}
@@ -197,7 +197,7 @@ function TaskColumn({
     <section
       data-testid={`task-column-${column.key}`}
       className={cn(
-        "min-h-0 rounded-lg border border-border/60 bg-muted/25 px-4 py-4",
+        "min-h-full rounded-lg border border-border/60 bg-muted/25 px-4 py-4",
         column.key === "running" && "bg-accent/35",
       )}
     >

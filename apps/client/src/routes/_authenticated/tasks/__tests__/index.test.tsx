@@ -129,4 +129,27 @@ describe("/_authenticated/tasks/ index route", () => {
       params: { taskId: "running-1" },
     });
   });
+
+  it("lets status groups grow vertically with long task lists", async () => {
+    mockListTasks.mockResolvedValue(
+      Array.from({ length: 10 }, (_, index) =>
+        makeTask({
+          id: `pending-${index + 1}`,
+          title: `Long task ${index + 1}`,
+          status: "upcoming",
+        }),
+      ),
+    );
+
+    renderRoute();
+
+    const pendingColumn = await screen.findByTestId("task-column-pending");
+    const boardGrid = screen.getByTestId("tasks-board-main").firstElementChild;
+
+    expect(within(pendingColumn).getByText("Long task 10")).toBeInTheDocument();
+    expect(boardGrid).toHaveClass("min-h-full");
+    expect(boardGrid).not.toHaveClass("h-full");
+    expect(pendingColumn).toHaveClass("min-h-full");
+    expect(pendingColumn).not.toHaveClass("min-h-0");
+  });
 });
