@@ -6,6 +6,7 @@ import type { TaskRun } from "@/types/task";
 
 const mockNavigate = vi.fn();
 const mockListTasks = vi.fn();
+const MAX_VISIBLE_CARDS_PER_COLUMN = 50;
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (config: unknown) => ({ __config: config }),
@@ -128,5 +129,80 @@ describe("/_authenticated/tasks/ index route", () => {
       to: "/tasks/$taskId",
       params: { taskId: "running-1" },
     });
+  });
+
+  it("lets status groups grow vertically with long task lists", async () => {
+    mockListTasks.mockResolvedValue(
+      Array.from({ length: 10 }, (_, index) =>
+        makeTask({
+          id: `pending-${index + 1}`,
+          title: `Long task ${index + 1}`,
+          status: "upcoming",
+        }),
+      ),
+    );
+
+    renderRoute();
+
+    const pendingColumn = await screen.findByTestId("task-column-pending");
+    const boardGrid = screen.getByTestId("tasks-board-main").firstElementChild;
+
+    expect(within(pendingColumn).getByText("Long task 10")).toBeInTheDocument();
+    expect(boardGrid).toHaveClass("min-h-full");
+    expect(boardGrid).not.toHaveClass("h-full");
+    expect(pendingColumn).toHaveClass("min-h-full");
+    expect(pendingColumn).not.toHaveClass("min-h-0");
+  });
+
+  it("loads more cards independently from the bottom of each status column", async () => {
+    mockListTasks.mockResolvedValue(
+      Array.from({ length: MAX_VISIBLE_CARDS_PER_COLUMN + 2 }, (_, index) =>
+        makeTask({
+          id: `heavy-pending-${index + 1}`,
+          title: `Heavy task ${index + 1}`,
+          status: "upcoming",
+        }),
+      ),
+    );
+
+    renderRoute();
+
+    const pendingColumn = await screen.findByTestId("task-column-pending");
+
+    expect(
+      within(pendingColumn).getByText(String(MAX_VISIBLE_CARDS_PER_COLUMN + 2)),
+    ).toBeInTheDocument();
+    expect(
+      within(pendingColumn).getByText(
+        `Heavy task ${MAX_VISIBLE_CARDS_PER_COLUMN}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(pendingColumn).queryByText(
+        `Heavy task ${MAX_VISIBLE_CARDS_PER_COLUMN + 1}`,
+      ),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(pendingColumn).getByRole("button", {
+        name: "加载更多待执行任务，还有 2 个",
+      }),
+    );
+
+    expect(
+      within(pendingColumn).getByText(
+        `Heavy task ${MAX_VISIBLE_CARDS_PER_COLUMN + 1}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(pendingColumn).getByText(
+        `Heavy task ${MAX_VISIBLE_CARDS_PER_COLUMN + 2}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(pendingColumn).queryByRole("button", {
+        name: /加载更多待执行任务/,
+      }),
+    ).not.toBeInTheDocument();
   });
 });

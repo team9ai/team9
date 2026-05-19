@@ -98,9 +98,8 @@ export class SchedulerService {
 
         if (!started) {
           this.logger.warn(
-            `Trigger ${trigger.id} did not start an execution; keeping next_run_at unchanged`,
+            `Trigger ${trigger.id} did not complete startup; advancing next_run_at to avoid reprocessing the same scheduled slot`,
           );
-          continue;
         }
 
         // Calculate and persist the next run time based on trigger type and config

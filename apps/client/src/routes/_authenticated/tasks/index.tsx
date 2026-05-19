@@ -1,13 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronDown,
   Filter,
   ListFilter,
   Loader2,
   MoreHorizontal,
   Plus,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { tasksApi } from "@/services/api/tasks";
@@ -61,10 +62,19 @@ const TASK_COLUMN_BY_STATUS = new Map<TaskRunStatus, TaskColumnKey>(
   ),
 );
 
+const TASK_BOARD_MAX_VISIBLE_PER_COLUMN = 50;
+const INITIAL_VISIBLE_COUNTS: Record<TaskColumnKey, number> = {
+  pending: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+  running: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+  completed: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+  archived: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+};
+
 function TasksPage() {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [visibleCounts, setVisibleCounts] = useState(INITIAL_VISIBLE_COUNTS);
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
@@ -118,6 +128,13 @@ function TasksPage() {
     });
   };
 
+  const loadMoreTasks = (columnKey: TaskColumnKey) => {
+    setVisibleCounts((current) => ({
+      ...current,
+      [columnKey]: current[columnKey] + TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+    }));
+  };
+
   return (
     <div
       data-testid="tasks-board-page"
@@ -166,13 +183,15 @@ function TasksPage() {
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="grid h-full min-w-[980px] grid-cols-4 gap-6">
+          <div className="grid min-h-full min-w-[980px] grid-cols-4 gap-6">
             {TASK_COLUMNS.map((column) => (
               <TaskColumn
                 key={column.key}
                 column={column}
                 items={grouped[column.key]}
+                visibleCount={visibleCounts[column.key]}
                 onOpenTask={openTask}
+                onLoadMore={() => loadMoreTasks(column.key)}
               />
             ))}
           </div>
@@ -187,17 +206,24 @@ function TasksPage() {
 function TaskColumn({
   column,
   items,
+  visibleCount,
   onOpenTask,
+  onLoadMore,
 }: {
   column: TaskColumnConfig;
   items: TaskBoardItem[];
+  visibleCount: number;
   onOpenTask: (task: TaskRun) => void;
+  onLoadMore: () => void;
 }) {
+  const visibleItems = items.slice(0, visibleCount);
+  const hiddenTaskCount = Math.max(0, items.length - visibleItems.length);
+
   return (
     <section
       data-testid={`task-column-${column.key}`}
       className={cn(
-        "min-h-0 rounded-lg border border-border/60 bg-muted/25 px-4 py-4",
+        "min-h-full rounded-lg border border-border/60 bg-muted/25 px-4 py-4",
         column.key === "running" && "bg-accent/35",
       )}
     >
@@ -222,7 +248,7 @@ function TaskColumn({
       </div>
 
       <div className="space-y-3">
-        {items.map(({ task, code }) => (
+        {visibleItems.map(({ task, code }) => (
           <TaskCard
             key={task.id}
             task={task}
@@ -230,6 +256,19 @@ function TaskColumn({
             onClick={() => onOpenTask(task)}
           />
         ))}
+        {hiddenTaskCount > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center gap-2 border-dashed bg-background/70 text-sm text-muted-foreground hover:bg-accent/45 hover:text-foreground"
+            aria-label={`加载更多${column.title}任务，还有 ${hiddenTaskCount} 个`}
+            onClick={onLoadMore}
+          >
+            <ChevronDown size={16} />
+            <span>加载更多</span>
+            <span className="text-xs">还有 {hiddenTaskCount} 个</span>
+          </Button>
+        ) : null}
       </div>
     </section>
   );

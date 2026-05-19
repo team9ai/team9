@@ -10,6 +10,8 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { CreateTaskRunDto } from './dto/create-task-run.dto.js';
 
+const TASK_RUN_LIST_LIMIT = 200;
+
 @Injectable()
 export class TasksService {
   constructor(
@@ -77,7 +79,8 @@ export class TasksService {
       .select()
       .from(schema.taskRuns)
       .where(eq(schema.taskRuns.tenantId, tenantId))
-      .orderBy(desc(schema.taskRuns.createdAt));
+      .orderBy(desc(schema.taskRuns.createdAt))
+      .limit(TASK_RUN_LIST_LIMIT);
   }
 
   async getById(runId: string, tenantId: string) {

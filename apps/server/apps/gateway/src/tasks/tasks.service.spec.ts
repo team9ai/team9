@@ -96,4 +96,18 @@ describe('TasksService', () => {
       channelId: 'uuid-2',
     });
   });
+
+  it('limits task run list queries so anomalous history cannot flood clients', async () => {
+    const selectChain = {
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue([{ id: 'run-1' }]),
+    };
+    db.select.mockReturnValueOnce(selectChain);
+
+    await expect(service.list('tenant-1')).resolves.toEqual([{ id: 'run-1' }]);
+
+    expect(selectChain.limit).toHaveBeenCalledWith(200);
+  });
 });
