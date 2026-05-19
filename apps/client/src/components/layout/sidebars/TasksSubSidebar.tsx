@@ -4,14 +4,14 @@ import {
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { CirclePlus, Loader2, MessageSquarePlus, Plus } from "lucide-react";
 import { useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
-import { appActions } from "@/stores";
+import { appActions, HOME_ENTRY_PATH, TASK_ENTRY_PATH } from "@/stores";
 import type { TaskRun, TaskRunStatus } from "@/types/task";
 
 const STATUS_LABELS: Record<TaskRunStatus, string> = {
@@ -26,9 +26,8 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
   timeout: "已归档",
 };
 
-const TASK_NEW_CONVERSATION_PATH = "/tasks/new-conversation";
 const TASK_SIDEBAR_ACTION_CLASS =
-  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
+  "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
 
 function getTaskGroupLabel(task: TaskRun) {
   return task.routineId ? "@ 日常" : "@ 自己";
@@ -57,32 +56,16 @@ function getTaskSidebarActionClass(isSelected: boolean) {
 export function TasksSubSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const queryClient = useQueryClient();
   const params = useParams({ strict: false }) as { taskId?: string };
   const selectedTaskId = params.taskId;
-  const isNewConversationSelected =
-    location.pathname === TASK_NEW_CONVERSATION_PATH;
+  const isNewConversationSelected = location.pathname === HOME_ENTRY_PATH;
+  const isNewTaskSelected = location.pathname === TASK_ENTRY_PATH;
   const isTaskBoardSelected =
     location.pathname === "/tasks" || location.pathname === "/tasks/";
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: () => tasksApi.list(),
-  });
-
-  const createTask = useMutation({
-    mutationFn: () =>
-      tasksApi.create({
-        title: "新任务",
-        description: "等待补充任务目标、上下文和交付要求。",
-      }),
-    onSuccess: async (task) => {
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      void navigate({
-        to: "/tasks/$taskId",
-        params: { taskId: task.id },
-      });
-    },
   });
 
   const groupedTasks = useMemo(() => {
@@ -100,25 +83,30 @@ export function TasksSubSidebar() {
   }, [tasks]);
 
   const openNewConversation = () => {
-    appActions.setActiveSidebar("tasks");
-    void navigate({ to: TASK_NEW_CONVERSATION_PATH });
+    appActions.setActiveSidebar("home");
+    void navigate({ to: HOME_ENTRY_PATH });
+  };
+
+  const openNewTask = () => {
+    appActions.setActiveSidebar("home");
+    void navigate({ to: TASK_ENTRY_PATH });
   };
 
   return (
     <aside
       data-testid="tasks-sub-sidebar"
-      className="flex h-full w-64 flex-col overflow-hidden bg-nav-sub-bg text-primary-foreground"
+      className="flex h-full w-64 min-w-0 flex-col overflow-hidden bg-nav-sub-bg text-primary-foreground"
     >
       <div className="p-4 pb-2">
         <div className="px-2 py-1.5 text-lg font-semibold text-nav-foreground">
-          任务
+          首页
         </div>
       </div>
 
       <Separator className="bg-nav-border" />
 
-      <ScrollArea className="min-h-0 flex-1 px-3">
-        <nav className="space-y-0.5 pb-3 pt-2">
+      <ScrollArea className="min-h-0 flex-1 px-3 [&>[data-slot=scroll-area-viewport]>div]:block!">
+        <nav className="min-w-0 space-y-0.5 pb-3 pt-2">
           <div className="mb-2 border-b border-nav-border pb-2">
             <button
               type="button"
@@ -130,15 +118,10 @@ export function TasksSubSidebar() {
             </button>
             <button
               type="button"
-              disabled={createTask.isPending}
-              onClick={() => createTask.mutate()}
-              className={getTaskSidebarActionClass(false)}
+              onClick={openNewTask}
+              className={getTaskSidebarActionClass(isNewTaskSelected)}
             >
-              {createTask.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CirclePlus className="size-4" />
-              )}
+              <CirclePlus className="size-4" />
               新任务
             </button>
             <Link
@@ -165,18 +148,18 @@ export function TasksSubSidebar() {
             </p>
           ) : (
             groupedTasks.map((group) => (
-              <div key={group.label} className="pb-2">
-                <div className="px-2 py-1 text-sm font-medium text-nav-foreground-muted">
+              <div key={group.label} className="min-w-0 pb-2">
+                <div className="truncate px-2 py-1 text-sm font-medium text-nav-foreground-muted">
                   {group.label}
                 </div>
-                <div className="space-y-px">
+                <div className="min-w-0 space-y-px">
                   {group.tasks.map((task) => (
                     <Link
                       key={task.id}
                       to="/tasks/$taskId"
                       params={{ taskId: task.id }}
                       className={cn(
-                        "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground",
+                        "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground",
                         selectedTaskId === task.id &&
                           "bg-nav-active text-nav-foreground",
                       )}
