@@ -68,6 +68,13 @@ export interface IBotService {
 // drizzle's `aliasedTable<T>(): T` collapses select-row inference to `never`
 // when the original table and its alias both appear in the same query.
 const ownerUser = alias(schema.users, 'ownerUser');
+const ACTIVE_TASK_RUN_STATUSES = [
+  'draft',
+  'upcoming',
+  'in_progress',
+  'paused',
+  'pending_action',
+] as const;
 
 export interface ChannelResponse {
   id: string;
@@ -2322,6 +2329,21 @@ export class ChannelsService {
       .where(eq(schema.channels.id, channelId));
 
     await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+  }
+
+  async hasActiveTaskRunForChannel(channelId: string): Promise<boolean> {
+    const [run] = await this.db
+      .select({ id: schema.taskRuns.id })
+      .from(schema.taskRuns)
+      .where(
+        and(
+          eq(schema.taskRuns.channelId, channelId),
+          inArray(schema.taskRuns.status, ACTIVE_TASK_RUN_STATUSES),
+        ),
+      )
+      .limit(1);
+
+    return Boolean(run);
   }
 
   /**
