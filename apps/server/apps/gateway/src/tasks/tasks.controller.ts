@@ -42,6 +42,16 @@ export class TasksController {
     return this.tasksService.getById(runId, tenantId);
   }
 
+  @Post(':runId/start')
+  async start(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: { message?: string },
+  ) {
+    return this.tasksService.start(runId, userId, tenantId, dto);
+  }
+
   @Get(':runId/deliverables')
   async getDeliverables(
     @Param('runId', ParseUUIDPipe) runId: string,

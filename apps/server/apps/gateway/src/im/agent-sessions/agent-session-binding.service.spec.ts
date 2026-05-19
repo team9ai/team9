@@ -414,6 +414,34 @@ describe('AgentSessionBindingService', () => {
     });
   });
 
+  it('resolves a Hive independent task run channel', async () => {
+    dbMock.push([{ id: 'task-channel', tenantId: 'tenant-1', type: 'task' }]);
+    dbMock.push([]);
+    dbMock.push([
+      {
+        executionId: 'run-1',
+        routineId: null,
+        taskcastTaskId: 'agent_task_exec_run-1',
+        taskStatus: 'in_progress',
+        botUserId: 'bot-user-1',
+        managedProvider: 'hive',
+        managedMeta: { agentId: 'agent-1' },
+      },
+    ]);
+
+    await expect(
+      service.resolve('task-channel', 'user-1'),
+    ).resolves.toMatchObject({
+      kind: 'routine-execution',
+      supported: true,
+      sessionId: 'team9/tenant-1/agent-1/task/run-1',
+      routineId: undefined,
+      executionId: 'run-1',
+      taskcastTaskId: 'agent_task_exec_run-1',
+      taskStatus: 'in_progress',
+    });
+  });
+
   it('returns unsupported for OpenClaw task channel', async () => {
     dbMock.push([{ id: 'task-channel', tenantId: 'tenant-1', type: 'task' }]);
     dbMock.push([
