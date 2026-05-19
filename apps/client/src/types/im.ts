@@ -96,6 +96,17 @@ export interface ComponentDataSnapshotEvent extends AgentSessionEvent {
   }>;
 }
 
+export interface ActiveStreamingMessage {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  parentId?: string;
+  metadata?: Record<string, unknown>;
+  startedAt: number;
+  content: string;
+  thinking: string;
+}
+
 export interface AgentEventMetadata {
   agentEventType:
     | "thinking"

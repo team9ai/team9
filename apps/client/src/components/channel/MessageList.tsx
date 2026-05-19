@@ -90,6 +90,44 @@ type ChannelListItem =
   | { type: "stream"; stream: StreamingMessage }
   | { type: "thinking"; key: string };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasDeepResearchMetadata(stream: StreamingMessage): boolean {
+  return isRecord(stream.metadata?.deepResearch);
+}
+
+function hasTextContent(stream: StreamingMessage): boolean {
+  return (
+    stream.content.trim().length > 0 ||
+    stream.parts.some(
+      (part) => part.type === "content" && part.content.trim().length > 0,
+    )
+  );
+}
+
+function shouldSuppressCompanionWritingStream(
+  stream: StreamingMessage,
+  deepResearchSenderIds: ReadonlySet<string>,
+): boolean {
+  if (hasDeepResearchMetadata(stream) || hasTextContent(stream)) {
+    return false;
+  }
+  if (!deepResearchSenderIds.has(stream.senderId)) {
+    return false;
+  }
+
+  const meta = stream.metadata
+    ? getAgentEventMetadata(stream.metadata, {
+        agentEventType: "writing",
+        status: "running",
+      })
+    : undefined;
+
+  return meta?.agentEventType === "writing";
+}
+
 function ToolEventFrame({
   children,
   id,
@@ -225,12 +263,53 @@ export function MessageList({
   const channelStreams = useStreamingStore(
     useShallow((state) =>
       Array.from(state.streams.values()).filter(
-        (stream) => stream.channelId === channelId && !stream.parentId,
+        (stream) =>
+          stream.channelId === channelId &&
+          (!stream.parentId || hasDeepResearchMetadata(stream)),
       ),
     ),
   );
-  const thinkingBotIdsKey = thinkingBotIds.join("|");
-  const tailActivityKey = channelStreams
+  const deepResearchSenderIds = useMemo(
+    () =>
+      new Set(
+        channelStreams
+          .filter(hasDeepResearchMetadata)
+          .map((stream) => stream.senderId),
+      ),
+    [channelStreams],
+  );
+  const hasActiveDeepResearchStream = deepResearchSenderIds.size > 0;
+  const visibleChannelStreams = useMemo(
+    () =>
+      hasActiveDeepResearchStream
+        ? channelStreams.filter(
+            (stream) =>
+              !shouldSuppressCompanionWritingStream(
+                stream,
+                deepResearchSenderIds,
+              ),
+          )
+        : channelStreams,
+    [channelStreams, deepResearchSenderIds, hasActiveDeepResearchStream],
+  );
+  const visibleThinkingBotIds = useMemo(
+    () =>
+      hasActiveDeepResearchStream
+        ? thinkingBotIds.filter((botId) => !deepResearchSenderIds.has(botId))
+        : thinkingBotIds,
+    [deepResearchSenderIds, hasActiveDeepResearchStream, thinkingBotIds],
+  );
+  const visibleThinkingStatuses = useMemo(
+    () =>
+      hasActiveDeepResearchStream
+        ? thinkingStatuses.filter(
+            (status) => !deepResearchSenderIds.has(status.botId),
+          )
+        : thinkingStatuses,
+    [deepResearchSenderIds, hasActiveDeepResearchStream, thinkingStatuses],
+  );
+  const thinkingBotIdsKey = visibleThinkingBotIds.join("|");
+  const tailActivityKey = visibleChannelStreams
     .map(
       (stream) =>
         `${stream.streamId}:${stream.content.length}:${stream.thinking.length}:${stream.isThinking ? 1 : 0}`,
@@ -295,25 +374,25 @@ export function MessageList({
       message,
     }));
 
-    if (channelStreams.length > 0) {
+    if (visibleChannelStreams.length > 0) {
       items.push(
-        ...channelStreams.map((stream) => ({
+        ...visibleChannelStreams.map((stream) => ({
           type: "stream" as const,
           stream,
         })),
       );
     }
 
-    if (thinkingBotIds.length > 0) {
+    if (visibleThinkingBotIds.length > 0) {
       items.push({ type: "thinking", key: thinkingBotIdsKey });
     }
 
     return items;
   }, [
     chronoMessages,
-    channelStreams,
-    thinkingBotIds.length,
     thinkingBotIdsKey,
+    visibleThinkingBotIds.length,
+    visibleChannelStreams,
   ]);
 
   // Ref to listData for prevMessage lookup — avoids adding listData to useCallback deps
@@ -568,8 +647,8 @@ export function MessageList({
       if (item.type === "thinking") {
         return (
           <BotThinkingIndicator
-            thinkingBotIds={thinkingBotIds}
-            thinkingStatuses={thinkingStatuses}
+            thinkingBotIds={visibleThinkingBotIds}
+            thinkingStatuses={visibleThinkingStatuses}
             members={members}
           />
         );
@@ -818,8 +897,8 @@ export function MessageList({
       firstUnreadIndex,
       firstItemIndex,
       members,
-      thinkingBotIds,
-      thinkingStatuses,
+      visibleThinkingBotIds,
+      visibleThinkingStatuses,
       toggleRoundExpanded,
       foldMaps,
       a2uiResponsesBySurfaceId,

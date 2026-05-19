@@ -1052,6 +1052,144 @@ describe("MessageList — round auto-fold", () => {
       expect(screen.getByTestId("tool-call-block")).toBeInTheDocument();
       expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
     });
+
+    it("suppresses companion writing and bot thinking while deep research is active", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "deepresearch-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: "running",
+              phase: "started",
+              taskId: "task-1",
+            },
+          },
+        },
+        {
+          streamId: "writing-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "Focusing",
+          isThinking: true,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "writing",
+            status: "running",
+          },
+        },
+      ];
+
+      renderList([], {
+        channelType: "direct",
+        thinkingBotIds: ["bot-1"],
+      });
+
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(1);
+      expect(screen.queryByTestId("bot-thinking")).not.toBeInTheDocument();
+    });
+
+    it("keeps writing content visible while deep research is active", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "deepresearch-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: "running",
+              phase: "started",
+              taskId: "task-1",
+            },
+          },
+        },
+        {
+          streamId: "writing-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "I found a first result.",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "writing",
+            status: "running",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(2);
+      expect(screen.getByText("I found a first result.")).toBeInTheDocument();
+    });
+
+    it("keeps other bots visible while deep research is active", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "deepresearch-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: "running",
+              phase: "started",
+              taskId: "task-1",
+            },
+          },
+        },
+        {
+          streamId: "other-bot-writing-stream",
+          channelId: "ch-1",
+          senderId: "bot-2",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "writing",
+            status: "running",
+          },
+        },
+      ];
+
+      renderList([], {
+        channelType: "direct",
+        thinkingBotIds: ["bot-1", "bot-2"],
+      });
+
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(2);
+      expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
+    });
   });
 
   describe("non-DM channels", () => {

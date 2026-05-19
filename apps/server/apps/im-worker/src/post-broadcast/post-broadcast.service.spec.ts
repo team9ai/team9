@@ -773,7 +773,19 @@ describe('PostBroadcastService — pushToHiveBots', () => {
 
   it('sends correct event payload with message content and sender info', async () => {
     const bot = makeHiveBot('claude');
-    const msg = makeMessage({ content: 'Test content' });
+    const deepResearchAction = {
+      source: 'team9',
+      action: 'start_research',
+      planInteractionId: 'interaction-plan-1',
+      planMessageId: MSG_ID,
+    };
+    const msg = makeMessage({
+      content: 'Test content',
+      metadata: {
+        deepResearchAction,
+        clientContext: { kind: 'web' },
+      },
+    });
     const sender = makeSender();
     setupDbForHivePush({ bots: [bot], message: msg, sender });
 
@@ -790,6 +802,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(event.payload.content).toBe('Test content');
     expect(event.payload.sender.id).toBe(sender.id);
     expect(event.payload.sender.username).toBe(sender.username);
+    expect(event.payload.metadata).toEqual({ deepResearchAction });
   });
 
   it('sends attachment publicUrl to hive bots', async () => {

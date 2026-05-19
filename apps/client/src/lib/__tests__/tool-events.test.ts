@@ -116,6 +116,38 @@ describe("extractToolResultImages", () => {
 });
 
 describe("buildToolDisplayState", () => {
+  it("shows the effective planning mode for a new deep research call", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "capahub_deep_research_run",
+        toolArgs: {
+          input: "深度研究伊朗局势",
+          agentConfig: { collaborativePlanning: false },
+        },
+      }),
+    });
+
+    expect(state.argsSummary).toBe('input="深度研究伊朗局势"');
+    expect(state.argsText).toContain('"collaborativePlanning": true');
+    expect(state.argsText).not.toContain('"collaborativePlanning": false');
+  });
+
+  it("keeps explicit report mode visible for approved deep research follow-ups", () => {
+    const state = buildToolDisplayState({
+      callMetadata: callMeta({
+        toolName: "capahub_deep_research_run",
+        toolArgs: {
+          input: "开始研究",
+          previousInteractionId: "plan-interaction-1",
+          agentConfig: { collaborativePlanning: false },
+        },
+      }),
+    });
+
+    expect(state.argsText).toContain('"previousInteractionId"');
+    expect(state.argsText).toContain('"collaborativePlanning": false');
+  });
+
   it("builds a local run_command display state with split streams", () => {
     const state = buildToolDisplayState({
       callMetadata: callMeta({

@@ -15,6 +15,14 @@ import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
+import {
+  DeepResearchPlanCard,
+  getDeepResearchPlanMeta,
+} from "./DeepResearchPlanCard";
+import {
+  DeepResearchProgressCard,
+  getDeepResearchProgressMeta,
+} from "./DeepResearchProgressCard";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { UserHoverCard } from "./UserHoverCard";
 import {
@@ -127,6 +135,14 @@ export function MessageItem({
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
+  const deepResearchPlanMeta = getDeepResearchPlanMeta(message.metadata);
+  const rawDeepResearchProgressMeta = getDeepResearchProgressMeta(
+    message.metadata,
+  );
+  const deepResearchProgressMeta =
+    !deepResearchPlanMeta && rawDeepResearchProgressMeta?.kind === "report"
+      ? rawDeepResearchProgressMeta
+      : null;
   const [isHovered, setIsHovered] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
@@ -505,15 +521,25 @@ export function MessageItem({
           </div>
         ) : (
           <>
-            {hasContent && (
+            {deepResearchPlanMeta ? (
+              <div className="channel-message-content w-full">
+                <DeepResearchPlanCard message={message} />
+              </div>
+            ) : hasContent ? (
               <div className="channel-message-content">
+                {deepResearchProgressMeta && (
+                  <DeepResearchProgressCard
+                    meta={deepResearchProgressMeta}
+                    className="mb-3"
+                  />
+                )}
                 <MessageContent
                   content={message.content}
                   className="text-sm whitespace-pre-wrap break-words"
                   message={message}
                 />
               </div>
-            )}
+            ) : null}
           </>
         )}
         {hasAttachments && (

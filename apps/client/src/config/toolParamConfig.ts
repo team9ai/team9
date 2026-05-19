@@ -49,6 +49,18 @@ export const toolParamConfig: Record<string, ToolParamConfigItem> = {
       prompt: 80,
     },
   },
+  capahub_deep_research_run: {
+    keyParams: ["input"],
+    truncate: {
+      input: 120,
+    },
+  },
+  deep_research_run: {
+    keyParams: ["input"],
+    truncate: {
+      input: 120,
+    },
+  },
 };
 
 /**

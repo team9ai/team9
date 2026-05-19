@@ -64,6 +64,14 @@ import { ConnectionService } from '../../cluster/connection/connection.service.j
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
 import { appMetrics } from '@team9/observability';
 import { mergeStreamingMetadataSnapshot } from '../streaming/streaming-metadata.js';
+import {
+  STREAMING_FINALIZED_TTL,
+  hasDeepResearchMetadata,
+  hasLongRunningStreamingMetadata,
+  parseStreamingSessionSnapshot,
+  resolveStreamingSessionTtl,
+  type StreamingSessionSnapshot,
+} from '../streaming/streaming-session.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { determineMessageType } from '../messages/message-utils.js';
 import { normalizeToolEventMetadata } from '../messages/utils/tool-event-metadata.js';
@@ -76,15 +84,12 @@ interface SocketHandshakeAuth {
   deviceId?: string;
 }
 
-interface StreamingSessionPayload {
+interface FinalizedStreamingMessage {
   channelId: string;
   senderId: string;
-  parentId?: string;
-  metadata?: Record<string, unknown>;
-  startedAt: number;
+  messageId: string;
+  finalizedAt: number;
 }
-
-const STREAM_TTL = 120;
 
 @WebSocketGateway({
   cors: {
@@ -95,7 +100,7 @@ const STREAM_TTL = 120;
     credentials: true,
   },
   namespace: '/im',
-  maxHttpBufferSize: 1_000_000, // 1 MB — support long text messages up to 100K chars
+  maxHttpBufferSize: 2_000_000, // 2 MB — support larger deep-research reports
 })
 export class WebsocketGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
@@ -149,8 +154,21 @@ export class WebsocketGateway
     return auth.token ?? bearerToken ?? null;
   }
 
-  private parseStreamingSession(sessionData: string): StreamingSessionPayload {
-    return JSON.parse(sessionData) as StreamingSessionPayload;
+  private parseStreamingSession(sessionData: string): StreamingSessionSnapshot {
+    const session = parseStreamingSessionSnapshot(sessionData);
+    if (!session) {
+      throw new Error('Streaming session is invalid');
+    }
+    return session;
+  }
+
+  private resolveStreamingFinalParentId(
+    session: StreamingSessionSnapshot,
+    metadata: Record<string, unknown> | undefined,
+  ): string | undefined {
+    // Deep research reports should be visible in the main channel timeline even
+    // when an older stream start inherited parentId from the triggering message.
+    return hasDeepResearchMetadata(metadata) ? undefined : session.parentId;
   }
 
   private shouldPublishChannelMessageTrigger(
@@ -316,6 +334,12 @@ export class WebsocketGateway
     startedAt: number,
     source: string,
   ): Promise<{ success: true; messageId: string }> {
+    await this.rememberFinalizedStreamingMessage(
+      streamId,
+      userId,
+      channelId,
+      message.id,
+    );
     const delivered = await this.sendToChannelMembers(
       channelId,
       WS_EVENTS.STREAMING.END,
@@ -332,6 +356,109 @@ export class WebsocketGateway
     );
 
     return { success: true, messageId: message.id };
+  }
+
+  private async rememberFinalizedStreamingMessage(
+    streamId: string,
+    senderId: string,
+    channelId: string,
+    messageId: string,
+  ): Promise<void> {
+    const payload: FinalizedStreamingMessage = {
+      channelId,
+      senderId,
+      messageId,
+      finalizedAt: Date.now(),
+    };
+    try {
+      await this.redisService.set(
+        REDIS_KEYS.STREAMING_FINALIZED(streamId),
+        JSON.stringify(payload),
+        STREAMING_FINALIZED_TTL,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[streaming_end] failed to cache finalized stream=${streamId} msg=${messageId}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  private async emitStreamingEndForFinalizedMessage(
+    streamId: string,
+    userId: string,
+    startedAt: number,
+  ): Promise<{ success: true; messageId: string } | { error: string } | null> {
+    const raw = await this.redisService.get(
+      REDIS_KEYS.STREAMING_FINALIZED(streamId),
+    );
+    const finalized = this.parseFinalizedStreamingMessage(raw);
+    if (!finalized) {
+      return null;
+    }
+    if (finalized.senderId !== userId) {
+      return { error: 'Not the owner of this stream' };
+    }
+
+    let message: MessageResponse | null = null;
+    try {
+      message = await this.messagesService.getMessageWithDetails(
+        finalized.messageId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[streaming_end] get finalized message details failed for ${finalized.messageId}: ${(error as Error).message}`,
+      );
+    }
+
+    if (!message) {
+      await this.sendToChannelMembers(
+        finalized.channelId,
+        WS_EVENTS.STREAMING.END,
+        {
+          streamId,
+          channelId: finalized.channelId,
+          senderId: userId,
+          message: null,
+        },
+      );
+      return { success: true, messageId: finalized.messageId };
+    }
+
+    return this.emitStreamingEndForExistingMessage(
+      finalized.channelId,
+      streamId,
+      userId,
+      message,
+      startedAt,
+      'finalized stream retry',
+    );
+  }
+
+  private parseFinalizedStreamingMessage(
+    raw: string | null,
+  ): FinalizedStreamingMessage | null {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as Partial<FinalizedStreamingMessage>;
+      if (
+        typeof parsed.channelId !== 'string' ||
+        typeof parsed.senderId !== 'string' ||
+        typeof parsed.messageId !== 'string'
+      ) {
+        return null;
+      }
+      return {
+        channelId: parsed.channelId,
+        senderId: parsed.senderId,
+        messageId: parsed.messageId,
+        finalizedAt:
+          typeof parsed.finalizedAt === 'number'
+            ? parsed.finalizedAt
+            : Date.now(),
+      };
+    } catch {
+      return null;
+    }
   }
 
   private async acquireTimelineMessageLock(
@@ -394,7 +521,7 @@ export class WebsocketGateway
   private async getOwnedStreamingSession(
     streamId: string,
     userId: string,
-  ): Promise<{ session?: StreamingSessionPayload; error?: string }> {
+  ): Promise<{ session?: StreamingSessionSnapshot; error?: string }> {
     const sessionRaw = await this.redisService.get(
       REDIS_KEYS.STREAMING_SESSION(streamId),
     );
@@ -413,15 +540,11 @@ export class WebsocketGateway
   private async refreshStreamingTtl(
     streamId: string,
     userId: string,
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
-    await this.redisService.expire(
-      REDIS_KEYS.STREAMING_SESSION(streamId),
-      STREAM_TTL,
-    );
-    await this.redisService.expire(
-      REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
-      STREAM_TTL,
-    );
+    const ttl = resolveStreamingSessionTtl(metadata);
+    await this.redisService.expire(REDIS_KEYS.STREAMING_SESSION(streamId), ttl);
+    await this.redisService.expire(REDIS_KEYS.BOT_ACTIVE_STREAMS(userId), ttl);
   }
 
   private async finalizeSocketStream(
@@ -443,6 +566,14 @@ export class WebsocketGateway
       userId,
     );
     if (!session) {
+      const finalized = await this.emitStreamingEndForFinalizedMessage(
+        streamId,
+        userId,
+        startedAt,
+      );
+      if (finalized) {
+        return finalized;
+      }
       this.logger.warn(
         `[streaming_end] missing session stream=${streamId} user=${userId} reason=${error ?? 'unknown'} contentChars=${content.length}`,
       );
@@ -532,11 +663,17 @@ export class WebsocketGateway
         channelId,
         senderId: userId,
         content,
-        parentId: session.parentId,
+        parentId: this.resolveStreamingFinalParentId(session, metadata),
         type: determineMessageType(content, false),
         workspaceId,
         metadata,
       });
+      await this.rememberFinalizedStreamingMessage(
+        streamId,
+        userId,
+        channelId,
+        result.msgId,
+      );
     } catch (persistError) {
       this.logger.error(
         `[streaming_end] persist failed stream=${streamId} channel=${channelId} user=${userId} contentChars=${content.length} error=${(persistError as Error).message}`,
@@ -1464,16 +1601,20 @@ export class WebsocketGateway
       return { error: 'Not a member of this channel' };
     }
 
+    const startedAt = Date.now();
+    const session: StreamingSessionSnapshot = {
+      channelId: data.channelId,
+      senderId: socketClient.userId,
+      parentId: data.parentId,
+      metadata: data.metadata,
+      startedAt,
+    };
+    const ttl = resolveStreamingSessionTtl(session.metadata);
+
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
-      JSON.stringify({
-        channelId: data.channelId,
-        senderId: socketClient.userId,
-        parentId: data.parentId,
-        metadata: data.metadata,
-        startedAt: Date.now(),
-      }),
-      STREAM_TTL,
+      JSON.stringify(session),
+      ttl,
     );
 
     // Track active streams for this bot (for disconnect cleanup)
@@ -1483,13 +1624,13 @@ export class WebsocketGateway
     );
     await this.redisService.expire(
       REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
-      STREAM_TTL,
+      ttl,
     );
 
     const event: StreamingStartEvent = {
       ...data,
       senderId: socketClient.userId,
-      startedAt: Date.now(),
+      startedAt,
     };
 
     await this.sendToChannelMembers(
@@ -1519,7 +1660,21 @@ export class WebsocketGateway
       return { error: error ?? 'Streaming session not found or expired' };
     }
 
-    await this.refreshStreamingTtl(data.streamId, socketClient.userId);
+    const nextSession: StreamingSessionSnapshot = {
+      ...session,
+      content: data.content,
+    };
+    const ttl = resolveStreamingSessionTtl(nextSession.metadata);
+    await this.redisService.set(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      JSON.stringify(nextSession),
+      ttl,
+    );
+    await this.refreshStreamingTtl(
+      data.streamId,
+      socketClient.userId,
+      nextSession.metadata,
+    );
 
     await this.sendToChannelMembers(
       session.channelId,
@@ -1552,7 +1707,21 @@ export class WebsocketGateway
       return { error: error ?? 'Streaming session not found or expired' };
     }
 
-    await this.refreshStreamingTtl(data.streamId, socketClient.userId);
+    const nextSession: StreamingSessionSnapshot = {
+      ...session,
+      thinking: data.content,
+    };
+    const ttl = resolveStreamingSessionTtl(nextSession.metadata);
+    await this.redisService.set(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      JSON.stringify(nextSession),
+      ttl,
+    );
+    await this.refreshStreamingTtl(
+      data.streamId,
+      socketClient.userId,
+      nextSession.metadata,
+    );
 
     await this.sendToChannelMembers(
       session.channelId,
@@ -1585,20 +1754,22 @@ export class WebsocketGateway
       return { error: error ?? 'Streaming session not found or expired' };
     }
 
+    const nextMetadata = mergeStreamingMetadataSnapshot(
+      session.metadata,
+      data.metadata,
+    );
+    const ttl = resolveStreamingSessionTtl(nextMetadata);
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(data.streamId),
       JSON.stringify({
         ...session,
-        metadata: mergeStreamingMetadataSnapshot(
-          session.metadata,
-          data.metadata,
-        ),
+        metadata: nextMetadata,
       }),
-      STREAM_TTL,
+      ttl,
     );
     await this.redisService.expire(
       REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
-      STREAM_TTL,
+      ttl,
     );
 
     await this.sendToChannelMembers(
@@ -1803,13 +1974,14 @@ export class WebsocketGateway
 
   /**
    * Clean up active streaming sessions when a bot disconnects.
-   * Broadcasts streaming_abort for each active stream.
+   * Short-lived streams are aborted because their producer is gone. Long-running
+   * streams are kept because their finalizer may still complete asynchronously.
    */
   private async cleanupBotStreams(botUserId: string): Promise<void> {
     try {
-      const activeStreamIds = await this.redisService.smembers(
-        REDIS_KEYS.BOT_ACTIVE_STREAMS(botUserId),
-      );
+      const activeStreamsKey = REDIS_KEYS.BOT_ACTIVE_STREAMS(botUserId);
+      const activeStreamIds =
+        await this.redisService.smembers(activeStreamsKey);
 
       if (activeStreamIds.length === 0) return;
 
@@ -1817,14 +1989,31 @@ export class WebsocketGateway
         `[WS] Cleaning up ${activeStreamIds.length} active streams for bot ${botUserId}`,
       );
 
-      for (const streamId of activeStreamIds) {
-        // Get stream session data to find channelId
-        const sessionData = await this.redisService.get(
-          REDIS_KEYS.STREAMING_SESSION(streamId),
-        );
+      let preservedCount = 0;
+      let abortedCount = 0;
+      let preservedTtl = 0;
 
-        if (sessionData) {
+      for (const streamId of activeStreamIds) {
+        try {
+          const sessionKey = REDIS_KEYS.STREAMING_SESSION(streamId);
+          // Get stream session data to find channelId
+          const sessionData = await this.redisService.get(sessionKey);
+
+          if (!sessionData) {
+            await this.redisService.srem(activeStreamsKey, streamId);
+            continue;
+          }
+
           const session = this.parseStreamingSession(sessionData);
+          const sessionTtl = resolveStreamingSessionTtl(session.metadata);
+
+          if (hasLongRunningStreamingMetadata(session.metadata)) {
+            preservedCount += 1;
+            preservedTtl = Math.max(preservedTtl, sessionTtl);
+            await this.redisService.expire(sessionKey, sessionTtl);
+            continue;
+          }
+
           // Broadcast abort to channel
           await this.sendToChannelMembers(
             session.channelId,
@@ -1838,12 +2027,26 @@ export class WebsocketGateway
           );
 
           // Clean up Redis
-          await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(streamId));
+          await this.redisService.del(sessionKey);
+          await this.redisService.srem(activeStreamsKey, streamId);
+          abortedCount += 1;
+        } catch (error) {
+          await this.redisService.srem(activeStreamsKey, streamId);
+          this.logger.warn(
+            `[WS] Failed to cleanup bot stream ${streamId} for ${botUserId}: ${error}`,
+          );
         }
       }
 
-      // Clean up the bot's active streams set
-      await this.redisService.del(REDIS_KEYS.BOT_ACTIVE_STREAMS(botUserId));
+      if (preservedCount > 0) {
+        await this.redisService.expire(activeStreamsKey, preservedTtl);
+        this.logger.log(
+          `[WS] Preserved ${preservedCount} long-running streams for bot ${botUserId}; aborted ${abortedCount} short streams`,
+        );
+      } else {
+        // Clean up the bot's active streams set
+        await this.redisService.del(activeStreamsKey);
+      }
     } catch (error) {
       this.logger.error(
         `[WS] Failed to cleanup bot streams for ${botUserId}:`,

@@ -7,6 +7,8 @@ import {
   MaxLength,
 } from 'class-validator';
 
+const MAX_STREAMING_TEXT_LENGTH = 600000;
+
 export class StartStreamingDto {
   @IsUUID()
   @IsOptional()
@@ -20,14 +22,14 @@ export class StartStreamingDto {
 export class UpdateStreamingContentDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100000)
+  @MaxLength(MAX_STREAMING_TEXT_LENGTH)
   content: string;
 }
 
 export class UpdateStreamingThinkingContentDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100000)
+  @MaxLength(MAX_STREAMING_TEXT_LENGTH)
   content: string;
 }
 
@@ -39,11 +41,11 @@ export class UpdateStreamingMetadataDto {
 export class EndStreamingDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(100000)
+  @MaxLength(MAX_STREAMING_TEXT_LENGTH)
   content: string;
 
   @IsString()
   @IsOptional()
-  @MaxLength(100000)
+  @MaxLength(MAX_STREAMING_TEXT_LENGTH)
   thinking?: string;
 }

@@ -5,6 +5,7 @@ import { useAppStore } from "@/stores/useAppStore";
 import type { ClientContext } from "@/types/im";
 import type {
   AttachmentDto,
+  ActiveStreamingMessage,
   Channel,
   ChannelWithUnread,
   ChannelMember,
@@ -297,6 +298,16 @@ export const messagesApi = {
     }
     const paginated = data as PaginatedMessagesResponse;
     return { ...paginated, messages: normalizeMessages(paginated.messages) };
+  },
+
+  // Restore in-flight bot streams after opening or refreshing a channel.
+  getActiveStreams: async (
+    channelId: string,
+  ): Promise<ActiveStreamingMessage[]> => {
+    const response = await http.get<ActiveStreamingMessage[]>(
+      `/v1/im/channels/${channelId}/streaming/active`,
+    );
+    return response.data;
   },
 
   // Send message to channel

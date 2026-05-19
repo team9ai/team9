@@ -68,6 +68,26 @@ export class PostBroadcastService {
     return sender.userType === 'human';
   }
 
+  private pickHiveMessageMetadata(
+    metadata: unknown,
+  ): Record<string, unknown> | undefined {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return undefined;
+    }
+
+    const record = metadata as Record<string, unknown>;
+    const deepResearchAction = record.deepResearchAction;
+    if (
+      !deepResearchAction ||
+      typeof deepResearchAction !== 'object' ||
+      Array.isArray(deepResearchAction)
+    ) {
+      return undefined;
+    }
+
+    return { deepResearchAction };
+  }
+
   private async getAttachmentPublicUrl(
     attachment: schema.MessageAttachment,
   ): Promise<string> {
@@ -858,6 +878,9 @@ export class PostBroadcastService {
         const isFileMessage =
           hasAttachments &&
           (message.type === 'file' || message.type === 'image');
+        const forwardedMetadata = this.pickHiveMessageMetadata(
+          message.metadata,
+        );
 
         const event = isFileMessage
           ? {
@@ -876,6 +899,7 @@ export class PostBroadcastService {
                   url: eventAttachments[0].publicUrl,
                   publicUrl: eventAttachments[0].publicUrl,
                 },
+                ...(forwardedMetadata ? { metadata: forwardedMetadata } : {}),
                 ...(trackingChannelId ? { trackingChannelId } : {}),
                 team9Context,
               },
@@ -900,6 +924,7 @@ export class PostBroadcastService {
                       })),
                     }
                   : {}),
+                ...(forwardedMetadata ? { metadata: forwardedMetadata } : {}),
                 ...(trackingChannelId ? { trackingChannelId } : {}),
                 team9Context,
               },

@@ -1946,6 +1946,58 @@ describe('WebsocketGateway', () => {
       );
     });
 
+    it('reuses a cached finalized message when stream end is retried after session cleanup', async () => {
+      const { gateway, deps } = createGateway();
+      const { client } = makeClient({ userId: 'bot-1', isBot: true });
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(true);
+      const finalizedMessage = {
+        id: 'msg-finalized',
+        channelId: 'channel-1',
+        senderId: 'bot-1',
+        content: 'done',
+        type: 'text',
+        isPinned: false,
+        parentId: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      };
+      deps.redisService.get.mockResolvedValueOnce(null).mockResolvedValueOnce(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          messageId: 'msg-finalized',
+          finalizedAt: 1700000000000,
+        }),
+      );
+      deps.messagesService.getMessageWithDetails.mockResolvedValueOnce(
+        finalizedMessage,
+      );
+
+      await expect(
+        gateway.handleStreamingEnd(
+          client as never,
+          {
+            streamId: 'stream-1',
+            channelId: 'channel-1',
+            content: 'done',
+          } as never,
+        ),
+      ).resolves.toEqual({ success: true, messageId: 'msg-finalized' });
+
+      expect(
+        deps.imWorkerGrpcClientService.createMessage,
+      ).not.toHaveBeenCalled();
+      expect(sendSpy).toHaveBeenCalledWith(
+        'channel-1',
+        WS_EVENTS.STREAMING.END,
+        expect.objectContaining({
+          streamId: 'stream-1',
+          message: finalizedMessage,
+        }),
+      );
+    });
+
     it('reuses an existing timeline final message when legacy streaming_end also finalizes', async () => {
       const { gateway, deps } = createGateway();
       const { client } = makeClient({ userId: 'bot-1', isBot: true });
@@ -2189,7 +2241,55 @@ describe('WebsocketGateway', () => {
       expect(deps.redisService.del).toHaveBeenCalledWith(
         REDIS_KEYS.STREAMING_SESSION('stream-1'),
       );
+      expect(deps.redisService.srem).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+        'stream-1',
+      );
       expect(deps.redisService.del).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+      );
+    });
+
+    it('preserves long-running deep research streams on bot disconnect', async () => {
+      const { gateway, deps } = createGateway();
+      const sendSpy = jest
+        .spyOn(gateway, 'sendToChannelMembers')
+        .mockResolvedValue(undefined);
+      deps.redisService.smembers.mockResolvedValueOnce(['stream-1']);
+      deps.redisService.get.mockResolvedValueOnce(
+        JSON.stringify({
+          channelId: 'channel-1',
+          senderId: 'bot-1',
+          startedAt: Date.now(),
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: 'running',
+              taskId: 'task-1',
+            },
+          },
+        }),
+      );
+
+      await (gateway as any).cleanupBotStreams('bot-1');
+
+      expect(sendSpy).not.toHaveBeenCalled();
+      expect(deps.redisService.del).not.toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION('stream-1'),
+      );
+      expect(deps.redisService.srem).not.toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+        'stream-1',
+      );
+      expect(deps.redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION('stream-1'),
+        5400,
+      );
+      expect(deps.redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+        5400,
+      );
+      expect(deps.redisService.del).not.toHaveBeenCalledWith(
         REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
       );
     });
@@ -2205,15 +2305,19 @@ describe('WebsocketGateway', () => {
       await (gateway as any).cleanupBotStreams('bot-1');
 
       expect(sendSpy).not.toHaveBeenCalled();
+      expect(deps.redisService.srem).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+        'stream-2',
+      );
       expect(deps.redisService.del).toHaveBeenCalledWith(
         REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
       );
     });
 
-    it('swallows parsing and Redis errors while cleaning up bot streams', async () => {
+    it('swallows parsing errors while cleaning up bot streams', async () => {
       const { gateway, deps } = createGateway();
-      const loggerError = jest
-        .spyOn((gateway as any).logger, 'error')
+      const loggerWarn = jest
+        .spyOn((gateway as any).logger, 'warn')
         .mockImplementation(() => undefined);
       deps.redisService.smembers.mockResolvedValueOnce(['stream-3']);
       deps.redisService.get.mockResolvedValueOnce('{');
@@ -2222,9 +2326,17 @@ describe('WebsocketGateway', () => {
         (gateway as any).cleanupBotStreams('bot-1'),
       ).resolves.toBeUndefined();
 
-      expect(loggerError).toHaveBeenCalledWith(
-        '[WS] Failed to cleanup bot streams for bot-1:',
-        expect.any(Error),
+      expect(deps.redisService.srem).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+        'stream-3',
+      );
+      expect(deps.redisService.del).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS('bot-1'),
+      );
+      expect(loggerWarn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          '[WS] Failed to cleanup bot stream stream-3 for bot-1:',
+        ),
       );
     });
   });
