@@ -192,6 +192,25 @@ describe("useStreamingStore", () => {
     ]);
   });
 
+  it("closes synthetic thinking streams when later agent progress is persisted separately", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+    });
+
+    useStreamingStore.getState().closeThinkingForSender({
+      channelId: "channel-1",
+      senderId: "bot-1",
+    });
+
+    const stream = useStreamingStore.getState().streams.get("stream-1");
+    expect(stream?.isStreaming).toBe(false);
+    expect(stream?.isThinking).toBe(false);
+    expect(stream?.parts).toEqual([]);
+  });
+
   it("ignores late thinking deltas after tool call metadata starts streaming", () => {
     vi.setSystemTime(1000);
     useStreamingStore.getState().startStream({

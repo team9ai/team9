@@ -125,6 +125,16 @@ function isToolCallMetadata(metadata: Record<string, unknown> | undefined) {
   return metadata?.agentEventType === "tool_call";
 }
 
+function isSyntheticThinkingOnlyStream(stream: StreamingMessage): boolean {
+  return (
+    !isToolCallMetadata(stream.metadata) &&
+    stream.parts.length === 0 &&
+    stream.content.trim().length === 0 &&
+    stream.thinking.trim().length === 0 &&
+    (stream.isStreaming || stream.isThinking)
+  );
+}
+
 function updateStreamingParts(
   stream: StreamingMessage,
   type: StreamingPart["type"],
@@ -316,7 +326,12 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
         const hasActiveThinkingPart = stream.parts.some(
           (part) => part.type === "thinking" && part.isStreaming,
         );
-        if (!stream.isThinking && !hasActiveThinkingPart) {
+        const hasSyntheticThinking = isSyntheticThinkingOnlyStream(stream);
+        if (
+          !stream.isThinking &&
+          !hasActiveThinkingPart &&
+          !hasSyntheticThinking
+        ) {
           continue;
         }
 
@@ -340,6 +355,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
               ? aggregateParts(parts, "content")
               : stream.content,
           isThinking: false,
+          isStreaming: hasSyntheticThinking ? false : stream.isStreaming,
           parts,
         });
         changed = true;
