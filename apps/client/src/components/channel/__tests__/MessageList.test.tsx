@@ -1056,6 +1056,80 @@ describe("MessageList — round auto-fold", () => {
       expect(block).toBeInTheDocument();
       expect(frame).not.toBeNull();
       expect(frame).toHaveClass("border-l-2");
+      expect(frame?.parentElement).not.toHaveClass("py-2");
+    });
+
+    it("keeps consecutive streaming tool_call rows in a single compact group", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-tool-frame-1",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream-1",
+            toolName: "youtube_search",
+            toolArgsText: '{"q":"LLM 2025"}',
+            toolPhase: "args_streaming",
+          },
+        },
+        {
+          streamId: "stream-tool-frame-2",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream-2",
+            toolName: "youtube_channel_search",
+            toolArgsText: '{"channel":"@Google"}',
+            toolPhase: "args_streaming",
+          },
+        },
+        {
+          streamId: "stream-tool-frame-3",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1002,
+          parts: [],
+          metadata: {
+            agentEventType: "tool_call",
+            status: "running",
+            toolCallId: "tc-stream-3",
+            toolName: "youtube_get_transcript",
+            toolArgsText: '{"videoUrl":"https://youtu.be/demo"}',
+            toolPhase: "args_streaming",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      const frames = screen.getAllByTestId("tool-event-frame");
+      expect(frames).toHaveLength(3);
+      expect(frames[0]).toHaveClass("mt-1");
+      expect(frames[0]).toHaveClass("pt-1.5");
+      for (const frame of frames.slice(1)) {
+        expect(frame).not.toHaveClass("mt-1");
+        expect(frame).not.toHaveClass("pt-1.5");
+      }
     });
 
     it("keeps the bot thinking indicator visible while an active stream exists", () => {

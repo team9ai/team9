@@ -187,6 +187,7 @@
       "tokens_one": "{{count}} token",
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}}s",
+      "decimalSeconds": "{{value}}s",
       "minutesSeconds": "{{minutes}}m {{seconds}}s"
     },
     "roundEnd": {
@@ -215,6 +216,11 @@
       "emptyStream": "(empty)",
       "estimatedTokens": "Est. {{count}} tokens",
       "truncated": "Truncated",
+      "timing": {
+        "generationStart": "Generation start",
+        "toolCallStart": "Tool call start",
+        "end": "End"
+      },
       "generating": "Tool Call Generating",
       "runCommand": {
         "local": "Run command locally",

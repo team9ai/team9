@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_SECTION_PATHS,
   SUB_SIDEBAR_WIDTH_DEFAULT,
   SUB_SIDEBAR_WIDTH_MAX,
   SUB_SIDEBAR_WIDTH_MIN,
+  getSectionFromPath,
   isRestorableSectionPath,
   sanitizeLastVisitedPaths,
   useAppStore,
@@ -30,15 +32,28 @@ describe("useAppStore navigation helpers", () => {
     });
   });
 
+  it("keeps routines and tasks as separate sidebar sections", () => {
+    expect(DEFAULT_SECTION_PATHS.workspace).toBe("/channels");
+    expect(DEFAULT_SECTION_PATHS.routines).toBe("/routines");
+    expect(DEFAULT_SECTION_PATHS.tasks).toBe("/tasks");
+    expect(getSectionFromPath("/channels")).toBe("home");
+    expect(getSectionFromPath("/channels/channel-1")).toBe("workspace");
+    expect(getSectionFromPath("/routines")).toBe("routines");
+    expect(getSectionFromPath("/tasks")).toBe("tasks");
+    expect(getSectionFromPath("/tasks/task-1")).toBe("tasks");
+  });
+
   it("resets all section paths, including skill detail pages, on workspace entry", () => {
     useAppStore.setState({
       activeSidebar: "skills",
       lastVisitedPaths: {
         home: "/channels/channel-1",
+        workspace: "/channels/channel-2",
         messages: "/messages/dm-1",
         activity: "/activity/channel-1",
         files: "/files",
         aiStaff: "/ai-staff/staff-1",
+        tasks: "/tasks",
         routines: "/routines",
         skills: "/skills/skill-1",
         resources: "/resources",
@@ -54,10 +69,12 @@ describe("useAppStore navigation helpers", () => {
     expect(state.activeSidebar).toBe("home");
     expect(state.lastVisitedPaths).toMatchObject({
       home: null,
+      workspace: null,
       messages: null,
       activity: null,
       files: null,
       aiStaff: null,
+      tasks: null,
       routines: null,
       skills: null,
       resources: null,

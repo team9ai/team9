@@ -49,7 +49,7 @@ thiserror = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 # ahand library embedding.
-ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", tag = "rust-v0.1.12" }
+ahandd = { git = "https://github.com/team9ai/aHand", package = "ahandd", tag = "rust-v0.1.13" }
 
 [dev-dependencies]
 tempfile = "3"

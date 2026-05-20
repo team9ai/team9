@@ -9,6 +9,7 @@ export const HIDDEN_NAV_TAP_COUNT_STORAGE_KEY =
 export const MORE_TAP_UNLOCK_THRESHOLD = 5;
 
 export const HIDDEN_NAV_SECTION_IDS = [
+  "messages",
   "resources",
   "wiki",
 ] as const satisfies readonly SidebarSection[];

@@ -23,6 +23,15 @@ const mockDirectChannels = vi.hoisted(() => [
     },
   },
 ]);
+const mockPublicChannels = vi.hoisted(() => [
+  {
+    id: "channel-employee-relations",
+    name: "Employee Relations Center",
+    type: "public",
+    unreadCount: 0,
+    sectionId: null,
+  },
+]);
 
 class MockImage {
   complete = true;
@@ -48,13 +57,13 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@/hooks/useChannels", () => ({
   useChannelsByType: () => ({
-    publicChannels: [],
+    publicChannels: mockPublicChannels,
     privateChannels: [],
     directChannels: mockDirectChannels,
     isLoading: false,
   }),
   usePublicChannels: () => ({
-    data: [],
+    data: mockPublicChannels,
     isLoading: false,
   }),
   useSetSidebarVisibility: () => ({
@@ -75,6 +84,11 @@ vi.mock("@/hooks/useAgentGroupsForSidebar", () => ({
 }));
 
 vi.mock("@/hooks/useTopicSessions", () => ({
+  useRenameTopicSession: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  }),
   useDeleteTopicSession: () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn().mockResolvedValue(undefined),
@@ -169,5 +183,25 @@ describe("HomeSubSidebar", () => {
     expect(
       screen.getByRole("img", { name: "Alex" }).closest("[data-slot='avatar']"),
     ).toHaveClass("w-9", "h-9");
+  });
+
+  it("renders the workspace title as static text without dropdown affordances", () => {
+    render(<HomeSubSidebar />);
+
+    const workspaceTitle = screen.getByText("winrey's Workspace");
+    const titleContainer = workspaceTitle.parentElement;
+
+    expect(workspaceTitle.closest("button")).toBeNull();
+    expect(workspaceTitle.nextElementSibling).toBeNull();
+    expect(titleContainer).not.toHaveClass("hover:bg-nav-hover");
+  });
+
+  it("lets channel names use the available row width before truncating", () => {
+    render(<HomeSubSidebar />);
+
+    const channelName = screen.getByText("Employee Relations Center");
+
+    expect(channelName).toHaveClass("min-w-0", "flex-1", "truncate");
+    expect(channelName).not.toHaveClass("max-w-35");
   });
 });

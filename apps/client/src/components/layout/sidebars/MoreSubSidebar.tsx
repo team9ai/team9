@@ -1,15 +1,19 @@
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Settings } from "lucide-react";
+import { ChevronDown, ListChecks, Settings } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 const moreItems = [
+  { id: "tasks", labelKey: "tasks", icon: ListChecks, path: "/tasks" },
   { id: "settings", labelKey: "moreSettings", icon: Settings },
 ] as const;
 
 export function MoreSubSidebar() {
   const { t } = useTranslation("navigation");
+  const navigate = useNavigate();
+
   return (
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
@@ -34,6 +38,11 @@ export function MoreSubSidebar() {
               <Button
                 key={item.id}
                 variant="ghost"
+                onClick={() => {
+                  if ("path" in item) {
+                    navigate({ to: item.path });
+                  }
+                }}
                 className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground"
               >
                 <Icon size={16} />

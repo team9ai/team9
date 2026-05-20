@@ -14,7 +14,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { StaffModelProviderLogo } from "@/components/ai-staff/StaffModelProviderLogo";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
-import { useFileUpload } from "@/hooks/useFileUpload";
+import { useFileUpload, type UploadingFile } from "@/hooks/useFileUpload";
 import { AttachmentPreview } from "@/components/channel/editor/AttachmentPreview";
 import {
   type DashboardAgent,
@@ -63,6 +63,7 @@ import {
   getBaseModelProductKeyFromBotIdentity,
 } from "@/lib/base-model-agent";
 import type { WorkspaceBillingAccount } from "@/types/workspace";
+import type { AttachmentDto } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
@@ -165,7 +166,7 @@ function DashboardModelControl({
 
   if (!agent?.canSwitchModel) {
     return (
-      <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f]">
+      <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] dark:border-white/10 dark:bg-white/[0.08] dark:text-[#d8d0c5]">
         <StaffModelProviderLogo
           model={currentModelLogoIdentity}
           className="size-3.5"
@@ -180,21 +181,24 @@ function DashboardModelControl({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="dashboard-composer-model inline-flex h-[2.05rem] max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25"
+          className="dashboard-composer-model inline-flex h-[2.05rem] max-w-[15rem] cursor-pointer items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25 dark:border-white/10 dark:bg-white/[0.08] dark:text-[#d8d0c5] dark:hover:bg-white/[0.12] dark:focus-visible:ring-white/15"
         >
           <StaffModelProviderLogo
             model={currentModelLogoIdentity}
             className="size-3.5"
           />
           <span className="min-w-0 truncate">{displayCurrentLabel}</span>
-          <ChevronDown size={11} className="text-[#93887b]" />
+          <ChevronDown
+            size={11}
+            className="text-[#93887b] dark:text-[#bdb5aa]"
+          />
         </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        className="max-h-[min(21rem,var(--radix-dropdown-menu-content-available-height))] w-max max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[1.1rem] border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl"
+        className="max-h-[min(21rem,var(--radix-dropdown-menu-content-available-height))] w-max max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[1.1rem] border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl dark:border-white/10 dark:bg-[#2b2521]/95 dark:text-[#ece5dc] dark:shadow-[0_18px_44px_rgba(0,0,0,0.28)]"
       >
         <DropdownMenuRadioGroup
           value={currentValue}
@@ -208,7 +212,7 @@ function DashboardModelControl({
             <DropdownMenuRadioItem
               key={`${model.provider}::${model.id}`}
               value={`${model.provider}::${model.id}`}
-              className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
+              className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] dark:text-[#e7ded3] dark:data-[highlighted]:bg-white/[0.08] dark:data-[highlighted]:text-[#f4ece3] dark:data-[state=checked]:bg-[#6e5a45]/35 dark:data-[state=checked]:text-[#f4d2a8] [&>span:first-child]:hidden"
             >
               <StaffModelProviderLogo model={model} />
               <span className="inline-flex max-w-[calc(100vw-4rem)] items-center truncate">
@@ -549,6 +553,135 @@ function DashboardDeepResearchOptions({
   );
 }
 
+interface DashboardComposerDraft {
+  prompt: string;
+  attachments: AttachmentDto[];
+  savedAt: number;
+}
+
+const DASHBOARD_COMPOSER_DRAFT_STORAGE_PREFIX = "team9.dashboard.composerDraft";
+const RESTORED_ATTACHMENT_ID_PREFIX = "draft-attachment:";
+
+function buildDashboardComposerDraftKey(
+  workspaceId: string,
+  agentUserId: string,
+) {
+  return `${DASHBOARD_COMPOSER_DRAFT_STORAGE_PREFIX}.${workspaceId}.${agentUserId}`;
+}
+
+function readDashboardComposerDraft(
+  key: string,
+): DashboardComposerDraft | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const draft = parsed as DashboardComposerDraft;
+    if (
+      typeof draft.prompt !== "string" ||
+      typeof draft.savedAt !== "number" ||
+      !Array.isArray(draft.attachments)
+    ) {
+      return null;
+    }
+
+    const attachments = draft.attachments.filter(
+      (attachment): attachment is AttachmentDto =>
+        !!attachment &&
+        typeof attachment.fileKey === "string" &&
+        typeof attachment.fileName === "string" &&
+        typeof attachment.fileSize === "number" &&
+        typeof attachment.mimeType === "string",
+    );
+
+    return {
+      prompt: draft.prompt,
+      attachments,
+      savedAt: draft.savedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mergeDashboardDraftAttachments(
+  ...attachmentGroups: AttachmentDto[][]
+): AttachmentDto[] {
+  const merged = new Map<string, AttachmentDto>();
+
+  for (const attachments of attachmentGroups) {
+    for (const attachment of attachments) {
+      merged.set(attachment.fileKey, attachment);
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
+function writeDashboardComposerDraft(
+  key: string,
+  prompt: string,
+  attachments: AttachmentDto[],
+) {
+  const normalizedAttachments = mergeDashboardDraftAttachments(attachments);
+
+  try {
+    if (!prompt && normalizedAttachments.length === 0) {
+      localStorage.removeItem(key);
+      return;
+    }
+
+    const draft: DashboardComposerDraft = {
+      prompt,
+      attachments: normalizedAttachments,
+      savedAt: Date.now(),
+    };
+
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // Storage can be unavailable or full; keep the in-memory composer usable.
+  }
+}
+
+function clearDashboardComposerDraft(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+function uploadToDraftAttachment(file: UploadingFile): AttachmentDto | null {
+  if (file.status !== "completed" || !file.result) return null;
+
+  return {
+    fileKey: file.result.key,
+    fileName: file.result.fileName,
+    fileSize: file.result.fileSize,
+    mimeType: file.result.mimeType,
+  };
+}
+
+function restoredAttachmentToUploadingFile(
+  attachment: AttachmentDto,
+): UploadingFile {
+  return {
+    id: `${RESTORED_ATTACHMENT_ID_PREFIX}${attachment.fileKey}`,
+    file: new File([], attachment.fileName, { type: attachment.mimeType }),
+    progress: 100,
+    status: "completed",
+    result: {
+      key: attachment.fileKey,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+    },
+  };
+}
+
 export function HomeMainContent({
   agentId = null,
 }: { agentId?: string | null } = {}) {
@@ -563,7 +696,13 @@ export function HomeMainContent({
   const [prompt, setPrompt] = useState("");
   const [deepResearchConfig, setDeepResearchConfig] =
     useState<DeepResearchComposerConfig | null>(null);
+  const [draftAttachments, setDraftAttachments] = useState<AttachmentDto[]>([]);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const promptValueRef = useRef("");
+  const draftAttachmentsRef = useRef<AttachmentDto[]>([]);
+  const completedUploadDraftAttachmentsRef = useRef<AttachmentDto[]>([]);
+  const activeDraftKeyRef = useRef<string | null>(null);
+  const skipNextDraftAutosaveRef = useRef(false);
   const isPromptComposingRef = useRef(false);
   const promptCompositionEndFrameRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -579,9 +718,8 @@ export function HomeMainContent({
   const {
     uploadingFiles,
     addFiles,
-    removeFile,
     retryFile,
-    getAttachments,
+    removeFile,
     isUploading,
     clearFiles,
   } = useFileUpload({ visibility: "workspace" });
@@ -596,6 +734,36 @@ export function HomeMainContent({
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
+  const draftKey =
+    workspaceId && selectedAgent
+      ? buildDashboardComposerDraftKey(workspaceId, selectedAgent.userId)
+      : null;
+  const completedUploadDraftAttachments = useMemo(
+    () =>
+      uploadingFiles.flatMap((file) => {
+        const attachment = uploadToDraftAttachment(file);
+        return attachment ? [attachment] : [];
+      }),
+    [uploadingFiles],
+  );
+  const currentDraftAttachments = useMemo(
+    () =>
+      mergeDashboardDraftAttachments(
+        draftAttachments,
+        completedUploadDraftAttachments,
+      ),
+    [completedUploadDraftAttachments, draftAttachments],
+  );
+  const previewFiles = useMemo(() => {
+    const uploadedKeys = new Set(
+      completedUploadDraftAttachments.map((attachment) => attachment.fileKey),
+    );
+    const restoredFiles = draftAttachments
+      .filter((attachment) => !uploadedKeys.has(attachment.fileKey))
+      .map(restoredAttachmentToUploadingFile);
+
+    return [...restoredFiles, ...uploadingFiles];
+  }, [completedUploadDraftAttachments, draftAttachments, uploadingFiles]);
   const effectiveModel = sessionModelOverride ?? selectedAgent?.model ?? null;
   const isSubmitting = createTopicSession.isPending;
   // Allow send if either the prompt has text or there's at least one
@@ -605,8 +773,9 @@ export function HomeMainContent({
   const hasReadyAttachment = uploadingFiles.some(
     (f) => f.status === "completed",
   );
+  const hasDraftAttachment = currentDraftAttachments.length > 0;
   const canSubmit =
-    (prompt.trim().length > 0 || hasReadyAttachment) &&
+    (prompt.trim().length > 0 || hasReadyAttachment || hasDraftAttachment) &&
     !isSubmitting &&
     !isUploading &&
     !!selectedAgent;
@@ -637,6 +806,58 @@ export function HomeMainContent({
       return pickDefaultAgent(agents)?.userId ?? null;
     });
   }, [agents]);
+
+  useEffect(() => {
+    const previousDraftKey = activeDraftKeyRef.current;
+    if (previousDraftKey && previousDraftKey !== draftKey) {
+      writeDashboardComposerDraft(
+        previousDraftKey,
+        promptValueRef.current,
+        mergeDashboardDraftAttachments(
+          draftAttachmentsRef.current,
+          completedUploadDraftAttachmentsRef.current,
+        ),
+      );
+    }
+
+    activeDraftKeyRef.current = draftKey;
+    skipNextDraftAutosaveRef.current = true;
+    clearFiles();
+
+    if (!draftKey) {
+      setPrompt("");
+      setDraftAttachments([]);
+      return;
+    }
+
+    const draft = readDashboardComposerDraft(draftKey);
+    setPrompt(draft?.prompt ?? "");
+    setDraftAttachments(draft?.attachments ?? []);
+  }, [clearFiles, draftKey]);
+
+  useEffect(() => {
+    promptValueRef.current = prompt;
+  }, [prompt]);
+
+  useEffect(() => {
+    draftAttachmentsRef.current = draftAttachments;
+  }, [draftAttachments]);
+
+  useEffect(() => {
+    completedUploadDraftAttachmentsRef.current =
+      completedUploadDraftAttachments;
+  }, [completedUploadDraftAttachments]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+
+    if (skipNextDraftAutosaveRef.current) {
+      skipNextDraftAutosaveRef.current = false;
+      return;
+    }
+
+    writeDashboardComposerDraft(draftKey, prompt, currentDraftAttachments);
+  }, [currentDraftAttachments, draftKey, prompt]);
 
   // Reset session model override when the user switches agents — each agent
   // should present its own default model until the user picks one again.
@@ -679,6 +900,27 @@ export function HomeMainContent({
     }
   };
 
+  const handlePromptChange = (
+    event: React.ChangeEvent<HTMLTextAreaElement>,
+  ) => {
+    setPrompt(event.target.value);
+  };
+
+  const handleRemoveFile = useCallback(
+    (id: string) => {
+      if (id.startsWith(RESTORED_ATTACHMENT_ID_PREFIX)) {
+        const fileKey = id.slice(RESTORED_ATTACHMENT_ID_PREFIX.length);
+        setDraftAttachments((current) =>
+          current.filter((attachment) => attachment.fileKey !== fileKey),
+        );
+        return;
+      }
+
+      removeFile(id);
+    },
+    [removeFile],
+  );
+
   const handleSubmit = async () => {
     const draft = prompt.trim();
     if (!selectedAgent) return;
@@ -687,7 +929,7 @@ export function HomeMainContent({
     // references. Mirror MessageInput's early-return.
     if (isUploading) return;
 
-    const attachments = getAttachments();
+    const attachments = currentDraftAttachments;
     // Empty draft is OK only when at least one attachment is ready —
     // server-side ValidateIf relaxes IsNotEmpty under the same condition.
     if (!draft && attachments.length === 0) return;
@@ -717,7 +959,11 @@ export function HomeMainContent({
 
       setPrompt("");
       setDeepResearchConfig(null);
+      setDraftAttachments([]);
       clearFiles();
+      if (draftKey) {
+        clearDashboardComposerDraft(draftKey);
+      }
       navigate({
         to: "/channels/$channelId",
         params: { channelId: result.channelId },
@@ -930,7 +1176,7 @@ export function HomeMainContent({
                 <Textarea
                   ref={promptRef}
                   value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
+                  onChange={handlePromptChange}
                   onCompositionStart={handlePromptCompositionStart}
                   onCompositionEnd={handlePromptCompositionEnd}
                   onKeyDown={handlePromptKeyDown}
@@ -939,11 +1185,11 @@ export function HomeMainContent({
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
-                {uploadingFiles.length > 0 && (
+                {previewFiles.length > 0 && (
                   <div className="-mx-2 -mt-1">
                     <AttachmentPreview
-                      files={uploadingFiles}
-                      onRemove={removeFile}
+                      files={previewFiles}
+                      onRemove={handleRemoveFile}
                       onRetry={retryFile}
                     />
                   </div>
@@ -1020,7 +1266,7 @@ export function HomeMainContent({
                       onClick={handleSubmit}
                       disabled={!canSubmit}
                       aria-label={t("sendMessage", { ns: "message" })}
-                      className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
+                      className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d] dark:bg-[#726f68] dark:text-[#f6f0e8] dark:hover:bg-[#838077] dark:disabled:bg-white/[0.08] dark:disabled:text-white/30 dark:disabled:ring-1 dark:disabled:ring-white/[0.06]"
                     >
                       {isSubmitting ? (
                         <Loader2 size={16} className="animate-spin" />

@@ -1,10 +1,12 @@
 import {
   ChevronDown,
   ChevronRight,
+  Download,
   FilePlus2,
   FileText,
   Folder,
   FolderPlus,
+  Pencil,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -54,6 +56,8 @@ export interface FolderTreeNodeProps {
   onCreateFileInDirectory?: (dirPath: string) => void;
   onCreateFolderInDirectory?: (dirPath: string) => void;
   onUploadInDirectory?: (dirPath: string) => void;
+  onRenameEntry?: (path: string, type: "file" | "dir") => void;
+  onDownloadEntry?: (path: string, type: "file" | "dir") => void;
   onDeleteEntry?: (path: string, type: "file" | "dir") => void;
   onDropFilesInDirectory?: (dirPath: string, files: File[]) => void;
   onMoveFileToDirectory?: (sourcePath: string, dirPath: string) => void;
@@ -123,6 +127,8 @@ export function FolderTreeNode({
   onCreateFileInDirectory,
   onCreateFolderInDirectory,
   onUploadInDirectory,
+  onRenameEntry,
+  onDownloadEntry,
   onDeleteEntry,
   onDropFilesInDirectory,
   onMoveFileToDirectory,
@@ -139,12 +145,13 @@ export function FolderTreeNode({
   const groupDropKey = `group:${node.path}`;
   const isRowDropTarget = dropTargetKey === rowDropKey;
   const isGroupDropTarget = dropTargetKey === groupDropKey;
-  const hasActions =
-    !readOnly &&
-    (onCreateFileInDirectory ||
-      onCreateFolderInDirectory ||
-      onUploadInDirectory ||
-      onDeleteEntry);
+  const hasMutatingActions =
+    onCreateFileInDirectory ||
+    onCreateFolderInDirectory ||
+    onUploadInDirectory ||
+    onRenameEntry ||
+    onDeleteEntry;
+  const hasActions = !!onDownloadEntry || (!readOnly && hasMutatingActions);
 
   const handleClick = () => {
     if (node.type === "dir") {
@@ -301,7 +308,7 @@ export function FolderTreeNode({
         <ContextMenu>
           <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
           <ContextMenuContent className="w-44">
-            {onCreateFileInDirectory && (
+            {!readOnly && onCreateFileInDirectory && (
               <ContextMenuItem
                 onSelect={() => onCreateFileInDirectory(targetDirectory)}
                 className="gap-2"
@@ -310,7 +317,7 @@ export function FolderTreeNode({
                 {t("tree.newFile", { defaultValue: "New file" })}
               </ContextMenuItem>
             )}
-            {onCreateFolderInDirectory && (
+            {!readOnly && onCreateFolderInDirectory && (
               <ContextMenuItem
                 onSelect={() => onCreateFolderInDirectory(targetDirectory)}
                 className="gap-2"
@@ -319,7 +326,7 @@ export function FolderTreeNode({
                 {t("tree.newFolder", { defaultValue: "New folder" })}
               </ContextMenuItem>
             )}
-            {onUploadInDirectory && (
+            {!readOnly && onUploadInDirectory && (
               <ContextMenuItem
                 onSelect={() => onUploadInDirectory(targetDirectory)}
                 className="gap-2"
@@ -328,11 +335,32 @@ export function FolderTreeNode({
                 {t("tree.uploadFile", { defaultValue: "Upload file" })}
               </ContextMenuItem>
             )}
-            {onDeleteEntry &&
+            {!readOnly && onRenameEntry && (
+              <ContextMenuItem
+                onSelect={() => onRenameEntry(node.path, node.type)}
+                className="gap-2"
+              >
+                <Pencil className="size-4 text-muted-foreground" />
+                {t("tree.rename", { defaultValue: "Rename" })}
+              </ContextMenuItem>
+            )}
+            {onDownloadEntry && (
+              <ContextMenuItem
+                onSelect={() => onDownloadEntry(node.path, node.type)}
+                className="gap-2"
+              >
+                <Download className="size-4 text-muted-foreground" />
+                {t("tree.download", { defaultValue: "Download" })}
+              </ContextMenuItem>
+            )}
+            {!readOnly &&
+              onDeleteEntry &&
               (onCreateFileInDirectory ||
                 onCreateFolderInDirectory ||
-                onUploadInDirectory) && <ContextMenuSeparator />}
-            {onDeleteEntry && (
+                onUploadInDirectory ||
+                onRenameEntry ||
+                onDownloadEntry) && <ContextMenuSeparator />}
+            {!readOnly && onDeleteEntry && (
               <ContextMenuItem
                 onSelect={() => onDeleteEntry(node.path, node.type)}
                 className="gap-2 text-destructive focus:text-destructive"
@@ -371,6 +399,8 @@ export function FolderTreeNode({
               onCreateFileInDirectory={onCreateFileInDirectory}
               onCreateFolderInDirectory={onCreateFolderInDirectory}
               onUploadInDirectory={onUploadInDirectory}
+              onRenameEntry={onRenameEntry}
+              onDownloadEntry={onDownloadEntry}
               onDeleteEntry={onDeleteEntry}
               onDropFilesInDirectory={onDropFilesInDirectory}
               onMoveFileToDirectory={onMoveFileToDirectory}

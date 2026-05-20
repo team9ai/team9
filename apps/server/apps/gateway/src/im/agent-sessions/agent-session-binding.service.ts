@@ -42,6 +42,13 @@ type RoutineExecutionRow = BotBindingRow & {
   taskStatus: string;
 };
 
+type IndependentTaskRunRow = BotBindingRow & {
+  executionId: string;
+  routineId: string | null;
+  taskcastTaskId: string | null;
+  taskStatus: string;
+};
+
 @Injectable()
 export class AgentSessionBindingService {
   constructor(
@@ -62,7 +69,7 @@ export class AgentSessionBindingService {
     await this.channelsService.assertReadAccess(channelId, userId);
 
     if (channel.type === 'task') {
-      return this.resolveRoutineExecution(channel);
+      return this.resolveTaskChannel(channel);
     }
 
     if (channel.type === 'routine-session') {
@@ -72,6 +79,20 @@ export class AgentSessionBindingService {
     const bots = await this.findChannelBots(channel);
     const kind = this.kindForChannelType(channel.type);
     return this.resolveBotChannel(channel, kind, bots);
+  }
+
+  private async resolveTaskChannel(
+    channel: ChannelRow,
+  ): Promise<AgentSessionBindingResponse> {
+    const routineExecution = await this.resolveRoutineExecution(channel);
+    if (
+      routineExecution.supported ||
+      routineExecution.unsupportedReason !== 'session_not_created'
+    ) {
+      return routineExecution;
+    }
+
+    return this.resolveIndependentTaskRun(channel);
   }
 
   private async findChannel(channelId: string): Promise<ChannelRow | null> {
@@ -286,6 +307,81 @@ export class AgentSessionBindingService {
       botUserId: row.botUserId,
       sessionId: `team9/${channel.tenantId ?? ''}/${agentId}/routine/${row.executionId}`,
       routineId: row.routineId,
+      executionId: row.executionId,
+      taskcastTaskId: row.taskcastTaskId,
+      taskStatus: row.taskStatus,
+    };
+  }
+
+  private async resolveIndependentTaskRun(
+    channel: ChannelRow,
+  ): Promise<AgentSessionBindingResponse> {
+    const [taskRun] = await this.db
+      .select({
+        executionId: schema.taskRuns.id,
+        routineId: schema.taskRuns.routineId,
+        taskcastTaskId: schema.taskRuns.taskcastTaskId,
+        taskStatus: schema.taskRuns.status,
+        botUserId: schema.bots.userId,
+        botTenantId: schema.installedApplications.tenantId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
+      })
+      .from(schema.taskRuns)
+      .leftJoin(schema.bots, eq(schema.bots.id, schema.taskRuns.botId))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.bots.userId))
+      .where(
+        and(
+          eq(schema.taskRuns.channelId, channel.id),
+          isNull(schema.taskRuns.routineId),
+          channel.tenantId
+            ? eq(schema.taskRuns.tenantId, channel.tenantId)
+            : undefined,
+          channel.tenantId
+            ? eq(schema.installedApplications.tenantId, channel.tenantId)
+            : undefined,
+          eq(schema.users.userType, 'bot'),
+          eq(schema.users.isActive, true),
+          eq(schema.bots.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    const row = (taskRun as IndependentTaskRunRow | undefined) ?? null;
+    if (!row) {
+      return this.unsupported(
+        channel,
+        'routine-execution',
+        'session_not_created',
+      );
+    }
+
+    if (!this.botTenantMatches(channel, row)) {
+      return this.unsupported(
+        channel,
+        'routine-execution',
+        'session_not_created',
+        row,
+      );
+    }
+
+    const unsupported = this.getUnsupportedReason(row);
+    if (unsupported) {
+      return this.unsupported(channel, 'routine-execution', unsupported, row);
+    }
+
+    const agentId = row.managedMeta?.agentId ?? null;
+    return {
+      ...this.base(channel, 'routine-execution'),
+      supported: true,
+      agentId,
+      botUserId: row.botUserId,
+      sessionId: `team9/${channel.tenantId ?? ''}/${agentId}/task/${row.executionId}`,
+      routineId: row.routineId ?? undefined,
       executionId: row.executionId,
       taskcastTaskId: row.taskcastTaskId,
       taskStatus: row.taskStatus,

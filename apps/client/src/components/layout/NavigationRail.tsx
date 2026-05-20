@@ -9,6 +9,7 @@ import {
   Box,
   Library,
   LayoutGrid,
+  PanelsTopLeft,
   Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +23,7 @@ import {
   appActions,
   getLastVisitedPath,
   getSectionFromPath,
+  useActiveSidebar,
   type SidebarSection,
 } from "@/stores";
 import {
@@ -32,9 +34,11 @@ import {
 
 export const navigationItems = [
   { id: "home", labelKey: "home" as const, icon: Home },
+  { id: "workspace", labelKey: "workspace" as const, icon: PanelsTopLeft },
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   { id: "aiStaff", labelKey: "staff" as const, icon: IdCard },
+  { id: "tasks", labelKey: "tasks" as const, icon: ListChecks },
   { id: "routines", labelKey: "routines" as const, icon: ListChecks },
   { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },
@@ -53,6 +57,7 @@ export function NavigationRail() {
   const { t: tNav } = useTranslation("navigation");
   const navigate = useNavigate();
   const location = useLocation();
+  const activeSidebar = useActiveSidebar();
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
   const [hiddenNavUnlocked, setHiddenNavUnlocked] = useState(() =>
@@ -73,9 +78,14 @@ export function NavigationRail() {
       {getVisibleNavigationItems(navigationItems, hiddenNavUnlocked).map(
         (item) => {
           const Icon = item.icon;
+          const isChannelsIndex =
+            location.pathname === "/channels" ||
+            location.pathname === "/channels/";
           const currentSection = location.pathname.startsWith("/profile")
             ? null
-            : getSectionFromPath(location.pathname);
+            : isChannelsIndex && activeSidebar === "workspace"
+              ? "workspace"
+              : getSectionFromPath(location.pathname);
           const isActive = currentSection === item.id;
           const label = tNav(item.labelKey);
 
@@ -109,7 +119,7 @@ export function NavigationRail() {
                 navigate({ to: targetPath as never });
               }}
               className={cn(
-                "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+                "w-12 h-12 shrink-0 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
                 isActive && "bg-nav-active text-nav-foreground",
               )}
               title={label}

@@ -370,10 +370,17 @@ export class RoutinesService {
 
         const deliverables = await this.db
           .select()
-          .from(schema.routineDeliverables)
-          .where(eq(schema.routineDeliverables.executionId, execution.id));
+          .from(schema.taskDeliverables)
+          .where(eq(schema.taskDeliverables.runId, execution.id));
 
-        currentExecution = { execution, steps, interventions, deliverables };
+        currentExecution = {
+          execution,
+          steps,
+          interventions,
+          deliverables: deliverables.map((d) =>
+            this.toRoutineDeliverable(d, routine.id),
+          ),
+        };
       }
     }
 
@@ -536,15 +543,22 @@ export class RoutinesService {
 
     const deliverables = await this.db
       .select()
-      .from(schema.routineDeliverables)
-      .where(eq(schema.routineDeliverables.executionId, executionId));
+      .from(schema.taskDeliverables)
+      .where(eq(schema.taskDeliverables.runId, executionId));
 
     const interventions = await this.db
       .select()
       .from(schema.routineInterventions)
       .where(eq(schema.routineInterventions.executionId, executionId));
 
-    return { ...execution, steps, deliverables, interventions };
+    return {
+      ...execution,
+      steps,
+      deliverables: deliverables.map((d) =>
+        this.toRoutineDeliverable(d, routineId),
+      ),
+      interventions,
+    };
   }
 
   async getExecutionEntries(
@@ -580,15 +594,15 @@ export class RoutinesService {
         .where(eq(schema.routineInterventions.executionId, executionId)),
       this.db
         .select()
-        .from(schema.routineDeliverables)
-        .where(eq(schema.routineDeliverables.executionId, executionId)),
+        .from(schema.taskDeliverables)
+        .where(eq(schema.taskDeliverables.runId, executionId)),
     ]);
 
     // Merge into a unified timeline sorted by createdAt
     type Entry =
       | { type: 'step'; data: (typeof steps)[0]; at: Date }
       | { type: 'intervention'; data: (typeof interventions)[0]; at: Date }
-      | { type: 'deliverable'; data: (typeof deliverables)[0]; at: Date }
+      | { type: 'deliverable'; data: schema.RoutineDeliverable; at: Date }
       | {
           type: 'status_change';
           data: { status: string; at: string };
@@ -608,7 +622,7 @@ export class RoutinesService {
       })),
       ...deliverables.map((d) => ({
         type: 'deliverable' as const,
-        data: d,
+        data: this.toRoutineDeliverable(d, routineId),
         at: d.createdAt ?? new Date(0),
       })),
     ];
@@ -646,18 +660,18 @@ export class RoutinesService {
   ) {
     await this.getRoutineOrThrow(routineId, tenantId);
 
-    const conditions = [eq(schema.routineDeliverables.routineId, routineId)];
+    const conditions = [eq(schema.taskDeliverables.routineId, routineId)];
     if (executionId) {
-      conditions.push(eq(schema.routineDeliverables.executionId, executionId));
+      conditions.push(eq(schema.taskDeliverables.runId, executionId));
     }
 
     const deliverables = await this.db
       .select()
-      .from(schema.routineDeliverables)
+      .from(schema.taskDeliverables)
       .where(and(...conditions))
-      .orderBy(desc(schema.routineDeliverables.createdAt));
+      .orderBy(desc(schema.taskDeliverables.createdAt));
 
-    return deliverables;
+    return deliverables.map((d) => this.toRoutineDeliverable(d, routineId));
   }
 
   // ── Interventions ───────────────────────────────────────────────
@@ -2165,5 +2179,22 @@ export class RoutinesService {
       this.logger.error(`Failed to publish task command: ${error}`);
       throw error;
     }
+  }
+
+  private toRoutineDeliverable(
+    deliverable: schema.TaskDeliverable,
+    routineId: string,
+  ): schema.RoutineDeliverable {
+    const legacy = deliverable as unknown as Partial<schema.RoutineDeliverable>;
+    return {
+      id: deliverable.id,
+      executionId: deliverable.runId ?? legacy.executionId!,
+      routineId,
+      fileName: deliverable.fileName ?? legacy.fileName!,
+      fileSize: deliverable.fileSize ?? legacy.fileSize ?? null,
+      mimeType: deliverable.mimeType ?? legacy.mimeType ?? null,
+      fileUrl: deliverable.fileUrl ?? legacy.fileUrl!,
+      createdAt: deliverable.createdAt ?? legacy.createdAt!,
+    };
   }
 }

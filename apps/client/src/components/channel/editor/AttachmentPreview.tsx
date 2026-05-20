@@ -240,9 +240,11 @@ function AttachmentItem({
   onRemove: () => void;
   onRetry?: () => void;
 }) {
+  const isRestoredDraftAttachment =
+    file.status === "completed" && !!file.result && file.file.size === 0;
   const isImage = file.file.type.startsWith("image/");
 
-  if (isImage) {
+  if (isImage && !isRestoredDraftAttachment) {
     return (
       <ImageAttachmentItem file={file} onRemove={onRemove} onRetry={onRetry} />
     );

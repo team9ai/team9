@@ -40,6 +40,8 @@ describe("getAgentEventMetadata", () => {
           toolName: "search",
           toolCallId: "call_123",
           toolArgs: { query: "hello" },
+          generationStartedAt: "2026-05-15T12:00:00.000Z",
+          toolCallStartedAt: "2026-05-15T12:00:01.000Z",
         },
         FALLBACK,
       );
@@ -49,6 +51,35 @@ describe("getAgentEventMetadata", () => {
         toolName: "search",
         toolCallId: "call_123",
         toolArgs: { query: "hello" },
+        generationStartedAt: "2026-05-15T12:00:00.000Z",
+        toolCallStartedAt: "2026-05-15T12:00:01.000Z",
+      });
+    });
+
+    it("passes through completed tool timing metadata", () => {
+      const result = getAgentEventMetadata(
+        {
+          agentEventType: "tool_result",
+          status: "completed",
+          toolCallId: "call_123",
+          success: true,
+          generationStartedAt: "2026-05-15T12:00:00.000Z",
+          toolCallStartedAt: "2026-05-15T12:00:01.000Z",
+          toolCallCompletedAt: "2026-05-15T12:00:05.590Z",
+          durationMs: 4590,
+        },
+        FALLBACK,
+      );
+
+      expect(result).toMatchObject({
+        agentEventType: "tool_result",
+        status: "completed",
+        toolCallId: "call_123",
+        success: true,
+        generationStartedAt: "2026-05-15T12:00:00.000Z",
+        toolCallStartedAt: "2026-05-15T12:00:01.000Z",
+        toolCallCompletedAt: "2026-05-15T12:00:05.590Z",
+        durationMs: 4590,
       });
     });
 
@@ -287,6 +318,9 @@ describe("getAgentEventMetadata", () => {
           toolName: 123,
           toolCallId: {},
           toolArgs: "not-an-object",
+          generationStartedAt: 123,
+          toolCallStartedAt: null,
+          toolCallCompletedAt: {},
           success: "yes",
           surfaceId: 999,
           payload: "not-an-array",

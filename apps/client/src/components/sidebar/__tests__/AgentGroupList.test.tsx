@@ -234,6 +234,41 @@ describe("AgentGroupList", () => {
     );
   });
 
+  it("renames a topic session from the row action menu", async () => {
+    const onRenameTopicSession = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <AgentGroupList
+        linkPrefix="/channels"
+        groups={[
+          makeGroup({
+            agentUserId: "agent-user-1",
+            totalCount: 1,
+            recentSessions: makeRecentSessions(1),
+          }),
+        ]}
+        initiallyExpandedAgentUserId="agent-user-1"
+        onRenameTopicSession={onRenameTopicSession}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Topic 1 actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+
+    const input = screen.getByLabelText("Topic name");
+    expect(input).toHaveValue("Topic 1");
+
+    fireEvent.change(input, { target: { value: "Renamed topic" } });
+    fireEvent.click(screen.getByRole("button", { name: "Rename topic" }));
+
+    await waitFor(() =>
+      expect(onRenameTopicSession).toHaveBeenCalledWith(
+        "channel-1",
+        "Renamed topic",
+      ),
+    );
+  });
+
   it("opens the same topic session actions from the context menu", async () => {
     const onArchiveTopicSession = vi.fn();
 

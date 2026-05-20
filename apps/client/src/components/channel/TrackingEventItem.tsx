@@ -91,15 +91,27 @@ function truncateLine(str: string, maxLen: number): string {
 
 /**
  * Format a duration in milliseconds into a human-readable localized string.
+ * - 0 < value < 1 second with allowSubSecond: e.g. "0.5s" (en) / "0.5 秒" (zh)
  * - < 60 seconds: e.g. "45s" (en) / "45 秒" (zh)
  * - >= 60 seconds: e.g. "2m 3s" (en) / "2 分 3 秒" (zh)
- * Millisecond values are floored to whole seconds and clamped to 0.
+ * Millisecond values are normally floored to whole seconds and clamped to 0.
+ * Completed thinking can opt into rounded one-decimal sub-second display.
  *
  * Exposed as a helper so unit tests can exercise the formatting logic
  * directly without mounting a component tree.
  */
-export function formatDuration(ms: number, t: ChannelTFunction): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+export function formatDuration(
+  ms: number,
+  t: ChannelTFunction,
+  options: { allowSubSecond?: boolean } = {},
+): string {
+  const clampedMs = Math.max(0, ms);
+  if (options.allowSubSecond && clampedMs > 0 && clampedMs < 1000) {
+    const seconds = (Math.round(clampedMs / 100) / 10).toFixed(1);
+    return t("tracking.thinking.decimalSeconds", { value: seconds });
+  }
+
+  const totalSeconds = Math.floor(clampedMs / 1000);
   if (totalSeconds < 60) {
     return t("tracking.thinking.seconds", { count: totalSeconds });
   }
@@ -177,7 +189,9 @@ export function buildThinkingStats(
     typeof metadata.durationMs === "number" &&
     metadata.durationMs >= 0
   ) {
-    durationText = formatDuration(metadata.durationMs, t);
+    durationText = formatDuration(metadata.durationMs, t, {
+      allowSubSecond: true,
+    });
   }
 
   if (durationText === null) {

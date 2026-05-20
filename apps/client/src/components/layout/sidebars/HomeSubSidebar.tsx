@@ -48,7 +48,10 @@ import {
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
 import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
-import { useDeleteTopicSession } from "@/hooks/useTopicSessions";
+import {
+  useDeleteTopicSession,
+  useRenameTopicSession,
+} from "@/hooks/useTopicSessions";
 import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
 import {
   useSections,
@@ -164,7 +167,10 @@ function DraggableChannel({
             size={16}
             className={cn("shrink-0", !isMember && "opacity-50")}
           />
-          <span className="truncate text-left max-w-35" title={channel.name}>
+          <span
+            className="min-w-0 flex-1 truncate text-left"
+            title={channel.name}
+          >
             {channel.name}
           </span>
           {channel.unreadCount > 0 && (
@@ -312,6 +318,7 @@ export function HomeSubSidebar() {
     loadMoreTopicSessions,
     isLoadingMoreTopicSessions,
   } = useAgentGroupsForSidebar(5);
+  const renameTopicSession = useRenameTopicSession();
   const archiveTopicSession = useDeleteTopicSession();
   const deleteTopicSession = useDeleteTopicSession();
   const setSidebarVisibility = useSetSidebarVisibility();
@@ -455,15 +462,11 @@ export function HomeSubSidebar() {
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
-        >
-          <span className="font-semibold text-lg">
+        <div className="flex h-auto w-full items-center px-2 py-1.5 text-nav-foreground">
+          <span className="truncate text-lg font-semibold">
             {currentWorkspace?.name || "Workspace"}
           </span>
-          <ChevronDown size={16} className="text-nav-foreground-subtle" />
-        </Button>
+        </div>
       </div>
 
       <Separator className="bg-nav-border" />
@@ -735,6 +738,9 @@ export function HomeSubSidebar() {
                   isLoading={isLoadingAgents}
                   onLoadMoreTopicSessions={loadMoreTopicSessions}
                   isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
+                  onRenameTopicSession={(channelId, title) =>
+                    renameTopicSession.mutateAsync({ channelId, title })
+                  }
                   onArchiveTopicSession={(channelId) =>
                     archiveTopicSession.mutateAsync({ channelId })
                   }
@@ -745,6 +751,7 @@ export function HomeSubSidebar() {
                     })
                   }
                   isTopicSessionActionPending={
+                    renameTopicSession.isPending ||
                     archiveTopicSession.isPending ||
                     deleteTopicSession.isPending
                   }

@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, render, screen, fireEvent, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import i18n from "@/i18n";
 import { changeLanguage } from "@/i18n/loadLanguage";
 import { ToolCallBlock } from "../ToolCallBlock";
-import type { AgentEventMetadata, Message } from "@/types/im";
+import type {
+  AgentEventMetadata,
+  Message,
+  MessageAttachment,
+} from "@/types/im";
 
 const mockUseFullContent = vi.hoisted(() => vi.fn());
 
@@ -50,6 +56,34 @@ function makeResultMeta(
     toolCallId: "tc-1",
     ...overrides,
   };
+}
+
+function makeImageAttachment(
+  overrides: Partial<MessageAttachment> = {},
+): MessageAttachment {
+  return {
+    id: "attachment-image-1",
+    messageId: "msg-result-image",
+    fileKey: null,
+    fileName: "generated-image-0.png",
+    fileUrl: "https://files.test/generated-image-0.png",
+    mimeType: "image/png",
+    fileSize: 2048,
+    width: 160,
+    height: 120,
+    createdAt: "2026-05-15T12:20:00.000Z",
+    ...overrides,
+  };
+}
+
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
 }
 
 describe("ToolCallBlock", () => {
@@ -485,6 +519,15 @@ describe("ToolCallBlock", () => {
       const preview = screen.getByTestId("streaming-tool-args-preview");
       expect(preview).toHaveTextContent(streamingArgs);
       expect(preview).toHaveClass("[direction:rtl]");
+      const toolName = screen.getByTestId("streaming-tool-name");
+      const openParen = screen.getByTestId("streaming-tool-call-open");
+      const closeParen = screen.getByTestId("streaming-tool-call-close");
+      expect(toolName).toHaveTextContent("RunScript");
+      expect(toolName).toHaveClass("shrink-0");
+      expect(openParen).toHaveTextContent("(");
+      expect(openParen).toHaveClass("shrink-0");
+      expect(closeParen).toHaveTextContent(")");
+      expect(closeParen).toHaveClass("shrink-0");
       const cursor = screen.getByTestId("streaming-tool-args-cursor");
       expect(cursor).toHaveClass("w-0.5");
       expect(cursor).toHaveClass("animate-tool-call-cursor-blink");
@@ -1042,6 +1085,45 @@ describe("ToolCallBlock", () => {
       expect(preview.textContent).toContain("enabled");
     });
 
+    it("renders run_command command fullscreen with a bash preview by default", () => {
+      const command =
+        'mkdir -p "$HOME/team9-demo" && cat > "$HOME/team9-demo/long-script-demo.sh" <<\'EOF\'\n' +
+        "#!/usr/bin/env bash\n" +
+        "set -euo pipefail\n" +
+        "\n" +
+        'echo "ready"\n' +
+        "EOF";
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("run_command", {
+            backend: "ahand:user-computer:ff00",
+            command,
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={JSON.stringify({
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByText(/^Ran$/));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Fullscreen command" }),
+      );
+
+      const dialog = screen.getByRole("dialog", { name: "command" });
+      const preview = within(dialog).getByTestId("syntax-preview");
+
+      expect(
+        within(dialog).getByRole("button", { name: "preview" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(preview.querySelector("code.language-bash")).not.toBeNull();
+      expect(preview.textContent).toContain("set -euo pipefail");
+    });
+
     it("toggles raw JSON for run_command from the json button", () => {
       render(
         <ToolCallBlock
@@ -1154,6 +1236,66 @@ describe("ToolCallBlock", () => {
       }
     });
 
+    it("shows generation time for args and tool call time for result with friendly hover copy", () => {
+      const formatExpectedTime = (value: string) =>
+        new Intl.DateTimeFormat("en", {
+          dateStyle: "medium",
+          timeStyle: "medium",
+        }).format(new Date(value));
+      const generationStartedAt = "2026-05-15T12:00:00.000Z";
+      const toolCallStartedAt = "2026-05-15T12:00:01.000Z";
+      const toolCallCompletedAt = "2026-05-15T12:00:05.590Z";
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta(
+            "GenerateImage",
+            { prompt: "cat" },
+            {
+              generationStartedAt,
+              toolCallStartedAt,
+            },
+          )}
+          resultMetadata={makeResultMeta("completed", {
+            generationStartedAt,
+            toolCallStartedAt,
+            toolCallCompletedAt,
+            durationMs: 4590,
+          })}
+          resultContent="ok"
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getAllByTestId("tool-detail-meta")).toHaveLength(2);
+      const [argsMeta, resultMeta] = screen.getAllByTestId("tool-detail-meta");
+      expect(within(argsMeta).getByText("1.0s")).toBeInTheDocument();
+      expect(within(resultMeta).getByText("4.6s")).toBeInTheDocument();
+      expect(screen.getByText("4.6s")).toBeInTheDocument();
+      const generationTimingCopy = [
+        `Generation start: ${formatExpectedTime(generationStartedAt)}`,
+        `Tool call start: ${formatExpectedTime(toolCallStartedAt)}`,
+      ].join("\n");
+      const callTimingCopy = [
+        `Tool call start: ${formatExpectedTime(toolCallStartedAt)}`,
+        `End: ${formatExpectedTime(toolCallCompletedAt)}`,
+      ].join("\n");
+      const generationMeta = within(argsMeta).getByText("1.0s");
+      expect(generationMeta).toHaveAttribute(
+        "aria-label",
+        generationTimingCopy,
+      );
+      expect(generationMeta).not.toHaveAttribute(
+        "title",
+        expect.stringContaining("2026-05-15T12:00:00.000Z"),
+      );
+      expect(within(resultMeta).getByText("4.6s")).toHaveAttribute(
+        "aria-label",
+        callTimingCopy,
+      );
+    });
+
     it("shows truncated state and estimates total tokens from full content length", () => {
       const resultMessage: Pick<
         Message,
@@ -1251,6 +1393,35 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText(/"full": true/)).toBeInTheDocument();
       expect(screen.getByText(/"complete result"/)).toBeInTheDocument();
       expect(screen.queryByText(/"preview": true/)).not.toBeInTheDocument();
+    });
+
+    it("keeps the truncated preview visible if full content resolves empty", () => {
+      const resultMessage: Pick<
+        Message,
+        "id" | "type" | "content" | "isTruncated" | "fullContentLength"
+      > = {
+        id: "msg-result-empty-full-content",
+        type: "tracking",
+        content: "preview ... (truncated)",
+        isTruncated: true,
+        fullContentLength: 5000,
+      };
+      mockUseFullContent.mockReturnValue({ data: { content: "" } });
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("ReadLargeResult")}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent="preview ... (truncated)"
+          resultMessage={resultMessage}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getByText("Result")).toBeInTheDocument();
+      expect(screen.getByText("preview ... (truncated)")).toBeInTheDocument();
+      expect(screen.getByText("Truncated")).toBeInTheDocument();
     });
 
     it("toggles collapse state when clicked twice", () => {
@@ -1372,6 +1543,36 @@ describe("ToolCallBlock", () => {
         "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
       );
       expect(image).toHaveClass("object-contain");
+    });
+
+    it("renders image attachments from the tool result message when expanded", () => {
+      const resultMessage: Pick<
+        Message,
+        "id" | "type" | "content" | "attachments"
+      > = {
+        id: "msg-result-image",
+        type: "image",
+        content: "Generated 1 image.",
+        attachments: [makeImageAttachment()],
+      };
+
+      renderWithQueryClient(
+        <ToolCallBlock
+          callMetadata={makeCallMeta("GenerateImage", {
+            prompt: "draw a small cat",
+          })}
+          resultMetadata={makeResultMeta("completed")}
+          resultContent={resultMessage.content}
+          resultMessage={resultMessage}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Tool call completed"));
+
+      expect(screen.getByText("Generated 1 image.")).toBeInTheDocument();
+      expect(
+        screen.getByRole("img", { name: "generated-image-0.png" }),
+      ).toHaveAttribute("src", "https://files.test/generated-image-0.png");
     });
 
     it("gracefully handles non-JSON result content in the expanded pre", () => {

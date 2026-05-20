@@ -82,6 +82,8 @@ describe('MessagesController', () => {
     findByIdOrThrow: MockFn;
     getMemberRole: MockFn;
     assertMentionsAllowed: MockFn;
+    hasActiveTaskRunForChannel: MockFn;
+    activateChannel: MockFn;
   };
   let websocketGateway: {
     sendToChannelMembers: MockFn;
@@ -165,6 +167,8 @@ describe('MessagesController', () => {
       }),
       getMemberRole: jest.fn<any>().mockResolvedValue('owner'),
       assertMentionsAllowed: jest.fn<any>().mockResolvedValue(undefined),
+      hasActiveTaskRunForChannel: jest.fn<any>().mockResolvedValue(false),
+      activateChannel: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     websocketGateway = {
@@ -340,6 +344,34 @@ describe('MessagesController', () => {
         USER_ID,
       );
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('reactivates deactivated task channels when their task run is still active', async () => {
+      const taskChannel = makeChannel({
+        type: 'task',
+        isActivated: false,
+      });
+      channelsService.findById.mockResolvedValueOnce(taskChannel);
+      channelsService.hasActiveTaskRunForChannel.mockResolvedValueOnce(true);
+
+      const fullMessage = makeMessage({ channelId: CHANNEL_ID });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'answering the question',
+        } as never),
+      ).resolves.toEqual(fullMessage);
+
+      expect(channelsService.activateChannel).toHaveBeenCalledWith(CHANNEL_ID);
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenNthCalledWith(
+        1,
+        CHANNEL_ID,
+        WS_EVENTS.TRACKING.ACTIVATED,
+        { channelId: CHANNEL_ID },
+      );
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalled();
     });
 
     it('rejects archived channels after membership is confirmed', async () => {

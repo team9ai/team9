@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { FormEvent, KeyboardEvent, MouseEvent } from "react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -8,9 +8,11 @@ import {
   ChevronRight,
   Ellipsis,
   MoreHorizontal,
+  Pencil,
   SquarePen,
   Trash2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +23,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -40,6 +52,10 @@ import type { TopicSessionGroup } from "@/services/api/im";
 
 type LinkPrefix = "/channels" | "/messages";
 type TopicSessionActionHandler = (channelId: string) => void | Promise<void>;
+type TopicSessionRenameHandler = (
+  channelId: string,
+  title: string,
+) => void | Promise<void>;
 
 /**
  * Navigate to a channel under either the `/channels` or `/messages`
@@ -93,11 +109,13 @@ export interface AgentGroupListProps {
   onLoadMoreTopicSessions?: (agentUserId: string) => void;
   /** True while a larger topic-session page is being fetched. */
   isLoadingMoreTopicSessions?: boolean;
+  /** Rename a topic-session channel from the row menu. */
+  onRenameTopicSession?: TopicSessionRenameHandler;
   /** Archive a topic-session channel from the row menu. */
   onArchiveTopicSession?: TopicSessionActionHandler;
   /** Permanently delete a topic-session channel after confirmation. */
   onDeleteTopicSession?: TopicSessionActionHandler;
-  /** True while any topic-session archive/delete mutation is in flight. */
+  /** True while any topic-session row action mutation is in flight. */
   isTopicSessionActionPending?: boolean;
 }
 
@@ -125,6 +143,7 @@ export function AgentGroupList({
   initiallyExpandedAgentUserId,
   onLoadMoreTopicSessions,
   isLoadingMoreTopicSessions,
+  onRenameTopicSession,
   onArchiveTopicSession,
   onDeleteTopicSession,
   isTopicSessionActionPending,
@@ -171,6 +190,7 @@ export function AgentGroupList({
           defaultExpanded={group.agentUserId === autoExpandedAgentUserId}
           onLoadMoreTopicSessions={onLoadMoreTopicSessions}
           isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
+          onRenameTopicSession={onRenameTopicSession}
           onArchiveTopicSession={onArchiveTopicSession}
           onDeleteTopicSession={onDeleteTopicSession}
           isTopicSessionActionPending={isTopicSessionActionPending}
@@ -187,6 +207,7 @@ function AgentGroup({
   defaultExpanded,
   onLoadMoreTopicSessions,
   isLoadingMoreTopicSessions,
+  onRenameTopicSession,
   onArchiveTopicSession,
   onDeleteTopicSession,
   isTopicSessionActionPending,
@@ -197,6 +218,7 @@ function AgentGroup({
   defaultExpanded: boolean;
   onLoadMoreTopicSessions?: (agentUserId: string) => void;
   isLoadingMoreTopicSessions?: boolean;
+  onRenameTopicSession?: TopicSessionRenameHandler;
   onArchiveTopicSession?: TopicSessionActionHandler;
   onDeleteTopicSession?: TopicSessionActionHandler;
   isTopicSessionActionPending?: boolean;
@@ -325,6 +347,7 @@ function AgentGroup({
                 unreadCount={s.unreadCount}
                 isSelected={s.channelId === selectedChannelId}
                 linkPrefix={linkPrefix}
+                onRenameTopicSession={onRenameTopicSession}
                 onArchiveTopicSession={onArchiveTopicSession}
                 onDeleteTopicSession={onDeleteTopicSession}
                 isActionPending={isTopicSessionActionPending}
@@ -381,6 +404,7 @@ function TopicSessionRow({
   unreadCount,
   isSelected,
   linkPrefix,
+  onRenameTopicSession,
   onArchiveTopicSession,
   onDeleteTopicSession,
   isActionPending,
@@ -391,6 +415,7 @@ function TopicSessionRow({
   unreadCount: number;
   isSelected: boolean;
   linkPrefix: LinkPrefix;
+  onRenameTopicSession?: TopicSessionRenameHandler;
   onArchiveTopicSession?: TopicSessionActionHandler;
   onDeleteTopicSession?: TopicSessionActionHandler;
   isActionPending?: boolean;
@@ -398,15 +423,22 @@ function TopicSessionRow({
 }) {
   const navigate = useNavigate();
   const { t } = useTranslation(["navigation", "common"]);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameInput, setRenameInput] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [localPendingAction, setLocalPendingAction] = useState<
-    "archive" | "delete" | null
+    "rename" | "archive" | "delete" | null
   >(null);
   const label = title?.trim() || fallbackLabel;
   const isUntitled = !title?.trim();
-  const hasActions = !!onArchiveTopicSession || !!onDeleteTopicSession;
+  const hasActions =
+    !!onRenameTopicSession || !!onArchiveTopicSession || !!onDeleteTopicSession;
   const isPending = !!isActionPending || localPendingAction !== null;
 
+  const renameLabel = t("renameTopicSession", {
+    ns: "navigation" as const,
+    defaultValue: "Rename",
+  });
   const archiveLabel = t("archiveTopicSession", {
     ns: "navigation" as const,
     defaultValue: "Archive",
@@ -429,6 +461,34 @@ function TopicSessionRow({
   const navigateAwayIfSelected = () => {
     if (isSelected) {
       navigateToList(navigate, linkPrefix);
+    }
+  };
+
+  const openRenameDialog = () => {
+    setRenameInput(title?.trim() || "");
+    setRenameDialogOpen(true);
+  };
+
+  const handleSubmitRename = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onRenameTopicSession || isPending) return;
+
+    const nextTitle = renameInput.trim();
+    if (!nextTitle) return;
+
+    if (nextTitle === (title?.trim() || "")) {
+      setRenameDialogOpen(false);
+      return;
+    }
+
+    setLocalPendingAction("rename");
+    try {
+      await onRenameTopicSession(channelId, nextTitle);
+      setRenameDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to rename topic session:", error);
+    } finally {
+      setLocalPendingAction(null);
     }
   };
 
@@ -507,6 +567,20 @@ function TopicSessionRow({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36">
+            {onRenameTopicSession && (
+              <DropdownMenuItem
+                disabled={isPending}
+                onSelect={openRenameDialog}
+              >
+                <Pencil size={14} />
+                {localPendingAction === "rename"
+                  ? t("renamingTopicSession", {
+                      ns: "navigation" as const,
+                      defaultValue: "Renaming...",
+                    })
+                  : renameLabel}
+              </DropdownMenuItem>
+            )}
             {onArchiveTopicSession && (
               <DropdownMenuItem
                 disabled={isPending}
@@ -541,6 +615,16 @@ function TopicSessionRow({
     <ContextMenu>
       <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
       <ContextMenuContent className="w-36">
+        {onRenameTopicSession && (
+          <ContextMenuItem
+            disabled={isPending}
+            className="gap-2"
+            onSelect={openRenameDialog}
+          >
+            <Pencil size={14} />
+            {renameLabel}
+          </ContextMenuItem>
+        )}
         {onArchiveTopicSession && (
           <ContextMenuItem
             disabled={isPending}
@@ -570,6 +654,68 @@ function TopicSessionRow({
   return (
     <>
       {content}
+      {onRenameTopicSession && (
+        <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {t("renameTopicSessionTitle", {
+                  ns: "navigation" as const,
+                  defaultValue: "Rename topic",
+                })}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                {t("renameTopicSessionDescription", {
+                  ns: "navigation" as const,
+                  defaultValue: "Enter a new topic name.",
+                })}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={(event) => void handleSubmitRename(event)}>
+              <div className="space-y-2">
+                <Label htmlFor={`topic-session-rename-${channelId}`}>
+                  {t("topicSessionName", {
+                    ns: "navigation" as const,
+                    defaultValue: "Topic name",
+                  })}
+                </Label>
+                <Input
+                  id={`topic-session-rename-${channelId}`}
+                  autoFocus
+                  value={renameInput}
+                  placeholder={fallbackLabel}
+                  onChange={(event) => setRenameInput(event.target.value)}
+                  disabled={isPending}
+                />
+              </div>
+              <DialogFooter className="mt-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isPending}
+                  onClick={() => setRenameDialogOpen(false)}
+                >
+                  {t("common:cancel")}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!renameInput.trim() || isPending}
+                >
+                  {localPendingAction === "rename"
+                    ? t("renamingTopicSession", {
+                        ns: "navigation" as const,
+                        defaultValue: "Renaming...",
+                      })
+                    : t("renameTopicSessionConfirm", {
+                        ns: "navigation" as const,
+                        defaultValue: "Rename topic",
+                      })}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
       {onDeleteTopicSession && (
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent className="max-w-sm">

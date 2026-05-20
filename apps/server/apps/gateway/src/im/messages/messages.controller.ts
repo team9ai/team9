@@ -120,14 +120,28 @@ export class MessagesController {
 
       // Get workspaceId (tenantId) from channel for message context
       stage = 'channel';
-      const channel = await this.channelsService.findById(channelId);
+      let channel = await this.channelsService.findById(channelId);
       const t2 = Date.now();
       const workspaceId = channel?.tenantId ?? undefined;
 
       // Reject messages to deactivated tracking/task channels
       if (channel && !channel.isActivated) {
-        throw new ForbiddenException(
-          'Channel is deactivated — execution has completed',
+        const canReactivateTaskChannel =
+          channel.type === 'task' &&
+          (await this.channelsService.hasActiveTaskRunForChannel(channelId));
+
+        if (!canReactivateTaskChannel) {
+          throw new ForbiddenException(
+            'Channel is deactivated — execution has completed',
+          );
+        }
+
+        await this.channelsService.activateChannel(channelId);
+        channel = { ...channel, isActivated: true };
+        await this.websocketGateway.sendToChannelMembers(
+          channelId,
+          WS_EVENTS.TRACKING.ACTIVATED,
+          { channelId },
         );
       }
 

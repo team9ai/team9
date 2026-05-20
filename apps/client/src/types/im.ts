@@ -136,6 +136,9 @@ export interface AgentEventMetadata {
   errorMessage?: string;
   resultTruncated?: boolean;
   fullContentMessageId?: string;
+  generationStartedAt?: string;
+  toolCallStartedAt?: string;
+  toolCallCompletedAt?: string;
   completedAt?: string;
   updatedAt?: string;
   surfaceId?: string;

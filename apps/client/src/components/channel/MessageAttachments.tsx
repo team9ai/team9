@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   File,
@@ -19,11 +19,11 @@ import { VideoAttachment } from "./VideoAttachment";
 // browser HTTP cache instead of re-fetching on every virtualized row mount.
 const DOWNLOAD_URL_STALE_TIME = 7 * 60 * 60 * 1000;
 
-function useFileDownloadUrl(fileKey: string | null) {
+function useFileDownloadUrl(fileKey: string | null, enabled = true) {
   return useQuery({
     // External pass-through attachments (fileKey === null) have no key to
     // presign — disable the query and let callers fall back to fileUrl.
-    enabled: fileKey !== null,
+    enabled: enabled && fileKey !== null,
     queryKey: ["file-download-url", fileKey],
     queryFn: () => fileApi.getDownloadUrl(fileKey as string),
     staleTime: DOWNLOAD_URL_STALE_TIME,
@@ -56,6 +56,36 @@ function formatFileSize(bytes: number): string {
   const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+const MIME_TYPE_LABELS: Array<[needle: string, label: string]> = [
+  ["pdf", "PDF"],
+  ["word", "DOC"],
+  ["document", "DOC"],
+  ["spreadsheet", "XLS"],
+  ["excel", "XLS"],
+  ["presentation", "PPT"],
+  ["powerpoint", "PPT"],
+  ["zip", "ZIP"],
+  ["text/", "TXT"],
+];
+
+function getFileTypeLabel(attachment: MessageAttachment): string {
+  const fileName = attachment.fileName.trim();
+  const lastDotIndex = fileName.lastIndexOf(".");
+
+  if (lastDotIndex > 0 && lastDotIndex < fileName.length - 1) {
+    const extension = fileName.slice(lastDotIndex + 1).trim();
+    if (/^[a-z0-9]+$/i.test(extension) && extension.length <= 8) {
+      return extension.toUpperCase();
+    }
+  }
+
+  const mimeType = attachment.mimeType.toLowerCase();
+  return (
+    MIME_TYPE_LABELS.find(([needle]) => mimeType.includes(needle))?.[1] ??
+    "FILE"
+  );
 }
 
 // Reserve a stable box for image attachments so the loading skeleton, the
@@ -94,13 +124,39 @@ function ImageAttachment({
   isOwnMessage?: boolean;
 }) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const thumbnailUrl = attachment.thumbnailUrl ?? null;
+  const shouldUseThumbnail =
+    thumbnailUrl !== null && failedImageUrl !== thumbnailUrl;
+  const shouldFetchOriginalUrl =
+    attachment.fileKey !== null && (!shouldUseThumbnail || isPreviewOpen);
   const { data, isLoading, error, refetch } = useFileDownloadUrl(
     attachment.fileKey,
+    shouldFetchOriginalUrl,
   );
   // External attachments resolve via fileUrl directly (no presign needed).
-  const imageUrl =
+  const originalImageUrl =
     attachment.fileKey === null ? attachment.fileUrl : (data?.url ?? null);
+  const imageUrl = shouldUseThumbnail ? thumbnailUrl : originalImageUrl;
+  const previewImageUrl = originalImageUrl ?? imageUrl;
   const box = getImageBox(attachment);
+  const hasImageError =
+    Boolean(error) || (imageUrl !== null && failedImageUrl === imageUrl);
+
+  useEffect(() => {
+    setFailedImageUrl(null);
+  }, [attachment.id, attachment.fileKey, thumbnailUrl]);
+
+  const handleRetry = () => {
+    if (attachment.fileKey === null) {
+      setFailedImageUrl(null);
+      return;
+    }
+
+    void refetch().then((result) => {
+      if (!result.error) setFailedImageUrl(null);
+    });
+  };
 
   if (isLoading && !imageUrl) {
     return (
@@ -116,7 +172,7 @@ function ImageAttachment({
     );
   }
 
-  if (error || !imageUrl) {
+  if (hasImageError || !imageUrl) {
     return (
       <div
         className={cn(
@@ -127,12 +183,12 @@ function ImageAttachment({
       >
         <ImageIcon className="w-8 h-8 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">
-          {error ? "Failed to load image" : "Image not available"}
+          {hasImageError ? "Failed to load image" : "Image not available"}
         </span>
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => void refetch()}
+          onClick={handleRetry}
           className="text-xs"
         >
           Retry
@@ -154,13 +210,17 @@ function ImageAttachment({
           alt={attachment.fileName}
           width={box.width}
           height={box.height}
+          onError={() => setFailedImageUrl(imageUrl)}
+          onLoad={() => {
+            if (failedImageUrl === imageUrl) setFailedImageUrl(null);
+          }}
           className="object-contain"
           style={{ width: box.width, height: box.height }}
         />
       </button>
-      {isPreviewOpen && (
+      {isPreviewOpen && previewImageUrl && (
         <ImagePreviewDialog
-          src={imageUrl}
+          src={previewImageUrl}
           alt={attachment.fileName}
           open={isPreviewOpen}
           onOpenChange={setIsPreviewOpen}
@@ -170,15 +230,10 @@ function ImageAttachment({
   );
 }
 
-function FileAttachment({
-  attachment,
-  isOwnMessage,
-}: {
-  attachment: MessageAttachment;
-  isOwnMessage?: boolean;
-}) {
+function FileAttachment({ attachment }: { attachment: MessageAttachment }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const FileIcon = getFileIcon(attachment.mimeType);
+  const fileTypeLabel = getFileTypeLabel(attachment);
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -200,46 +255,24 @@ function FileAttachment({
   };
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 p-3 rounded-lg min-w-[200px] max-w-[280px]",
-        isOwnMessage
-          ? "bg-primary/20 border border-accent/30"
-          : "bg-muted border border-border",
-      )}
-    >
-      <div
-        className={cn(
-          "w-10 h-10 rounded flex items-center justify-center flex-shrink-0",
-          isOwnMessage ? "bg-accent/30" : "bg-muted",
-        )}
-      >
-        <FileIcon
-          className={cn(
-            "w-5 h-5",
-            isOwnMessage ? "text-primary-foreground" : "text-muted-foreground",
-          )}
-        />
+    <div className="flex min-w-[220px] max-w-[320px] items-center gap-3 rounded-md border border-border/70 bg-background px-3 py-2.5 transition-[border-color,box-shadow,transform] duration-[360ms] ease-in-out hover:-translate-y-px hover:scale-[1.005] hover:border-border hover:shadow-[0_5px_14px_rgba(15,23,42,0.08)] motion-reduce:transition-colors motion-reduce:hover:translate-y-0 motion-reduce:hover:scale-100">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/50 text-muted-foreground">
+        <FileIcon className="h-5 w-5" />
       </div>
 
       <div className="flex-1 min-w-0">
         <p
-          className={cn(
-            "text-sm font-medium truncate",
-            isOwnMessage ? "text-primary-foreground" : "text-foreground",
-          )}
+          className="truncate text-sm font-medium leading-5 text-foreground"
           title={attachment.fileName}
         >
           {attachment.fileName}
         </p>
-        <p
-          className={cn(
-            "text-xs",
-            isOwnMessage ? "text-primary/40" : "text-muted-foreground",
-          )}
-        >
-          {formatFileSize(attachment.fileSize)}
-        </p>
+        <div className="mt-0.5 flex items-center gap-1.5 text-xs leading-4 text-muted-foreground">
+          <span className="rounded-[3px] border border-border/70 bg-muted/60 px-1 text-[10px] font-medium leading-4 text-muted-foreground">
+            {fileTypeLabel}
+          </span>
+          <span>{formatFileSize(attachment.fileSize)}</span>
+        </div>
       </div>
 
       <Button
@@ -247,13 +280,9 @@ function FileAttachment({
         variant="ghost"
         onClick={handleDownload}
         disabled={isDownloading}
-        className={cn(
-          "h-8 w-8 p-0 flex-shrink-0",
-          isOwnMessage
-            ? "hover:bg-accent/30 text-primary-foreground"
-            : "hover:bg-muted text-muted-foreground",
-        )}
-        title="Download"
+        className="h-8 w-8 flex-shrink-0 rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        aria-label={`Download ${attachment.fileName}`}
+        title={`Download ${attachment.fileName}`}
       >
         {isDownloading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -306,11 +335,7 @@ export function MessageAttachments({
       {fileAttachments.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {fileAttachments.map((attachment) => (
-            <FileAttachment
-              key={attachment.id}
-              attachment={attachment}
-              isOwnMessage={isOwnMessage}
-            />
+            <FileAttachment key={attachment.id} attachment={attachment} />
           ))}
         </div>
       )}

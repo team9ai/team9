@@ -24,13 +24,18 @@ import { useFullContent } from "@/hooks/useMessages";
 import { buildToolDisplayState } from "@/lib/tool-events";
 import Prism from "@/lib/prism";
 import { sanitizeMessageHtml } from "@/lib/sanitize";
+import { MessageAttachments } from "./MessageAttachments";
 import type {
   CommandExecutionDisplay,
   ToolResultImage,
   TodoStatus,
   TodoWriteDisplay,
 } from "@/lib/tool-events";
-import type { AgentEventMetadata, Message } from "@/types/im";
+import type {
+  AgentEventMetadata,
+  Message,
+  MessageAttachment,
+} from "@/types/im";
 
 interface ToolCallBlockProps {
   callMetadata: AgentEventMetadata;
@@ -40,7 +45,7 @@ interface ToolCallBlockProps {
     Message,
     "id" | "content" | "isTruncated" | "fullContentLength"
   > &
-    Partial<Pick<Message, "type">>;
+    Partial<Pick<Message, "type" | "attachments">>;
 }
 
 function formatJson(text: string): string {
@@ -210,19 +215,108 @@ function formatEstimatedTokenCount(count: number): string {
   return new Intl.NumberFormat("en-US").format(count);
 }
 
+interface ToolTimingPoint {
+  labelKey: string;
+  timestamp: string;
+}
+
+interface ToolTimingBadgeInfo {
+  durationMs: number;
+  points: ToolTimingPoint[];
+}
+
+interface ToolTimingInfo {
+  args?: ToolTimingBadgeInfo;
+  result?: ToolTimingBadgeInfo;
+}
+
+function formatToolDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function formatToolTimestamp(timestamp: string, locale?: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "medium",
+  }).format(date);
+}
+
+function getToolTimingLines(
+  timing: ToolTimingBadgeInfo,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  locale?: string,
+): string[] {
+  return timing.points.map(
+    ({ labelKey, timestamp }) =>
+      `${t(labelKey)}: ${formatToolTimestamp(timestamp, locale)}`,
+  );
+}
+
+function ToolTimingMeta({
+  locale,
+  timing,
+  t,
+}: {
+  locale?: string;
+  timing: ToolTimingBadgeInfo;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  const timingLines = getToolTimingLines(timing, t, locale);
+  const timingLabel = timingLines.join("\n");
+  const durationText = formatToolDuration(timing.durationMs);
+
+  return (
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            aria-label={timingLabel}
+            title={timingLabel}
+            className="font-mono tabular-nums"
+          >
+            {durationText}
+          </span>
+        </TooltipTrigger>
+        {timingLabel && (
+          <TooltipContent side="top" sideOffset={4} className="text-xs">
+            <div className="space-y-1 font-mono">
+              {timingLines.map((line) => (
+                <div key={line}>{line}</div>
+              ))}
+            </div>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function DetailMeta({
   fullContentLength,
   isTruncated = false,
+  locale,
   t,
   text,
+  timing,
 }: {
   fullContentLength?: number;
   isTruncated?: boolean;
+  locale?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
   text: string;
+  timing?: ToolTimingBadgeInfo;
 }) {
   const tokenCount = estimateTokenCountFromLength(fullContentLength, text);
-  if (tokenCount === 0 && !isTruncated) return null;
+  if (tokenCount === 0 && !isTruncated && !timing) return null;
 
   return (
     <span
@@ -236,9 +330,15 @@ function DetailMeta({
           })}
         </span>
       )}
-      {isTruncated && (
+      {timing && (
         <>
           {tokenCount > 0 && <span aria-hidden="true">·</span>}
+          <ToolTimingMeta locale={locale} timing={timing} t={t} />
+        </>
+      )}
+      {isTruncated && (
+        <>
+          {(tokenCount > 0 || timing) && <span aria-hidden="true">·</span>}
           <span>{t("tracking.toolCall.truncated")}</span>
         </>
       )}
@@ -251,15 +351,19 @@ function DetailHeader({
   isTruncated,
   label,
   labelClassName,
+  locale,
   t,
   text,
+  timing,
 }: {
   fullContentLength?: number;
   isTruncated?: boolean;
   label: string;
   labelClassName: string;
+  locale?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
   text: string;
+  timing?: ToolTimingBadgeInfo;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -267,8 +371,10 @@ function DetailHeader({
       <DetailMeta
         fullContentLength={fullContentLength}
         isTruncated={isTruncated}
+        locale={locale}
         t={t}
         text={text}
+        timing={timing}
       />
     </div>
   );
@@ -639,17 +745,34 @@ function TodoWriteSummary({
 
 function StreamingToolArgsSummary({
   label,
+  toolName,
   value,
 }: {
   label: string;
+  toolName?: string;
   value: string;
 }) {
+  const visibleToolName = toolName?.trim();
+
   return (
     <>
       <span className="text-xs font-semibold shrink-0 whitespace-nowrap text-foreground/70">
         {label}
       </span>
-      <span className="ml-2 flex min-w-0 flex-1 items-center gap-1 font-mono text-xs text-foreground/80">
+      <span className="ml-2 flex min-w-0 flex-1 items-center font-mono text-xs text-foreground/80">
+        {visibleToolName && (
+          <>
+            <span
+              className="shrink-0 whitespace-nowrap"
+              data-testid="streaming-tool-name"
+            >
+              {visibleToolName}
+            </span>
+            <span className="shrink-0" data-testid="streaming-tool-call-open">
+              (
+            </span>
+          </>
+        )}
         <span
           aria-label={value}
           className="min-w-0 flex-1 truncate text-left [direction:rtl]"
@@ -658,9 +781,14 @@ function StreamingToolArgsSummary({
         >
           <span className="[direction:ltr] [unicode-bidi:embed]">{value}</span>
         </span>
+        {visibleToolName && (
+          <span className="shrink-0" data-testid="streaming-tool-call-close">
+            )
+          </span>
+        )}
         <span
           aria-hidden="true"
-          className="h-3.5 w-0.5 shrink-0 animate-tool-call-cursor-blink rounded-full bg-foreground/90"
+          className="ml-1 h-3.5 w-0.5 shrink-0 animate-tool-call-cursor-blink rounded-full bg-foreground/90"
           data-testid="streaming-tool-args-cursor"
         />
       </span>
@@ -745,6 +873,7 @@ function TodoWriteStatusList({
 function ExpandablePre({
   className,
   label,
+  previewLanguage,
   rawValue,
   previewSourceName,
   t,
@@ -752,6 +881,7 @@ function ExpandablePre({
 }: {
   className: string;
   label: string;
+  previewLanguage?: string;
   previewSourceName?: string;
   rawValue?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
@@ -761,9 +891,12 @@ function ExpandablePre({
   const [showRaw, setShowRaw] = useState(false);
   const rawText = rawValue ?? value;
   const structuredJson = parseStructuredJson(rawText);
+  const normalizedPreviewLanguage = normalizeLanguage(previewLanguage);
   const syntaxPreview = structuredJson
     ? undefined
-    : getSyntaxPreview(rawText, previewSourceName);
+    : normalizedPreviewLanguage
+      ? { language: normalizedPreviewLanguage, text: rawText }
+      : getSyntaxPreview(rawText, previewSourceName);
   const hasPreview = !!structuredJson || !!syntaxPreview;
 
   return (
@@ -869,12 +1002,14 @@ function StreamBlock({
   value,
   tone,
   emptyText,
+  previewLanguage,
   t,
 }: {
   label: string;
   value: string;
   tone: "neutral" | "error";
   emptyText: string;
+  previewLanguage?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const hasOutput = value.trim() !== "";
@@ -902,6 +1037,7 @@ function StreamBlock({
       <ExpandablePre
         className={preClassName}
         label={label}
+        previewLanguage={previewLanguage}
         t={t}
         value={hasOutput ? value : emptyText}
       />
@@ -912,23 +1048,31 @@ function StreamBlock({
 function RawToolDetails({
   argsText,
   isResultTruncated,
+  resultAttachments,
   resultImages,
   resultFullContentLength,
   resultText,
   isError,
+  locale,
   t,
+  timing,
 }: {
   argsText: string;
   isResultTruncated?: boolean;
+  resultAttachments?: MessageAttachment[];
   resultImages: ToolResultImage[];
   resultFullContentLength?: number;
   resultText: string;
   isError: boolean;
+  locale?: string;
   t: (key: string, options?: Record<string, unknown>) => string;
+  timing?: ToolTimingInfo;
 }) {
   const argsLabel = t("tracking.toolCall.argsLabel");
   const resultLabel = t("tracking.toolCall.resultLabel");
   const resultPreviewSourceName = extractPreviewSourceName(argsText);
+  const attachments = resultAttachments ?? [];
+  const hasResultAttachments = attachments.length > 0;
 
   return (
     <>
@@ -937,8 +1081,10 @@ function RawToolDetails({
           <DetailHeader
             label={argsLabel}
             labelClassName="text-xs font-semibold text-muted-foreground"
+            locale={locale}
             t={t}
             text={argsText}
+            timing={timing?.args}
           />
           <ExpandablePre
             className={cn(
@@ -951,7 +1097,9 @@ function RawToolDetails({
           />
         </div>
       )}
-      {(resultText !== "" || resultImages.length > 0) && (
+      {(resultText !== "" ||
+        resultImages.length > 0 ||
+        hasResultAttachments) && (
         <div>
           <DetailHeader
             fullContentLength={resultFullContentLength}
@@ -961,8 +1109,10 @@ function RawToolDetails({
               "text-xs font-semibold",
               isError ? "text-red-500" : "text-emerald-500",
             )}
+            locale={locale}
             t={t}
             text={resultText}
+            timing={timing?.result}
           />
           {resultImages.length > 0 && (
             <div className="mt-1 grid gap-2">
@@ -979,6 +1129,12 @@ function RawToolDetails({
               ))}
             </div>
           )}
+          {hasResultAttachments && (
+            <MessageAttachments
+              attachments={attachments}
+              isOwnMessage={false}
+            />
+          )}
           {resultText !== "" && (
             <ExpandablePre
               className={cn(
@@ -986,7 +1142,7 @@ function RawToolDetails({
                 isError
                   ? "bg-red-500/5 border border-red-500/20 text-red-700 dark:text-red-300"
                   : "bg-muted/60 border border-border text-foreground/85",
-                resultImages.length > 0 && "mt-2",
+                (resultImages.length > 0 || hasResultAttachments) && "mt-2",
               )}
               label={resultLabel}
               previewSourceName={resultPreviewSourceName}
@@ -1001,13 +1157,91 @@ function RawToolDetails({
   );
 }
 
+function getToolTimingInfo(
+  callMetadata: AgentEventMetadata,
+  resultMetadata?: AgentEventMetadata,
+): ToolTimingInfo {
+  const durationMs = resultMetadata?.durationMs ?? callMetadata.durationMs;
+  const generationStartedAt =
+    resultMetadata?.generationStartedAt ?? callMetadata.generationStartedAt;
+  const toolCallStartedAt =
+    resultMetadata?.toolCallStartedAt ?? callMetadata.toolCallStartedAt;
+  const toolCallCompletedAt =
+    resultMetadata?.toolCallCompletedAt ??
+    resultMetadata?.completedAt ??
+    callMetadata.toolCallCompletedAt ??
+    callMetadata.completedAt;
+  const generationDurationMs = getElapsedMs(
+    generationStartedAt,
+    toolCallStartedAt,
+  );
+  const callDurationMs =
+    getElapsedMs(toolCallStartedAt, toolCallCompletedAt) ??
+    (typeof durationMs === "number" && Number.isFinite(durationMs)
+      ? durationMs
+      : undefined);
+
+  return {
+    args:
+      generationDurationMs !== undefined
+        ? {
+            durationMs: generationDurationMs,
+            points: [
+              {
+                labelKey: "tracking.toolCall.timing.generationStart",
+                timestamp: generationStartedAt!,
+              },
+              {
+                labelKey: "tracking.toolCall.timing.toolCallStart",
+                timestamp: toolCallStartedAt!,
+              },
+            ],
+          }
+        : undefined,
+    result:
+      callDurationMs !== undefined
+        ? {
+            durationMs: callDurationMs,
+            points: [
+              ...(toolCallStartedAt
+                ? [
+                    {
+                      labelKey: "tracking.toolCall.timing.toolCallStart",
+                      timestamp: toolCallStartedAt,
+                    },
+                  ]
+                : []),
+              ...(toolCallCompletedAt
+                ? [
+                    {
+                      labelKey: "tracking.toolCall.timing.end",
+                      timestamp: toolCallCompletedAt,
+                    },
+                  ]
+                : []),
+            ],
+          }
+        : undefined,
+  };
+}
+
+function getElapsedMs(
+  startTimestamp: string | undefined,
+  endTimestamp: string | undefined,
+): number | undefined {
+  if (!startTimestamp || !endTimestamp) return undefined;
+  const elapsedMs =
+    new Date(endTimestamp).getTime() - new Date(startTimestamp).getTime();
+  return Number.isFinite(elapsedMs) && elapsedMs >= 0 ? elapsedMs : undefined;
+}
+
 export function ToolCallBlock({
   callMetadata,
   resultMetadata,
   resultContent,
   resultMessage,
 }: ToolCallBlockProps) {
-  const { t } = useTranslation("channel");
+  const { t, i18n } = useTranslation("channel");
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
 
@@ -1019,10 +1253,20 @@ export function ToolCallBlock({
     fullContentTargetId,
     shouldFetchFullContent,
   );
-  const effectiveResultContent =
-    fullContentData?.content ?? resultContent ?? resultMessage?.content ?? "";
+  const previewResultContent =
+    resultContent && resultContent.length > 0
+      ? resultContent
+      : (resultMessage?.content ?? resultContent ?? "");
+  const hasLoadedFullContent =
+    typeof fullContentData?.content === "string" &&
+    fullContentData.content.length > 0;
+  // Keep the preview if a full-content lookup resolves empty; otherwise the
+  // expanded truncated result collapses to a blank details panel.
+  const effectiveResultContent = hasLoadedFullContent
+    ? fullContentData.content
+    : previewResultContent;
   const isResultContentTruncated = Boolean(
-    !fullContentData?.content &&
+    !hasLoadedFullContent &&
     (resultMetadata?.resultTruncated ||
       resultMetadata?.fullContentMessageId ||
       resultMessage?.isTruncated),
@@ -1035,6 +1279,7 @@ export function ToolCallBlock({
     resultMetadata,
     resultContent: effectiveResultContent,
   });
+  const toolTiming = getToolTimingInfo(callMetadata, resultMetadata);
   const labelStatus = displayState.status;
 
   const toolName = displayState.toolName;
@@ -1044,6 +1289,7 @@ export function ToolCallBlock({
     : toolName;
   const unwrapped = displayState.resultText;
   const resultImages = displayState.resultImages;
+  const resultAttachments = resultMessage?.attachments ?? [];
   const isRunning = displayState.isRunning;
   const isError = displayState.isError;
   const hasResultContent = unwrapped !== "";
@@ -1069,6 +1315,7 @@ export function ToolCallBlock({
     key: string,
     options?: Record<string, unknown>,
   ) => string;
+  const locale = i18n.resolvedLanguage ?? i18n.language;
 
   // Friendly label from toolLabels (e.g. "Sending message", "Message sent",
   // "Failed to send message"). The raw key/values come from getLabelKey and
@@ -1127,6 +1374,7 @@ export function ToolCallBlock({
         {isStreamingArgs ? (
           <StreamingToolArgsSummary
             label={translate("tracking.toolCall.generating")}
+            toolName={displayState.toolName}
             value={displayState.argsText}
           />
         ) : isRunCommandDisplay ? (
@@ -1230,6 +1478,7 @@ export function ToolCallBlock({
                 value={commandExecution.command}
                 tone="neutral"
                 emptyText={translate("tracking.toolCall.emptyStream")}
+                previewLanguage="bash"
                 t={translate}
               />
               {hasCommandMessage && (
@@ -1273,11 +1522,14 @@ export function ToolCallBlock({
             <RawToolDetails
               argsText={displayState.argsText}
               isResultTruncated={isResultContentTruncated}
+              resultAttachments={resultAttachments}
               resultText={hasResultContent ? unwrapped : ""}
               resultImages={resultImages}
               resultFullContentLength={resultFullContentLength}
               isError={isError}
+              locale={locale}
               t={translate}
+              timing={toolTiming}
             />
           )}
         </div>

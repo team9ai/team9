@@ -210,6 +210,10 @@ function buildRestoredParts(
   return parts;
 }
 
+function isToolCallMetadata(metadata: Record<string, unknown> | undefined) {
+  return metadata?.agentEventType === "tool_call";
+}
+
 function updateStreamingParts(
   stream: StreamingMessage,
   type: StreamingPart["type"],
@@ -364,6 +368,18 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
+      if (isToolCallMetadata(stream.metadata)) {
+        const parts = closeAllActiveParts(stream.parts, Date.now());
+        const newStreams = new Map(state.streams);
+        newStreams.set(streamId, {
+          ...stream,
+          thinking: aggregateParts(parts, "thinking"),
+          isThinking: false,
+          parts,
+        });
+        return { streams: newStreams };
+      }
+
       const parts = updateStreamingParts(
         stream,
         "thinking",

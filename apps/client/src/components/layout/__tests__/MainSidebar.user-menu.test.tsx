@@ -287,4 +287,16 @@ describe("MainSidebar user menu", () => {
       workspaceRail?.querySelectorAll("[data-tauri-drag-region]").length,
     ).toBeGreaterThanOrEqual(2);
   });
+
+  it("keeps the selected workspace logo square when the rail scrolls", () => {
+    renderSidebar();
+
+    const workspaceLogo = screen.getByText("WW");
+
+    expect(workspaceLogo.parentElement).toHaveClass("overflow-y-auto");
+    expect(workspaceLogo).toHaveClass("w-11");
+    expect(workspaceLogo).toHaveClass("h-11");
+    expect(workspaceLogo).toHaveClass("aspect-square");
+    expect(workspaceLogo).toHaveClass("shrink-0");
+  });
 });

@@ -132,6 +132,11 @@ export class RoutineBotService {
       .set({ tokenUsage: result.total })
       .where(eq(schema.routineExecutions.id, execution.id));
 
+    await this.db
+      .update(schema.taskRuns)
+      .set({ tokenUsage: result.total, updatedAt: new Date() })
+      .where(eq(schema.taskRuns.id, execution.id));
+
     // Return updated steps
     const steps = await this.db
       .select()
@@ -197,6 +202,11 @@ export class RoutineBotService {
       .set(executionUpdate)
       .where(eq(schema.routineExecutions.id, execution.id))
       .returning();
+
+    await this.db
+      .update(schema.taskRuns)
+      .set({ ...executionUpdate, updatedAt: now } as Record<string, unknown>)
+      .where(eq(schema.taskRuns.id, execution.id));
 
     // Update routine status
     const [updatedRoutine] = await this.db
@@ -268,6 +278,11 @@ export class RoutineBotService {
       })
       .where(eq(schema.routines.id, routineId));
 
+    await this.db
+      .update(schema.taskRuns)
+      .set({ status: 'pending_action', updatedAt: new Date() })
+      .where(eq(schema.taskRuns.id, execution.id));
+
     // Emit WebSocket event
     await this.wsGateway.broadcastToWorkspace(
       routine.tenantId,
@@ -319,10 +334,10 @@ export class RoutineBotService {
     const deliverableId = uuidv7();
 
     const [deliverable] = await this.db
-      .insert(schema.routineDeliverables)
+      .insert(schema.taskDeliverables)
       .values({
         id: deliverableId,
-        executionId: execution.id,
+        runId: execution.id,
         routineId,
         fileName: data.fileName,
         fileSize: data.fileSize ?? null,
@@ -335,11 +350,19 @@ export class RoutineBotService {
     if (execution.taskcastTaskId) {
       await this.taskCastService.publishEvent(execution.taskcastTaskId, {
         type: 'deliverable',
-        data: { deliverable },
+        data: {
+          deliverable: {
+            ...deliverable,
+            executionId: deliverable.runId,
+          },
+        },
       });
     }
 
-    return deliverable;
+    return {
+      ...deliverable,
+      executionId: deliverable.runId,
+    };
   }
 
   // ── Get routine document ────────────────────────────────────────────

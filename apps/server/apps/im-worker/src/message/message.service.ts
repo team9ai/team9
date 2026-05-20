@@ -13,11 +13,13 @@ import {
   type ImageMessagePayload,
   type ServerAckResponse,
   type CreateMessageDto,
+  type CreateMessageAttachmentDto,
   type CreateMessageResponse,
   type OutboxEventPayload,
 } from '@team9/shared';
 import { SequenceService } from '../sequence/sequence.service.js';
 import { MessageRouterService } from './message-router.service.js';
+import { AttachmentThumbnailService } from './attachment-thumbnail.service.js';
 
 const REDIS_KEYS = {
   MSG_DEDUP: (clientMsgId: string) => `im:dedup:${clientMsgId}`,
@@ -46,6 +48,7 @@ export class MessageService {
     private readonly redisService: RedisService,
     private readonly sequenceService: SequenceService,
     private readonly routerService: MessageRouterService,
+    private readonly attachmentThumbnailService?: AttachmentThumbnailService,
   ) {}
 
   /**
@@ -404,6 +407,45 @@ export class MessageService {
       .limit(limit);
   }
 
+  private async buildAttachmentValues(
+    attachments: CreateMessageAttachmentDto[],
+    messageId: string,
+  ) {
+    return Promise.all(
+      attachments.map(async (att) => {
+        const fileUrl = att.fileUrl ?? `${env.S3_PUBLIC_URL}/${att.fileKey}`;
+        const thumbnailUrl = await this.createThumbnailUrl(att);
+        return {
+          id: uuidv7(),
+          messageId,
+          fileKey: att.fileKey ?? null,
+          fileName: att.fileName,
+          fileUrl,
+          mimeType: att.mimeType,
+          fileSize: att.fileSize,
+          thumbnailUrl,
+        };
+      }),
+    );
+  }
+
+  private async createThumbnailUrl(
+    attachment: CreateMessageAttachmentDto,
+  ): Promise<string | null> {
+    if (!this.attachmentThumbnailService) {
+      return null;
+    }
+
+    try {
+      return await this.attachmentThumbnailService.createThumbnail(attachment);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create attachment thumbnail: ${(error as Error).message}`,
+      );
+      return null;
+    }
+  }
+
   // ============ HTTP API Methods (with Outbox Pattern) ============
 
   /**
@@ -470,6 +512,10 @@ export class MessageService {
         }
       }
 
+      const attachmentValues = dto.attachments?.length
+        ? await this.buildAttachmentValues(dto.attachments, msgId)
+        : [];
+
       // 5. Write message + attachments + outbox in transaction
       await this.db.transaction(async (tx) => {
         // Insert message
@@ -495,20 +541,7 @@ export class MessageService {
         //  - External pass-through: client provided fileUrl directly (e.g.
         //    capability-hub-mirrored content); store the URL as-is and
         //    leave fileKey null since the bytes are not in team9 S3.
-        if (dto.attachments?.length) {
-          const attachmentValues = dto.attachments.map((att) => {
-            const fileUrl =
-              att.fileUrl ?? `${env.S3_PUBLIC_URL}/${att.fileKey}`;
-            return {
-              id: uuidv7(),
-              messageId: msgId,
-              fileKey: att.fileKey ?? null,
-              fileName: att.fileName,
-              fileUrl,
-              mimeType: att.mimeType,
-              fileSize: att.fileSize,
-            };
-          });
+        if (attachmentValues.length) {
           await tx.insert(schema.messageAttachments).values(attachmentValues);
         }
 

@@ -1,4 +1,11 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { ForbiddenException } from '@nestjs/common';
 import { WebhookController } from './webhook.controller.js';
@@ -56,6 +63,10 @@ describe('WebhookController', () => {
     }).compile();
 
     controller = module.get<WebhookController>(WebhookController);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   // ──────────────────────────────────────────────────────────────────
@@ -151,11 +162,11 @@ describe('WebhookController', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────
-  // Execution lookup
+  // Run lookup
   // ──────────────────────────────────────────────────────────────────
 
-  describe('execution lookup', () => {
-    it('returns early when execution is not found', async () => {
+  describe('run lookup', () => {
+    it('returns early when task run is not found', async () => {
       db.limit.mockResolvedValue([]);
 
       await controller.handleTimeout(
@@ -163,7 +174,7 @@ describe('WebhookController', () => {
         'test-secret',
       );
 
-      // update should never be called if execution is absent
+      // update should never be called if the run is absent
       expect(db.update).not.toHaveBeenCalled();
     });
   });
@@ -173,7 +184,8 @@ describe('WebhookController', () => {
   // ──────────────────────────────────────────────────────────────────
 
   describe('timeout status update', () => {
-    it('updates both execution and task status to timeout on valid webhook', async () => {
+    it('updates task run and routine compatibility rows on valid webhook', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
       db.limit.mockResolvedValue([{ id: EXEC_ID, routineId: TASK_ID }]);
 
       await controller.handleTimeout(
@@ -181,16 +193,34 @@ describe('WebhookController', () => {
         'test-secret',
       );
 
-      // update() should be called twice: once for execution, once for task
-      expect(db.update).toHaveBeenCalledTimes(2);
+      // update() should be called for task run, legacy execution, and routine.
+      expect(db.update).toHaveBeenCalledTimes(3);
 
-      // set() should carry 'timeout' status for execution update
       const setCalls = db.set.mock.calls;
-      const executionSetCall = setCalls[0]?.[0] as Record<string, unknown>;
-      expect(executionSetCall).toMatchObject({ status: 'timeout' });
+      expect(setCalls[0]?.[0]).toMatchObject({
+        status: 'timeout',
+        completedAt: new Date('2026-04-02T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+      });
+      expect(setCalls[1]?.[0]).toMatchObject({
+        status: 'timeout',
+        completedAt: new Date('2026-04-02T10:00:00.000Z'),
+      });
+      expect(setCalls[2]?.[0]).toMatchObject({
+        status: 'timeout',
+        updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+      });
+    });
 
-      const taskSetCall = setCalls[1]?.[0] as Record<string, unknown>;
-      expect(taskSetCall).toMatchObject({ status: 'timeout' });
+    it('does not update routine status for an independent task run', async () => {
+      db.limit.mockResolvedValue([{ id: EXEC_ID, routineId: null }]);
+
+      await controller.handleTimeout(
+        { taskId: TASKCAST_ID, status: 'timeout' },
+        'test-secret',
+      );
+
+      expect(db.update).toHaveBeenCalledTimes(2);
     });
   });
 });
