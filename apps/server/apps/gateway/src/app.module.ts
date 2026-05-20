@@ -51,6 +51,7 @@ import { PosthogModule } from '@team9/posthog';
 import { BillingHubModule } from './billing-hub/billing-hub.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AhandModule } from './ahand/ahand.module.js';
+import { AgentTempTokenModule } from './agent-temp-token/agent-temp-token.module.js';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { AhandModule } from './ahand/ahand.module.js';
     PushModule,
     WikisModule,
     Folder9Module,
+    AgentTempTokenModule,
     AhandModule,
   ],
   controllers: [AppController, HealthController],
