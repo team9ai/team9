@@ -92,6 +92,9 @@ export const taskRuns = pgTable(
     ),
     sourceRunId: uuid('source_run_id'),
 
+    hiddenAt: timestamp('hidden_at'),
+    archivedAt: timestamp('archived_at'),
+
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -102,6 +105,8 @@ export const taskRuns = pgTable(
     index('idx_task__runs_creator_id').on(table.creatorId),
     index('idx_task__runs_channel_id').on(table.channelId),
     index('idx_task__runs_status').on(table.status),
+    index('idx_task__runs_hidden_at').on(table.hiddenAt),
+    index('idx_task__runs_archived_at').on(table.archivedAt),
     index('idx_task__runs_tenant_status').on(table.tenantId, table.status),
     unique('uq_task__runs_taskcast').on(table.taskcastTaskId),
   ],

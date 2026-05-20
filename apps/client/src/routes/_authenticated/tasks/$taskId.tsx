@@ -1,11 +1,12 @@
+import { useEffect } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PanelRightClose } from "lucide-react";
 import { ChannelView } from "@/components/channel/ChannelView";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { tasksApi } from "@/services/api/tasks";
-import type { TaskRunStatus } from "@/types/task";
+import type { TaskRunDetail, TaskRunStatus } from "@/types/task";
 
 export const Route = createFileRoute("/_authenticated/tasks/$taskId")({
   component: TaskDetailPage,
@@ -32,6 +33,7 @@ const READ_ONLY_STATUSES: TaskRunStatus[] = [
 
 function TaskDetailPage() {
   const { taskId } = Route.useParams();
+  const queryClient = useQueryClient();
 
   const {
     data: task,
@@ -43,6 +45,21 @@ function TaskDetailPage() {
     refetchInterval: (query) => (query.state.error ? false : 5000),
     retry: 0,
   });
+  const { mutate: unhideTask, isPending: isUnhidingTask } = useMutation({
+    mutationFn: (id: string) => tasksApi.unhide(id),
+    onSuccess: async (updatedTask) => {
+      queryClient.setQueryData<TaskRunDetail>(
+        ["task", updatedTask.id],
+        (old) => (old ? { ...old, hiddenAt: null } : old),
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+
+  useEffect(() => {
+    if (!task?.hiddenAt || isUnhidingTask) return;
+    unhideTask(task.id);
+  }, [isUnhidingTask, task?.hiddenAt, task?.id, unhideTask]);
 
   if (isLoading) {
     return (

@@ -5,13 +5,48 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CirclePlus, Loader2, MessageSquarePlus, Plus } from "lucide-react";
-import { useMemo } from "react";
+import {
+  Archive,
+  CirclePlus,
+  EyeOff,
+  Loader2,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Separator } from "@/components/ui/separator";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
 import { appActions } from "@/stores";
 import type { TaskRun, TaskRunStatus } from "@/types/task";
+
+const RENAME_TASK_ERROR_MESSAGE = "保存失败，请稍后重试。";
 
 const STATUS_LABELS: Record<TaskRunStatus, string> = {
   draft: "待执行",
@@ -26,13 +61,20 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
 };
 
 const TASK_NEW_CONVERSATION_PATH = "/tasks/new-conversation";
+const TASK_NEW_TASK_PATH = "/tasks/new-task";
 const TASK_SIDEBAR_ACTION_CLASS =
   "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
 
 export const TASK_SIDEBAR_MAX_VISIBLE_TASKS = 80;
+const TASK_SIDEBAR_VISIBLE_STATUSES = new Set<TaskRunStatus>([
+  "in_progress",
+  "paused",
+  "pending_action",
+  "completed",
+]);
 
 function getTaskGroupLabel(task: TaskRun) {
-  return task.routineId ? "@ 日常" : "@ 自己";
+  return task.routineId ? "@ 日常" : "我的任务";
 }
 
 function getStatusClass(status: TaskRunStatus) {
@@ -55,14 +97,26 @@ function getTaskSidebarActionClass(isSelected: boolean) {
   );
 }
 
+function isVisibleSidebarTask(task: TaskRun) {
+  return (
+    TASK_SIDEBAR_VISIBLE_STATUSES.has(task.status) &&
+    !task.hiddenAt &&
+    !task.archivedAt
+  );
+}
+
 export function TasksSubSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const params = useParams({ strict: false }) as { taskId?: string };
+  const [renamingTask, setRenamingTask] = useState<TaskRun | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
   const selectedTaskId = params.taskId;
   const isNewConversationSelected =
     location.pathname === TASK_NEW_CONVERSATION_PATH;
+  const isNewTaskSelected = location.pathname === TASK_NEW_TASK_PATH;
   const isTaskBoardSelected =
     location.pathname === "/tasks" || location.pathname === "/tasks/";
 
@@ -71,26 +125,116 @@ export function TasksSubSidebar() {
     queryFn: () => tasksApi.list(),
   });
 
-  const visibleTasks = useMemo(
-    () => tasks.slice(0, TASK_SIDEBAR_MAX_VISIBLE_TASKS),
+  const sidebarTasks = useMemo(
+    () => tasks.filter(isVisibleSidebarTask),
     [tasks],
   );
-  const hiddenTaskCount = Math.max(0, tasks.length - visibleTasks.length);
+  const visibleTasks = useMemo(
+    () => sidebarTasks.slice(0, TASK_SIDEBAR_MAX_VISIBLE_TASKS),
+    [sidebarTasks],
+  );
+  const hiddenTaskCount = Math.max(
+    0,
+    sidebarTasks.length - visibleTasks.length,
+  );
 
-  const createTask = useMutation({
-    mutationFn: () =>
-      tasksApi.create({
-        title: "新任务",
-        description: "等待补充任务目标、上下文和交付要求。",
-      }),
-    onSuccess: async (task) => {
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      void navigate({
-        to: "/tasks/$taskId",
-        params: { taskId: task.id },
-      });
+  const refreshTaskQueries = async (taskId?: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      taskId
+        ? queryClient.invalidateQueries({ queryKey: ["task", taskId] })
+        : Promise.resolve(),
+    ]);
+  };
+
+  const updateTask = useMutation({
+    mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
+      tasksApi.update(taskId, { title }),
+    onSuccess: async (updatedTask) => {
+      queryClient.setQueryData<TaskRun[]>(["tasks"], (current) =>
+        current?.map((task) =>
+          task.id === updatedTask.id ? { ...task, ...updatedTask } : task,
+        ),
+      );
+      await refreshTaskQueries(updatedTask.id);
     },
   });
+
+  const hideTask = useMutation({
+    mutationFn: (taskId: string) => tasksApi.hide(taskId),
+    onSuccess: async (updatedTask) => {
+      await refreshTaskQueries(updatedTask.id);
+    },
+  });
+
+  const archiveTask = useMutation({
+    mutationFn: (taskId: string) => tasksApi.archive(taskId),
+    onSuccess: async (updatedTask) => {
+      await refreshTaskQueries(updatedTask.id);
+    },
+  });
+
+  const deleteTask = useMutation({
+    mutationFn: (taskId: string) => tasksApi.delete(taskId),
+    onSuccess: async (_result, taskId) => {
+      await refreshTaskQueries(taskId);
+      if (selectedTaskId === taskId) {
+        void navigate({ to: "/tasks" });
+      }
+    },
+  });
+
+  const openRenameDialog = (task: TaskRun) => {
+    setRenamingTask(task);
+    setRenameTitle(task.title);
+    setRenameError(null);
+  };
+
+  const closeRenameDialog = () => {
+    setRenamingTask(null);
+    setRenameTitle("");
+    setRenameError(null);
+  };
+
+  const submitRename = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!renamingTask) return;
+
+    const title = renameTitle.trim();
+    if (!title || title === renamingTask.title) {
+      closeRenameDialog();
+      return;
+    }
+
+    setRenameError(null);
+    try {
+      await updateTask.mutateAsync({ taskId: renamingTask.id, title });
+      closeRenameDialog();
+    } catch {
+      setRenameError(RENAME_TASK_ERROR_MESSAGE);
+    }
+  };
+
+  const requestDeleteTask = (task: TaskRun) => {
+    const confirmed = window.confirm(`删除任务“${task.title}”？`);
+    if (!confirmed) return;
+
+    deleteTask.mutate(task.id);
+  };
+
+  const openTask = (task: TaskRun) => {
+    void navigate({
+      to: "/tasks/$taskId",
+      params: { taskId: task.id },
+    });
+  };
+
+  const actionHandlers = {
+    onRename: openRenameDialog,
+    onHide: (task: TaskRun) => hideTask.mutate(task.id),
+    onArchive: (task: TaskRun) => archiveTask.mutate(task.id),
+    onDelete: requestDeleteTask,
+  };
 
   const groupedTasks = useMemo(() => {
     const groups = new Map<string, TaskRun[]>();
@@ -109,6 +253,11 @@ export function TasksSubSidebar() {
   const openNewConversation = () => {
     appActions.setActiveSidebar("tasks");
     void navigate({ to: TASK_NEW_CONVERSATION_PATH });
+  };
+
+  const openNewTask = () => {
+    appActions.setActiveSidebar("tasks");
+    void navigate({ to: TASK_NEW_TASK_PATH });
   };
 
   return (
@@ -140,15 +289,10 @@ export function TasksSubSidebar() {
             </button>
             <button
               type="button"
-              disabled={createTask.isPending}
-              onClick={() => createTask.mutate()}
-              className={getTaskSidebarActionClass(false)}
+              onClick={openNewTask}
+              className={getTaskSidebarActionClass(isNewTaskSelected)}
             >
-              {createTask.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <CirclePlus className="size-4" />
-              )}
+              <CirclePlus className="size-4" />
               新任务
             </button>
             <Link
@@ -181,29 +325,13 @@ export function TasksSubSidebar() {
                 </div>
                 <div className="min-w-0 space-y-px">
                   {group.tasks.map((task) => (
-                    <Link
+                    <TaskSidebarRow
                       key={task.id}
-                      to="/tasks/$taskId"
-                      params={{ taskId: task.id }}
-                      data-testid="task-sidebar-row"
-                      className={cn(
-                        "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground",
-                        selectedTaskId === task.id &&
-                          "bg-nav-active text-nav-foreground",
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        {task.title}
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold",
-                          getStatusClass(task.status),
-                        )}
-                      >
-                        {STATUS_LABELS[task.status]}
-                      </span>
-                    </Link>
+                      task={task}
+                      isSelected={selectedTaskId === task.id}
+                      onOpen={openTask}
+                      actions={actionHandlers}
+                    />
                   ))}
                 </div>
               </div>
@@ -216,6 +344,186 @@ export function TasksSubSidebar() {
           ) : null}
         </nav>
       </div>
+
+      <Dialog
+        open={renamingTask !== null}
+        onOpenChange={(open) => {
+          if (!open) closeRenameDialog();
+        }}
+      >
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>重命名任务</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitRename} className="space-y-4">
+            <Input
+              value={renameTitle}
+              onChange={(event) => {
+                setRenameTitle(event.target.value);
+                setRenameError(null);
+              }}
+              autoFocus
+              maxLength={500}
+              aria-label="任务标题"
+            />
+            {renameError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {renameError}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeRenameDialog}
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                disabled={!renameTitle.trim() || updateTask.isPending}
+              >
+                {updateTask.isPending ? "保存中..." : "保存"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </aside>
+  );
+}
+
+interface TaskActionHandlers {
+  onRename: (task: TaskRun) => void;
+  onHide: (task: TaskRun) => void;
+  onArchive: (task: TaskRun) => void;
+  onDelete: (task: TaskRun) => void;
+}
+
+function TaskSidebarRow({
+  task,
+  isSelected,
+  onOpen,
+  actions,
+}: {
+  task: TaskRun;
+  isSelected: boolean;
+  onOpen: (task: TaskRun) => void;
+  actions: TaskActionHandlers;
+}) {
+  const open = () => onOpen(task);
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          data-testid="task-sidebar-row"
+          className={cn(
+            "group relative flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground",
+            isSelected && "bg-nav-active text-nav-foreground",
+          )}
+        >
+          <button
+            type="button"
+            onClick={open}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            <span className="min-w-0 flex-1 truncate">{task.title}</span>
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold transition-[margin] group-hover:mr-7 group-focus-within:mr-7",
+                getStatusClass(task.status),
+              )}
+            >
+              {STATUS_LABELS[task.status]}
+            </span>
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`${task.title}更多操作`}
+                onClick={(event) => event.stopPropagation()}
+                className="absolute right-1.5 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-nav-active focus:opacity-100 focus:outline-none group-hover:opacity-100 data-[state=open]:opacity-100"
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-32">
+              <DropdownTaskActionItems task={task} actions={actions} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextTaskActionItems task={task} actions={actions} />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+function DropdownTaskActionItems({
+  task,
+  actions,
+}: {
+  task: TaskRun;
+  actions: TaskActionHandlers;
+}) {
+  return (
+    <>
+      <DropdownMenuItem onSelect={() => actions.onRename(task)}>
+        <Pencil className="size-4" />
+        重命名
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.onHide(task)}>
+        <EyeOff className="size-4" />
+        隐藏
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.onArchive(task)}>
+        <Archive className="size-4" />
+        归档
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onSelect={() => actions.onDelete(task)}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash2 className="size-4" />
+        删除
+      </DropdownMenuItem>
+    </>
+  );
+}
+
+function ContextTaskActionItems({
+  task,
+  actions,
+}: {
+  task: TaskRun;
+  actions: TaskActionHandlers;
+}) {
+  return (
+    <>
+      <ContextMenuItem onSelect={() => actions.onRename(task)}>
+        <Pencil className="mr-2 size-4" />
+        重命名
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => actions.onHide(task)}>
+        <EyeOff className="mr-2 size-4" />
+        隐藏
+      </ContextMenuItem>
+      <ContextMenuItem onSelect={() => actions.onArchive(task)}>
+        <Archive className="mr-2 size-4" />
+        归档
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        onSelect={() => actions.onDelete(task)}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash2 className="mr-2 size-4" />
+        删除
+      </ContextMenuItem>
+    </>
   );
 }

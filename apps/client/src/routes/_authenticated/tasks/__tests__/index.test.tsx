@@ -6,6 +6,7 @@ import type { TaskRun } from "@/types/task";
 
 const mockNavigate = vi.fn();
 const mockListTasks = vi.fn();
+const mockUnhideTask = vi.fn();
 const MAX_VISIBLE_CARDS_PER_COLUMN = 50;
 
 vi.mock("@tanstack/react-router", () => ({
@@ -22,12 +23,18 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/services/api/tasks", () => ({
   tasksApi: {
     list: () => mockListTasks(),
+    unhide: (id: string) => mockUnhideTask(id),
   },
 }));
 
 import { Route as TasksRoute } from "../index";
 
-function makeTask(overrides: Partial<TaskRun>): TaskRun {
+function makeTask(
+  overrides: Partial<TaskRun> & {
+    hiddenAt?: string | null;
+    archivedAt?: string | null;
+  },
+): TaskRun {
   return {
     id: "run-1",
     tenantId: "tenant-1",
@@ -50,6 +57,8 @@ function makeTask(overrides: Partial<TaskRun>): TaskRun {
     triggerContext: null,
     documentVersionId: null,
     sourceRunId: null,
+    hiddenAt: null,
+    archivedAt: null,
     createdAt: "2026-05-14T00:00:00.000Z",
     updatedAt: "2026-05-14T00:00:00.000Z",
     ...overrides,
@@ -73,6 +82,8 @@ function renderRoute() {
 describe("/_authenticated/tasks/ index route", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockUnhideTask.mockReset();
+    mockUnhideTask.mockResolvedValue({ id: "run-1" });
     mockListTasks.mockResolvedValue([
       makeTask({
         id: "pending-1",
@@ -128,6 +139,41 @@ describe("/_authenticated/tasks/ index route", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/tasks/$taskId",
       params: { taskId: "running-1" },
+    });
+  });
+
+  it("unhides a hidden task before opening it from the board", async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({
+        id: "hidden-running-1",
+        title: "隐藏的执行任务",
+        status: "in_progress",
+        hiddenAt: "2026-05-21T00:00:00.000Z",
+      }),
+    ]);
+
+    renderRoute();
+
+    fireEvent.click(await screen.findByText("隐藏的执行任务"));
+
+    await vi.waitFor(() => {
+      expect(mockUnhideTask).toHaveBeenCalledWith("hidden-running-1");
+    });
+    await vi.waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/tasks/$taskId",
+        params: { taskId: "hidden-running-1" },
+      });
+    });
+  });
+
+  it("opens the task draft page from the add task button", async () => {
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole("button", { name: /新增任务/ }));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/tasks/new-task",
     });
   });
 
