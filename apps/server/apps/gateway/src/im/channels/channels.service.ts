@@ -150,7 +150,10 @@ interface ChannelListOptions {
 
 const GROUP_CHANNEL_TYPES = ['public', 'private'] as const;
 const DIRECT_CHANNEL_TYPES = ['direct', 'echo'] as const;
-const EXCLUDE_DEEP_RESEARCH_CHILD_CHANNELS = sql`
+// Built lazily (as a function) rather than at module load so importing this
+// service does not eagerly dereference schema.channels — some specs mock
+// @team9/database/schemas with only the columns the test under inspection needs.
+const excludeDeepResearchChildChannels = () => sql`
   (${schema.channels.propertySettings}->'deepResearchSession') IS NULL
 `;
 
@@ -1460,7 +1463,7 @@ export class ChannelsService {
         and(
           eq(schema.channelMembers.userId, userId),
           isNull(schema.channelMembers.leftAt),
-          EXCLUDE_DEEP_RESEARCH_CHILD_CHANNELS,
+          excludeDeepResearchChildChannels(),
           tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
           requestedTypes
             ? inArray(schema.channels.type, requestedTypes)
@@ -1626,7 +1629,7 @@ export class ChannelsService {
       .where(
         and(
           inArray(schema.channels.id, channelIds),
-          EXCLUDE_DEEP_RESEARCH_CHILD_CHANNELS,
+          excludeDeepResearchChildChannels(),
           requestedTypes
             ? inArray(schema.channels.type, requestedTypes)
             : notInArray(schema.channels.type, ['direct', 'echo']),
