@@ -4,6 +4,7 @@ import wsService from "@/services/websocket";
 import type { ChannelWithUnread, Message } from "@/types/im";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 import type { TopicSessionGroup } from "@/services/api/im";
+import type { TaskRun, TaskRunDetail } from "@/types/task";
 import type {
   ReadStatusUpdatedEvent,
   UserOnlineEvent,
@@ -22,6 +23,7 @@ import type {
   MessageRelationChangedEvent,
   MessageRelationsPurgedEvent,
   TopicSessionUpdatedEvent,
+  TaskUpdatedEvent,
 } from "@/types/ws-events";
 import { relationKeys } from "@/lib/query-client";
 import { useAppStore, useSelectedWorkspaceId, useUser } from "@/stores";
@@ -147,6 +149,30 @@ export function useWebSocketEvents() {
       );
 
       invalidateTopicSessions();
+    };
+
+    const handleTaskUpdated = (event: TaskUpdatedEvent) => {
+      const title = event.title;
+      if (title !== undefined) {
+        queryClient.setQueryData(["tasks"], (old: TaskRun[] | undefined) => {
+          if (!old) return old;
+          let changed = false;
+          const next = old.map((task) => {
+            if (task.id !== event.taskId) return task;
+            changed = true;
+            return { ...task, title };
+          });
+          return changed ? next : old;
+        });
+
+        queryClient.setQueryData(
+          ["task", event.taskId],
+          (old: TaskRunDetail | undefined) => (old ? { ...old, title } : old),
+        );
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task", event.taskId] });
     };
 
     // Handle new message - immediately increment unread count
@@ -632,6 +658,9 @@ export function useWebSocketEvents() {
     wsService.on("topic_session_updated", handleTopicSessionUpdated);
     wsService.on("topic_session_deleted", invalidateTopicSessions);
 
+    // Task events
+    wsService.on("task_updated", handleTaskUpdated);
+
     // Message events for unread counts
     wsService.on("new_message", handleNewMessage);
     wsService.on("read_status_updated", handleReadStatusUpdated);
@@ -688,6 +717,9 @@ export function useWebSocketEvents() {
       wsService.off("topic_session_created", invalidateTopicSessions);
       wsService.off("topic_session_updated", handleTopicSessionUpdated);
       wsService.off("topic_session_deleted", invalidateTopicSessions);
+
+      // Task events
+      wsService.off("task_updated", handleTaskUpdated);
 
       // Message events
       wsService.off("new_message", handleNewMessage);

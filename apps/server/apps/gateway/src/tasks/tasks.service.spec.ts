@@ -91,6 +91,9 @@ describe('TasksService', () => {
   let taskCastService: {
     createTask: jest.Mock;
   };
+  let taskTitleGenerator: {
+    generateForRun: jest.Mock;
+  };
 
   beforeEach(() => {
     uuidCounter = 0;
@@ -122,6 +125,9 @@ describe('TasksService', () => {
     taskCastService = {
       createTask: jest.fn().mockResolvedValue('agent_task_exec_uuid-1'),
     };
+    taskTitleGenerator = {
+      generateForRun: jest.fn().mockResolvedValue(null),
+    };
     service = new (TasksService as unknown as new (
       ...args: unknown[]
     ) => InstanceType<typeof TasksService>)(
@@ -129,7 +135,7 @@ describe('TasksService', () => {
       clawHive,
       imWorkerGrpc,
       taskCastService,
-      gatewayMQ,
+      taskTitleGenerator,
     );
   });
 
@@ -178,6 +184,10 @@ describe('TasksService', () => {
       description: '整理首轮触达建议',
       status: 'upcoming',
       channelId: 'uuid-2',
+    });
+    expect(taskTitleGenerator.generateForRun).toHaveBeenCalledWith({
+      runId: 'uuid-1',
+      expectedCurrentTitle: '找 20 位 KOC',
     });
   });
 

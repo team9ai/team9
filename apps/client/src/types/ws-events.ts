@@ -120,6 +120,11 @@ export const WS_EVENTS = {
     UPDATED: "routine:updated",
   },
 
+  // Task events
+  TASK: {
+    UPDATED: "task_updated",
+  },
+
   // AI Streaming (Bot)
   STREAMING: {
     START: "streaming_start",
@@ -257,6 +262,12 @@ export interface ChannelModelChangedEvent {
 export interface TopicSessionUpdatedEvent {
   channelId: string;
   title: string;
+}
+
+/** Task metadata updated event */
+export interface TaskUpdatedEvent {
+  taskId: string;
+  title?: string;
 }
 
 // ==================== Message Event Types ====================
