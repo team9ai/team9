@@ -44,6 +44,7 @@ function TaskDetailPage() {
 }
 
 function TaskRunDetailPage({ taskId }: { taskId: string }) {
+  const queryClient = useQueryClient();
   const {
     data: task,
     isLoading,
@@ -56,10 +57,25 @@ function TaskRunDetailPage({ taskId }: { taskId: string }) {
   });
   const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
   const channelId = task?.channelId ?? null;
+  const { mutate: unhideTask, isPending: isUnhidingTask } = useMutation({
+    mutationFn: (id: string) => tasksApi.unhide(id),
+    onSuccess: async (updatedTask) => {
+      queryClient.setQueryData<TaskRunDetail>(
+        ["task", updatedTask.id],
+        (old) => (old ? { ...old, hiddenAt: null } : old),
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
 
   useEffect(() => {
     setIsAgentSessionPanelOpen(false);
   }, [channelId, taskId]);
+
+  useEffect(() => {
+    if (!task?.hiddenAt || isUnhidingTask) return;
+    unhideTask(task.id);
+  }, [isUnhidingTask, task?.hiddenAt, task?.id, unhideTask]);
 
   if (isLoading) {
     return (

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetTaskById = vi.fn();
 const mockStartTaskRun = vi.fn();
+const mockUnhideTask = vi.fn();
 let taskId = "task-1";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/services/api/tasks", () => ({
   tasksApi: {
     getById: (id: string) => mockGetTaskById(id),
     start: (id: string, dto: unknown) => mockStartTaskRun(id, dto),
+    unhide: (id: string) => mockUnhideTask(id),
   },
 }));
 
@@ -65,6 +67,8 @@ describe("/_authenticated/tasks/$taskId route", () => {
     taskId = "task-1";
     mockGetTaskById.mockReset();
     mockStartTaskRun.mockReset();
+    mockUnhideTask.mockReset();
+    mockUnhideTask.mockResolvedValue({ id: "task-1" });
   });
 
   it("renders the task creation composer when the reserved new-task slug reaches the dynamic route", () => {
@@ -128,5 +132,25 @@ describe("/_authenticated/tasks/$taskId route", () => {
     fireEvent.click(screen.getByRole("button", { name: "关闭 Session 面板" }));
 
     expect(screen.queryByText("Agent Session Panel")).not.toBeInTheDocument();
+  });
+
+  it("unhides a hidden task when its detail route is opened", async () => {
+    mockGetTaskById.mockResolvedValue({
+      id: "task-1",
+      title: "隐藏过的任务",
+      description: "点开后恢复显示",
+      status: "completed",
+      channelId: "channel-1",
+      hiddenAt: "2026-05-21T00:00:00.000Z",
+      archivedAt: null,
+    });
+
+    renderRoute();
+
+    await screen.findByText("隐藏过的任务");
+
+    await waitFor(() => {
+      expect(mockUnhideTask).toHaveBeenCalledWith("task-1");
+    });
   });
 });

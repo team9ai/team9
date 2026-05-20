@@ -4,6 +4,7 @@ import type {
   TaskDeliverable,
   TaskRun,
   TaskRunDetail,
+  UpdateTaskRunDto,
 } from "@/types/task";
 import type {
   Routine,
@@ -19,7 +20,9 @@ interface StartTaskRunDto {
   message?: string;
 }
 
-function isTaskRouteMissing(error: unknown, method: "GET" | "POST") {
+type TaskRouteMethod = "DELETE" | "GET" | "PATCH" | "POST";
+
+function isTaskRouteMissing(error: unknown, method: TaskRouteMethod) {
   const response = getErrorResponse(error);
   const message = response?.data?.message;
 
@@ -38,7 +41,7 @@ function isTaskRunMissing(error: unknown) {
   );
 }
 
-function shouldFallbackToRoutine(error: unknown, method: "GET" | "POST") {
+function shouldFallbackToRoutine(error: unknown, method: TaskRouteMethod) {
   return isTaskRouteMissing(error, method) || isTaskRunMissing(error);
 }
 
@@ -86,6 +89,8 @@ function mapRoutineToTaskRun(routine: Routine): TaskRun {
     triggerContext: null,
     documentVersionId: null,
     sourceRunId: null,
+    hiddenAt: null,
+    archivedAt: null,
     createdAt: routine.createdAt,
     updatedAt: routine.updatedAt,
   };
@@ -176,6 +181,47 @@ export const tasksApi = {
       }
 
       await http.post(`/v1/routines/${id}/start`, dto);
+    }
+  },
+
+  update: async (id: string, dto: UpdateTaskRunDto): Promise<TaskRun> => {
+    try {
+      const response = await http.patch<TaskRun>(`/v1/tasks/${id}`, dto);
+      return response.data;
+    } catch (error) {
+      if (!shouldFallbackToRoutine(error, "PATCH")) {
+        throw error;
+      }
+
+      const response = await http.patch<Routine>(`/v1/routines/${id}`, dto);
+      return mapRoutineToTaskRun(response.data);
+    }
+  },
+
+  hide: async (id: string): Promise<TaskRun> => {
+    const response = await http.post<TaskRun>(`/v1/tasks/${id}/hide`);
+    return response.data;
+  },
+
+  unhide: async (id: string): Promise<TaskRun> => {
+    const response = await http.post<TaskRun>(`/v1/tasks/${id}/unhide`);
+    return response.data;
+  },
+
+  archive: async (id: string): Promise<TaskRun> => {
+    const response = await http.post<TaskRun>(`/v1/tasks/${id}/archive`);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    try {
+      await http.delete(`/v1/tasks/${id}`);
+    } catch (error) {
+      if (!shouldFallbackToRoutine(error, "DELETE")) {
+        throw error;
+      }
+
+      await http.delete(`/v1/routines/${id}`);
     }
   },
 

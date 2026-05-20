@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -17,6 +18,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { CreateTaskRunDto } from './dto/create-task-run.dto.js';
+import type { UpdateTaskRunDto } from './dto/update-task-run.dto.js';
 import { ImWorkerGrpcClientService } from '../im/services/im-worker-grpc-client.service.js';
 import { TaskCastService } from '../routines/taskcast.service.js';
 import { TaskTitleGeneratorService } from './task-title-generator.service.js';
@@ -272,6 +274,122 @@ export class TasksService {
       .orderBy(desc(schema.taskDeliverables.createdAt));
   }
 
+  async update(
+    runId: string,
+    dto: UpdateTaskRunDto,
+    userId: string,
+    tenantId: string,
+  ) {
+    const run = await this.getRunForMutationOrThrow(runId, userId, tenantId);
+    const updateData: Partial<schema.NewTaskRun> = {};
+
+    if (dto.title !== undefined) {
+      const title = dto.title.trim();
+      if (!title) {
+        throw new BadRequestException('Task title cannot be empty');
+      }
+      updateData.title = title;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return run;
+    }
+
+    const [updated] = await this.db
+      .update(schema.taskRuns)
+      .set({
+        ...updateData,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .returning();
+
+    return updated ?? { ...run, ...updateData, updatedAt: new Date() };
+  }
+
+  async hide(runId: string, userId: string, tenantId: string) {
+    await this.getRunForMutationOrThrow(runId, userId, tenantId);
+    const now = new Date();
+
+    const [updated] = await this.db
+      .update(schema.taskRuns)
+      .set({
+        hiddenAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .returning();
+
+    return updated;
+  }
+
+  async unhide(runId: string, userId: string, tenantId: string) {
+    await this.getRunForMutationOrThrow(runId, userId, tenantId);
+
+    const [updated] = await this.db
+      .update(schema.taskRuns)
+      .set({
+        hiddenAt: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .returning();
+
+    return updated;
+  }
+
+  async archive(runId: string, userId: string, tenantId: string) {
+    await this.getRunForMutationOrThrow(runId, userId, tenantId);
+    const now = new Date();
+
+    const [updated] = await this.db
+      .update(schema.taskRuns)
+      .set({
+        archivedAt: now,
+        hiddenAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .returning();
+
+    return updated;
+  }
+
+  async delete(runId: string, userId: string, tenantId: string) {
+    await this.getRunForMutationOrThrow(runId, userId, tenantId);
+
+    await this.db
+      .delete(schema.taskRuns)
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      );
+
+    return { success: true };
+  }
+
   private async getRunOrThrow(runId: string, tenantId: string) {
     const [run] = await this.db
       .select({ id: schema.taskRuns.id })
@@ -286,6 +404,33 @@ export class TasksService {
 
     if (!run) {
       throw new NotFoundException('Task run not found');
+    }
+
+    return run;
+  }
+
+  private async getRunForMutationOrThrow(
+    runId: string,
+    userId: string,
+    tenantId: string,
+  ) {
+    const [run] = await this.db
+      .select()
+      .from(schema.taskRuns)
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+
+    if (!run) {
+      throw new NotFoundException('Task run not found');
+    }
+
+    if (run.creatorId !== userId) {
+      throw new ForbiddenException('Cannot modify another user task run');
     }
 
     return run;

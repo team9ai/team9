@@ -1,15 +1,18 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { CreateTaskRunDto } from './dto/create-task-run.dto.js';
+import { UpdateTaskRunDto } from './dto/update-task-run.dto.js';
 import { TasksService } from './tasks.service.js';
 
 @Controller({
@@ -40,6 +43,52 @@ export class TasksController {
     @CurrentTenantId() tenantId: string,
   ) {
     return this.tasksService.getById(runId, tenantId);
+  }
+
+  @Patch(':runId')
+  async update(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @Body() dto: UpdateTaskRunDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.update(runId, dto, userId, tenantId);
+  }
+
+  @Post(':runId/hide')
+  async hide(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.hide(runId, userId, tenantId);
+  }
+
+  @Post(':runId/unhide')
+  async unhide(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.unhide(runId, userId, tenantId);
+  }
+
+  @Post(':runId/archive')
+  async archive(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.archive(runId, userId, tenantId);
+  }
+
+  @Delete(':runId')
+  async delete(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.delete(runId, userId, tenantId);
   }
 
   @Post(':runId/start')

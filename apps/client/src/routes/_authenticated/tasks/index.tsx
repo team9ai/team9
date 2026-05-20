@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   Filter,
@@ -75,6 +75,7 @@ const INITIAL_VISIBLE_COUNTS: Record<TaskColumnKey, number> = {
 function TasksPage() {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [visibleCounts, setVisibleCounts] = useState(INITIAL_VISIBLE_COUNTS);
 
   const { data: tasks = [], isLoading } = useQuery({
@@ -91,7 +92,9 @@ function TasksPage() {
     };
 
     for (const [index, task] of tasks.entries()) {
-      const key = TASK_COLUMN_BY_STATUS.get(task.status) ?? "pending";
+      const key = task.archivedAt
+        ? "archived"
+        : (TASK_COLUMN_BY_STATUS.get(task.status) ?? "pending");
       const column = initial[key];
       column.totalCount += 1;
 
@@ -105,10 +108,19 @@ function TasksPage() {
   }, [tasks]);
 
   const openTask = (task: TaskRun) => {
-    void navigate({
-      to: "/tasks/$taskId",
-      params: { taskId: task.id },
-    });
+    void (async () => {
+      try {
+        if (task.hiddenAt) {
+          await tasksApi.unhide(task.id);
+          await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        }
+      } finally {
+        void navigate({
+          to: "/tasks/$taskId",
+          params: { taskId: task.id },
+        });
+      }
+    })();
   };
 
   const openNewTask = () => {
@@ -268,7 +280,7 @@ function TaskCard({
   code: string;
   onClick: () => void;
 }) {
-  const agentLabel = task.botId ? "@Agent" : "@自己";
+  const agentLabel = task.botId ? "@Agent" : "我的任务";
 
   return (
     <button

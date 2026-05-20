@@ -45,6 +45,16 @@ function createUpdateBuilder(plan: UpdatePlan, updatedValues: unknown[]) {
   return chain;
 }
 
+function createDeleteBuilder() {
+  const chain: Record<string, jest.Mock> = {
+    where: jest.fn(),
+  };
+
+  chain.where.mockResolvedValue(undefined);
+
+  return chain;
+}
+
 function createSelectBuilder(result: unknown[]) {
   const chain: Record<string, jest.Mock> = {
     from: jest.fn(),
@@ -75,6 +85,7 @@ describe('TasksService', () => {
     insert: jest.Mock;
     select: jest.Mock;
     update: jest.Mock;
+    delete: jest.Mock;
   };
   let service: InstanceType<typeof TasksService>;
   let clawHive: {
@@ -110,6 +121,7 @@ describe('TasksService', () => {
       update: jest.fn(() =>
         createUpdateBuilder(updatePlans.shift() ?? {}, updatedValues),
       ),
+      delete: jest.fn(() => createDeleteBuilder()),
     };
     clawHive = {
       createSession: jest.fn().mockResolvedValue(undefined),
@@ -288,5 +300,90 @@ describe('TasksService', () => {
     await expect(service.list('tenant-1')).resolves.toEqual([{ id: 'run-1' }]);
 
     expect(selectChain.limit).toHaveBeenCalledWith(200);
+  });
+
+  it('renames a task run with a trimmed title', async () => {
+    const existingRun = {
+      id: 'run-1',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'Old title',
+    };
+    const updatedRun = {
+      ...existingRun,
+      title: 'New title',
+    };
+    selectResults.push([existingRun]);
+    updatePlans.push({ returning: [updatedRun] });
+
+    await expect(
+      service.update(
+        'run-1',
+        {
+          title: '  New title  ',
+        },
+        'user-1',
+        'tenant-1',
+      ),
+    ).resolves.toEqual(updatedRun);
+
+    expect(updatedValues[0]).toMatchObject({
+      title: 'New title',
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('hides, unhides, and archives task runs with timestamp metadata', async () => {
+    const existingRun = {
+      id: 'run-1',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'Task',
+      status: 'completed',
+    };
+
+    selectResults.push([existingRun], [existingRun], [existingRun]);
+    updatePlans.push(
+      { returning: [{ ...existingRun, hiddenAt: new Date() }] },
+      { returning: [{ ...existingRun, hiddenAt: null }] },
+      { returning: [{ ...existingRun, archivedAt: new Date() }] },
+    );
+
+    await service.hide('run-1', 'user-1', 'tenant-1');
+    await service.unhide('run-1', 'user-1', 'tenant-1');
+    await service.archive('run-1', 'user-1', 'tenant-1');
+
+    expect(updatedValues[0]).toMatchObject({
+      hiddenAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    });
+    expect(updatedValues[1]).toMatchObject({
+      hiddenAt: null,
+      updatedAt: expect.any(Date),
+    });
+    expect(updatedValues[2]).toMatchObject({
+      archivedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    });
+  });
+
+  it('deletes task runs owned by the requester', async () => {
+    const existingRun = {
+      id: 'run-1',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'Task',
+      status: 'completed',
+    };
+
+    selectResults.push([existingRun]);
+
+    await expect(
+      service.delete('run-1', 'user-1', 'tenant-1'),
+    ).resolves.toEqual({
+      success: true,
+    });
+
+    expect(db.delete).toHaveBeenCalledTimes(1);
   });
 });

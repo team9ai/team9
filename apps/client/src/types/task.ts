@@ -31,6 +31,8 @@ export interface TaskRun {
   triggerContext: Record<string, unknown> | null;
   documentVersionId: string | null;
   sourceRunId: string | null;
+  hiddenAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,4 +61,8 @@ export interface CreateTaskRunDto {
   executeImmediately?: boolean;
   triggerMode?: TaskRunTriggerMode;
   scheduledAt?: string;
+}
+
+export interface UpdateTaskRunDto {
+  title?: string;
 }

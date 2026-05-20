@@ -449,6 +449,13 @@
       "when": 1779235200000,
       "tag": "0063_task_channel_fk_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1779321600000,
+      "tag": "0064_task_visibility",
+      "breakpoints": true
     }
   ]
 }
