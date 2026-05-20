@@ -16,12 +16,13 @@ vi.mock("@tanstack/react-router", () => ({
     children,
     onClick,
     className,
+    ...props
   }: {
     children: ReactNode;
     onClick?: () => void;
     className?: string;
-  }) => (
-    <button type="button" onClick={onClick} className={className}>
+  } & Record<string, unknown>) => (
+    <button type="button" onClick={onClick} className={className} {...props}>
       {children}
     </button>
   ),
@@ -37,7 +38,10 @@ vi.mock("@/services/api/tasks", () => ({
   },
 }));
 
-import { TasksSubSidebar } from "../TasksSubSidebar";
+import {
+  TASK_SIDEBAR_MAX_VISIBLE_TASKS,
+  TasksSubSidebar,
+} from "../TasksSubSidebar";
 
 function makeTaskRun(overrides: Partial<TaskRun> = {}): TaskRun {
   return {
@@ -154,16 +158,42 @@ describe("TasksSubSidebar", () => {
       }),
     ]);
 
-    const { container } = renderTasksSubSidebar();
+    renderTasksSubSidebar();
 
     const taskTitle = await screen.findByText(longTitle);
     const taskRow = taskTitle.closest("button");
-    const scrollArea = container.querySelector("[data-slot='scroll-area']");
+    const taskScroller = screen.getByTestId("tasks-sub-sidebar-scroll");
 
-    expect(scrollArea).toHaveClass(
-      "[&>[data-slot=scroll-area-viewport]>div]:block!",
-    );
+    expect(taskScroller).toHaveClass("overflow-y-auto");
+    expect(taskScroller.querySelector("[data-slot='scroll-area']")).toBeNull();
     expect(taskRow).toHaveClass("max-w-full", "overflow-hidden");
     expect(taskTitle).toHaveClass("min-w-0", "flex-1", "truncate");
+  });
+
+  it("caps rendered task rows so the Mac sidebar does not lay out every archived task", async () => {
+    const tasks = Array.from(
+      { length: TASK_SIDEBAR_MAX_VISIBLE_TASKS + 3 },
+      (_, index) =>
+        makeTaskRun({
+          id: `task-${index + 1}`,
+          title: `Task ${index + 1}`,
+          status: index % 2 === 0 ? "completed" : "failed",
+        }),
+    );
+    mockListTasks.mockResolvedValue(tasks);
+
+    renderTasksSubSidebar();
+
+    await screen.findByText("Task 1");
+
+    expect(screen.getAllByTestId("task-sidebar-row")).toHaveLength(
+      TASK_SIDEBAR_MAX_VISIBLE_TASKS,
+    );
+    expect(
+      screen.queryByText(`Task ${TASK_SIDEBAR_MAX_VISIBLE_TASKS + 1}`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("还有 3 个任务，可在任务看板查看。"),
+    ).toBeInTheDocument();
   });
 });

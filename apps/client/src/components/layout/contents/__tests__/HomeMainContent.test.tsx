@@ -11,6 +11,7 @@ const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
 const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
+const mockCreateTaskRun = vi.hoisted(() => vi.fn());
 const mockUseFileUpload = vi.hoisted(() => vi.fn());
 const mockUploadState = vi.hoisted(() => ({
   uploadingFiles: [] as Array<{
@@ -49,6 +50,19 @@ const translationMap: Record<
   dashboardDeepResearchTemplate: "Please run a deep research task...",
   dashboardActionVideoGeneration: "Create video",
   dashboardVideoGenerationTemplate: "Please generate a short video...",
+  dashboardModeSwitchLabel: "Dashboard mode",
+  dashboardActionConversationMode: "Conversation mode",
+  dashboardActionTaskMode: "Task mode",
+  dashboardTaskTriggerSettings: "Task trigger settings",
+  dashboardTaskExecuteImmediately: "Run after creation",
+  dashboardTaskTriggerScheduled: "Schedule for a specific time",
+  dashboardTaskTriggerCreateOnly: "Create only",
+  dashboardTaskTriggerScheduledAt: "Execution time",
+  dashboardTaskTriggerDone: "Done",
+  dashboardTaskTitle: "创建一个新任务",
+  dashboardTaskPromptPlaceholder: "描述任务目标、对象、约束和交付物",
+  dashboardTaskAgentGroupTitle: (options) => `Agents ${options?.count ?? 0}`,
+  dashboardTaskAgentsViewAll: "查看全部",
   dashboardActionGenerateImage: "Generate image",
   dashboardPlan: "Free plan",
   dashboardUpgrade: "Upgrade",
@@ -98,6 +112,8 @@ vi.mock("@/hooks/useWorkspaceBilling", () => ({
 }));
 
 vi.mock("@/stores", () => ({
+  HOME_ENTRY_PATH: "/tasks/new-conversation",
+  TASK_ENTRY_PATH: "/tasks/new-task",
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
   useUser: mockUseUser,
 }));
@@ -108,6 +124,12 @@ vi.mock("@/hooks/useTopicSessions", () => ({
 
 vi.mock("@/hooks/useFileUpload", () => ({
   useFileUpload: mockUseFileUpload,
+}));
+
+vi.mock("@/services/api/tasks", () => ({
+  tasksApi: {
+    create: mockCreateTaskRun,
+  },
 }));
 
 import { HomeMainContent } from "../HomeMainContent";
@@ -241,6 +263,9 @@ describe("HomeMainContent", () => {
       title: null,
       createdAt: "2024-01-01T00:00:00.000Z",
     });
+    mockCreateTaskRun.mockResolvedValue({
+      id: "task-run-new",
+    });
     mockUseCreateTopicSession.mockReturnValue({
       mutateAsync: mockCreateTopicSessionMutate,
       isPending: false,
@@ -283,8 +308,19 @@ describe("HomeMainContent", () => {
     // Video generation chip injects a prompt template that routes through the
     // normal topic-session pipeline — no special endpoints.
     expect(screen.getByText(/create video/i)).toBeInTheDocument();
-    expect(screen.getByText("Starter")).toBeInTheDocument();
-    expect(screen.getByText("5,875")).toBeInTheDocument();
+    const planCreditsPill = screen.getByTestId("dashboard-plan-credits-pill");
+    expect(within(planCreditsPill).getByText("Starter")).toBeInTheDocument();
+    expect(within(planCreditsPill).getByText("5,875")).toBeInTheDocument();
+    expect(
+      within(planCreditsPill).queryByRole("button", { name: "Upgrade" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /conversation mode/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger.className).toContain("cursor-pointer");
@@ -698,7 +734,180 @@ describe("HomeMainContent", () => {
     ).toBeInTheDocument();
   });
 
-  it("falls back to the free plan label when no subscription exists", () => {
+  it("animates mode switching in place while preserving the composer draft", () => {
+    renderWithProviders(<HomeMainContent />);
+
+    const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
+    expect(
+      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("transition-transform");
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "keep this draft" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: /task mode/i }));
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+    ).toHaveValue("keep this draft");
+    expect(
+      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("translate-x-[calc(100%+0.25rem)]");
+
+    fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
+      "keep this draft",
+    );
+  });
+
+  it("uses the task draft copy and real agent data in task mode", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    expect(
+      screen.getByRole("heading", { name: "创建一个新任务" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+    ).toBeInTheDocument();
+    const taskAgentsSection = screen.getByText("Agents 2").closest("section");
+    expect(taskAgentsSection).not.toBeNull();
+    const taskAgents = within(taskAgentsSection!);
+
+    expect(taskAgents.getByText("查看全部")).toBeInTheDocument();
+    expect(taskAgents.getByText("Alpha Agent")).toBeInTheDocument();
+    expect(taskAgents.getByText("@alpha_agent")).toBeInTheDocument();
+    expect(taskAgents.getByText("Beta Agent")).toBeInTheDocument();
+    expect(taskAgents.getByText("@beta_agent")).toBeInTheDocument();
+    expect(taskAgents.queryByText("@网红营销 BD")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Run after creation" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Beta Agent/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "让 beta 处理这个任务" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith(
+        expect.objectContaining({ botId: "bot-2" }),
+      );
+    });
+  });
+
+  it("creates a task run from the task-mode prompt and navigates to the task", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "找 20 位 KOC\n整理首轮触达建议" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith({
+        title: "找 20 位 KOC",
+        description: "找 20 位 KOC\n整理首轮触达建议",
+        botId: "bot-1",
+        executeImmediately: true,
+        triggerMode: "immediate",
+      });
+    });
+    await vi.waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/tasks/$taskId",
+        params: { taskId: "task-run-new" },
+      });
+    });
+  });
+
+  it("creates a task run without immediate execution when create-only is selected", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run after creation" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Task trigger settings" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Create only"));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(
+      screen.getByRole("button", { name: "Create only" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "整理候选达人列表" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith({
+        title: "整理候选达人列表",
+        description: "整理候选达人列表",
+        botId: "bot-1",
+        executeImmediately: false,
+        triggerMode: "create_only",
+      });
+    });
+  });
+
+  it("keeps the scheduled task trigger time in the create payload", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run after creation" }));
+    fireEvent.click(screen.getByLabelText("Schedule for a specific time"));
+    fireEvent.change(screen.getByLabelText("Execution time"), {
+      target: { value: "2026-05-21T10:30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(
+      screen.getByRole("button", { name: "Schedule for a specific time" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "明天上午整理候选达人列表" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith({
+        title: "明天上午整理候选达人列表",
+        description: "明天上午整理候选达人列表",
+        botId: "bot-1",
+        executeImmediately: false,
+        triggerMode: "scheduled",
+        scheduledAt: "2026-05-21T10:30",
+      });
+    });
+  });
+
+  it("keeps the upgrade action in the plan capsule for free workspaces", () => {
     mockUseWorkspaceBillingSummary.mockReturnValue({
       data: {
         subscription: null,
@@ -711,8 +920,17 @@ describe("HomeMainContent", () => {
 
     renderWithProviders(<HomeMainContent />);
 
-    expect(screen.getByText("Free plan")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    const planCreditsPill = screen.getByTestId("dashboard-plan-credits-pill");
+    expect(within(planCreditsPill).getByText("Free plan")).toBeInTheDocument();
+    expect(within(planCreditsPill).getByText("—")).toBeInTheDocument();
+    fireEvent.click(
+      within(planCreditsPill).getByRole("button", { name: "Upgrade" }),
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/subscription",
+      search: { view: "plans", source: "home" },
+    });
   });
 
   it("shows the workspace credit balance to non-managing members", () => {

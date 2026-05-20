@@ -445,7 +445,7 @@ describe('SchedulerService', () => {
     });
   });
 
-  it('does not advance trigger run times when execution is not started', async () => {
+  it('advances trigger run times even when the execution attempt fails to start', async () => {
     const trigger = {
       id: 'trigger-skipped',
       routineId: 'task-skipped',
@@ -466,7 +466,12 @@ describe('SchedulerService', () => {
         scheduledAt: '2026-04-02T09:00:00.000Z',
       },
     });
-    expect(db.update).not.toHaveBeenCalled();
+    expect(db.update).toHaveBeenCalled();
+    expect(updateChain.set).toHaveBeenCalledWith({
+      nextRunAt: new Date('2026-04-02T11:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
   });
 
   it('uses schedule configs and leaves nextRunAt null for unsupported trigger types', async () => {

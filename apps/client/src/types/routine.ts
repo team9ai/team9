@@ -185,6 +185,7 @@ export interface CreateRoutineDto {
   title: string;
   botId?: string;
   description?: string;
+  status?: "draft" | "upcoming";
   /** @deprecated Use triggers field instead */
   scheduleType?: RoutineScheduleType;
   /** @deprecated Use triggers field instead */

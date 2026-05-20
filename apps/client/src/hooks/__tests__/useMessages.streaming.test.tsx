@@ -19,6 +19,7 @@ const streamStore = vi.hoisted(() => ({
   setStreamContent: vi.fn(),
   setThinkingContent: vi.fn(),
   setStreamMetadata: vi.fn(),
+  closeThinkingForSender: vi.fn(),
   endStream: vi.fn(),
   abortStream: vi.fn(),
 }));
@@ -215,6 +216,81 @@ describe("useMessages streaming events", () => {
     mockImApi.messages.getMessages.mockResolvedValue([]);
     mockImApi.messages.getMessagesPaginated.mockReset();
     mockImApi.messages.sendMessage.mockReset();
+  });
+
+  it("closes active thinking when a later tracking tool call arrives in useMessages", async () => {
+    const { wrapper } = makeWrapper();
+    renderHook(() => useMessages("ch-1"), { wrapper });
+
+    await waitFor(() =>
+      expect(mockImApi.messages.getMessages).toHaveBeenCalled(),
+    );
+
+    act(() => {
+      emit(WS_EVENTS.MESSAGE.NEW, {
+        id: "tool-call-1",
+        channelId: "ch-1",
+        senderId: "bot-1",
+        content: "",
+        type: "tracking",
+        metadata: {
+          agentEventType: "tool_call",
+          status: "running",
+          toolCallId: "tc-1",
+          toolName: "capahub_kol_get_data",
+        },
+        isPinned: false,
+        isEdited: false,
+        isDeleted: false,
+        createdAt: "2026-05-18T00:00:10.000Z",
+        updatedAt: "2026-05-18T00:00:10.000Z",
+      });
+    });
+
+    expect(streamStore.closeThinkingForSender).toHaveBeenCalledWith({
+      channelId: "ch-1",
+      senderId: "bot-1",
+    });
+  });
+
+  it("closes active thinking when a later tracking tool call arrives in useChannelMessages", async () => {
+    const { wrapper } = makeWrapper();
+    mockImApi.messages.getMessagesPaginated.mockResolvedValue({
+      messages: [],
+      hasOlder: false,
+      hasNewer: false,
+    });
+    renderHook(() => useChannelMessages("ch-1"), { wrapper });
+
+    await waitFor(() =>
+      expect(mockImApi.messages.getMessagesPaginated).toHaveBeenCalled(),
+    );
+
+    act(() => {
+      emit(WS_EVENTS.MESSAGE.NEW, {
+        id: "tool-call-1",
+        channelId: "ch-1",
+        senderId: "bot-1",
+        content: "",
+        type: "tracking",
+        metadata: {
+          agentEventType: "tool_call",
+          status: "running",
+          toolCallId: "tc-1",
+          toolName: "capahub_kol_get_data",
+        },
+        isPinned: false,
+        isEdited: false,
+        isDeleted: false,
+        createdAt: "2026-05-18T00:00:10.000Z",
+        updatedAt: "2026-05-18T00:00:10.000Z",
+      });
+    });
+
+    expect(streamStore.closeThinkingForSender).toHaveBeenCalledWith({
+      channelId: "ch-1",
+      senderId: "bot-1",
+    });
   });
 
   it("refetches channel messages when a stream ends without a message payload", async () => {

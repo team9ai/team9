@@ -216,6 +216,9 @@ interface ChannelViewProps {
   hideHeader?: boolean;
   // Show a read-only bar instead of the message input
   readOnly?: boolean;
+  // Optional external control for the agent session side panel when the built-in header is hidden
+  isAgentSessionPanelOpen?: boolean;
+  onAgentSessionPanelOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -232,6 +235,8 @@ export function ChannelView({
   previewChannel,
   hideHeader,
   readOnly,
+  isAgentSessionPanelOpen: controlledAgentSessionPanelOpen,
+  onAgentSessionPanelOpenChange,
 }: ChannelViewProps) {
   const { t } = useTranslation("channel");
   const isPreviewMode = !!previewChannel;
@@ -388,13 +393,38 @@ export function ChannelView({
   const [isSnapped, setIsSnapped] = useState(false);
   const [threadPanelWidth, setThreadPanelWidth] = useState(600);
   const [agentPanelWidth, setAgentPanelWidth] = useState(360);
-  const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
+  const [internalAgentSessionPanelOpen, setInternalAgentSessionPanelOpen] =
+    useState(false);
+  const isAgentSessionPanelControlled =
+    controlledAgentSessionPanelOpen !== undefined;
+  const isAgentSessionPanelOpen =
+    controlledAgentSessionPanelOpen ?? internalAgentSessionPanelOpen;
+  const setAgentSessionPanelOpen = useCallback(
+    (next: boolean | ((open: boolean) => boolean)) => {
+      const resolved =
+        typeof next === "function" ? next(isAgentSessionPanelOpen) : next;
+
+      if (!isAgentSessionPanelControlled) {
+        setInternalAgentSessionPanelOpen(resolved);
+      }
+      onAgentSessionPanelOpenChange?.(resolved);
+    },
+    [
+      isAgentSessionPanelControlled,
+      isAgentSessionPanelOpen,
+      onAgentSessionPanelOpenChange,
+    ],
+  );
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
   useEffect(() => {
-    setIsAgentSessionPanelOpen(false);
-  }, [channelId]);
+    if (isAgentSessionPanelControlled) {
+      onAgentSessionPanelOpenChange?.(false);
+      return;
+    }
+    setInternalAgentSessionPanelOpen(false);
+  }, [channelId, isAgentSessionPanelControlled, onAgentSessionPanelOpenChange]);
 
   const isAgentSessionCandidate =
     !isPreviewMode &&
@@ -412,6 +442,8 @@ export function ChannelView({
     (agentSession.data.supported ||
       (!!agentSession.data.unsupportedReason &&
         agentSession.data.unsupportedReason !== "no_bot"));
+  const hasResolvedAgentSessionPanelEligibility =
+    !!agentSession.data || agentSession.isFetched || agentSession.isError;
   const isAgentSessionPanelVisible =
     shouldShowAgentSessionPanel && isAgentSessionPanelOpen;
   const agentComponents = useAgentSessionComponents(
@@ -426,10 +458,19 @@ export function ChannelView({
   const sidePanelCount = agentPanelCount + openThreadPanelCount;
 
   useEffect(() => {
-    if (!shouldShowAgentSessionPanel) {
-      setIsAgentSessionPanelOpen(false);
+    if (
+      hasResolvedAgentSessionPanelEligibility &&
+      !shouldShowAgentSessionPanel &&
+      isAgentSessionPanelOpen
+    ) {
+      setAgentSessionPanelOpen(false);
     }
-  }, [shouldShowAgentSessionPanel]);
+  }, [
+    hasResolvedAgentSessionPanelEligibility,
+    isAgentSessionPanelOpen,
+    setAgentSessionPanelOpen,
+    shouldShowAgentSessionPanel,
+  ]);
 
   // Bot response indicator state (local)
   const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
@@ -722,7 +763,7 @@ export function ChannelView({
             showAgentSessionToggle={shouldShowAgentSessionPanel}
             isAgentSessionPanelOpen={isAgentSessionPanelVisible}
             onToggleAgentSessionPanel={() =>
-              setIsAgentSessionPanelOpen((open) => !open)
+              setAgentSessionPanelOpen((open) => !open)
             }
           />
         )}

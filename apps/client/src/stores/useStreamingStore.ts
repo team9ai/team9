@@ -62,6 +62,12 @@ interface StreamingState {
     metadata: Record<string, unknown>,
   ) => void;
 
+  /** Close active thinking streams when later agent progress arrives */
+  closeThinkingForSender: (event: {
+    channelId: string;
+    senderId: string;
+  }) => void;
+
   /** End a stream (remove from active) */
   endStream: (streamId: string) => void;
 
@@ -293,6 +299,53 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
       });
       persistStreamMetadata(streamId, nextMetadata);
       return { streams: newStreams };
+    });
+  },
+
+  closeThinkingForSender: ({ channelId, senderId }) => {
+    set((state) => {
+      const now = Date.now();
+      let changed = false;
+      const newStreams = new Map(state.streams);
+
+      for (const [streamId, stream] of newStreams) {
+        if (stream.channelId !== channelId || stream.senderId !== senderId) {
+          continue;
+        }
+
+        const hasActiveThinkingPart = stream.parts.some(
+          (part) => part.type === "thinking" && part.isStreaming,
+        );
+        if (!stream.isThinking && !hasActiveThinkingPart) {
+          continue;
+        }
+
+        const parts = stream.parts.map((part) => {
+          if (part.type !== "thinking" || !part.isStreaming) return part;
+          return {
+            ...part,
+            isStreaming: false,
+            durationMs: Math.max(0, now - part.startedAt),
+          };
+        });
+
+        newStreams.set(streamId, {
+          ...stream,
+          thinking:
+            parts.length > 0
+              ? aggregateParts(parts, "thinking")
+              : stream.thinking,
+          content:
+            parts.length > 0
+              ? aggregateParts(parts, "content")
+              : stream.content,
+          isThinking: false,
+          parts,
+        });
+        changed = true;
+      }
+
+      return changed ? { streams: newStreams } : state;
     });
   },
 

@@ -126,6 +126,63 @@ function getStreamMeta(
     : undefined;
 }
 
+function streamHasTextContent(stream: StreamingMessage): boolean {
+  if (stream.content.trim().length > 0) return true;
+
+  return stream.parts.some(
+    (part) => part.type === "content" && part.content.trim().length > 0,
+  );
+}
+
+function streamHasActualVisibleParts(stream: StreamingMessage): boolean {
+  if (streamHasTextContent(stream)) return true;
+
+  if (
+    stream.parts.some((part) => part.type === "thinking" && part.isStreaming)
+  ) {
+    return true;
+  }
+
+  return stream.parts.length === 0 && stream.thinking.trim().length > 0;
+}
+
+function streamCanShowSyntheticThinking(stream: StreamingMessage): boolean {
+  return (
+    stream.parts.length === 0 &&
+    stream.content.trim().length === 0 &&
+    stream.thinking.trim().length === 0 &&
+    (stream.isStreaming || stream.isThinking)
+  );
+}
+
+function hasLaterStreamForSender(
+  items: ChannelListItem[],
+  itemIndex: number,
+  stream: StreamingMessage,
+): boolean {
+  return items
+    .slice(itemIndex + 1)
+    .some(
+      (item) =>
+        item.type === "stream" &&
+        item.stream.channelId === stream.channelId &&
+        item.stream.senderId === stream.senderId,
+    );
+}
+
+function streamHasRenderableParts(
+  stream: StreamingMessage,
+  items: ChannelListItem[],
+  itemIndex: number,
+): boolean {
+  if (streamHasActualVisibleParts(stream)) return true;
+
+  return (
+    streamCanShowSyntheticThinking(stream) &&
+    !hasLaterStreamForSender(items, itemIndex, stream)
+  );
+}
+
 function isAgentEventListItem(item: ChannelListItem | undefined): boolean {
   if (!item) return false;
   if (item.type === "message") return !!getAgentMeta(item.message);
@@ -550,10 +607,7 @@ export function MessageList({
       if (item.type === "stream") {
         const streamMeta = getStreamMeta(item.stream);
         if (streamMeta?.agentEventType === "tool_call") {
-          const hasStreamBody =
-            item.stream.parts.length > 0 ||
-            item.stream.content.trim().length > 0 ||
-            item.stream.thinking.trim().length > 0;
+          const hasStreamBody = streamHasActualVisibleParts(item.stream);
           const isFirstInGroup = !isAgentEventListItem(
             listDataRef.current[itemIndex - 1],
           );
@@ -578,6 +632,18 @@ export function MessageList({
         // immediately instead of waiting for the first thinking chunk
         // (Claude only flushes thinking deltas when a reasoning block
         // finalizes, which can be several seconds in).
+        if (
+          !streamHasRenderableParts(item.stream, listDataRef.current, itemIndex)
+        ) {
+          return (
+            <div
+              className="min-h-px overflow-hidden"
+              aria-hidden="true"
+              data-testid="stream-empty-placeholder"
+            />
+          );
+        }
+
         return (
           <div className="py-2">
             <StreamingMessageParts stream={item.stream} members={members} />

@@ -4,6 +4,7 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  Clock,
   Crown,
   Loader2,
   Paperclip,
@@ -15,9 +16,19 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +37,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
@@ -34,6 +47,7 @@ import { StaffModelProviderLogo } from "@/components/ai-staff/StaffModelProvider
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useCreateTopicSession } from "@/hooks/useTopicSessions";
 import { useFileUpload, type UploadingFile } from "@/hooks/useFileUpload";
+import { tasksApi } from "@/services/api/tasks";
 import { AttachmentPreview } from "@/components/channel/editor/AttachmentPreview";
 import {
   type DashboardAgent,
@@ -74,6 +88,12 @@ const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
     className: "",
   },
 ];
+
+type DashboardMode = "conversation" | "task";
+
+type DashboardTaskTriggerMode = "immediate" | "scheduled" | "create_only";
+
+const TASK_TITLE_MAX_LENGTH = 80;
 
 function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
   return (
@@ -218,14 +238,16 @@ function DashboardHeader({
   selectedAgentUserId,
   creditsLabel,
   isCreditsLow,
-  subscriptionPlanLabel,
+  planLabel,
+  showUpgrade,
   onSelectAgent,
 }: {
   agents: DashboardAgent[];
   selectedAgentUserId: string | null;
   creditsLabel: string;
   isCreditsLow: boolean;
-  subscriptionPlanLabel: string | null;
+  planLabel: string;
+  showUpgrade: boolean;
   onSelectAgent: (userId: string) => void;
 }) {
   const { t } = useTranslation("navigation");
@@ -336,70 +358,156 @@ function DashboardHeader({
       </DropdownMenu>
 
       <div className="flex items-center gap-2">
-        {subscriptionPlanLabel ? (
-          <Button
-            variant="ghost"
-            onClick={() =>
-              navigate({
-                to: "/subscription",
-                search: { view: "plans", source: "home" },
-              })
-            }
-            className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]"
-          >
-            <Crown size={14} className="text-[#9c8f80]" />
-            <span>{subscriptionPlanLabel}</span>
-          </Button>
-        ) : null}
-
-        <Button
-          variant="ghost"
-          onClick={() =>
-            navigate({
-              to: "/subscription",
-              search: { view: "credits", source: "manage_credits" },
-            })
-          }
+        <div
+          data-testid="dashboard-plan-credits-pill"
           title={isCreditsLow ? t("dashboardCreditsLowTitle") : undefined}
           className={cn(
-            "dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm h-auto cursor-pointer",
+            "dashboard-landing-pill inline-flex h-auto items-center gap-2 rounded-full px-3 py-2 text-sm",
             isCreditsLow
-              ? "bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100 hover:text-red-700"
-              : "text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578]",
+              ? "bg-red-50 text-red-600 ring-1 ring-red-200"
+              : "text-[#8f8578]",
           )}
         >
-          <Sparkles
+          <Crown
             size={14}
             className={cn(isCreditsLow ? "text-red-600" : "text-[#9c8f80]")}
           />
-          <span>{creditsLabel}</span>
-        </Button>
+          <span>{planLabel}</span>
+          {showUpgrade ? (
+            <>
+              <span className="h-4 w-px bg-[#e7ddd0]" />
+              <button
+                type="button"
+                onClick={() =>
+                  navigate({
+                    to: "/subscription",
+                    search: { view: "plans", source: "home" },
+                  })
+                }
+                className="rounded-full px-1 font-medium text-[#2f67ff] transition-colors hover:text-[#1f55df] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f67ff]/20"
+              >
+                {t("dashboardUpgrade")}
+              </button>
+            </>
+          ) : null}
+          <span className="h-4 w-px bg-[#e7ddd0]" />
+          <button
+            type="button"
+            onClick={() =>
+              navigate({
+                to: "/subscription",
+                search: { view: "credits", source: "manage_credits" },
+              })
+            }
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full px-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25",
+              isCreditsLow
+                ? "text-red-600 hover:text-red-700"
+                : "text-[#8f8578] hover:text-[#6c6258]",
+            )}
+          >
+            <Sparkles
+              size={14}
+              className={cn(isCreditsLow ? "text-red-600" : "text-[#9c8f80]")}
+            />
+            <span>{creditsLabel}</span>
+          </button>
+        </div>
       </div>
     </header>
   );
 }
 
-function DashboardPlanBadge({ planLabel }: { planLabel: string }) {
+function DashboardModeSwitch({
+  mode,
+  onModeChange,
+}: {
+  mode: DashboardMode;
+  onModeChange: (mode: DashboardMode) => void;
+}) {
   const { t } = useTranslation("navigation");
-  const navigate = useNavigate();
+  const isTaskMode = mode === "task";
+
+  const setMode = (nextMode: DashboardMode) => {
+    if (nextMode === mode) return;
+    onModeChange(nextMode);
+  };
 
   return (
-    <div className="dashboard-landing-pill inline-flex items-center rounded-full p-[0.2rem] text-[0.8rem] text-[#8d8274]">
-      <span className="rounded-full px-4 py-1.5">{planLabel}</span>
-      <span className="h-4 w-px bg-[#e7ddd0]" />
-      <Button
-        variant="ghost"
-        onClick={() =>
-          navigate({
-            to: "/subscription",
-            search: { view: "plans", source: "home" },
-          })
-        }
-        className="rounded-full px-4 py-1.5 font-medium text-[#2f67ff] hover:bg-white/50 hover:text-[#2f67ff] h-auto cursor-pointer"
+    <div
+      role="tablist"
+      aria-label={t("dashboardModeSwitchLabel")}
+      className="dashboard-landing-pill relative inline-grid grid-cols-2 items-center rounded-full p-1 text-[0.8rem] text-[#8d8274]"
+    >
+      <span
+        data-testid="dashboard-mode-switch-indicator"
+        aria-hidden="true"
+        className={cn(
+          "absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow-[0_6px_18px_rgba(132,114,88,0.12)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+          isTaskMode && "translate-x-[calc(100%+0.25rem)]",
+        )}
+      />
+      <button
+        type="button"
+        role="tab"
+        aria-selected={!isTaskMode}
+        onClick={() => setMode("conversation")}
+        className={cn(
+          "relative z-10 min-w-20 rounded-full px-4 py-1.5 font-medium transition-colors duration-200",
+          !isTaskMode
+            ? "text-[#312c27]"
+            : "text-[#8d8274] hover:bg-white/45 hover:text-[#4d4339]",
+        )}
       >
-        {t("dashboardUpgrade")}
-      </Button>
+        {t("dashboardActionConversationMode")}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={isTaskMode}
+        onClick={() => setMode("task")}
+        className={cn(
+          "relative z-10 min-w-20 rounded-full px-4 py-1.5 font-medium transition-colors duration-200",
+          isTaskMode
+            ? "text-[#312c27]"
+            : "text-[#8d8274] hover:bg-white/45 hover:text-[#4d4339]",
+        )}
+      >
+        {t("dashboardActionTaskMode")}
+      </button>
     </div>
+  );
+}
+
+function DashboardModeTitle({ mode }: { mode: DashboardMode }) {
+  const { t } = useTranslation("navigation");
+  const isTaskMode = mode === "task";
+  const title = isTaskMode ? t("dashboardTaskTitle") : t("dashboardTitle");
+
+  return (
+    <h1
+      aria-label={title}
+      className="dashboard-landing-title relative min-h-[2.7rem] text-center text-[clamp(1.6rem,2.8vw,2.5rem)] leading-[1.05] text-[#2d2924]"
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "block transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+          isTaskMode ? "-translate-y-2 opacity-0" : "translate-y-0 opacity-100",
+        )}
+      >
+        {t("dashboardTitle")}
+      </span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute inset-0 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+          isTaskMode ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+        )}
+      >
+        {t("dashboardTaskTitle")}
+      </span>
+    </h1>
   );
 }
 
@@ -438,6 +546,149 @@ function DashboardActionChip({
   );
 }
 
+function getDefaultScheduledAtInputValue() {
+  const date = new Date(Date.now() + 60 * 60 * 1000);
+  date.setMinutes(0, 0, 0);
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function getDashboardTaskTriggerLabel(
+  mode: DashboardTaskTriggerMode,
+  t: (key: ParseKeys<"navigation">) => string,
+) {
+  if (mode === "scheduled") return t("dashboardTaskTriggerScheduled");
+  if (mode === "create_only") return t("dashboardTaskTriggerCreateOnly");
+  return t("dashboardTaskExecuteImmediately");
+}
+
+function DashboardTaskTriggerSettingsDialog({
+  triggerMode,
+  scheduledAt,
+  onTriggerModeChange,
+  onScheduledAtChange,
+}: {
+  triggerMode: DashboardTaskTriggerMode;
+  scheduledAt: string;
+  onTriggerModeChange: (mode: DashboardTaskTriggerMode) => void;
+  onScheduledAtChange: (scheduledAt: string) => void;
+}) {
+  const { t } = useTranslation("navigation");
+  const selectedLabel = getDashboardTaskTriggerLabel(triggerMode, t);
+
+  const handleModeChange = (value: string) => {
+    const nextMode = value as DashboardTaskTriggerMode;
+    onTriggerModeChange(nextMode);
+    if (nextMode === "scheduled" && !scheduledAt) {
+      onScheduledAtChange(getDefaultScheduledAtInputValue());
+    }
+  };
+
+  const options: ReadonlyArray<{
+    value: DashboardTaskTriggerMode;
+    label: string;
+  }> = [
+    {
+      value: "immediate",
+      label: t("dashboardTaskExecuteImmediately"),
+    },
+    {
+      value: "scheduled",
+      label: t("dashboardTaskTriggerScheduled"),
+    },
+    {
+      value: "create_only",
+      label: t("dashboardTaskTriggerCreateOnly"),
+    },
+  ];
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="dashboard-composer-chip inline-flex h-[2.375rem] cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium text-[#6c6359] transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25"
+        >
+          <Clock size={14} strokeWidth={1.8} />
+          <span>{selectedLabel}</span>
+          <ChevronDown size={12} strokeWidth={1.8} />
+        </button>
+      </DialogTrigger>
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-w-[28rem] rounded-3xl border-[#e8ded3] bg-[#fffaf4] p-5 text-[#302b25] shadow-[0_24px_70px_rgba(70,55,38,0.22)]"
+      >
+        <DialogHeader>
+          <DialogTitle className="text-base">
+            {t("dashboardTaskTriggerSettings")}
+          </DialogTitle>
+        </DialogHeader>
+
+        <RadioGroup
+          value={triggerMode}
+          onValueChange={handleModeChange}
+          className="gap-2"
+        >
+          {options.map((option) => {
+            const id = `dashboard-task-trigger-${option.value}`;
+            return (
+              <label
+                key={option.value}
+                htmlFor={id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-medium transition-colors",
+                  triggerMode === option.value
+                    ? "border-[#cbb9a6] bg-[#f8efe5] text-[#34291f]"
+                    : "border-[#e8ded3] bg-white/70 text-[#74685e] hover:bg-white",
+                )}
+              >
+                <RadioGroupItem
+                  id={id}
+                  value={option.value}
+                  className="border-[#b8a895] text-[#6e513b]"
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </RadioGroup>
+
+        {triggerMode === "scheduled" ? (
+          <div className="space-y-1.5">
+            <label
+              htmlFor="dashboard-task-scheduled-at"
+              className="text-sm font-medium text-[#6c6258]"
+            >
+              {t("dashboardTaskTriggerScheduledAt")}
+            </label>
+            <Input
+              id="dashboard-task-scheduled-at"
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(event) => onScheduledAtChange(event.target.value)}
+              className="h-10 rounded-2xl border-[#ded4c8] bg-white/80 text-sm"
+            />
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button
+              type="button"
+              className="h-9 rounded-full bg-[#3d2413] px-4 text-sm text-white hover:bg-[#4a2d18]"
+            >
+              {t("dashboardTaskTriggerDone")}
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Temporarily hidden from landing — keep for reintroduction
 export function DashboardTaskPill() {
   const { t } = useTranslation("navigation");
@@ -456,6 +707,107 @@ export function DashboardTaskPill() {
       </span>
       <ChevronRight size={13} className="text-[#8d8377]" />
     </div>
+  );
+}
+
+function getDashboardTaskAgentSubtitle(agent: DashboardAgent) {
+  if (agent.roleTitle) return agent.roleTitle;
+
+  if (agent.staffKind === "personal" && agent.ownerName) {
+    return agent.ownerName;
+  }
+
+  if (agent.shortRoleTitle) return agent.shortRoleTitle;
+  if (agent.username && agent.username !== agent.label)
+    return `@${agent.username}`;
+
+  return null;
+}
+
+function DashboardTaskAgentSuggestions({
+  agents,
+  selectedAgentUserId,
+  onSelectAgent,
+}: {
+  agents: DashboardAgent[];
+  selectedAgentUserId: string | null;
+  onSelectAgent: (userId: string) => void;
+}) {
+  const { t } = useTranslation("navigation");
+
+  return (
+    <section className="dashboard-landing-surface w-full overflow-hidden rounded-[1.25rem] px-0 py-0">
+      <div className="flex items-center justify-between gap-4 px-5 py-4">
+        <h2 className="text-sm font-semibold text-[#6a5e52]">
+          {t("dashboardTaskAgentGroupTitle", { count: agents.length })}
+        </h2>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-sm font-medium text-[#6a5e52] transition-colors hover:text-[#2d2924]"
+        >
+          {t("dashboardTaskAgentsViewAll")}
+          <ChevronRight size={15} />
+        </button>
+      </div>
+
+      <div className="divide-y divide-[#e8ded3]">
+        {agents.length > 0 ? (
+          agents.map((agent) => {
+            const isSelected = agent.userId === selectedAgentUserId;
+            const subtitle = getDashboardTaskAgentSubtitle(agent);
+
+            return (
+              <button
+                key={agent.userId}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => onSelectAgent(agent.userId)}
+                className={cn(
+                  "flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[#f8f3ec]",
+                  isSelected && "bg-[#f4ede4]",
+                )}
+              >
+                <UserAvatar
+                  userId={agent.userId}
+                  name={agent.label}
+                  username={agent.username}
+                  avatarUrl={agent.avatarUrl}
+                  isBot
+                  className="size-11 shrink-0 ring-1 ring-black/5"
+                  fallbackClassName="text-[0.78rem] font-semibold"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[0.95rem] font-semibold text-[#2e405c]">
+                      {agent.label}
+                    </span>
+                    <AgentTypeBadge agentType={agent.agentType} />
+                    {agent.staffKind === "personal" && (
+                      <Badge
+                        variant="outline"
+                        size="sm"
+                        className="h-5 shrink-0 rounded-md border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700"
+                      >
+                        {t("agentBadgeAide")}
+                      </Badge>
+                    )}
+                  </span>
+                  {subtitle ? (
+                    <span className="mt-1 block truncate text-sm text-[#786d62]">
+                      {subtitle}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })
+        ) : (
+          <div className="px-5 py-5 text-sm text-[#786d62]">
+            {t("dashboardNoBotDescription")}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -489,6 +841,20 @@ function buildDashboardComposerDraftKey(
   agentUserId: string,
 ) {
   return `${DASHBOARD_COMPOSER_DRAFT_STORAGE_PREFIX}.${workspaceId}.${agentUserId}`;
+}
+
+function deriveTaskTitle(prompt: string) {
+  const firstLine =
+    prompt
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) ?? "新任务";
+
+  if (firstLine.length <= TASK_TITLE_MAX_LENGTH) {
+    return firstLine;
+  }
+
+  return `${firstLine.slice(0, TASK_TITLE_MAX_LENGTH - 1)}…`;
 }
 
 function readDashboardComposerDraft(
@@ -606,16 +972,29 @@ function restoredAttachmentToUploadingFile(
 
 export function HomeMainContent({
   agentId = null,
-}: { agentId?: string | null } = {}) {
+  mode: initialMode = "conversation",
+}: { agentId?: string | null; mode?: DashboardMode } = {}) {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
   const createTopicSession = useCreateTopicSession();
+  const createTaskRun = useMutation({
+    mutationFn: (dto: Parameters<typeof tasksApi.create>[0]) =>
+      tasksApi.create(dto),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
   const { agents } = useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
+  const [mode, setMode] = useState<DashboardMode>(initialMode);
+  const [taskTriggerMode, setTaskTriggerMode] =
+    useState<DashboardTaskTriggerMode>("immediate");
+  const [taskScheduledAt, setTaskScheduledAt] = useState("");
   const [draftAttachments, setDraftAttachments] = useState<AttachmentDto[]>([]);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const promptValueRef = useRef("");
@@ -654,6 +1033,7 @@ export function HomeMainContent({
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
+  const isTaskMode = mode === "task";
   const draftKey =
     workspaceId && selectedAgent
       ? buildDashboardComposerDraftKey(workspaceId, selectedAgent.userId)
@@ -685,7 +1065,9 @@ export function HomeMainContent({
     return [...restoredFiles, ...uploadingFiles];
   }, [completedUploadDraftAttachments, draftAttachments, uploadingFiles]);
   const effectiveModel = sessionModelOverride ?? selectedAgent?.model ?? null;
-  const isSubmitting = createTopicSession.isPending;
+  const isSubmitting = isTaskMode
+    ? createTaskRun.isPending
+    : createTopicSession.isPending;
   // Allow send if either the prompt has text or there's at least one
   // completed attachment ready to ship — matches MessageInput's
   // "image-only message" UX. Still requires uploads to be settled and
@@ -694,16 +1076,20 @@ export function HomeMainContent({
     (f) => f.status === "completed",
   );
   const hasDraftAttachment = currentDraftAttachments.length > 0;
-  const canSubmit =
-    (prompt.trim().length > 0 || hasReadyAttachment || hasDraftAttachment) &&
-    !isSubmitting &&
-    !isUploading &&
-    !!selectedAgent;
+  const hasValidTaskTrigger =
+    taskTriggerMode !== "scheduled" || taskScheduledAt.trim().length > 0;
+  const canSubmit = isTaskMode
+    ? prompt.trim().length > 0 &&
+      hasValidTaskTrigger &&
+      !isSubmitting &&
+      !isUploading
+    : (prompt.trim().length > 0 || hasReadyAttachment || hasDraftAttachment) &&
+      !isSubmitting &&
+      !isUploading &&
+      !!selectedAgent;
   const activeSubscription = billingSummary.data?.subscription ?? null;
-  const isSubscribed = !!activeSubscription;
   const currentPlanLabel =
     activeSubscription?.product.name || t("dashboardPlan");
-  const subscriptionPlanLabel = activeSubscription?.product.name ?? null;
   const totalCredits = billingOverview.data?.account
     ? getWorkspaceCredits(billingOverview.data.account)
     : null;
@@ -716,6 +1102,10 @@ export function HomeMainContent({
     if (!agentId) return;
     setSelectedAgentUserId(agentId);
   }, [agentId]);
+
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
@@ -825,7 +1215,7 @@ export function HomeMainContent({
 
   const handleSubmit = async () => {
     const draft = prompt.trim();
-    if (!selectedAgent) return;
+    if (!isTaskMode && !selectedAgent) return;
     // Defensive: canSubmit already gates this, but if a stray Enter slips
     // through while uploads are in-flight we'd otherwise drop the file
     // references. Mirror MessageInput's early-return.
@@ -834,11 +1224,37 @@ export function HomeMainContent({
     const attachments = currentDraftAttachments;
     // Empty draft is OK only when at least one attachment is ready —
     // server-side ValidateIf relaxes IsNotEmpty under the same condition.
-    if (!draft && attachments.length === 0) return;
+    if (isTaskMode ? !draft : !draft && attachments.length === 0) return;
     if (submitInFlightRef.current) return;
 
     submitInFlightRef.current = true;
     try {
+      if (isTaskMode) {
+        const task = await createTaskRun.mutateAsync({
+          title: deriveTaskTitle(draft),
+          description: draft,
+          executeImmediately: taskTriggerMode === "immediate",
+          triggerMode: taskTriggerMode,
+          ...(taskTriggerMode === "scheduled" && taskScheduledAt
+            ? { scheduledAt: taskScheduledAt }
+            : {}),
+          ...(selectedAgent?.botId ? { botId: selectedAgent.botId } : {}),
+        });
+
+        setPrompt("");
+        setDraftAttachments([]);
+        clearFiles();
+        if (draftKey) {
+          clearDashboardComposerDraft(draftKey);
+        }
+        navigate({
+          to: "/tasks/$taskId",
+          params: { taskId: task.id },
+        });
+        return;
+      }
+
+      if (!selectedAgent) return;
       // Create a fresh topic session for this prompt. The server persists
       // the first user message inside the same saga, so we can navigate
       // straight to the new channel without draft/autoSend URL params.
@@ -1031,19 +1447,16 @@ export function HomeMainContent({
             selectedAgentUserId={selectedAgent?.userId ?? null}
             creditsLabel={creditsLabel}
             isCreditsLow={isCreditsLow}
-            subscriptionPlanLabel={subscriptionPlanLabel}
+            planLabel={currentPlanLabel}
+            showUpgrade={!activeSubscription}
             onSelectAgent={setSelectedAgentUserId}
           />
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-8 pb-8 pt-14 sm:gap-10 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
-            {!isSubscribed ? (
-              <DashboardPlanBadge planLabel={currentPlanLabel} />
-            ) : null}
+            <DashboardModeSwitch mode={mode} onModeChange={setMode} />
 
             <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-8 sm:gap-10">
-              <h1 className="dashboard-landing-title text-center text-[clamp(1.6rem,2.8vw,2.5rem)] leading-[1.05] text-[#2d2924]">
-                {t("dashboardTitle")}
-              </h1>
+              <DashboardModeTitle mode={mode} />
 
               <div
                 ref={composerSurfaceRef}
@@ -1075,7 +1488,11 @@ export function HomeMainContent({
                   onCompositionEnd={handlePromptCompositionEnd}
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
-                  placeholder={t("dashboardPromptPlaceholder")}
+                  placeholder={
+                    isTaskMode
+                      ? t("dashboardTaskPromptPlaceholder")
+                      : t("dashboardPromptPlaceholder")
+                  }
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
@@ -1138,6 +1555,15 @@ export function HomeMainContent({
                         onClick={() => insertTemplate(chip.templateKey)}
                       />
                     ))}
+
+                    {isTaskMode ? (
+                      <DashboardTaskTriggerSettingsDialog
+                        triggerMode={taskTriggerMode}
+                        scheduledAt={taskScheduledAt}
+                        onTriggerModeChange={setTaskTriggerMode}
+                        onScheduledAtChange={setTaskScheduledAt}
+                      />
+                    ) : null}
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
@@ -1165,6 +1591,24 @@ export function HomeMainContent({
                       )}
                     </Button>
                   </div>
+                </div>
+              </div>
+
+              <div
+                aria-hidden={!isTaskMode}
+                className={cn(
+                  "grid w-full transition-[grid-template-rows,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                  isTaskMode
+                    ? "grid-rows-[1fr] translate-y-0 opacity-100"
+                    : "pointer-events-none grid-rows-[0fr] -translate-y-2 opacity-0",
+                )}
+              >
+                <div className="overflow-hidden">
+                  <DashboardTaskAgentSuggestions
+                    agents={agents}
+                    selectedAgentUserId={selectedAgent?.userId ?? null}
+                    onSelectAgent={setSelectedAgentUserId}
+                  />
                 </div>
               </div>
             </div>

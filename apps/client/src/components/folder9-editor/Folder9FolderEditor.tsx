@@ -103,6 +103,15 @@ export interface Folder9ImageUploader {
   upload(file: File, basePath?: string): Promise<string>;
 }
 
+export interface MissingInitialPathCreateConfig {
+  path: string;
+  content: string;
+  title: string;
+  description?: string;
+  actionLabel: string;
+  pendingLabel?: string;
+}
+
 export interface Folder9FolderEditorProps {
   /**
    * Stable identifier for the folder (e.g. wiki id, routine id). Used
@@ -140,6 +149,16 @@ export interface Folder9FolderEditorProps {
    * can ignore selection changes.
    */
   initialPath?: string | null;
+  /**
+   * Candidate paths to auto-open after the tree loads. The shell picks
+   * the first path that exists, preserving the server's actual casing.
+   */
+  initialPathCandidates?: string[];
+  /**
+   * Optional empty-state action shown when none of `initialPathCandidates`
+   * exists in the tree. Used by skill folders to bootstrap `SKILL.md`.
+   */
+  missingInitialPathCreate?: MissingInitialPathCreateConfig;
   /**
    * Optional per-path render slot — see `Folder9RenderFileArgs`.
    */
@@ -213,6 +232,25 @@ interface ZipEntry {
 
 const INTERNAL_FILE_DRAG_TYPE = "application/x-team9-folder-file";
 const INTERNAL_ENTRY_DRAG_TYPE = "application/x-team9-folder-entry";
+
+function resolveInitialPathCandidate(
+  entries: TreeEntryDto[],
+  candidates: string[],
+): string | null {
+  const files = entries.filter((entry) => entry.type === "file");
+  for (const candidate of candidates) {
+    const exact = files.find((entry) => entry.path === candidate);
+    if (exact) return exact.path;
+  }
+  for (const candidate of candidates) {
+    const lowerCandidate = candidate.toLowerCase();
+    const caseInsensitive = files.find(
+      (entry) => entry.path.toLowerCase() === lowerCandidate,
+    );
+    if (caseInsensitive) return caseInsensitive.path;
+  }
+  return null;
+}
 
 function commitErrorMessage(error: unknown): string {
   const status = getHttpErrorStatus(error);
@@ -521,6 +559,8 @@ export function Folder9FolderEditor({
   api,
   draftKey,
   initialPath = null,
+  initialPathCandidates,
+  missingInitialPathCreate,
   renderFile,
   imageUpload,
   onProposeReview,
@@ -554,6 +594,23 @@ export function Folder9FolderEditor({
     () => (treeQuery.data ? buildFolderTree(treeQuery.data) : []),
     [treeQuery.data],
   );
+  const normalizedInitialPathCandidates = useMemo(
+    () =>
+      (initialPathCandidates ?? [])
+        .map((path) => normalizeFolderPath(path))
+        .filter(Boolean),
+    [initialPathCandidates],
+  );
+  const initialPathCandidate = useMemo(
+    () =>
+      treeQuery.data && normalizedInitialPathCandidates.length > 0
+        ? resolveInitialPathCandidate(
+            treeQuery.data,
+            normalizedInitialPathCandidates,
+          )
+        : null,
+    [normalizedInitialPathCandidates, treeQuery.data],
+  );
 
   // --- Selection + expansion -------------------------------------------
 
@@ -578,6 +635,11 @@ export function Folder9FolderEditor({
   useEffect(() => {
     setSelectedPath(initialPath ?? null);
   }, [folderId, initialPath]);
+
+  useEffect(() => {
+    if (initialPath || selectedPath || !initialPathCandidate) return;
+    setSelectedPath(initialPathCandidate);
+  }, [initialPath, initialPathCandidate, selectedPath]);
 
   const handleSelect = useCallback((path: string) => {
     setSelectedPath(path);
@@ -875,6 +937,29 @@ export function Folder9FolderEditor({
     } finally {
       if (options.pendingLabel) setTreeOperationLabel(null);
     }
+  }
+
+  async function createMissingInitialPath() {
+    if (!missingInitialPathCreate) return;
+    const path = normalizeFolderPath(missingInitialPathCreate.path);
+    if (!path) return;
+    const didCommit = await commitFiles(
+      `Create ${path}`,
+      [
+        {
+          path,
+          content: missingInitialPathCreate.content,
+          encoding: "text",
+          action: "create",
+        },
+      ],
+      {
+        pendingLabel:
+          missingInitialPathCreate.pendingLabel ??
+          t("page.creatingFile", { defaultValue: "Creating file..." }),
+      },
+    );
+    if (didCommit) setSelectedPath(path);
   }
 
   function openCreateEntryDialog(
@@ -1612,6 +1697,13 @@ export function Folder9FolderEditor({
   // --- Render -----------------------------------------------------------
 
   const canSave = !readOnly;
+  const showMissingInitialPathCreate =
+    !selectedPath &&
+    !!missingInitialPathCreate &&
+    normalizedInitialPathCandidates.length > 0 &&
+    !treeQuery.isLoading &&
+    !treeQuery.isError &&
+    !initialPathCandidate;
 
   const treePanel = !hideTree ? (
     <aside
@@ -1802,6 +1894,37 @@ export function Folder9FolderEditor({
           ) : selectedPath ? (
             <div className="p-4 text-xs text-muted-foreground">
               {t("page.loading", { defaultValue: "Loading…" })}
+            </div>
+          ) : showMissingInitialPathCreate ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-muted-foreground">
+                  <FilePlus2 size={20} />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    {missingInitialPathCreate.title}
+                  </div>
+                  {missingInitialPathCreate.description && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {missingInitialPathCreate.description}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void createMissingInitialPath()}
+                  disabled={
+                    readOnly || commit.isPending || isTreeOperationPending
+                  }
+                >
+                  {(commit.isPending || isTreeOperationPending) && (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  )}
+                  {missingInitialPathCreate.actionLabel}
+                </Button>
+              </div>
             </div>
           ) : (
             <div

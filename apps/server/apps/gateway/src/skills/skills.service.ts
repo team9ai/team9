@@ -250,13 +250,47 @@ export class SkillsService {
       'read',
       SkillsService.READ_TOKEN_TTL_MS,
     );
-    const raw = await this.folder9Client.getRaw(
+    const resolvedPath = await this.resolveSkillEntryPath(
       tenantId,
       folderId,
       token,
       path,
     );
-    return this.toBlobResponse(path, raw);
+    const raw = await this.folder9Client.getRaw(
+      tenantId,
+      folderId,
+      token,
+      resolvedPath,
+    );
+    return this.toBlobResponse(resolvedPath, raw);
+  }
+
+  private async resolveSkillEntryPath(
+    tenantId: string,
+    folderId: string,
+    token: string,
+    path: string,
+  ): Promise<string> {
+    if (path.toLowerCase() !== 'skill.md') return path;
+
+    let entries: Folder9TreeEntry[];
+    try {
+      entries = await this.folder9Client.getTree(tenantId, folderId, token);
+    } catch {
+      return path;
+    }
+
+    const files = entries.filter((entry) => entry.type === 'file');
+    const exact = files.find((entry) => entry.path === path);
+    if (exact) return exact.path;
+
+    const uppercase = files.find((entry) => entry.path === 'SKILL.md');
+    if (uppercase) return uppercase.path;
+
+    const caseInsensitive = files.find(
+      (entry) => entry.path.toLowerCase() === 'skill.md',
+    );
+    return caseInsensitive?.path ?? path;
   }
 
   private ensureSkillMd(
@@ -273,7 +307,7 @@ export class SkillsService {
     const content = description?.trim()
       ? `# ${name}\n\n${description.trim()}\n`
       : `# ${name}\n\nDescribe when and how to use this skill.\n`;
-    return [{ path: 'skill.md', content }, ...files];
+    return [{ path: 'SKILL.md', content }, ...files];
   }
 
   private async mintSkillFolderToken(

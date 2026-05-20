@@ -7,7 +7,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { CirclePlus, Loader2, MessageSquarePlus, Plus } from "lucide-react";
 import { useMemo } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
@@ -28,6 +27,8 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
 
 const TASK_SIDEBAR_ACTION_CLASS =
   "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
+
+export const TASK_SIDEBAR_MAX_VISIBLE_TASKS = 80;
 
 function getTaskGroupLabel(task: TaskRun) {
   return task.routineId ? "@ 日常" : "@ 自己";
@@ -68,10 +69,16 @@ export function TasksSubSidebar() {
     queryFn: () => tasksApi.list(),
   });
 
+  const visibleTasks = useMemo(
+    () => tasks.slice(0, TASK_SIDEBAR_MAX_VISIBLE_TASKS),
+    [tasks],
+  );
+  const hiddenTaskCount = Math.max(0, tasks.length - visibleTasks.length);
+
   const groupedTasks = useMemo(() => {
     const groups = new Map<string, TaskRun[]>();
 
-    for (const task of tasks) {
+    for (const task of visibleTasks) {
       const label = getTaskGroupLabel(task);
       groups.set(label, [...(groups.get(label) ?? []), task]);
     }
@@ -80,7 +87,7 @@ export function TasksSubSidebar() {
       label,
       tasks: groupTasks,
     }));
-  }, [tasks]);
+  }, [visibleTasks]);
 
   const openNewConversation = () => {
     appActions.setActiveSidebar("home");
@@ -105,7 +112,10 @@ export function TasksSubSidebar() {
 
       <Separator className="bg-nav-border" />
 
-      <ScrollArea className="min-h-0 flex-1 px-3 [&>[data-slot=scroll-area-viewport]>div]:block!">
+      <div
+        data-testid="tasks-sub-sidebar-scroll"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3"
+      >
         <nav className="min-w-0 space-y-0.5 pb-3 pt-2">
           <div className="mb-2 border-b border-nav-border pb-2">
             <button
@@ -158,6 +168,7 @@ export function TasksSubSidebar() {
                       key={task.id}
                       to="/tasks/$taskId"
                       params={{ taskId: task.id }}
+                      data-testid="task-sidebar-row"
                       className={cn(
                         "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground",
                         selectedTaskId === task.id &&
@@ -181,8 +192,14 @@ export function TasksSubSidebar() {
               </div>
             ))
           )}
+
+          {hiddenTaskCount > 0 ? (
+            <p className="px-2 py-2 text-xs text-nav-foreground-faint">
+              还有 {hiddenTaskCount} 个任务，可在任务看板查看。
+            </p>
+          ) : null}
         </nav>
-      </ScrollArea>
+      </div>
     </aside>
   );
 }

@@ -97,6 +97,7 @@ export const routineExecutions = pgTable(
   (table) => [
     index('idx_routine__executions_routine_id').on(table.routineId),
     index('idx_routine__executions_status').on(table.status),
+    index('idx_routine__executions_channel_id').on(table.channelId),
     index('idx_routine__executions_routine_version').on(
       table.routineId,
       table.routineVersion,

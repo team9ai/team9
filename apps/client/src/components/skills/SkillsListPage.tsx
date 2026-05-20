@@ -42,12 +42,22 @@ interface SkillsListPageProps {
 const SKILLS_LIST_WIDTH_DEFAULT = 360;
 const SKILLS_LIST_WIDTH_MIN = 280;
 const SKILLS_LIST_WIDTH_MAX = 640;
+const SKILL_ENTRY_PATH = "SKILL.md";
+const LEGACY_SKILL_ENTRY_PATH = "skill.md";
+const SKILL_ENTRY_PATH_CANDIDATES = [SKILL_ENTRY_PATH, LEGACY_SKILL_ENTRY_PATH];
 
 function clampSkillsListWidth(width: number) {
   return Math.min(
     SKILLS_LIST_WIDTH_MAX,
     Math.max(SKILLS_LIST_WIDTH_MIN, width),
   );
+}
+
+function defaultSkillMdContent(skill: Skill) {
+  const description = skill.description?.trim();
+  return description
+    ? `# ${skill.name}\n\n${description}\n`
+    : `# ${skill.name}\n\nDescribe when and how to use this skill.\n`;
 }
 
 export function SkillsListPage({ selectedSkillId }: SkillsListPageProps) {
@@ -315,7 +325,24 @@ function SkillFolderPanel({ skillId }: { skillId: string }) {
           approvalMode="auto"
           api={api}
           draftKey={draftKey}
-          initialPath="skill.md"
+          initialPathCandidates={SKILL_ENTRY_PATH_CANDIDATES}
+          missingInitialPathCreate={{
+            path: SKILL_ENTRY_PATH,
+            content: defaultSkillMdContent(skill),
+            title: t("detail.skillMdMissingTitle", {
+              defaultValue: "SKILL.md is missing",
+            }),
+            description: t("detail.skillMdMissingDescription", {
+              defaultValue:
+                "Create the skill entry file to start editing this skill.",
+            }),
+            actionLabel: t("detail.createSkillMd", {
+              defaultValue: "Create SKILL.md",
+            }),
+            pendingLabel: t("detail.creatingSkillMd", {
+              defaultValue: "Creating SKILL.md...",
+            }),
+          }}
           hideTree={false}
           treePosition="right"
         />

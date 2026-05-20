@@ -100,6 +100,7 @@ export const taskRuns = pgTable(
     index('idx_task__runs_routine_id').on(table.routineId),
     index('idx_task__runs_bot_id').on(table.botId),
     index('idx_task__runs_creator_id').on(table.creatorId),
+    index('idx_task__runs_channel_id').on(table.channelId),
     index('idx_task__runs_status').on(table.status),
     index('idx_task__runs_tenant_status').on(table.tenantId, table.status),
     unique('uq_task__runs_taskcast').on(table.taskcastTaskId),

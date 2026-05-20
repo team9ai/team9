@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { fileApi, type FileVisibility } from "@/services/api/file";
 
@@ -28,6 +28,10 @@ export interface UseFileUploadOptions {
 
 const DEFAULT_MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 
+function isUploadCancelledError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 export function useFileUpload(options: UseFileUploadOptions = {}) {
   const {
     visibility = "channel",
@@ -39,6 +43,10 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
   } = options;
 
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
+  const activeUploadControllersRef = useRef<Map<string, AbortController>>(
+    new Map(),
+  );
+  const cancelledUploadIdsRef = useRef<Set<string>>(new Set());
 
   const updateFileStatus = useCallback(
     (id: string, updates: Partial<UploadingFile>) => {
@@ -49,6 +57,15 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
     [],
   );
 
+  const cancelUpload = useCallback((id: string) => {
+    const controller = activeUploadControllersRef.current.get(id);
+    if (!controller) return;
+
+    cancelledUploadIdsRef.current.add(id);
+    controller.abort();
+    activeUploadControllersRef.current.delete(id);
+  }, []);
+
   const uploadMutation = useMutation({
     mutationFn: async ({
       id,
@@ -57,45 +74,64 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
       id: string;
       file: File;
     }): Promise<UploadingFile["result"]> => {
+      cancelledUploadIdsRef.current.delete(id);
+      const controller = new AbortController();
+      activeUploadControllersRef.current.set(id, controller);
+
       // Step 1: Get presigned upload URL
       updateFileStatus(id, { status: "uploading", progress: 0 });
 
-      const presigned = await fileApi.createPresignedUpload({
-        filename: file.name,
-        contentType: file.type || "application/octet-stream",
-        fileSize: file.size,
-        visibility,
-        channelId,
-      });
+      try {
+        const presigned = await fileApi.createPresignedUpload(
+          {
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            fileSize: file.size,
+            visibility,
+            channelId,
+          },
+          { signal: controller.signal },
+        );
 
-      // Step 2: Upload to S3 using presigned POST
-      await fileApi.uploadToS3(
-        presigned.url,
-        file,
-        presigned.fields,
-        (progress) => {
-          updateFileStatus(id, { progress });
-        },
-      );
+        // Step 2: Upload to S3 using presigned POST
+        await fileApi.uploadToS3(
+          presigned.url,
+          file,
+          presigned.fields,
+          (progress) => {
+            updateFileStatus(id, { progress });
+          },
+          controller.signal,
+        );
 
-      // Step 3: Confirm upload
-      updateFileStatus(id, { status: "confirming", progress: 100 });
+        // Step 3: Confirm upload
+        updateFileStatus(id, { status: "confirming", progress: 100 });
 
-      const confirmed = await fileApi.confirmUpload({
-        key: presigned.key,
-        fileName: file.name,
-        visibility,
-        channelId,
-      });
+        const confirmed = await fileApi.confirmUpload(
+          {
+            key: presigned.key,
+            fileName: file.name,
+            visibility,
+            channelId,
+          },
+          { signal: controller.signal },
+        );
 
-      return {
-        key: confirmed.key,
-        fileName: confirmed.fileName,
-        fileSize: confirmed.fileSize,
-        mimeType: confirmed.mimeType,
-      };
+        return {
+          key: confirmed.key,
+          fileName: confirmed.fileName,
+          fileSize: confirmed.fileSize,
+          mimeType: confirmed.mimeType,
+        };
+      } finally {
+        activeUploadControllersRef.current.delete(id);
+      }
     },
     onSuccess: (result, { id }) => {
+      if (cancelledUploadIdsRef.current.delete(id)) {
+        return;
+      }
+
       updateFileStatus(id, { status: "completed", result });
 
       const file = uploadingFiles.find((item) => item.id === id);
@@ -113,6 +149,13 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
       onUploadComplete?.(updatedFile);
     },
     onError: (error, { id }) => {
+      if (
+        cancelledUploadIdsRef.current.delete(id) ||
+        isUploadCancelledError(error)
+      ) {
+        return;
+      }
+
       const file = uploadingFiles.find((f) => f.id === id);
       const errorMessage =
         error instanceof Error ? error.message : "Upload failed";
@@ -171,11 +214,20 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
     [maxFiles, maxFileSize, uploadingFiles.length, uploadMutation],
   );
 
-  const removeFile = useCallback((id: string) => {
-    setUploadingFiles((prev) => prev.filter((f) => f.id !== id));
-  }, []);
+  const removeFile = useCallback(
+    (id: string) => {
+      cancelUpload(id);
+      setUploadingFiles((prev) => prev.filter((f) => f.id !== id));
+    },
+    [cancelUpload],
+  );
 
   const clearFiles = useCallback(() => {
+    for (const [id, controller] of activeUploadControllersRef.current) {
+      cancelledUploadIdsRef.current.add(id);
+      controller.abort();
+    }
+    activeUploadControllersRef.current.clear();
     setUploadingFiles([]);
   }, []);
 
@@ -188,6 +240,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
           progress: 0,
           error: undefined,
         });
+        cancelledUploadIdsRef.current.delete(id);
         uploadMutation.mutate({ id, file: file.file });
       }
     },
@@ -215,6 +268,19 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
   const allCompleted =
     uploadingFiles.length > 0 &&
     uploadingFiles.every((f) => f.status === "completed");
+
+  useEffect(() => {
+    const activeUploadControllers = activeUploadControllersRef.current;
+    const cancelledUploadIds = cancelledUploadIdsRef.current;
+
+    return () => {
+      for (const [id, controller] of activeUploadControllers) {
+        cancelledUploadIds.add(id);
+        controller.abort();
+      }
+      activeUploadControllers.clear();
+    };
+  }, []);
 
   return {
     uploadingFiles,

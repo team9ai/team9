@@ -205,6 +205,89 @@ beforeEach(() => {
 });
 
 describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
+  it("opens the first existing initial path candidate using the tree's actual case", async () => {
+    const fetchTree = vi.fn(
+      async (): Promise<TreeEntryDto[]> => [
+        { name: "SKILL.md", path: "SKILL.md", type: "file", size: 42 },
+        { name: "references", path: "references", type: "dir", size: 0 },
+      ],
+    );
+    const { api, fetchBlob } = makeApi({ fetchTree });
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPathCandidates: ["SKILL.md", "skill.md"],
+          })}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() => expect(fetchTree).toHaveBeenCalled());
+    await waitFor(() => expect(fetchBlob).toHaveBeenCalledWith("SKILL.md"));
+  });
+
+  it("shows a create action when no initial path candidate exists and creates the preferred path", async () => {
+    const fetchTree = vi.fn(
+      async (): Promise<TreeEntryDto[]> => [
+        { name: "references", path: "references", type: "dir", size: 0 },
+        {
+          name: "notes.md",
+          path: "references/notes.md",
+          type: "file",
+          size: 12,
+        },
+      ],
+    );
+    const { api, commit, fetchBlob } = makeApi({ fetchTree });
+    const Wrapper = makeWrapper();
+
+    render(
+      <Wrapper>
+        <Folder9FolderEditor
+          {...baseProps({
+            api,
+            initialPathCandidates: ["SKILL.md", "skill.md"],
+            missingInitialPathCreate: {
+              path: "SKILL.md",
+              content: "# New skill\n",
+              title: "SKILL.md is missing",
+              description: "Create the skill entry file to start editing.",
+              actionLabel: "Create SKILL.md",
+            },
+          })}
+        />
+      </Wrapper>,
+    );
+
+    const createButton = await screen.findByRole("button", {
+      name: /create skill\.md/i,
+    });
+
+    await act(async () => {
+      fireEvent.click(createButton);
+    });
+
+    await waitFor(() =>
+      expect(commit).toHaveBeenCalledWith({
+        message: "Create SKILL.md",
+        files: [
+          {
+            path: "SKILL.md",
+            content: "# New skill\n",
+            encoding: "text",
+            action: "create",
+          },
+        ],
+        propose: false,
+      }),
+    );
+    await waitFor(() => expect(fetchBlob).toHaveBeenCalledWith("SKILL.md"));
+  });
+
   it("renders the tree from api.fetchTree and shows file rows", async () => {
     const Wrapper = makeWrapper();
     const props = baseProps();

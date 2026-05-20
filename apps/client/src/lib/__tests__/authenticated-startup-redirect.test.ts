@@ -25,7 +25,7 @@ describe("getAuthenticatedStartupRedirect", () => {
     });
   });
 
-  it("restores the last visited section path on the first authenticated root load", () => {
+  it("uses the current home entry on first authenticated root load", () => {
     localStorage.setItem("auth_token", "token-1");
     localStorage.setItem(
       "app-storage",
@@ -42,7 +42,7 @@ describe("getAuthenticatedStartupRedirect", () => {
     expect(
       getAuthenticatedStartupRedirect({ location: location("/") }),
     ).toEqual({
-      to: "/channels/channel-1",
+      to: "/tasks/new-conversation",
     });
     expect(sessionStorage.getItem("app_initialized")).toBe("true");
   });

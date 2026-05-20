@@ -99,6 +99,24 @@ describe("StreamingThinkingRow", () => {
     expect(icon).not.toHaveClass("animate-pulse");
   });
 
+  it("freezes when the stream marks thinking complete before reply text arrives", () => {
+    // Tool calls can arrive as persisted tracking messages rather than
+    // metadata on the same stream. The store closes the stream thinking state
+    // in that case, and the row should stop presenting itself as live even if
+    // reply text has not started yet.
+    const stream = makeStream({
+      startedAt: Date.now() - 4000,
+      content: "",
+      thinking: "some reasoning",
+      isThinking: false,
+    });
+    render(<StreamingThinkingRow stream={stream} />);
+
+    const label = screen.getByText(/^Thought for/);
+    expect(label).not.toHaveClass("animate-pulse");
+    expect(screen.queryByText(/^Thinking/)).not.toBeInTheDocument();
+  });
+
   it("wraps the row in the same gray/border strip as persisted agent events", () => {
     // Regression: the strip classes must stay in sync with MessageItem's
     // agent-event wrapper so the streaming row lines up visually with

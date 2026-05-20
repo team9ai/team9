@@ -1,17 +1,19 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
+  ChevronDown,
   Filter,
   ListFilter,
   Loader2,
   MoreHorizontal,
   Plus,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
+import { TASK_ENTRY_PATH } from "@/stores";
 import type { TaskRun, TaskRunStatus } from "@/types/task";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({
@@ -20,6 +22,7 @@ export const Route = createFileRoute("/_authenticated/tasks/")({
 
 type TaskColumnKey = "pending" | "running" | "completed" | "archived";
 type TaskBoardItem = { task: TaskRun; code: string };
+type TaskBoardColumnState = { items: TaskBoardItem[]; totalCount: number };
 
 interface TaskColumnConfig {
   key: TaskColumnKey;
@@ -61,61 +64,62 @@ const TASK_COLUMN_BY_STATUS = new Map<TaskRunStatus, TaskColumnKey>(
   ),
 );
 
+const TASK_BOARD_MAX_VISIBLE_PER_COLUMN = 50;
+const INITIAL_VISIBLE_COUNTS: Record<TaskColumnKey, number> = {
+  pending: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+  running: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+  completed: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+  archived: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+};
+
 function TasksPage() {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const [visibleCounts, setVisibleCounts] = useState(INITIAL_VISIBLE_COUNTS);
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: () => tasksApi.list(),
   });
 
-  const createTask = useMutation({
-    mutationFn: () =>
-      tasksApi.create({
-        title: "新任务",
-        description: "等待补充任务目标、上下文和交付要求。",
-      }),
-    onSuccess: async (task) => {
-      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      void navigate({
-        to: "/tasks/$taskId",
-        params: { taskId: task.id },
-      });
-    },
-  });
-
-  const indexedTasks = useMemo(
-    () =>
-      tasks.map((task, index) => ({
-        task,
-        code: `T9-${String(index + 1).padStart(2, "0")}`,
-      })),
-    [tasks],
-  );
-
   const grouped = useMemo(() => {
-    const initial: Record<TaskColumnKey, TaskBoardItem[]> = {
-      pending: [],
-      running: [],
-      completed: [],
-      archived: [],
+    const initial: Record<TaskColumnKey, TaskBoardColumnState> = {
+      pending: { items: [], totalCount: 0 },
+      running: { items: [], totalCount: 0 },
+      completed: { items: [], totalCount: 0 },
+      archived: { items: [], totalCount: 0 },
     };
 
-    for (const item of indexedTasks) {
-      const key = TASK_COLUMN_BY_STATUS.get(item.task.status) ?? "pending";
-      initial[key].push(item);
+    for (const [index, task] of tasks.entries()) {
+      const key = TASK_COLUMN_BY_STATUS.get(task.status) ?? "pending";
+      const column = initial[key];
+      column.totalCount += 1;
+
+      column.items.push({
+        task,
+        code: `T9-${String(index + 1).padStart(2, "0")}`,
+      });
     }
 
     return initial;
-  }, [indexedTasks]);
+  }, [tasks]);
 
   const openTask = (task: TaskRun) => {
     void navigate({
       to: "/tasks/$taskId",
       params: { taskId: task.id },
     });
+  };
+
+  const openNewTask = () => {
+    void navigate({ to: TASK_ENTRY_PATH });
+  };
+
+  const loadMoreTasks = (columnKey: TaskColumnKey) => {
+    setVisibleCounts((current) => ({
+      ...current,
+      [columnKey]: current[columnKey] + TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
+    }));
   };
 
   return (
@@ -144,14 +148,9 @@ function TasksPage() {
           </Button>
           <Button
             className="bg-nav-foreground text-nav-sub-bg hover:bg-nav-foreground-strong"
-            disabled={createTask.isPending}
-            onClick={() => createTask.mutate()}
+            onClick={openNewTask}
           >
-            {createTask.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus size={17} />
-            )}
+            <Plus size={17} />
             新增任务
           </Button>
         </div>
@@ -171,8 +170,11 @@ function TasksPage() {
               <TaskColumn
                 key={column.key}
                 column={column}
-                items={grouped[column.key]}
+                items={grouped[column.key].items}
+                totalCount={grouped[column.key].totalCount}
+                visibleCount={visibleCounts[column.key]}
                 onOpenTask={openTask}
+                onLoadMore={() => loadMoreTasks(column.key)}
               />
             ))}
           </div>
@@ -187,12 +189,21 @@ function TasksPage() {
 function TaskColumn({
   column,
   items,
+  totalCount,
+  visibleCount,
   onOpenTask,
+  onLoadMore,
 }: {
   column: TaskColumnConfig;
   items: TaskBoardItem[];
+  totalCount: number;
+  visibleCount: number;
   onOpenTask: (task: TaskRun) => void;
+  onLoadMore: () => void;
 }) {
+  const visibleItems = items.slice(0, visibleCount);
+  const hiddenTaskCount = Math.max(0, totalCount - visibleItems.length);
+
   return (
     <section
       data-testid={`task-column-${column.key}`}
@@ -210,7 +221,7 @@ function TaskColumn({
             )}
           />
           <span>{column.title}</span>
-          <span className="text-muted-foreground">{items.length}</span>
+          <span className="text-muted-foreground">{totalCount}</span>
         </div>
         <Button
           variant="ghost"
@@ -222,7 +233,7 @@ function TaskColumn({
       </div>
 
       <div className="space-y-3">
-        {items.map(({ task, code }) => (
+        {visibleItems.map(({ task, code }) => (
           <TaskCard
             key={task.id}
             task={task}
@@ -230,6 +241,19 @@ function TaskColumn({
             onClick={() => onOpenTask(task)}
           />
         ))}
+        {hiddenTaskCount > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center gap-2 border-dashed bg-background/70 text-sm text-muted-foreground hover:bg-accent/45 hover:text-foreground"
+            aria-label={`加载更多${column.title}任务，还有 ${hiddenTaskCount} 个`}
+            onClick={onLoadMore}
+          >
+            <ChevronDown size={16} />
+            <span>加载更多</span>
+            <span className="text-xs">还有 {hiddenTaskCount} 个</span>
+          </Button>
+        ) : null}
       </div>
     </section>
   );

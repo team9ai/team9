@@ -63,6 +63,24 @@ function makeStream(
 }
 
 describe("StreamingMessageParts", () => {
+  it("does not render an empty streaming bubble before text arrives", () => {
+    render(
+      <StreamingMessageParts
+        stream={makeStream({
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          parts: [],
+        })}
+        members={[]}
+      />,
+    );
+
+    expect(screen.getByText(/^Thinking/)).toBeInTheDocument();
+    expect(screen.queryByText("streaming...")).not.toBeInTheDocument();
+  });
+
   it("renders thinking and text parts in arrival order", () => {
     const { container } = render(
       <StreamingMessageParts stream={makeStream()} members={[]} />,
@@ -81,5 +99,31 @@ describe("StreamingMessageParts", () => {
     expect(firstThinking).toBeLessThan(firstReply);
     expect(firstReply).toBeLessThan(secondThinking);
     expect(secondThinking).toBeLessThan(secondReply);
+  });
+
+  it("hides a completed pre-content thinking part while later non-text progress is active", () => {
+    const { container } = render(
+      <StreamingMessageParts
+        stream={makeStream({
+          content: "",
+          thinking: "tool planning",
+          isThinking: false,
+          parts: [
+            {
+              id: "stream-1-0",
+              type: "thinking",
+              content: "tool planning",
+              startedAt: Date.now() - 12_000,
+              isStreaming: false,
+              durationMs: 12_000,
+            },
+          ],
+        })}
+        members={[]}
+      />,
+    );
+
+    expect(screen.queryByText(/^Thought for/)).not.toBeInTheDocument();
+    expect(container.firstChild).toBeNull();
   });
 });

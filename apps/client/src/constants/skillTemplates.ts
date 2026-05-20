@@ -16,7 +16,7 @@ export const SKILL_TEMPLATES: SkillTemplate[] = [
     type: "claude_code_skill",
     files: [
       {
-        path: "skill.md",
+        path: "SKILL.md",
         content: `---
 name: my-skill
 description: Describe what this skill does and when to use it

@@ -1,4 +1,13 @@
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+
+export type TaskRunTriggerMode = 'immediate' | 'scheduled' | 'create_only';
 
 export class CreateTaskRunDto {
   @IsString()
@@ -12,4 +21,16 @@ export class CreateTaskRunDto {
   @IsOptional()
   @IsUUID()
   botId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  executeImmediately?: boolean;
+
+  @IsOptional()
+  @IsIn(['immediate', 'scheduled', 'create_only'])
+  triggerMode?: TaskRunTriggerMode;
+
+  @IsOptional()
+  @IsString()
+  scheduledAt?: string;
 }

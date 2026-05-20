@@ -48,7 +48,11 @@
     "fileCount": "{{count}} 个文件",
     "rename": "重命名",
     "selectFile": "选择一个文件查看",
-    "review": "审查"
+    "review": "审查",
+    "skillMdMissingTitle": "缺少 SKILL.md",
+    "skillMdMissingDescription": "创建技能入口文件后即可开始编辑这个技能。",
+    "createSkillMd": "创建 SKILL.md",
+    "creatingSkillMd": "正在创建 SKILL.md..."
   },
   "type": {
     "claude_code_skill": "Claude Code 技能",
