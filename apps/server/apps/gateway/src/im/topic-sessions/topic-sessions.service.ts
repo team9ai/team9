@@ -31,6 +31,7 @@ import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { determineMessageType } from '../messages/message-utils.js';
+import { DeepResearchSessionsService } from '../deep-research-sessions/deep-research-sessions.service.js';
 import type {
   TopicSessionGroup,
   TopicSessionRecentEntry,
@@ -78,6 +79,8 @@ export class TopicSessionsService {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly ws: WebsocketGateway,
     private readonly eventEmitter: EventEmitter2,
+    @Optional()
+    private readonly deepResearchSessions?: DeepResearchSessionsService,
     @Optional() private readonly gatewayMQ?: GatewayMQService,
   ) {}
 
@@ -88,6 +91,7 @@ export class TopicSessionsService {
     initialMessage: string;
     model?: { provider: string; id: string };
     title?: string | null;
+    metadata?: Record<string, unknown>;
     attachments?: Array<{
       // Owned upload (fileKey) vs external pass-through (fileUrl) — same
       // contract as messages.service.sendFromBot. Exactly one must be set.
@@ -104,6 +108,7 @@ export class TopicSessionsService {
       botUserId,
       initialMessage,
       model,
+      metadata,
       attachments,
     } = params;
     const explicitTitle = params.title?.trim();
@@ -216,6 +221,40 @@ export class TopicSessionsService {
       throw err;
     }
 
+    const isDeepResearchRequest =
+      DeepResearchSessionsService.isDeepResearchRequestMetadata(metadata);
+    let deepResearchChildChannel: ChannelResponse | null = null;
+    let messageMetadata = metadata;
+
+    if (isDeepResearchRequest) {
+      if (!this.deepResearchSessions) {
+        this.compensateChannel(channelId);
+        this.compensateSession(sessionId, tenantId);
+        throw new Error('Deep research service is not available');
+      }
+
+      try {
+        deepResearchChildChannel =
+          await this.deepResearchSessions.createChildChannel({
+            creatorId,
+            tenantId,
+            parentChannelId: channelId,
+            title,
+          });
+        messageMetadata = DeepResearchSessionsService.withSessionRef(metadata, {
+          childChannelId: deepResearchChildChannel.id,
+          parentChannelId: channelId,
+        });
+      } catch (err) {
+        this.logger.error(
+          `createDeepResearchSessionChannel failed (topic ${channelId}): ${err}`,
+        );
+        this.compensateChannel(channelId);
+        this.compensateSession(sessionId, tenantId);
+        throw err;
+      }
+    }
+
     // --- Step 6: send initial user message via gRPC ---
     const workspaceId = tenantId ?? '';
     let messageId: string;
@@ -232,6 +271,7 @@ export class TopicSessionsService {
         content: initialMessage,
         type: messageType,
         workspaceId,
+        ...(messageMetadata ? { metadata: messageMetadata } : {}),
         ...(attachments?.length ? { attachments } : {}),
       });
       messageId = result.msgId;
@@ -242,6 +282,28 @@ export class TopicSessionsService {
       this.compensateChannel(channelId);
       this.compensateSession(sessionId, tenantId);
       throw err;
+    }
+
+    if (isDeepResearchRequest && deepResearchChildChannel) {
+      const sessionRef = {
+        childChannelId: deepResearchChildChannel.id,
+        parentChannelId: channelId,
+        parentMessageId: messageId,
+      };
+      messageMetadata = DeepResearchSessionsService.withSessionRef(
+        metadata,
+        sessionRef,
+      );
+      void this.deepResearchSessions?.startPlan({
+        userId: creatorId,
+        tenantId,
+        parentChannelId: channelId,
+        childChannelId: deepResearchChildChannel.id,
+        parentMessageId: messageId,
+        input: initialMessage,
+        title,
+        requestMetadata: messageMetadata ?? {},
+      });
     }
 
     // Fire post-broadcast task synchronously: unread fan-out + agent

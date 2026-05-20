@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -7,11 +7,14 @@ import {
   ListFilter,
   Pencil,
   Play,
+  RefreshCw,
   Search,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useSendMessage } from "@/hooks/useMessages";
+import imApi from "@/services/api/im";
 import type { Message } from "@/types/im";
 
 type DeepResearchAction = "modify_plan" | "start_research";
@@ -19,11 +22,16 @@ type DeepResearchAction = "modify_plan" | "start_research";
 interface DeepResearchPlanMeta {
   interactionId: string;
   taskId?: string;
+  session?: {
+    childChannelId: string;
+    parentChannelId?: string;
+  };
 }
 
 interface DeepResearchPlanCardProps {
   message: Message;
   className?: string;
+  interactive?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -46,10 +54,33 @@ export function getDeepResearchPlanMeta(
   }
 
   const taskId = deepResearch.taskId;
+  const sessionRecord = isRecord(deepResearch.session)
+    ? deepResearch.session
+    : isRecord(metadata?.deepResearchSessionRef)
+      ? metadata.deepResearchSessionRef
+      : null;
+  const childChannelId =
+    typeof sessionRecord?.childChannelId === "string" &&
+    sessionRecord.childChannelId.trim()
+      ? sessionRecord.childChannelId.trim()
+      : undefined;
+  const parentChannelId =
+    typeof sessionRecord?.parentChannelId === "string" &&
+    sessionRecord.parentChannelId.trim()
+      ? sessionRecord.parentChannelId.trim()
+      : undefined;
   return {
     interactionId: interactionId.trim(),
     ...(typeof taskId === "string" && taskId.trim()
       ? { taskId: taskId.trim() }
+      : {}),
+    ...(childChannelId
+      ? {
+          session: {
+            childChannelId,
+            ...(parentChannelId ? { parentChannelId } : {}),
+          },
+        }
       : {}),
   };
 }
@@ -102,6 +133,17 @@ function extractTitle(content: string): string {
   return "研究方案";
 }
 
+function extractInput(content: string, fallback: string): string {
+  for (const line of content.split(/\r?\n/)) {
+    const labeled = getPlanLabel(line);
+    if (labeled?.label === "input" && labeled.value) {
+      return stripMarkdownInline(labeled.value);
+    }
+  }
+
+  return fallback;
+}
+
 function cleanPlanLine(line: string): string {
   return stripMarkdownInline(
     line
@@ -136,50 +178,127 @@ function extractPlanLines(content: string, title: string): string[] {
     .slice(0, 10);
 }
 
+function PlanStep({
+  icon: Icon,
+  title,
+  children,
+  isLast = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children?: ReactNode;
+  isLast?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[36px_1fr] gap-x-3">
+      <div className="relative flex justify-center">
+        <div className="mt-0.5 flex size-7 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
+          <Icon className="size-4" />
+        </div>
+        {!isLast && (
+          <div className="absolute top-8 bottom-[-18px] w-px bg-border" />
+        )}
+      </div>
+      <div className="min-w-0 pb-5">
+        <div className="mb-2 font-medium">{title}</div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function DeepResearchPlanCard({
   message,
   className,
+  interactive = true,
 }: DeepResearchPlanCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [isEditingPlan, setIsEditingPlan] = useState(false);
+  const [planInstruction, setPlanInstruction] = useState("");
   const [pendingAction, setPendingAction] = useState<DeepResearchAction | null>(
     null,
   );
-  const sendMessage = useSendMessage(message.channelId);
+  const [isRetryingWithoutDeepResearch, setIsRetryingWithoutDeepResearch] =
+    useState(false);
   const planMeta = getDeepResearchPlanMeta(message.metadata);
   const title = useMemo(() => extractTitle(message.content), [message.content]);
+  const retryInput = useMemo(
+    () => extractInput(message.content, title),
+    [message.content, title],
+  );
   const planLines = useMemo(
     () => extractPlanLines(message.content, title),
     [message.content, title],
   );
   const visiblePlanLines = expanded ? planLines : planLines.slice(0, 4);
-  const canAct = Boolean(planMeta?.interactionId);
+  const canAct = Boolean(
+    planMeta?.interactionId && planMeta.session?.childChannelId,
+  );
+  const retryChannelId =
+    planMeta?.session?.parentChannelId ?? message.channelId;
 
-  const handleAction = async (action: DeepResearchAction) => {
-    if (!planMeta?.interactionId || pendingAction) return;
+  const handleAction = async (
+    action: DeepResearchAction,
+    instruction?: string,
+  ) => {
+    if (
+      !planMeta?.interactionId ||
+      !planMeta.session?.childChannelId ||
+      pendingAction
+    ) {
+      return;
+    }
     setPendingAction(action);
     try {
-      await sendMessage.mutateAsync({
-        content: action === "modify_plan" ? "修改研究方案" : "开始研究",
-        ...(message.parentId ? { parentId: message.parentId } : {}),
+      const input =
+        action === "modify_plan"
+          ? instruction?.trim() || "修改研究方案"
+          : "开始研究";
+      await imApi.deepResearchSessions.action(planMeta.session.childChannelId, {
+        action,
+        planMessageId: message.id,
+        planInteractionId: planMeta.interactionId,
+        input,
+      });
+      if (action === "modify_plan") {
+        setPlanInstruction("");
+        setIsEditingPlan(false);
+      }
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const handleRetryWithoutDeepResearch = async () => {
+    if (!retryChannelId || isRetryingWithoutDeepResearch) return;
+    setIsRetryingWithoutDeepResearch(true);
+    try {
+      const bypass: Record<string, unknown> = {
+        source: "team9",
+        planMessageId: message.id,
+      };
+      if (planMeta?.interactionId) {
+        bypass.planInteractionId = planMeta.interactionId;
+      }
+      if (planMeta?.session?.childChannelId) {
+        bypass.childChannelId = planMeta.session.childChannelId;
+      }
+
+      await imApi.messages.sendMessage(retryChannelId, {
+        content: `不使用 Deep Research，直接回答这个问题：${retryInput}`,
         metadata: {
-          deepResearchAction: {
-            source: "team9",
-            action,
-            planInteractionId: planMeta.interactionId,
-            planMessageId: message.id,
-            ...(planMeta.taskId ? { taskId: planMeta.taskId } : {}),
-          },
+          deepResearchBypass: bypass,
         },
       });
     } finally {
-      setPendingAction(null);
+      setIsRetryingWithoutDeepResearch(false);
     }
   };
 
   return (
     <div
       className={cn(
-        "w-full max-w-3xl rounded-md border border-border bg-muted/30 px-4 py-3 text-sm",
+        "w-full max-w-3xl rounded-md border border-border bg-muted/20 px-4 py-3 text-sm",
         className,
       )}
     >
@@ -191,77 +310,110 @@ export function DeepResearchPlanCard({
         {title}
       </div>
 
-      <div className="grid gap-3">
-        <div className="grid grid-cols-[24px_1fr] gap-x-3">
-          <Search className="mt-0.5 size-5 text-muted-foreground" />
-          <div className="min-w-0">
-            <div className="font-medium">研究网站</div>
-            {visiblePlanLines.length > 0 && (
-              <div className="mt-2 space-y-1.5 text-muted-foreground">
-                {visiblePlanLines.map((line, index) => (
-                  <div key={`${index}-${line}`} className="break-words">
-                    {line}
-                  </div>
-                ))}
-              </div>
-            )}
-            {planLines.length > 4 && (
-              <button
+      <div>
+        <PlanStep icon={Search} title="研究网站">
+          {visiblePlanLines.length > 0 && (
+            <div className="space-y-1.5 text-muted-foreground">
+              {visiblePlanLines.map((line, index) => (
+                <div key={`${index}-${line}`} className="break-words">
+                  {line}
+                </div>
+              ))}
+            </div>
+          )}
+          {planLines.length > 4 && (
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-1 text-info hover:underline"
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? (
+                <>
+                  收起 <ChevronUp className="size-4" />
+                </>
+              ) : (
+                <>
+                  更多 <ChevronDown className="size-4" />
+                </>
+              )}
+            </button>
+          )}
+        </PlanStep>
+
+        <PlanStep icon={ListFilter} title="分析结果" />
+
+        <PlanStep icon={FileText} title="生成报告" />
+
+        <PlanStep icon={Clock3} title="只需要几分钟就可以准备好" isLast />
+      </div>
+
+      {interactive && isEditingPlan && (
+        <div className="mt-4 border-t border-border pt-3">
+          <Textarea
+            value={planInstruction}
+            onChange={(event) => setPlanInstruction(event.target.value)}
+            rows={3}
+            placeholder="告诉我想怎样调整研究方案..."
+            className="min-h-20 resize-none bg-background"
+          />
+        </div>
+      )}
+
+      {interactive && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={pendingAction !== null || isRetryingWithoutDeepResearch}
+            onClick={() => void handleRetryWithoutDeepResearch()}
+          >
+            <RefreshCw className="size-4" />
+            不使用 Deep Research 重试
+          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canAct || pendingAction !== null}
+              onClick={() => {
+                if (!isEditingPlan) {
+                  setIsEditingPlan(true);
+                  return;
+                }
+                void handleAction("modify_plan", planInstruction);
+              }}
+            >
+              <Pencil className="size-4" />
+              {isEditingPlan ? "提交修改" : "修改方案"}
+            </Button>
+            {isEditingPlan && (
+              <Button
                 type="button"
-                className="mt-2 inline-flex items-center gap-1 text-info hover:underline"
-                onClick={() => setExpanded((value) => !value)}
+                variant="ghost"
+                size="sm"
+                disabled={pendingAction !== null}
+                onClick={() => {
+                  setIsEditingPlan(false);
+                  setPlanInstruction("");
+                }}
               >
-                {expanded ? (
-                  <>
-                    收起 <ChevronUp className="size-4" />
-                  </>
-                ) : (
-                  <>
-                    更多 <ChevronDown className="size-4" />
-                  </>
-                )}
-              </button>
+                取消
+              </Button>
             )}
+            <Button
+              type="button"
+              size="sm"
+              disabled={!canAct || pendingAction !== null}
+              onClick={() => void handleAction("start_research")}
+            >
+              <Play className="size-4" />
+              开始研究
+            </Button>
           </div>
         </div>
-
-        <div className="grid grid-cols-[24px_1fr] gap-x-3">
-          <ListFilter className="mt-0.5 size-5 text-muted-foreground" />
-          <div className="font-medium">分析结果</div>
-        </div>
-
-        <div className="grid grid-cols-[24px_1fr] gap-x-3">
-          <FileText className="mt-0.5 size-5 text-muted-foreground" />
-          <div className="font-medium">生成报告</div>
-        </div>
-
-        <div className="grid grid-cols-[24px_1fr] gap-x-3">
-          <Clock3 className="mt-0.5 size-5 text-muted-foreground" />
-          <div className="text-muted-foreground">只需要几分钟就可以准备好</div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!canAct || pendingAction !== null}
-          onClick={() => void handleAction("modify_plan")}
-        >
-          <Pencil className="size-4" />
-          修改方案
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          disabled={!canAct || pendingAction !== null}
-          onClick={() => void handleAction("start_research")}
-        >
-          <Play className="size-4" />
-          开始研究
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

@@ -363,6 +363,13 @@ export interface CreateChannelDto {
 export interface ChannelPropertySettings {
   allowNonAdminCreateKey?: boolean;
   propertyDisplayOrder?: "schema" | "chronological";
+  deepResearchSession?: {
+    role?: "child";
+    parentChannelId?: string;
+    title?: string | null;
+    agentWakePolicy?: "none";
+    createdAt?: string;
+  };
 }
 
 export interface UpdateChannelDto {

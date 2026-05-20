@@ -286,7 +286,7 @@ vi.mock("zustand/react/shallow", () => ({
 // ---------------------------------------------------------------------------
 // After mocks: import the component under test.
 // ---------------------------------------------------------------------------
-import { MessageList } from "../MessageList";
+import { MessageList, collapseDeepResearchTaskMessages } from "../MessageList";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -307,6 +307,41 @@ function makeMessage(id: string, overrides: Partial<Message> = {}): Message {
     ...overrides,
   };
 }
+
+describe("collapseDeepResearchTaskMessages", () => {
+  it("keeps one latest entry card per deep research child channel", () => {
+    const messages = [
+      makeMessage("task-running", {
+        updatedAt: "2026-05-19T07:00:00.000Z",
+        metadata: {
+          deepResearchTask: {
+            childChannelId: "child-1",
+            parentChannelId: "ch-1",
+            title: "研究一下 中印关系",
+            status: "running",
+          },
+        },
+      }),
+      makeMessage("task-plan-ready", {
+        updatedAt: "2026-05-19T07:01:00.000Z",
+        metadata: {
+          deepResearchTask: {
+            childChannelId: "child-1",
+            parentChannelId: "ch-1",
+            title: "研究一下 中印关系",
+            status: "plan_ready",
+          },
+        },
+      }),
+      makeMessage("ordinary"),
+    ];
+
+    expect(collapseDeepResearchTaskMessages(messages, "ch-1")).toEqual([
+      messages[1],
+      messages[2],
+    ]);
+  });
+});
 
 function makeAgentEvent(
   id: string,

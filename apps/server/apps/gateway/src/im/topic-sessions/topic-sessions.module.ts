@@ -8,6 +8,7 @@ import { ChannelsModule } from '../channels/channels.module.js';
 import { MessagesModule } from '../messages/messages.module.js';
 import { CapabilityHubModule } from '../../capability-hub/capability-hub.module.js';
 import { ClawHiveModule } from '@team9/claw-hive';
+import { DeepResearchSessionsModule } from '../deep-research-sessions/deep-research-sessions.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ClawHiveModule } from '@team9/claw-hive';
     // pre-authorize → record → billing-hub pipeline, same as every
     // other LLM call in the system.
     CapabilityHubModule,
+    forwardRef(() => DeepResearchSessionsModule),
     ClawHiveModule,
   ],
   controllers: [TopicSessionsController],

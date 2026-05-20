@@ -12,6 +12,8 @@ import { ViewsModule } from './views/views.module.js';
 import { BotMessagingModule } from './bot/bot-messaging.module.js';
 import { TopicSessionsModule } from './topic-sessions/topic-sessions.module.js';
 import { AgentSessionsModule } from './agent-sessions/agent-sessions.module.js';
+import { DeepResearchSessionsModule } from './deep-research-sessions/deep-research-sessions.module.js';
+import { LinkedContextsModule } from './linked-contexts/linked-contexts.module.js';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { AgentSessionsModule } from './agent-sessions/agent-sessions.module.js';
     ViewsModule,
     BotMessagingModule,
     TopicSessionsModule,
+    DeepResearchSessionsModule,
+    LinkedContextsModule,
     AgentSessionsModule,
   ],
   exports: [
@@ -41,6 +45,8 @@ import { AgentSessionsModule } from './agent-sessions/agent-sessions.module.js';
     PropertiesModule,
     ViewsModule,
     TopicSessionsModule,
+    DeepResearchSessionsModule,
+    LinkedContextsModule,
     AgentSessionsModule,
   ],
 })

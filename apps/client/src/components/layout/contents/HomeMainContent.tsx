@@ -2,6 +2,7 @@ import type { CompositionEventHandler, KeyboardEventHandler } from "react";
 import {
   type LucideIcon,
   ArrowUp,
+  Brain,
   ChevronDown,
   ChevronRight,
   Crown,
@@ -53,6 +54,11 @@ import {
   type StaffModelFamily,
 } from "@/lib/common-staff-models";
 import {
+  DEFAULT_DEEP_RESEARCH_CONFIG,
+  buildDeepResearchRequestMetadata,
+  type DeepResearchComposerConfig,
+} from "@/lib/deep-research";
+import {
   getBaseModelProductKey,
   getBaseModelProductKeyFromBotIdentity,
 } from "@/lib/base-model-agent";
@@ -62,10 +68,17 @@ import { cn } from "@/lib/utils";
 
 const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
   key: ParseKeys<["navigation", "message"]>;
-  templateKey: ParseKeys<["navigation", "message"]>;
+  templateKey?: ParseKeys<["navigation", "message"]>;
   icon: typeof Search;
   className: string;
+  mode?: "deep-research";
 }> = [
+  {
+    key: "dashboardActionDeepResearch",
+    icon: Search,
+    className: "",
+    mode: "deep-research",
+  },
   {
     key: "dashboardActionVideoGeneration",
     templateKey: "dashboardVideoGenerationTemplate",
@@ -471,6 +484,71 @@ function formatDashboardCredits(value: number) {
   return new Intl.NumberFormat("en-US").format(Math.floor(value));
 }
 
+function DashboardDeepResearchOptions({
+  config,
+  onChange,
+}: {
+  config: DeepResearchComposerConfig;
+  onChange: (config: DeepResearchComposerConfig) => void;
+}) {
+  const { t } = useTranslation("navigation");
+
+  return (
+    <div className="mx-1 mt-2 rounded-2xl border border-[#e7ded2] bg-white/60 px-3 py-2.5">
+      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#5f564d]">
+        <Brain size={14} className="text-[#6f7d93]" />
+        <span>{t("dashboardDeepResearchOptions")}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-full bg-[#ede6dc] p-0.5">
+          {(
+            [
+              ["standard", "dashboardDeepResearchModeStandard"],
+              ["max", "dashboardDeepResearchModeMax"],
+            ] as const
+          ).map(([mode, labelKey]) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={config.mode === mode}
+              onClick={() => onChange({ ...config, mode })}
+              className={cn(
+                "h-7 rounded-full px-3 text-xs font-medium transition-colors",
+                config.mode === mode
+                  ? "bg-white text-[#2f3642] shadow-sm"
+                  : "text-[#7d7368] hover:text-[#2f3642]",
+              )}
+            >
+              {t(labelKey)}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          aria-pressed={config.visualization === "auto"}
+          onClick={() =>
+            onChange({
+              ...config,
+              visualization: config.visualization === "auto" ? "off" : "auto",
+            })
+          }
+          className={cn(
+            "h-8 rounded-full border px-3 text-xs font-medium transition-colors",
+            config.visualization === "auto"
+              ? "border-[#b9c7df] bg-[#edf2ff] text-[#4a6288]"
+              : "border-[#e0d6ca] bg-white/70 text-[#83786d]",
+          )}
+        >
+          {config.visualization === "auto"
+            ? t("dashboardDeepResearchVisualsOn")
+            : t("dashboardDeepResearchVisualsOff")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function HomeMainContent({
   agentId = null,
 }: { agentId?: string | null } = {}) {
@@ -483,6 +561,8 @@ export function HomeMainContent({
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
   const [prompt, setPrompt] = useState("");
+  const [deepResearchConfig, setDeepResearchConfig] =
+    useState<DeepResearchComposerConfig | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const isPromptComposingRef = useRef(false);
   const promptCompositionEndFrameRef = useRef<number | null>(null);
@@ -566,7 +646,11 @@ export function HomeMainContent({
 
   const insertTemplate = (
     templateKey: ParseKeys<["navigation", "message"]>,
+    mode?: "deep-research",
   ) => {
+    setDeepResearchConfig(
+      mode === "deep-research" ? DEFAULT_DEEP_RESEARCH_CONFIG : null,
+    );
     const tpl = t(templateKey);
     setPrompt((prev) => (prev.trim() ? `${prev}\n\n${tpl}` : tpl));
     requestAnimationFrame(() => {
@@ -579,6 +663,20 @@ export function HomeMainContent({
         el.setSelectionRange(start, start + match[0].length);
       }
     });
+  };
+
+  const handleActionChip = (chip: (typeof DASHBOARD_ACTION_CHIPS)[number]) => {
+    if (chip.mode === "deep-research") {
+      setDeepResearchConfig((current) =>
+        current ? null : DEFAULT_DEEP_RESEARCH_CONFIG,
+      );
+      requestAnimationFrame(() => promptRef.current?.focus());
+      return;
+    }
+
+    if (chip.templateKey) {
+      insertTemplate(chip.templateKey);
+    }
   };
 
   const handleSubmit = async () => {
@@ -608,9 +706,17 @@ export function HomeMainContent({
         initialMessage: draft,
         ...(effectiveModel ? { model: effectiveModel } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
+        ...(deepResearchConfig
+          ? {
+              metadata: buildDeepResearchRequestMetadata(deepResearchConfig, {
+                attachmentCount: attachments.length,
+              }),
+            }
+          : {}),
       });
 
       setPrompt("");
+      setDeepResearchConfig(null);
       clearFiles();
       navigate({
         to: "/channels/$channelId",
@@ -889,7 +995,11 @@ export function HomeMainContent({
                         label={t(chip.key)}
                         icon={chip.icon}
                         className={chip.className}
-                        onClick={() => insertTemplate(chip.templateKey)}
+                        onClick={() => handleActionChip(chip)}
+                        isActive={
+                          chip.mode === "deep-research" &&
+                          deepResearchConfig !== null
+                        }
                       />
                     ))}
                   </div>
@@ -920,6 +1030,12 @@ export function HomeMainContent({
                     </Button>
                   </div>
                 </div>
+                {deepResearchConfig && (
+                  <DashboardDeepResearchOptions
+                    config={deepResearchConfig}
+                    onChange={setDeepResearchConfig}
+                  />
+                )}
               </div>
             </div>
 

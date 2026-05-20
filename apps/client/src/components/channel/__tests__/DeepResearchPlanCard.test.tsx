@@ -5,12 +5,25 @@ import type { Message } from "@/types/im";
 
 const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
+  sessionAction: vi.fn(),
+  sendMessage: vi.fn(),
 }));
 
 vi.mock("@/hooks/useMessages", () => ({
   useSendMessage: () => ({
     mutateAsync: mocks.mutateAsync,
   }),
+}));
+
+vi.mock("@/services/api/im", () => ({
+  default: {
+    deepResearchSessions: {
+      action: mocks.sessionAction,
+    },
+    messages: {
+      sendMessage: mocks.sendMessage,
+    },
+  },
 }));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
@@ -31,6 +44,10 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
         kind: "plan",
         interactionId: "interaction-plan-1",
         taskId: "task-1",
+        session: {
+          childChannelId: "deep-child-1",
+          parentChannelId: "ch-1",
+        },
       },
     },
     isPinned: false,
@@ -46,6 +63,10 @@ describe("DeepResearchPlanCard", () => {
   beforeEach(() => {
     mocks.mutateAsync.mockReset();
     mocks.mutateAsync.mockResolvedValue({});
+    mocks.sessionAction.mockReset();
+    mocks.sessionAction.mockResolvedValue({ accepted: true });
+    mocks.sendMessage.mockReset();
+    mocks.sendMessage.mockResolvedValue({});
   });
 
   it("renders a plan-oriented card instead of raw markdown", () => {
@@ -86,48 +107,113 @@ describe("DeepResearchPlanCard", () => {
     expect(screen.queryByText(/^Research Plan:/)).not.toBeInTheDocument();
   });
 
-  it("sends start-research metadata for the approved plan", async () => {
+  it("starts research through the isolated deep research session action endpoint", async () => {
     render(<DeepResearchPlanCard message={makeMessage()} />);
 
     fireEvent.click(screen.getByRole("button", { name: /开始研究/ }));
 
     await waitFor(() => {
-      expect(mocks.mutateAsync).toHaveBeenCalledWith({
-        content: "开始研究",
-        metadata: {
-          deepResearchAction: {
-            source: "team9",
-            action: "start_research",
-            planInteractionId: "interaction-plan-1",
-            planMessageId: "plan-msg-1",
-            taskId: "task-1",
-          },
-        },
+      expect(mocks.sessionAction).toHaveBeenCalledWith("deep-child-1", {
+        action: "start_research",
+        planMessageId: "plan-msg-1",
+        planInteractionId: "interaction-plan-1",
+        input: "开始研究",
       });
+      expect(mocks.mutateAsync).not.toHaveBeenCalled();
     });
   });
 
-  it("sends modify-plan metadata in the same thread when the plan is a reply", async () => {
+  it("disables plan actions for legacy plans without an isolated session", () => {
+    render(
+      <DeepResearchPlanCard
+        message={makeMessage({
+          metadata: {
+            deepResearch: {
+              kind: "plan",
+              interactionId: "interaction-plan-1",
+              taskId: "task-1",
+            },
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /开始研究/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /修改方案/ })).toBeDisabled();
+  });
+
+  it("can retry the original prompt in the parent channel without Deep Research metadata", async () => {
+    render(
+      <DeepResearchPlanCard
+        message={makeMessage({
+          content:
+            "**Title:** 中印关系研究\n\n" +
+            "**Input:** 1962 年中印战争对中印关系的影响\n\n" +
+            "**Research Plan:**\n" +
+            "(1) 梳理战争后的外交变化。\n" +
+            "(2) 分析边界争议的长期影响。",
+          metadata: {
+            deepResearch: {
+              kind: "plan",
+              interactionId: "interaction-plan-1",
+              taskId: "task-1",
+              session: {
+                childChannelId: "deep-child-1",
+                parentChannelId: "parent-1",
+              },
+            },
+          },
+        })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /不使用 Deep Research 重试/ }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.sendMessage).toHaveBeenCalledWith("parent-1", {
+        content:
+          "不使用 Deep Research，直接回答这个问题：1962 年中印战争对中印关系的影响",
+        metadata: {
+          deepResearchBypass: expect.objectContaining({
+            source: "team9",
+            planMessageId: "plan-msg-1",
+            planInteractionId: "interaction-plan-1",
+            childChannelId: "deep-child-1",
+          }),
+        },
+      });
+      expect(mocks.sendMessage.mock.calls[0]?.[1]?.metadata).not.toHaveProperty(
+        "deepResearchRequest",
+      );
+      expect(mocks.sessionAction).not.toHaveBeenCalled();
+      expect(mocks.mutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  it("submits plan-edit instructions through the isolated action endpoint", async () => {
     render(
       <DeepResearchPlanCard message={makeMessage({ parentId: "root-1" })} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /修改方案/ }));
+    fireEvent.change(
+      screen.getByPlaceholderText("告诉我想怎样调整研究方案..."),
+      {
+        target: { value: "重点比较竞品硬件，减少历史背景。" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: /提交修改/ }));
 
     await waitFor(() => {
-      expect(mocks.mutateAsync).toHaveBeenCalledWith({
-        content: "修改研究方案",
-        parentId: "root-1",
-        metadata: {
-          deepResearchAction: {
-            source: "team9",
-            action: "modify_plan",
-            planInteractionId: "interaction-plan-1",
-            planMessageId: "plan-msg-1",
-            taskId: "task-1",
-          },
-        },
+      expect(mocks.sessionAction).toHaveBeenCalledWith("deep-child-1", {
+        action: "modify_plan",
+        planMessageId: "plan-msg-1",
+        planInteractionId: "interaction-plan-1",
+        input: "重点比较竞品硬件，减少历史背景。",
       });
+      expect(mocks.mutateAsync).not.toHaveBeenCalled();
     });
   });
 });

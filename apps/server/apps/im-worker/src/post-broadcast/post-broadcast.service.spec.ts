@@ -773,16 +773,9 @@ describe('PostBroadcastService — pushToHiveBots', () => {
 
   it('sends correct event payload with message content and sender info', async () => {
     const bot = makeHiveBot('claude');
-    const deepResearchAction = {
-      source: 'team9',
-      action: 'start_research',
-      planInteractionId: 'interaction-plan-1',
-      planMessageId: MSG_ID,
-    };
     const msg = makeMessage({
       content: 'Test content',
       metadata: {
-        deepResearchAction,
         clientContext: { kind: 'web' },
       },
     });
@@ -802,7 +795,31 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(event.payload.content).toBe('Test content');
     expect(event.payload.sender.id).toBe(sender.id);
     expect(event.payload.sender.username).toBe(sender.username);
-    expect(event.payload.metadata).toEqual({ deepResearchAction });
+    expect(event.payload.metadata).toBeUndefined();
+  });
+
+  it('does not forward isolated deep research session messages to hive bots', async () => {
+    const bot = makeHiveBot('claude');
+    const msg = makeMessage({
+      content: 'Deep research should be handled by Team9 directly',
+      metadata: {
+        deepResearchRequest: {
+          source: 'team9',
+          kind: 'request',
+        },
+        deepResearchSessionRef: {
+          childChannelId: 'child-channel-id',
+          parentChannelId: CHANNEL_ID,
+          agentWakePolicy: 'none',
+        },
+      },
+    });
+
+    setupDbForHivePush({ bots: [bot], message: msg });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).not.toHaveBeenCalled();
   });
 
   it('sends attachment publicUrl to hive bots', async () => {

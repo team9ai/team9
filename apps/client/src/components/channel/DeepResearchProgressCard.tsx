@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Brain,
-  ChevronDown,
-  ChevronUp,
   FileText,
   Globe2,
+  ImageIcon,
   Search,
   SearchCheck,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface DeepResearchThoughtProgress {
@@ -27,11 +25,19 @@ interface DeepResearchSourceProgress {
   status?: string;
 }
 
+interface DeepResearchVisualProgress {
+  id?: string;
+  src: string;
+  title?: string;
+  alt?: string;
+}
+
 interface DeepResearchProgressSnapshot {
   phase?: string;
   activeStep?: string;
   thoughts: DeepResearchThoughtProgress[];
   sources: DeepResearchSourceProgress[];
+  visuals: DeepResearchVisualProgress[];
   queries: string[];
   counts?: Record<string, unknown>;
 }
@@ -41,6 +47,12 @@ export interface DeepResearchProgressMeta {
   kind: "report";
   status?: string;
   phase?: string;
+  mode?: string;
+  visualization?: string;
+  sources?: {
+    googleSearch?: boolean;
+    uploadedFiles?: boolean;
+  };
   progress?: DeepResearchProgressSnapshot;
 }
 
@@ -69,6 +81,27 @@ function getArray<T>(value: unknown, mapper: (item: unknown) => T | null): T[] {
   return Array.isArray(value)
     ? value.map(mapper).filter((item): item is T => item !== null)
     : [];
+}
+
+function visualSource(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  if (!isRecord(value)) return undefined;
+
+  const direct =
+    stringValue(value.url) ??
+    stringValue(value.imageUrl) ??
+    stringValue(value.publicUrl) ??
+    stringValue(value.dataUrl) ??
+    stringValue(value.src);
+  if (direct) return direct;
+
+  const base64 = stringValue(value.base64) ?? stringValue(value.data);
+  if (!base64) return undefined;
+
+  const mimeType = stringValue(value.mimeType) ?? "image/png";
+  return `data:${mimeType};base64,${base64}`;
 }
 
 function parseProgress(
@@ -101,6 +134,20 @@ function parseProgress(
     };
   });
 
+  const visuals = getArray(value.visuals ?? value.images, (item) => {
+    const src = visualSource(item);
+    if (!src) return null;
+    const record = isRecord(item) ? item : {};
+    return {
+      ...(stringValue(record.id) ? { id: stringValue(record.id) } : {}),
+      src,
+      ...(stringValue(record.title)
+        ? { title: stringValue(record.title) }
+        : {}),
+      ...(stringValue(record.alt) ? { alt: stringValue(record.alt) } : {}),
+    };
+  });
+
   const queries = Array.isArray(value.queries)
     ? value.queries
         .map((item) => stringValue(item))
@@ -114,8 +161,28 @@ function parseProgress(
       : {}),
     thoughts,
     sources,
+    visuals,
     queries,
     ...(isRecord(value.counts) ? { counts: value.counts } : {}),
+  };
+}
+
+function parseDeepResearchSources(
+  value: unknown,
+): DeepResearchProgressMeta["sources"] | undefined {
+  if (!isRecord(value)) return undefined;
+  const googleSearch =
+    typeof value.googleSearch === "boolean" ? value.googleSearch : undefined;
+  const uploadedFiles =
+    typeof value.uploadedFiles === "boolean" ? value.uploadedFiles : undefined;
+
+  if (googleSearch === undefined && uploadedFiles === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(googleSearch !== undefined ? { googleSearch } : {}),
+    ...(uploadedFiles !== undefined ? { uploadedFiles } : {}),
   };
 }
 
@@ -130,6 +197,12 @@ export function getDeepResearchProgressMeta(
   if (deepResearch.kind === "plan") return null;
 
   const progress = parseProgress(deepResearch.progress);
+  const agent = stringValue(deepResearch.agent);
+  const agentConfig = isRecord(deepResearch.agentConfig)
+    ? deepResearch.agentConfig
+    : isRecord(deepResearch.agent_config)
+      ? deepResearch.agent_config
+      : null;
   const hasProgress =
     Boolean(progress) ||
     stringValue(deepResearch.phase) ||
@@ -144,6 +217,19 @@ export function getDeepResearchProgressMeta(
       : {}),
     ...(stringValue(deepResearch.phase)
       ? { phase: stringValue(deepResearch.phase) }
+      : {}),
+    ...(stringValue(deepResearch.mode)
+      ? { mode: stringValue(deepResearch.mode) }
+      : agent?.includes("-max-")
+        ? { mode: "max" }
+        : {}),
+    ...(stringValue(deepResearch.visualization)
+      ? { visualization: stringValue(deepResearch.visualization) }
+      : stringValue(agentConfig?.visualization)
+        ? { visualization: stringValue(agentConfig?.visualization) }
+        : {}),
+    ...(parseDeepResearchSources(deepResearch.sources)
+      ? { sources: parseDeepResearchSources(deepResearch.sources) }
       : {}),
     ...(progress ? { progress } : {}),
   };
@@ -184,12 +270,33 @@ function formatElapsed(startedAt: number, now: number): string {
 }
 
 function sourceDomain(source: DeepResearchSourceProgress): string {
-  if (source.domain) return source.domain;
+  const titleDomain = domainFromDisplayText(source.title);
+  if (source.domain && source.domain !== "vertexaisearch.cloud.google.com") {
+    return source.domain;
+  }
+  if (titleDomain) return titleDomain;
   try {
     return new URL(source.url).hostname.replace(/^www\./, "");
   } catch {
     return source.url;
   }
+}
+
+function domainFromDisplayText(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const candidate = value
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .split(/[/?#]/)[0]
+    ?.trim()
+    .toLowerCase();
+  return candidate && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(candidate)
+    ? candidate
+    : undefined;
+}
+
+function isUrlLike(value: string | undefined): boolean {
+  return Boolean(value && /^https?:\/\//i.test(value.trim()));
 }
 
 function faviconUrl(domain: string): string {
@@ -266,16 +373,19 @@ function SourceGrid({ sources }: { sources: DeepResearchSourceProgress[] }) {
   if (sources.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-      {sources.slice(0, 18).map((source) => {
+    <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+      {sources.slice(0, 32).map((source) => {
         const domain = sourceDomain(source);
+        const title =
+          source.title && !isUrlLike(source.title) ? source.title : domain;
+        const showDomain = title.toLowerCase() !== domain.toLowerCase();
         return (
           <a
             key={source.id ?? source.url}
             href={source.url}
             target="_blank"
             rel="noreferrer"
-            className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-2 text-sm transition-colors hover:bg-muted"
+            className="flex min-w-0 items-center gap-2 rounded px-1.5 py-1 text-sm transition-colors hover:bg-muted"
           >
             <img
               src={faviconUrl(domain)}
@@ -283,17 +393,73 @@ function SourceGrid({ sources }: { sources: DeepResearchSourceProgress[] }) {
               className="size-4 shrink-0 rounded-sm"
               loading="lazy"
             />
-            <span className="shrink-0 max-w-24 truncate text-muted-foreground">
-              {domain}
-            </span>
-            <span className="min-w-0 truncate">
-              {source.title ?? source.url}
-            </span>
+            <span className="min-w-0 truncate">{title}</span>
+            {showDomain && (
+              <span className="shrink-0 max-w-24 truncate text-muted-foreground">
+                {domain}
+              </span>
+            )}
           </a>
         );
       })}
     </div>
   );
+}
+
+function SourceSkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 12 }).map((_, index) => (
+        <div
+          key={index}
+          className="flex min-w-0 items-center gap-2 rounded px-1.5 py-1"
+        >
+          <div className="size-4 shrink-0 rounded-sm bg-muted animate-pulse" />
+          <div className="h-3 min-w-0 flex-1 rounded bg-muted animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VisualGrid({ visuals }: { visuals: DeepResearchVisualProgress[] }) {
+  if (visuals.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {visuals.slice(0, 6).map((visual, index) => (
+        <figure
+          key={visual.id ?? `${index}-${visual.src}`}
+          className="overflow-hidden rounded-md border border-border bg-background"
+        >
+          <img
+            src={visual.src}
+            alt={visual.alt ?? visual.title ?? "Deep Research visual"}
+            className="aspect-video w-full object-cover"
+            loading="lazy"
+          />
+          {visual.title && (
+            <figcaption className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+              {visual.title}
+            </figcaption>
+          )}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+function getContextBadges(meta: DeepResearchProgressMeta): string[] {
+  const badges: string[] = [];
+  if (meta.mode === "max") {
+    badges.push("Deep Research Max");
+  } else if (meta.mode) {
+    badges.push("Deep Research");
+  }
+  if (meta.sources?.googleSearch) badges.push("Web");
+  if (meta.sources?.uploadedFiles) badges.push("Files");
+  if (meta.visualization === "auto") badges.push("Visuals");
+  return badges;
 }
 
 function ProcessStep({
@@ -334,10 +500,15 @@ export function DeepResearchProgressCard({
   const progress = meta.progress;
   const thoughts = progress?.thoughts ?? [];
   const sources = progress?.sources ?? [];
+  const visuals = progress?.visuals ?? [];
   const queries = progress?.queries ?? [];
   const hasProcessData =
-    thoughts.length > 0 || sources.length > 0 || queries.length > 0;
-  const [expanded, setExpanded] = useState(isStreaming && hasProcessData);
+    thoughts.length > 0 ||
+    sources.length > 0 ||
+    visuals.length > 0 ||
+    queries.length > 0;
+  const showProcess = hasProcessData || isStreaming;
+  const contextBadges = getContextBadges(meta);
   const [now, setNow] = useState(() => Date.now());
   const statusText = useMemo(
     () => getStatusText(meta, isStreaming),
@@ -347,16 +518,6 @@ export function DeepResearchProgressCard({
     isStreaming && startedAt
       ? `${statusText} · ${formatElapsed(startedAt, now)}`
       : statusText;
-
-  useEffect(() => {
-    if (!hasProcessData) {
-      setExpanded(false);
-      return;
-    }
-    if (isStreaming) {
-      setExpanded(true);
-    }
-  }, [hasProcessData, isStreaming]);
 
   useEffect(() => {
     if (!isStreaming || !startedAt) return;
@@ -380,47 +541,79 @@ export function DeepResearchProgressCard({
           <div className="truncate text-muted-foreground">
             {visibleStatusText}
           </div>
+          {contextBadges.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {contextBadges.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-md border border-border bg-background px-1.5 py-0.5 text-[0.68rem] font-medium text-muted-foreground"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        {hasProcessData && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="shrink-0"
-            onClick={() => setExpanded((value) => !value)}
-          >
-            {expanded ? "隐藏思考过程" : "显示思考过程"}
-            {expanded ? (
-              <ChevronUp className="size-4" />
-            ) : (
-              <ChevronDown className="size-4" />
-            )}
-          </Button>
-        )}
       </div>
 
-      {isStreaming && !hasProcessData && (
-        <div className="mt-3 border-t border-border pt-3 text-sm leading-6 text-muted-foreground">
-          正在等待研究服务返回可展示过程；收到研究思路、检索词或网站后会自动展开。
-        </div>
-      )}
-
-      {expanded && (
+      {showProcess && (
         <div className="mt-4 border-t border-border pt-4">
-          {thoughts.length > 0 && (
-            <ProcessStep icon={Brain} title="梳理研究脉络">
+          {thoughts.length > 0 ? (
+            <ProcessStep icon={Brain} title="系统构建研究框架">
               <ThoughtTimeline thoughts={thoughts} isStreaming={isStreaming} />
+            </ProcessStep>
+          ) : isStreaming ? (
+            <ProcessStep icon={Brain} title="系统构建研究框架">
+              <div className="space-y-2 py-1">
+                <div className="h-3 w-56 rounded bg-muted animate-pulse" />
+                <div className="h-3 w-full max-w-xl rounded bg-muted animate-pulse" />
+                <div className="h-3 w-2/3 rounded bg-muted animate-pulse" />
+              </div>
+            </ProcessStep>
+          ) : null}
+
+          {(sources.length > 0 || isStreaming) && (
+            <ProcessStep
+              icon={Globe2}
+              title={
+                sources.length > 0
+                  ? isStreaming
+                    ? `正在研究网站 · ${sources.length}`
+                    : `研究过的网站 · ${sources.length}`
+                  : "正在研究网站"
+              }
+            >
+              {sources.length > 0 ? (
+                <SourceGrid sources={sources} />
+              ) : (
+                <SourceSkeletonGrid />
+              )}
+              {sources.length === 0 && queries.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {queries.map((query) => (
+                    <span
+                      key={query}
+                      className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground"
+                    >
+                      {query}
+                    </span>
+                  ))}
+                </div>
+              )}
             </ProcessStep>
           )}
 
-          {sources.length > 0 && (
-            <ProcessStep icon={Globe2} title={`研究网站 · ${sources.length}`}>
-              <SourceGrid sources={sources} />
+          {visuals.length > 0 && (
+            <ProcessStep
+              icon={ImageIcon}
+              title={`可视化结果 · ${visuals.length}`}
+            >
+              <VisualGrid visuals={visuals} />
             </ProcessStep>
           )}
 
           <ProcessStep icon={FileText} title="生成报告" isLast>
-            {queries.length > 0 && (
+            {queries.length > 0 && sources.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {queries.map((query) => (
                   <span

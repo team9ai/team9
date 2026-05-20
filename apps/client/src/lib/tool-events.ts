@@ -312,10 +312,7 @@ function resolveToolCall(
         toolName: nestedToolName,
         ...(isRecord(nestedParams)
           ? {
-              toolArgs: normalizeDeepResearchArgsForDisplay(
-                nestedToolName,
-                nestedParams,
-              ),
+              toolArgs: nestedParams,
             }
           : {}),
       };
@@ -326,47 +323,9 @@ function resolveToolCall(
     toolName: fallbackToolName,
     ...(toolArgs
       ? {
-          toolArgs: normalizeDeepResearchArgsForDisplay(
-            fallbackToolName,
-            toolArgs,
-          ),
+          toolArgs,
         }
       : {}),
-  };
-}
-
-function isDeepResearchToolName(toolName: string): boolean {
-  return toolName.toLowerCase().includes("deep_research");
-}
-
-function hasPreviousInteraction(args: Record<string, unknown>): boolean {
-  const value = args.previousInteractionId ?? args.previous_interaction_id;
-  return typeof value === "string" ? value.trim() !== "" : value != null;
-}
-
-function normalizeDeepResearchArgsForDisplay(
-  toolName: string,
-  args: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!isDeepResearchToolName(toolName) || hasPreviousInteraction(args)) {
-    return args;
-  }
-
-  const agentConfigKey = isRecord(args.agent_config)
-    ? "agent_config"
-    : "agentConfig";
-  const originalConfig = isRecord(args[agentConfigKey])
-    ? args[agentConfigKey]
-    : {};
-
-  return {
-    ...args,
-    [agentConfigKey]: {
-      ...originalConfig,
-      ...(agentConfigKey === "agent_config"
-        ? { collaborative_planning: true }
-        : { collaborativePlanning: true }),
-    },
   };
 }
 

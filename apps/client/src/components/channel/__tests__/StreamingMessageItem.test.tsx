@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StreamingMessageItem } from "../StreamingMessageItem";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
@@ -76,10 +76,9 @@ describe("StreamingMessageItem", () => {
     expect(
       screen.getAllByText(/正在规划研究并检索资料/).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText(/已运行 2 分钟/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/正在等待研究服务返回可展示过程/),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText(/已运行 2 分钟/).length).toBeGreaterThan(0);
+    expect(screen.getByText("系统构建研究框架")).toBeInTheDocument();
+    expect(screen.getByText("正在研究网站")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /隐藏思考过程/ }),
     ).not.toBeInTheDocument();
@@ -140,7 +139,7 @@ describe("StreamingMessageItem", () => {
     vi.useRealTimers();
   });
 
-  it("renders structured deep research progress and opens the process dialog", () => {
+  it("renders structured deep research progress by default", () => {
     render(
       <StreamingMessageItem
         stream={makeStream({
@@ -151,6 +150,14 @@ describe("StreamingMessageItem", () => {
               title: "伊朗局势研究与分析",
               status: "running",
               phase: "searching",
+              mode: "max",
+              sources: {
+                googleSearch: true,
+                uploadedFiles: true,
+              },
+              agentConfig: {
+                visualization: "auto",
+              },
               progress: {
                 phase: "searching",
                 activeStep: "正在研究网站",
@@ -171,6 +178,13 @@ describe("StreamingMessageItem", () => {
                     status: "found",
                   },
                 ],
+                visuals: [
+                  {
+                    id: "chart-1",
+                    url: "data:image/png;base64,iVBORw0KGgo=",
+                    title: "地区风险变化图",
+                  },
+                ],
                 queries: ["Iran 2026 politics"],
                 counts: { searchQueries: 1, websites: 1 },
               },
@@ -184,16 +198,18 @@ describe("StreamingMessageItem", () => {
     expect(screen.getByText("伊朗局势研究与分析")).toBeInTheDocument();
     expect(screen.getAllByText(/正在研究 1 个网站/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("梳理研究脉络").length).toBeGreaterThan(0);
+    expect(screen.getByText("Deep Research Max")).toBeInTheDocument();
+    expect(screen.getByText("Web")).toBeInTheDocument();
+    expect(screen.getByText("Files")).toBeInTheDocument();
+    expect(screen.getByText("Visuals")).toBeInTheDocument();
     expect(
       screen.getByText("先建立政治与经济背景，再核对近期事件。"),
     ).toBeInTheDocument();
     expect(screen.getByText("Iran analysis")).toBeInTheDocument();
+    expect(screen.getByText("地区风险变化图")).toBeInTheDocument();
     expect(screen.getByText("Iran 2026 politics")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /隐藏思考过程/ }));
-    expect(screen.queryByText("Iran analysis")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /显示思考过程/ }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /隐藏思考过程|显示思考过程/ }),
+    ).not.toBeInTheDocument();
   });
 });

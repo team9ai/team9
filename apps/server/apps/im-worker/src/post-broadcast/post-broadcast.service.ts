@@ -68,24 +68,23 @@ export class PostBroadcastService {
     return sender.userType === 'human';
   }
 
-  private pickHiveMessageMetadata(
-    metadata: unknown,
-  ): Record<string, unknown> | undefined {
+  private shouldSuppressHiveFanout(message: schema.Message): boolean {
+    const metadata = message.metadata;
     if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-      return undefined;
+      return false;
     }
 
-    const record = metadata as Record<string, unknown>;
-    const deepResearchAction = record.deepResearchAction;
+    const sessionRef = metadata.deepResearchSessionRef;
     if (
-      !deepResearchAction ||
-      typeof deepResearchAction !== 'object' ||
-      Array.isArray(deepResearchAction)
+      sessionRef &&
+      typeof sessionRef === 'object' &&
+      !Array.isArray(sessionRef) &&
+      (sessionRef as Record<string, unknown>).agentWakePolicy === 'none'
     ) {
-      return undefined;
+      return true;
     }
 
-    return { deepResearchAction };
+    return false;
   }
 
   private async getAttachmentPublicUrl(
@@ -699,6 +698,13 @@ export class PostBroadcastService {
       const { message, sender, channel, mentions, parentMessage, attachments } =
         messageData;
 
+      if (this.shouldSuppressHiveFanout(message)) {
+        this.logger.debug(
+          `Skipping hive bot fanout for isolated deep research message ${msgId}`,
+        );
+        return;
+      }
+
       if (!this.isHumanAuthoredMessage(sender)) {
         this.logger.debug(
           `Skipping hive bot fanout for non-human-authored message ${msgId}`,
@@ -878,10 +884,6 @@ export class PostBroadcastService {
         const isFileMessage =
           hasAttachments &&
           (message.type === 'file' || message.type === 'image');
-        const forwardedMetadata = this.pickHiveMessageMetadata(
-          message.metadata,
-        );
-
         const event = isFileMessage
           ? {
               type: 'team9:message.file' as const,
@@ -899,7 +901,6 @@ export class PostBroadcastService {
                   url: eventAttachments[0].publicUrl,
                   publicUrl: eventAttachments[0].publicUrl,
                 },
-                ...(forwardedMetadata ? { metadata: forwardedMetadata } : {}),
                 ...(trackingChannelId ? { trackingChannelId } : {}),
                 team9Context,
               },
@@ -924,7 +925,6 @@ export class PostBroadcastService {
                       })),
                     }
                   : {}),
-                ...(forwardedMetadata ? { metadata: forwardedMetadata } : {}),
                 ...(trackingChannelId ? { trackingChannelId } : {}),
                 team9Context,
               },

@@ -69,4 +69,9 @@ export class CreateTopicSessionDto {
   @ValidateNested({ each: true })
   @Type(() => AttachmentDto)
   attachments?: AttachmentDto[];
+
+  /** Optional metadata to persist on the initial message. */
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

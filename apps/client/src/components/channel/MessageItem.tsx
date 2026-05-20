@@ -23,6 +23,11 @@ import {
   DeepResearchProgressCard,
   getDeepResearchProgressMeta,
 } from "./DeepResearchProgressCard";
+import {
+  DeepResearchTaskCard,
+  getDeepResearchTaskMeta,
+  type DeepResearchTaskMeta,
+} from "./DeepResearchTaskCard";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { UserHoverCard } from "./UserHoverCard";
 import {
@@ -96,6 +101,8 @@ export interface MessageItemProps {
    * the hover toolbar's Properties button is hidden.
    */
   supportsProperties?: boolean;
+  /** Open an isolated deep research session in the side panel. */
+  onOpenDeepResearch?: (meta: DeepResearchTaskMeta) => void;
 }
 
 function getThinkingMetadata(
@@ -132,6 +139,7 @@ export function MessageItem({
   onEditSave,
   onEditCancel,
   supportsProperties = false,
+  onOpenDeepResearch,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
@@ -143,6 +151,10 @@ export function MessageItem({
     !deepResearchPlanMeta && rawDeepResearchProgressMeta?.kind === "report"
       ? rawDeepResearchProgressMeta
       : null;
+  const deepResearchTaskMeta = getDeepResearchTaskMeta(
+    message.metadata,
+    message.channelId,
+  );
   const [isHovered, setIsHovered] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
@@ -204,6 +216,25 @@ export function MessageItem({
     return (
       <div id={`message-${message.id}`} className="py-2 px-2">
         <TrackingCard message={message} />
+      </div>
+    );
+  }
+
+  if (deepResearchTaskMeta) {
+    return (
+      <div
+        id={`message-${message.id}`}
+        className={cn(
+          "px-2 py-1 mr-4",
+          indent && "ml-6",
+          isHighlighted &&
+            "rounded-md bg-warning/20 ring-2 ring-warning dark:bg-warning/30 dark:ring-warning",
+        )}
+      >
+        <DeepResearchTaskCard
+          meta={deepResearchTaskMeta}
+          onOpen={onOpenDeepResearch}
+        />
       </div>
     );
   }
