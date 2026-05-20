@@ -127,6 +127,158 @@ describe("useStreamingStore", () => {
     });
   });
 
+  it("preserves deep research progress when later metadata only updates phase", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      metadata: {
+        longRunning: true,
+        deepResearch: {
+          status: "running",
+          phase: "searching",
+          progress: {
+            phase: "searching",
+            sources: [{ url: "https://example.com/a", title: "A" }],
+            counts: { websites: 1 },
+          },
+        },
+      },
+    });
+
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      deepResearch: {
+        status: "running",
+        phase: "synthesizing",
+      },
+    });
+
+    expect(
+      useStreamingStore.getState().streams.get("stream-1")?.metadata,
+    ).toEqual({
+      longRunning: true,
+      deepResearch: {
+        status: "running",
+        phase: "synthesizing",
+        progress: {
+          phase: "searching",
+          sources: [{ url: "https://example.com/a", title: "A" }],
+          counts: { websites: 1 },
+        },
+      },
+    });
+  });
+
+  it("merges deep research progress snapshots without regressing process details", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      metadata: {
+        longRunning: true,
+        deepResearch: {
+          status: "running",
+          phase: "searching",
+          progress: {
+            phase: "searching",
+            thoughts: [
+              {
+                id: "0",
+                title: "梳理研究脉络",
+                text: "longer stable thought",
+                status: "running",
+              },
+            ],
+            sources: [
+              {
+                id: "https://example.com/a",
+                url: "https://example.com/a",
+                title: "A",
+              },
+            ],
+            queries: ["q1"],
+            counts: { websites: 1 },
+          },
+        },
+      },
+    });
+
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      deepResearch: {
+        status: "running",
+        phase: "running",
+        progress: {
+          phase: "planning",
+          thoughts: [
+            {
+              id: "0",
+              title: "梳理研究脉络",
+              text: "short",
+              status: "completed",
+            },
+            {
+              id: "1",
+              title: "识别关键问题",
+              text: "new thought",
+              status: "running",
+            },
+          ],
+          sources: [
+            {
+              id: "https://example.com/a",
+              url: "https://example.com/a",
+              title: "A updated",
+            },
+            {
+              id: "https://example.com/b",
+              url: "https://example.com/b",
+              title: "B",
+            },
+          ],
+          queries: ["q1", "q2"],
+          counts: { searchQueries: 2 },
+        },
+      },
+    });
+
+    expect(
+      useStreamingStore.getState().streams.get("stream-1")?.metadata,
+    ).toMatchObject({
+      deepResearch: {
+        phase: "running",
+        progress: {
+          phase: "planning",
+          thoughts: [
+            {
+              id: "0",
+              text: "longer stable thought",
+              status: "completed",
+            },
+            {
+              id: "1",
+              text: "new thought",
+              status: "running",
+            },
+          ],
+          sources: [
+            {
+              id: "https://example.com/a",
+              title: "A updated",
+            },
+            {
+              id: "https://example.com/b",
+              title: "B",
+            },
+          ],
+          queries: ["q1", "q2"],
+          counts: { websites: 1, searchQueries: 2 },
+        },
+      },
+    });
+  });
+
   it("closes active thinking when tool call metadata starts streaming", () => {
     vi.setSystemTime(1000);
     useStreamingStore.getState().startStream({
@@ -278,5 +430,99 @@ describe("useStreamingStore", () => {
       ["thinking", "thinking"],
       ["content", "hello"],
     ]);
+  });
+
+  it("restores an active stream snapshot after a channel reload", () => {
+    useStreamingStore.getState().restoreStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      thinking: "research path",
+      content: "partial report",
+      metadata: {
+        longRunning: true,
+        deepResearch: {
+          kind: "report",
+          status: "running",
+          progress: {
+            thoughts: ["checking sources"],
+          },
+        },
+      },
+    });
+
+    const stream = useStreamingStore.getState().streams.get("stream-1");
+    expect(stream).toMatchObject({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      content: "partial report",
+      thinking: "research path",
+      isStreaming: true,
+      isThinking: false,
+      metadata: {
+        longRunning: true,
+        deepResearch: {
+          kind: "report",
+          status: "running",
+          progress: {
+            thoughts: ["checking sources"],
+          },
+        },
+      },
+    });
+    expect(stream?.parts.map((part) => [part.type, part.content])).toEqual([
+      ["thinking", "research path"],
+      ["content", "partial report"],
+    ]);
+  });
+
+  it("refreshes stale-stream cleanup while ordinary stream updates keep arriving", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+    });
+
+    vi.advanceTimersByTime(119_000);
+    useStreamingStore.getState().setStreamContent("stream-1", "partial report");
+
+    vi.advanceTimersByTime(119_000);
+    expect(useStreamingStore.getState().streams.has("stream-1")).toBe(true);
+
+    useStreamingStore.getState().setStreamMetadata("stream-1", {
+      agentEventType: "writing",
+      status: "running",
+    });
+
+    vi.advanceTimersByTime(119_000);
+    expect(useStreamingStore.getState().streams.has("stream-1")).toBe(true);
+
+    vi.advanceTimersByTime(1_001);
+    expect(useStreamingStore.getState().streams.has("stream-1")).toBe(false);
+  });
+
+  it("keeps long-running deep research streams past the ordinary stale timeout", () => {
+    useStreamingStore.getState().startStream({
+      streamId: "stream-1",
+      channelId: "channel-1",
+      senderId: "bot-1",
+      startedAt: 1000,
+      metadata: {
+        longRunning: true,
+        deepResearch: {
+          status: "running",
+          phase: "started",
+        },
+      },
+    });
+
+    vi.advanceTimersByTime(120_001);
+    expect(useStreamingStore.getState().streams.has("stream-1")).toBe(true);
+
+    vi.advanceTimersByTime(90 * 60_000 - 120_001);
+    expect(useStreamingStore.getState().streams.has("stream-1")).toBe(false);
   });
 });

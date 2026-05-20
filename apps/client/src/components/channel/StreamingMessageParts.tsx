@@ -12,6 +12,14 @@ interface StreamingMessagePartsProps {
   members: ChannelMember[];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasDeepResearchMetadata(stream: StreamingMessage): boolean {
+  return isRecord(stream.metadata?.deepResearch);
+}
+
 function streamForContentPart(
   stream: StreamingMessage,
   part: StreamingPart,
@@ -29,6 +37,17 @@ export const StreamingMessageParts = memo(function StreamingMessageParts({
   stream,
   members,
 }: StreamingMessagePartsProps) {
+  const isDeepResearchStream = hasDeepResearchMetadata(stream);
+
+  if (isDeepResearchStream) {
+    return (
+      <StreamingMessageItem
+        stream={{ ...stream, thinking: "", isThinking: false }}
+        members={members}
+      />
+    );
+  }
+
   if (stream.parts.length === 0) {
     return (
       <>

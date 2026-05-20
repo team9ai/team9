@@ -5,6 +5,7 @@ import {
   mergeStreamingMetadata,
   persistStreamMetadata,
 } from "@/lib/streaming-metadata";
+import type { ActiveStreamingMessage } from "@/types/im";
 
 export interface StreamingMessage {
   streamId: string;
@@ -50,6 +51,9 @@ interface StreamingState {
     metadata?: Record<string, unknown>;
   }) => void;
 
+  /** Restore a stream snapshot fetched from the gateway */
+  restoreStream: (event: ActiveStreamingMessage) => void;
+
   /** Set the current accumulated text content for a stream */
   setStreamContent: (streamId: string, content: string) => void;
 
@@ -72,9 +76,64 @@ interface StreamingState {
   getChannelStreams: (channelId: string) => StreamingMessage[];
 }
 
-// Auto-cleanup timeout for stale streams (120s)
+// Auto-cleanup timeout for ordinary stale streams.
 const STREAM_TIMEOUT_MS = 120_000;
+// Deep research can legitimately run for many minutes with sparse upstream
+// deltas. Keep its local placeholder alive longer than the backend worker cap
+// so the UI does not disappear while the task is still running.
+const LONG_RUNNING_STREAM_TIMEOUT_MS = 90 * 60_000;
 const streamTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasLongRunningMetadata(
+  metadata: Record<string, unknown> | undefined,
+): boolean {
+  return metadata?.longRunning === true || isRecord(metadata?.deepResearch);
+}
+
+function resolveStreamTimeoutMs(
+  stream: StreamingMessage | undefined,
+  incomingMetadata?: Record<string, unknown>,
+): number {
+  return hasLongRunningMetadata(incomingMetadata) ||
+    hasLongRunningMetadata(stream?.metadata)
+    ? LONG_RUNNING_STREAM_TIMEOUT_MS
+    : STREAM_TIMEOUT_MS;
+}
+
+function clearStreamTimeout(streamId: string): void {
+  const timeout = streamTimeouts.get(streamId);
+  if (!timeout) return;
+  clearTimeout(timeout);
+  streamTimeouts.delete(streamId);
+}
+
+function refreshStreamTimeout(
+  streamId: string,
+  get: () => StreamingState,
+  allowMissing = false,
+  incomingMetadata?: Record<string, unknown>,
+): void {
+  const stream = get().streams.get(streamId);
+  if (!allowMissing && !stream) {
+    return;
+  }
+  clearStreamTimeout(streamId);
+  const timeout = setTimeout(
+    () => {
+      const stream = get().streams.get(streamId);
+      if (stream?.isStreaming) {
+        get().abortStream(streamId);
+      }
+      streamTimeouts.delete(streamId);
+    },
+    resolveStreamTimeoutMs(stream, incomingMetadata),
+  );
+  streamTimeouts.set(streamId, timeout);
+}
 
 function closeActiveParts(
   parts: StreamingPart[],
@@ -113,6 +172,42 @@ function aggregateParts(
     .filter((part) => part.type === type)
     .map((part) => part.content)
     .join("");
+}
+
+function preferAccumulatedContent(existing: string, incoming: string): string {
+  if (!incoming) return existing;
+  if (!existing) return incoming;
+  if (incoming.startsWith(existing)) return incoming;
+  if (existing.startsWith(incoming)) return existing;
+  return incoming.length >= existing.length ? incoming : existing;
+}
+
+function buildRestoredParts(
+  streamId: string,
+  startedAt: number,
+  thinking: string,
+  content: string,
+): StreamingPart[] {
+  const parts: StreamingPart[] = [];
+  if (thinking) {
+    parts.push({
+      id: `${streamId}-restore-thinking`,
+      type: "thinking",
+      content: thinking,
+      startedAt,
+      isStreaming: !content,
+    });
+  }
+  if (content) {
+    parts.push({
+      id: `${streamId}-restore-content`,
+      type: "content",
+      content,
+      startedAt,
+      isStreaming: true,
+    });
+  }
+  return parts;
 }
 
 function isToolCallMetadata(metadata: Record<string, unknown> | undefined) {
@@ -163,19 +258,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
   streams: new Map(),
 
   startStream: (event) => {
-    // Clear any existing timeout for this streamId
-    const existingTimeout = streamTimeouts.get(event.streamId);
-    if (existingTimeout) clearTimeout(existingTimeout);
-
-    // Set auto-cleanup timeout
-    const timeout = setTimeout(() => {
-      const stream = get().streams.get(event.streamId);
-      if (stream?.isStreaming) {
-        get().abortStream(event.streamId);
-      }
-      streamTimeouts.delete(event.streamId);
-    }, STREAM_TIMEOUT_MS);
-    streamTimeouts.set(event.streamId, timeout);
+    refreshStreamTimeout(event.streamId, get, true, event.metadata);
 
     set((state) => {
       const newStreams = new Map(state.streams);
@@ -215,7 +298,51 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     });
   },
 
+  restoreStream: (event) => {
+    refreshStreamTimeout(event.streamId, get, true, event.metadata);
+
+    set((state) => {
+      const newStreams = new Map(state.streams);
+      const existing = newStreams.get(event.streamId);
+      const metadata = mergeStreamingMetadata(
+        existing?.metadata ?? loadPersistedStreamMetadata(event.streamId),
+        event.metadata,
+      );
+      const content = preferAccumulatedContent(
+        existing?.content ?? "",
+        event.content,
+      );
+      const thinking = preferAccumulatedContent(
+        existing?.thinking ?? "",
+        event.thinking,
+      );
+      const startedAt = existing?.startedAt ?? event.startedAt;
+
+      newStreams.set(event.streamId, {
+        streamId: event.streamId,
+        channelId: event.channelId,
+        senderId: event.senderId,
+        parentId: event.parentId ?? existing?.parentId,
+        startedAt,
+        metadata,
+        content,
+        thinking,
+        isThinking: Boolean(thinking) && !content,
+        isStreaming: true,
+        parts:
+          existing?.parts.length &&
+          existing.content === content &&
+          existing.thinking === thinking
+            ? existing.parts
+            : buildRestoredParts(event.streamId, startedAt, thinking, content),
+      });
+      persistStreamMetadata(event.streamId, metadata);
+      return { streams: newStreams };
+    });
+  },
+
   setStreamContent: (streamId, content) => {
+    refreshStreamTimeout(streamId, get);
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
@@ -237,6 +364,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
   },
 
   setThinkingContent: (streamId, content) => {
+    refreshStreamTimeout(streamId, get);
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
@@ -270,6 +398,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
   },
 
   setStreamMetadata: (streamId, metadata) => {
+    refreshStreamTimeout(streamId, get, false, metadata);
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
@@ -297,11 +426,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
   },
 
   endStream: (streamId) => {
-    const timeout = streamTimeouts.get(streamId);
-    if (timeout) {
-      clearTimeout(timeout);
-      streamTimeouts.delete(streamId);
-    }
+    clearStreamTimeout(streamId);
     set((state) => {
       const newStreams = new Map(state.streams);
       newStreams.delete(streamId);
@@ -311,11 +436,7 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
   },
 
   abortStream: (streamId) => {
-    const timeout = streamTimeouts.get(streamId);
-    if (timeout) {
-      clearTimeout(timeout);
-      streamTimeouts.delete(streamId);
-    }
+    clearStreamTimeout(streamId);
     set((state) => {
       const newStreams = new Map(state.streams);
       newStreams.delete(streamId);

@@ -41,6 +41,10 @@ import { useStreamingStore } from "@/stores/useStreamingStore";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
 import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
+import {
+  getDeepResearchTaskMeta,
+  type DeepResearchTaskMeta,
+} from "./DeepResearchTaskCard";
 import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageParts } from "./StreamingMessageParts";
@@ -80,6 +84,7 @@ interface MessageListProps {
   members?: ChannelMember[];
   // Last read message ID for unread divider positioning
   lastReadMessageId?: string;
+  onOpenDeepResearch?: (meta: DeepResearchTaskMeta) => void;
 }
 
 // Large base index for prepending support via firstItemIndex
@@ -89,6 +94,44 @@ type ChannelListItem =
   | { type: "message"; message: Message }
   | { type: "stream"; stream: StreamingMessage }
   | { type: "thinking"; key: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function hasDeepResearchMetadata(stream: StreamingMessage): boolean {
+  return isRecord(stream.metadata?.deepResearch);
+}
+
+function hasTextContent(stream: StreamingMessage): boolean {
+  return (
+    stream.content.trim().length > 0 ||
+    stream.parts.some(
+      (part) => part.type === "content" && part.content.trim().length > 0,
+    )
+  );
+}
+
+function shouldSuppressCompanionWritingStream(
+  stream: StreamingMessage,
+  deepResearchSenderIds: ReadonlySet<string>,
+): boolean {
+  if (hasDeepResearchMetadata(stream) || hasTextContent(stream)) {
+    return false;
+  }
+  if (!deepResearchSenderIds.has(stream.senderId)) {
+    return false;
+  }
+
+  const meta = stream.metadata
+    ? getAgentEventMetadata(stream.metadata, {
+        agentEventType: "writing",
+        status: "running",
+      })
+    : undefined;
+
+  return meta?.agentEventType === "writing";
+}
 
 function ToolEventFrame({
   children,
@@ -175,6 +218,47 @@ function resolveA2UISurfaceMetadata(
   };
 }
 
+function getDeepResearchTaskTimestamp(message: Message): number {
+  const meta = getDeepResearchTaskMeta(message.metadata, message.channelId);
+  const candidates = [meta?.updatedAt, message.updatedAt, message.createdAt];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const time = new Date(candidate).getTime();
+    if (!Number.isNaN(time)) return time;
+  }
+  return 0;
+}
+
+export function collapseDeepResearchTaskMessages(
+  messages: readonly Message[],
+  channelId: string,
+): Message[] {
+  const latestByChildChannelId = new Map<
+    string,
+    { index: number; time: number }
+  >();
+
+  messages.forEach((message, index) => {
+    const meta = getDeepResearchTaskMeta(message.metadata, channelId);
+    if (!meta) return;
+    const time = getDeepResearchTaskTimestamp(message);
+    const current = latestByChildChannelId.get(meta.childChannelId);
+    if (!current || time >= current.time) {
+      latestByChildChannelId.set(meta.childChannelId, { index, time });
+    }
+  });
+
+  if (latestByChildChannelId.size === 0) {
+    return [...messages];
+  }
+
+  return messages.filter((message, index) => {
+    const meta = getDeepResearchTaskMeta(message.metadata, channelId);
+    if (!meta) return true;
+    return latestByChildChannelId.get(meta.childChannelId)?.index === index;
+  });
+}
+
 // Per-channel scroll position snapshots for restoring on channel switch
 const scrollSnapshots = new Map<string, StateSnapshot>();
 
@@ -194,6 +278,7 @@ export function MessageList({
   thinkingStatuses = [],
   members = [],
   lastReadMessageId,
+  onOpenDeepResearch,
 }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -245,12 +330,53 @@ export function MessageList({
   const channelStreams = useStreamingStore(
     useShallow((state) =>
       Array.from(state.streams.values()).filter(
-        (stream) => stream.channelId === channelId && !stream.parentId,
+        (stream) =>
+          stream.channelId === channelId &&
+          (!stream.parentId || hasDeepResearchMetadata(stream)),
       ),
     ),
   );
-  const thinkingBotIdsKey = thinkingBotIds.join("|");
-  const tailActivityKey = channelStreams
+  const deepResearchSenderIds = useMemo(
+    () =>
+      new Set(
+        channelStreams
+          .filter(hasDeepResearchMetadata)
+          .map((stream) => stream.senderId),
+      ),
+    [channelStreams],
+  );
+  const hasActiveDeepResearchStream = deepResearchSenderIds.size > 0;
+  const visibleChannelStreams = useMemo(
+    () =>
+      hasActiveDeepResearchStream
+        ? channelStreams.filter(
+            (stream) =>
+              !shouldSuppressCompanionWritingStream(
+                stream,
+                deepResearchSenderIds,
+              ),
+          )
+        : channelStreams,
+    [channelStreams, deepResearchSenderIds, hasActiveDeepResearchStream],
+  );
+  const visibleThinkingBotIds = useMemo(
+    () =>
+      hasActiveDeepResearchStream
+        ? thinkingBotIds.filter((botId) => !deepResearchSenderIds.has(botId))
+        : thinkingBotIds,
+    [deepResearchSenderIds, hasActiveDeepResearchStream, thinkingBotIds],
+  );
+  const visibleThinkingStatuses = useMemo(
+    () =>
+      hasActiveDeepResearchStream
+        ? thinkingStatuses.filter(
+            (status) => !deepResearchSenderIds.has(status.botId),
+          )
+        : thinkingStatuses,
+    [deepResearchSenderIds, hasActiveDeepResearchStream, thinkingStatuses],
+  );
+  const thinkingBotIdsKey = visibleThinkingBotIds.join("|");
+  const tailActivityKey = visibleChannelStreams
     .map(
       (stream) =>
         `${stream.streamId}:${stream.content.length}:${stream.thinking.length}:${stream.isThinking ? 1 : 0}`,
@@ -284,10 +410,14 @@ export function MessageList({
     [messages],
   );
   const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
+  const visibleChronoMessages = useMemo(
+    () => collapseDeepResearchTaskMessages(chronoMessages, channelId),
+    [channelId, chronoMessages],
+  );
   const a2uiResponsesBySurfaceId = useMemo(() => {
     const responses = new Map<string, AgentEventMetadata>();
 
-    for (const message of chronoMessages) {
+    for (const message of visibleChronoMessages) {
       const meta = getAgentMeta(message);
       if (meta?.agentEventType !== "a2ui_response" || !meta.surfaceId) {
         continue;
@@ -308,32 +438,32 @@ export function MessageList({
     }
 
     return responses;
-  }, [chronoMessages]);
+  }, [visibleChronoMessages]);
   const listData = useMemo<ChannelListItem[]>(() => {
-    const items: ChannelListItem[] = chronoMessages.map((message) => ({
+    const items: ChannelListItem[] = visibleChronoMessages.map((message) => ({
       type: "message",
       message,
     }));
 
-    if (channelStreams.length > 0) {
+    if (visibleChannelStreams.length > 0) {
       items.push(
-        ...channelStreams.map((stream) => ({
+        ...visibleChannelStreams.map((stream) => ({
           type: "stream" as const,
           stream,
         })),
       );
     }
 
-    if (thinkingBotIds.length > 0) {
+    if (visibleThinkingBotIds.length > 0) {
       items.push({ type: "thinking", key: thinkingBotIdsKey });
     }
 
     return items;
   }, [
-    chronoMessages,
-    channelStreams,
-    thinkingBotIds.length,
+    visibleChronoMessages,
     thinkingBotIdsKey,
+    visibleThinkingBotIds.length,
+    visibleChannelStreams,
   ]);
 
   // Ref to listData for prevMessage lookup — avoids adding listData to useCallback deps
@@ -366,10 +496,10 @@ export function MessageList({
     () =>
       computeRoundFoldMaps({
         channelType,
-        chronoMessages,
+        chronoMessages: visibleChronoMessages,
         userExpandedRounds,
       }),
-    [channelType, chronoMessages, userExpandedRounds],
+    [channelType, visibleChronoMessages, userExpandedRounds],
   );
 
   // Ref to foldMaps for use inside stable itemContent callback.
@@ -386,7 +516,7 @@ export function MessageList({
   // incorrectly adjusts the scroll offset, which can push the viewport to a blank area.
   // NOTE: uses rawChrono (not chronoMessages) so that pairToolEvents reordering
   // doesn't falsely trigger the "prepend detected" branch.
-  const firstItemIndexRef = useRef(START_INDEX - chronoMessages.length);
+  const firstItemIndexRef = useRef(START_INDEX - visibleChronoMessages.length);
   const prevFirstMsgIdRef = useRef<string | undefined>(rawChrono[0]?.id);
 
   // Detect prepends vs appends by tracking the first (oldest) message ID.
@@ -398,7 +528,7 @@ export function MessageList({
     const currentFirstId = rawChrono[0]?.id;
     if (prevFirstMsgIdRef.current === undefined) {
       // Initial load
-      firstItemIndexRef.current = START_INDEX - chronoMessages.length;
+      firstItemIndexRef.current = START_INDEX - visibleChronoMessages.length;
     } else if (currentFirstId !== prevFirstMsgIdRef.current) {
       // First message changed → older messages were prepended at the top
       const prevIdx = rawChrono.findIndex(
@@ -588,8 +718,8 @@ export function MessageList({
       if (item.type === "thinking") {
         return (
           <BotThinkingIndicator
-            thinkingBotIds={thinkingBotIds}
-            thinkingStatuses={thinkingStatuses}
+            thinkingBotIds={visibleThinkingBotIds}
+            thinkingStatuses={visibleThinkingStatuses}
             members={members}
           />
         );
@@ -787,6 +917,7 @@ export function MessageList({
                 isRootMessage={true}
                 isHighlighted={isHighlighted}
                 supportsProperties={supportsProperties}
+                onOpenDeepResearch={onOpenDeepResearch}
               />
             </div>
             {foldedRoundSummary}
@@ -816,6 +947,7 @@ export function MessageList({
               onEditStart={handleEditStart}
               onEditSave={handleEditSave}
               onEditCancel={handleEditCancel}
+              onOpenDeepResearch={onOpenDeepResearch}
             />
           </div>
           {foldedRoundSummary}
@@ -837,8 +969,8 @@ export function MessageList({
       firstUnreadIndex,
       firstItemIndex,
       members,
-      thinkingBotIds,
-      thinkingStatuses,
+      visibleThinkingBotIds,
+      visibleThinkingStatuses,
       toggleRoundExpanded,
       foldMaps,
       a2uiResponsesBySurfaceId,
@@ -847,6 +979,7 @@ export function MessageList({
       handleEditStart,
       handleEditSave,
       handleEditCancel,
+      onOpenDeepResearch,
     ],
   );
 
@@ -948,6 +1081,7 @@ function ChannelMessageItem({
   onEditStart,
   onEditSave,
   onEditCancel,
+  onOpenDeepResearch,
 }: {
   message: Message;
   prevMessage?: Message;
@@ -968,6 +1102,7 @@ function ChannelMessageItem({
     payload: { content: string; contentAst?: Record<string, unknown> },
   ) => Promise<void>;
   onEditCancel: () => void;
+  onOpenDeepResearch?: (meta: DeepResearchTaskMeta) => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
@@ -1061,6 +1196,7 @@ function ChannelMessageItem({
         onEditSave={(payload) => onEditSave(message.id, payload)}
         onEditCancel={onEditCancel}
         supportsProperties={supportsProperties}
+        onOpenDeepResearch={onOpenDeepResearch}
       />
       <DeleteMessageDialog
         open={deleteDialogOpen}

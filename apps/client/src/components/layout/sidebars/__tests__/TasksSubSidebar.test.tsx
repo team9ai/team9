@@ -22,12 +22,7 @@ vi.mock("@tanstack/react-router", () => ({
     onClick?: () => void;
     className?: string;
   } & Record<string, unknown>) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={className}
-      {...props}
-    >
+    <button type="button" onClick={onClick} className={className} {...props}>
       {children}
     </button>
   ),
@@ -165,8 +160,9 @@ describe("TasksSubSidebar", () => {
     expect(screen.getAllByTestId("task-sidebar-row")).toHaveLength(
       TASK_SIDEBAR_MAX_VISIBLE_TASKS,
     );
-    expect(screen.queryByText(`Task ${TASK_SIDEBAR_MAX_VISIBLE_TASKS + 1}`))
-      .not.toBeInTheDocument();
+    expect(
+      screen.queryByText(`Task ${TASK_SIDEBAR_MAX_VISIBLE_TASKS + 1}`),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText("还有 3 个任务，可在任务看板查看。"),
     ).toBeInTheDocument();

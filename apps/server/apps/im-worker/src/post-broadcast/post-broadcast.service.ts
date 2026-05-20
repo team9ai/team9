@@ -83,6 +83,25 @@ export class PostBroadcastService {
     return sender.userType === 'human';
   }
 
+  private shouldSuppressHiveFanout(message: schema.Message): boolean {
+    const metadata = message.metadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return false;
+    }
+
+    const sessionRef = metadata.deepResearchSessionRef;
+    if (
+      sessionRef &&
+      typeof sessionRef === 'object' &&
+      !Array.isArray(sessionRef) &&
+      (sessionRef as Record<string, unknown>).agentWakePolicy === 'none'
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   private async getAttachmentPublicUrl(
     attachment: schema.MessageAttachment,
   ): Promise<string> {
@@ -695,6 +714,13 @@ export class PostBroadcastService {
       const { message, sender, channel, mentions, parentMessage, attachments } =
         messageData;
 
+      if (this.shouldSuppressHiveFanout(message)) {
+        this.logger.debug(
+          `Skipping hive bot fanout for isolated deep research message ${msgId}`,
+        );
+        return;
+      }
+
       if (!this.isHumanAuthoredMessage(sender)) {
         this.logger.debug(
           `Skipping hive bot fanout for non-human-authored message ${msgId}`,
@@ -912,7 +938,6 @@ export class PostBroadcastService {
         const isFileMessage =
           hasAttachments &&
           (message.type === 'file' || message.type === 'image');
-
         const event = isFileMessage
           ? {
               type: 'team9:message.file' as const,
