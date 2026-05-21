@@ -34,7 +34,7 @@ import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { deepResearchText } from './deep-research-i18n.js';
 
 const DEEP_RESEARCH_CAPABILITY_NAME = 'deep_research_run';
-const DEFAULT_DEEP_RESEARCH_FOLLOW_UP_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_DEEP_RESEARCH_FOLLOW_UP_MODEL = 'gemini-3.5-flash';
 const CAPABILITY_DISCOVERY_LIMIT = 100;
 const CAPABILITY_INVOKE_TIMEOUT_MS = 15_000;
 const TASK_POLL_INTERVAL_MS = 5_000;
