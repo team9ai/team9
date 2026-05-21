@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
 import imApi, {
   type DeepResearchSessionContextResponse,
@@ -42,6 +44,8 @@ interface DeepResearchRuntimeState {
   status?: string;
   phase?: string;
 }
+
+type ChannelTFunction = TFunction<"channel">;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -183,6 +187,7 @@ function getPanelInputState(
   task: DeepResearchTaskMeta,
   reference: DeepResearchReference | null,
   runtimeState: DeepResearchRuntimeState | null,
+  t: ChannelTFunction,
 ): {
   action: PanelAction | null;
   disabled: boolean;
@@ -196,7 +201,7 @@ function getPanelInputState(
     return {
       action: null,
       disabled: true,
-      placeholder: "等待研究服务返回可继续对话的上下文...",
+      placeholder: t("deepResearch.input.waitingForContext"),
     };
   }
 
@@ -209,7 +214,7 @@ function getPanelInputState(
     return {
       action: null,
       disabled: true,
-      placeholder: "研究正在执行，完成后可以继续追问...",
+      placeholder: t("deepResearch.input.waitingForReport"),
     };
   }
 
@@ -222,7 +227,7 @@ function getPanelInputState(
     return {
       action: null,
       disabled: true,
-      placeholder: "正在生成研究计划...",
+      placeholder: t("deepResearch.input.generatingPlan"),
     };
   }
 
@@ -230,14 +235,14 @@ function getPanelInputState(
     return {
       action: "modify_plan",
       disabled: false,
-      placeholder: "告诉我怎样调整研究计划...",
+      placeholder: t("deepResearch.input.modifyPlan"),
     };
   }
 
   return {
     action: "follow_up",
     disabled: false,
-    placeholder: "继续追问这次深度研究...",
+    placeholder: t("deepResearch.input.followUp"),
   };
 }
 
@@ -250,23 +255,24 @@ function upsertMessage(messages: readonly Message[], next: Message): Message[] {
 function getPanelStatus(
   task: DeepResearchTaskMeta,
   messages: readonly Message[],
+  t: ChannelTFunction,
 ) {
   const chronological = sortChronologically(messages);
   const latest = chronological[chronological.length - 1];
   const progress = getDeepResearchProgressMeta(latest?.metadata);
   const plan = getDeepResearchPlanMeta(latest?.metadata);
   if (progress?.status === "failed" || task.status === "failed") {
-    return "研究失败";
+    return t("deepResearch.panel.status.failed");
   }
   if (progress?.status === "completed" || task.status === "completed") {
-    return "报告已完成";
+    return t("deepResearch.panel.status.completed");
   }
   if (plan || task.status === "plan_ready") {
-    return "等待确认研究计划";
+    return t("deepResearch.panel.status.planReady");
   }
   return task.kind === "plan" || task.phase === "planning"
-    ? "正在生成研究计划"
-    : "正在执行研究";
+    ? t("deepResearch.panel.status.generatingPlan")
+    : t("deepResearch.panel.status.running");
 }
 
 function hasProgressDetails(
@@ -284,39 +290,55 @@ function hasProgressDetails(
 
 function getPanelProgressText(
   meta: NonNullable<ReturnType<typeof getDeepResearchProgressMeta>>,
+  t: ChannelTFunction,
 ) {
   const phase = meta.progress?.phase ?? meta.phase;
-  if (meta.status === "failed" || phase === "failed") return "研究失败";
+  if (meta.status === "failed" || phase === "failed") {
+    return t("deepResearch.panel.status.failed");
+  }
   if (meta.status === "completed" || phase === "completed") {
-    return "研究报告已完成";
+    return t("deepResearch.panel.status.reportCompleted");
   }
   if (meta.progress?.activeStep) return meta.progress.activeStep;
-  if (phase === "submitted") return "正在启动深度研究...";
-  if (phase === "answering") return "正在基于报告生成回答...";
-  if (phase === "synthesizing") return "正在生成报告...";
-  if (phase === "planning") return "正在梳理研究方向...";
-  return "正在进行深度研究...";
+  if (phase === "submitted") return t("deepResearch.panel.status.submitted");
+  if (phase === "answering") return t("deepResearch.panel.status.answering");
+  if (phase === "synthesizing") {
+    return t("deepResearch.panel.status.synthesizing");
+  }
+  if (phase === "planning") return t("deepResearch.panel.status.planning");
+  return t("deepResearch.panel.status.inProgress");
 }
 
-function isGenericProgressContent(content: string | undefined) {
+function isGenericProgressContent(
+  content: string | undefined,
+  t: ChannelTFunction,
+) {
   const text = content?.trim();
   if (!text) return false;
-  return (
-    text === "已开始执行深度研究..." ||
-    text === "正在生成研究计划..." ||
-    text === "正在生成报告..." ||
-    text === "正在进行深度研究..."
-  );
+  return new Set([
+    "已开始执行深度研究...",
+    "正在生成研究计划...",
+    "正在生成报告...",
+    "正在进行深度研究...",
+    t("deepResearch.input.generatingPlan"),
+    t("deepResearch.panel.status.submitted"),
+    t("deepResearch.panel.status.answering"),
+    t("deepResearch.panel.status.synthesizing"),
+    t("deepResearch.panel.status.inProgress"),
+    `${t("deepResearch.panel.status.generatingPlan")}...`,
+  ]).has(text);
 }
 
 function DeepResearchPanelStatus({
   meta,
+  t,
 }: {
   meta: NonNullable<ReturnType<typeof getDeepResearchProgressMeta>>;
+  t: ChannelTFunction;
 }) {
   const failed = meta.status === "failed" || meta.phase === "failed";
   const completed = meta.status === "completed" || meta.phase === "completed";
-  const statusText = getPanelProgressText(meta);
+  const statusText = getPanelProgressText(meta, t);
 
   return (
     <div
@@ -338,9 +360,11 @@ function DeepResearchPanelStatus({
 function DeepResearchPanelMessage({
   message,
   interactivePlanMessageId,
+  t,
 }: {
   message: Message;
   interactivePlanMessageId?: string | null;
+  t: ChannelTFunction;
 }) {
   const planMeta = getDeepResearchPlanMeta(message.metadata);
   if (planMeta) {
@@ -370,7 +394,7 @@ function DeepResearchPanelMessage({
     !(
       progressMeta &&
       !isCompletedProgress &&
-      isGenericProgressContent(message.content)
+      isGenericProgressContent(message.content, t)
     );
 
   return (
@@ -382,7 +406,9 @@ function DeepResearchPanelMessage({
           className="max-w-none"
         />
       )}
-      {showCompactProgress && <DeepResearchPanelStatus meta={progressMeta} />}
+      {showCompactProgress && (
+        <DeepResearchPanelStatus meta={progressMeta} t={t} />
+      )}
       {showContent && (
         <div
           className={cn(
@@ -407,6 +433,7 @@ export function DeepResearchPanel({
   onWidthChange,
   onClose,
 }: DeepResearchPanelProps) {
+  const { t } = useTranslation("channel");
   const queryClient = useQueryClient();
   const queryKey = useMemo(
     () => ["deep-research-session-context", task.childChannelId] as const,
@@ -432,7 +459,7 @@ export function DeepResearchPanel({
     () => hideSupersededProgressMessages(messages),
     [messages],
   );
-  const status = getPanelStatus(task, messages);
+  const status = getPanelStatus(task, messages, t);
   const latestReference = useMemo(
     () => getLatestDeepResearchReference(messages),
     [messages],
@@ -445,6 +472,7 @@ export function DeepResearchPanel({
     task,
     latestReference,
     latestRuntimeState,
+    t,
   );
   const interactivePlanMessageId =
     inputState.action === "modify_plan" ? latestReference?.messageId : null;
@@ -546,7 +574,7 @@ export function DeepResearchPanel({
       <div className="flex items-start gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Deep Research
+            {t("deepResearch.title")}
           </div>
           <h2 className="mt-1 truncate text-sm font-semibold">{task.title}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{status}</p>
@@ -566,11 +594,11 @@ export function DeepResearchPanel({
         {query.isLoading ? (
           <div className="flex items-center gap-2 rounded-md border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            Loading deep research
+            {t("deepResearch.panel.loading")}
           </div>
         ) : query.isError ? (
           <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <div>Failed to load deep research details.</div>
+            <div>{t("deepResearch.panel.loadFailed")}</div>
             <Button
               type="button"
               variant="outline"
@@ -579,12 +607,12 @@ export function DeepResearchPanel({
               onClick={() => void query.refetch()}
             >
               <RefreshCw className="size-4" />
-              Retry
+              {t("deepResearch.panel.retry")}
             </Button>
           </div>
         ) : visibleMessages.length === 0 ? (
           <div className="rounded-md border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-            No deep research updates yet.
+            {t("deepResearch.panel.noUpdates")}
           </div>
         ) : (
           visibleMessages.map((message) => (
@@ -592,6 +620,7 @@ export function DeepResearchPanel({
               key={message.id}
               message={message}
               interactivePlanMessageId={interactivePlanMessageId}
+              t={t}
             />
           ))
         )}

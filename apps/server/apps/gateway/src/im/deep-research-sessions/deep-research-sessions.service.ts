@@ -31,9 +31,10 @@ import { sanitizeMessageContent } from '../messages/utils/sanitize-content.js';
 import { ChannelSequenceService } from '../shared/channel-sequence.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
+import { deepResearchText } from './deep-research-i18n.js';
 
 const DEEP_RESEARCH_CAPABILITY_NAME = 'deep_research_run';
-const DEFAULT_DEEP_RESEARCH_FOLLOW_UP_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_DEEP_RESEARCH_FOLLOW_UP_MODEL = 'gemini-3.5-flash';
 const CAPABILITY_DISCOVERY_LIMIT = 100;
 const CAPABILITY_INVOKE_TIMEOUT_MS = 15_000;
 const TASK_POLL_INTERVAL_MS = 5_000;
@@ -45,7 +46,6 @@ const TASK_HEARTBEAT_INTERVAL_MS = 30_000;
 type DeepResearchAction = 'modify_plan' | 'start_research' | 'follow_up';
 type DeepResearchKind = 'plan' | 'report';
 type ParentTaskStatus = 'running' | 'plan_ready' | 'completed' | 'failed';
-
 interface DeepResearchSessionRef {
   childChannelId: string;
   parentChannelId: string;
@@ -154,7 +154,7 @@ export class DeepResearchSessionsService {
     return this.channels.createDeepResearchSessionChannel(params);
   }
 
-  startPlan(params: {
+  async startPlan(params: {
     userId: string;
     tenantId: string | null;
     parentChannelId: string;
@@ -163,14 +163,16 @@ export class DeepResearchSessionsService {
     input: string;
     title: string;
     requestMetadata: Record<string, unknown>;
-  }): void {
+  }): Promise<void> {
     const request = DeepResearchSessionsService.asRecord(
       params.requestMetadata.deepResearchRequest,
     );
+    const language = await this.resolveUserLanguage(params.userId);
     const payload = this.buildPayload({
       input: params.input,
       request,
       kind: 'plan',
+      language,
     });
 
     void this.run({
@@ -184,6 +186,7 @@ export class DeepResearchSessionsService {
       kind: 'plan',
       title: params.title,
       payload,
+      language,
     });
   }
 
@@ -232,21 +235,23 @@ export class DeepResearchSessionsService {
       throw new BadRequestException('Plan interaction id is required');
     }
 
+    const language = await this.resolveUserLanguage(params.userId);
     const kind: DeepResearchKind =
       params.action === 'modify_plan' ? 'plan' : 'report';
     const input =
       params.input?.trim() ||
       (params.action === 'modify_plan'
-        ? '修改研究方案'
+        ? deepResearchText(language, 'actionModifyPlan')
         : params.action === 'follow_up'
-          ? '继续追问'
-          : '开始研究');
+          ? deepResearchText(language, 'actionFollowUp')
+          : deepResearchText(language, 'actionStartResearch'));
     const payload = this.buildPayload({
       input,
       kind,
       previousInteractionId: interactionId,
       model:
         params.action === 'follow_up' ? this.getFollowUpModel() : undefined,
+      language,
     });
 
     void this.run({
@@ -259,6 +264,7 @@ export class DeepResearchSessionsService {
         this.extractTitle(planMessage.content) ??
         'Deep Research',
       payload,
+      language,
     });
 
     return { accepted: true };
@@ -284,6 +290,7 @@ export class DeepResearchSessionsService {
     kind: DeepResearchKind;
     title: string;
     payload: Record<string, unknown>;
+    language?: string | null;
   }): Promise<void> {
     let childStatusMessageId: string | null = null;
     let latestProgress: DeepResearchProgressSnapshot | undefined;
@@ -315,6 +322,7 @@ export class DeepResearchSessionsService {
           kind: params.kind,
           status: 'running',
           phase: this.resolveRunningPhase(params),
+          language: params.language,
         }),
         metadata: this.buildParentTaskMetadata({
           childMetadata: runningMetadata,
@@ -382,6 +390,7 @@ export class DeepResearchSessionsService {
       const finalKind = result.kind ?? params.kind;
       const content = this.limitContent(
         result.markdown || this.formatFallbackResult(snapshot.result),
+        params.language,
       );
       const interactionId = result.interactionId;
       const markdownSourceProgress =
@@ -391,6 +400,7 @@ export class DeepResearchSessionsService {
         : latestProgress;
       const completedProgress = this.completeDeepResearchProgress(
         progressWithMarkdownSources,
+        params.language,
       );
 
       const completedPhase = finalKind === 'plan' ? 'plan_ready' : 'completed';
@@ -435,6 +445,7 @@ export class DeepResearchSessionsService {
           kind: finalKind,
           status: finalKind === 'plan' ? 'plan_ready' : 'completed',
           phase: completedPhase,
+          language: params.language,
         }),
         metadata: this.buildParentTaskMetadata({
           childMetadata: completedMetadata,
@@ -459,12 +470,16 @@ export class DeepResearchSessionsService {
         ? this.updateChildSessionMessage({
             ...params,
             messageId: childStatusMessageId,
-            content: `Deep research failed: ${message}`,
+            content: deepResearchText(params.language, 'failureMessage', {
+              error: message,
+            }),
             metadata: failedMetadata,
           })
         : this.createChildSessionMessage({
             ...params,
-            content: `Deep research failed: ${message}`,
+            content: deepResearchText(params.language, 'failureMessage', {
+              error: message,
+            }),
             metadata: failedMetadata,
           });
       await emitFailedMessage.catch((emitError) => {
@@ -480,6 +495,7 @@ export class DeepResearchSessionsService {
           status: 'failed',
           phase: 'failed',
           error: message,
+          language: params.language,
         }),
         metadata: this.buildParentTaskMetadata({
           childMetadata: failedMetadata,
@@ -818,6 +834,7 @@ export class DeepResearchSessionsService {
     capabilityId: string;
     messageId: string;
     signal: AbortSignal;
+    language?: string | null;
     onProgress: (
       progress: DeepResearchProgressSnapshot,
     ) => DeepResearchProgressSnapshot;
@@ -861,7 +878,7 @@ export class DeepResearchSessionsService {
         const interactionId = this.extractInteractionIdFromEvent(event.data);
         const progress = params.onProgress({
           phase: 'started',
-          activeStep: '正在启动研究',
+          activeStep: deepResearchText(params.language, 'activeStepStarting'),
           ...(interactionId ? { interactionId } : {}),
           updatedAt: new Date().toISOString(),
         });
@@ -893,6 +910,7 @@ export class DeepResearchSessionsService {
     capabilityId: string;
     messageId: string;
     signal: AbortSignal;
+    language?: string | null;
     onHeartbeat: () => DeepResearchProgressSnapshot;
   }): Promise<void> {
     while (!params.signal.aborted) {
@@ -919,6 +937,7 @@ export class DeepResearchSessionsService {
     messageId: string;
     progress: DeepResearchProgressSnapshot;
     lastEventId?: string;
+    language?: string | null;
   }): Promise<void> {
     const progress = this.isTerminalProgress(params.progress)
       ? {
@@ -1083,8 +1102,12 @@ export class DeepResearchSessionsService {
     request?: Record<string, unknown> | null;
     previousInteractionId?: string;
     model?: string;
+    language?: string | null;
   }): Record<string, unknown> {
-    const localizedInput = this.withLanguageInstruction(params.input);
+    const localizedInput = this.withLanguageInstruction(
+      params.input,
+      params.language,
+    );
     if (params.model) {
       return {
         input: localizedInput,
@@ -1126,9 +1149,28 @@ export class DeepResearchSessionsService {
     };
   }
 
-  private withLanguageInstruction(input: string): string {
+  private async resolveUserLanguage(userId: string): Promise<string | null> {
+    try {
+      const [row] = await this.db
+        .select({ language: schema.users.language })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+      return row?.language ?? null;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve deep research user language for ${userId}: ${error}`,
+      );
+      return null;
+    }
+  }
+
+  private withLanguageInstruction(
+    input: string,
+    preferredLanguage?: string | null,
+  ): string {
     const trimmed = input.trim();
-    const language = this.detectInputLanguage(trimmed);
+    const language = this.resolveTargetLanguage(trimmed, preferredLanguage);
     if (language === 'zh-CN') {
       return [
         '请始终使用简体中文输出，包括研究计划、研究过程总结、网站检索说明、最终报告和后续回答。',
@@ -1137,16 +1179,94 @@ export class DeepResearchSessionsService {
         `用户问题：${trimmed}`,
       ].join('\n');
     }
+    if (language === 'zh-TW') {
+      return [
+        '請始終使用繁體中文輸出，包括研究計畫、研究過程摘要、網站檢索說明、最終報告和後續回答。',
+        '不要因為英文資料來源或模型預設行為而切換成英文；專有名詞可以保留原文並附繁體中文解釋。',
+        '',
+        `使用者問題：${trimmed}`,
+      ].join('\n');
+    }
+
+    const languageName = this.languageDisplayName(language);
 
     return [
-      'Respond in the same language as the user request. Keep the research plan, progress summaries, website-search notes, final report, and follow-up answers in that language.',
+      languageName
+        ? `Respond in ${languageName}. Keep the research plan, progress summaries, website-search notes, final report, and follow-up answers in ${languageName}.`
+        : 'Respond in the same language as the user request. Keep the research plan, progress summaries, website-search notes, final report, and follow-up answers in that language.',
       '',
       `User request: ${trimmed}`,
     ].join('\n');
   }
 
-  private detectInputLanguage(input: string): 'zh-CN' | 'auto' {
-    return /[\u3400-\u9fff]/.test(input) ? 'zh-CN' : 'auto';
+  private resolveTargetLanguage(
+    input: string,
+    preferredLanguage?: string | null,
+  ): string {
+    const preferred = this.normalizeLanguageTag(preferredLanguage);
+    if (/[\u3040-\u30ff]/.test(input)) return 'ja';
+    if (/[\uac00-\ud7af]/.test(input)) return 'ko';
+    if (/[\u0400-\u04ff]/.test(input)) return 'ru';
+    if (/[\u3400-\u9fff]/.test(input)) {
+      return preferred === 'zh-TW' ? 'zh-TW' : 'zh-CN';
+    }
+    return preferred ?? 'auto';
+  }
+
+  private normalizeLanguageTag(
+    language: string | null | undefined,
+  ): string | null {
+    const normalized = language?.trim();
+    if (!normalized) return null;
+    const lower = normalized.toLowerCase();
+    if (
+      lower === 'zh-tw' ||
+      lower === 'zh-hant' ||
+      lower.startsWith('zh-hant-') ||
+      lower === 'zh-hk' ||
+      lower === 'zh-mo'
+    ) {
+      return 'zh-TW';
+    }
+    if (
+      lower === 'zh' ||
+      lower === 'zh-cn' ||
+      lower === 'zh-hans' ||
+      lower.startsWith('zh-hans-') ||
+      lower === 'zh-sg'
+    ) {
+      return 'zh-CN';
+    }
+    return lower.split('-')[0] || null;
+  }
+
+  private languageDisplayName(language: string): string | null {
+    switch (language) {
+      case 'de':
+        return 'German';
+      case 'es':
+        return 'Spanish';
+      case 'fr':
+        return 'French';
+      case 'it':
+        return 'Italian';
+      case 'ja':
+        return 'Japanese';
+      case 'ko':
+        return 'Korean';
+      case 'nl':
+        return 'Dutch';
+      case 'pt':
+        return 'Portuguese';
+      case 'ru':
+        return 'Russian';
+      case 'en':
+        return 'English';
+      case 'auto':
+        return null;
+      default:
+        return language ? `the user's preferred language (${language})` : null;
+    }
   }
 
   private resolveRunningPhase(params: {
@@ -1161,23 +1281,29 @@ export class DeepResearchSessionsService {
   private formatChildRunningContent(params: {
     kind: DeepResearchKind;
     payload: Record<string, unknown>;
+    language?: string | null;
   }): string {
-    if (params.kind === 'plan') return '正在生成研究计划...';
-    if (this.isModelFollowUpPayload(params.payload)) {
-      return '正在基于报告生成回答...';
+    if (params.kind === 'plan') {
+      return deepResearchText(params.language, 'childGeneratingPlan');
     }
-    return '已开始执行深度研究...';
+    if (this.isModelFollowUpPayload(params.payload)) {
+      return deepResearchText(params.language, 'childAnswering');
+    }
+    return deepResearchText(params.language, 'childStartedResearch');
   }
 
   private resolveHeartbeatStep(params: {
     kind: DeepResearchKind;
     payload: Record<string, unknown>;
+    language?: string | null;
   }): string {
-    if (params.kind === 'plan') return '研究计划仍在生成中';
-    if (this.isModelFollowUpPayload(params.payload)) {
-      return '正在等待基于报告的回答';
+    if (params.kind === 'plan') {
+      return deepResearchText(params.language, 'heartbeatPlan');
     }
-    return '研究仍在进行，等待更多结果';
+    if (this.isModelFollowUpPayload(params.payload)) {
+      return deepResearchText(params.language, 'heartbeatAnswering');
+    }
+    return deepResearchText(params.language, 'heartbeatResearch');
   }
 
   private isModelFollowUpPayload(payload: Record<string, unknown>): boolean {
@@ -1290,20 +1416,33 @@ export class DeepResearchSessionsService {
     status: ParentTaskStatus;
     phase: string;
     error?: string;
+    language?: string | null;
   }): string {
     if (params.status === 'failed') {
-      return `深度研究「${params.title}」失败：${params.error ?? '未知错误'}`;
+      return deepResearchText(params.language, 'parentFailed', {
+        title: params.title,
+        error:
+          params.error ?? deepResearchText(params.language, 'unknownError'),
+      });
     }
     if (params.status === 'plan_ready') {
-      return `深度研究「${params.title}」研究计划已生成，等待确认`;
+      return deepResearchText(params.language, 'parentPlanReady', {
+        title: params.title,
+      });
     }
     if (params.status === 'completed') {
-      return `深度研究「${params.title}」报告已完成`;
+      return deepResearchText(params.language, 'parentCompleted', {
+        title: params.title,
+      });
     }
     if (params.kind === 'plan') {
-      return `深度研究「${params.title}」正在生成研究计划`;
+      return deepResearchText(params.language, 'parentGeneratingPlan', {
+        title: params.title,
+      });
     }
-    return `深度研究「${params.title}」正在执行研究`;
+    return deepResearchText(params.language, 'parentRunning', {
+      title: params.title,
+    });
   }
 
   private extractTaskResult(value: unknown): {
@@ -1571,12 +1710,13 @@ export class DeepResearchSessionsService {
 
   private completeDeepResearchProgress(
     progress: DeepResearchProgressSnapshot | undefined,
+    language?: string | null,
   ): DeepResearchProgressSnapshot | undefined {
     if (!progress) return undefined;
     return {
       ...progress,
       phase: 'completed',
-      activeStep: '研究完成',
+      activeStep: deepResearchText(language, 'progressCompleted'),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -1738,9 +1878,12 @@ export class DeepResearchSessionsService {
     }
   }
 
-  private limitContent(content: string): string {
+  private limitContent(content: string, language?: string | null): string {
     if (content.length <= MAX_STORED_CONTENT_CHARS) return content;
-    return `${content.slice(0, MAX_STORED_CONTENT_CHARS)}\n\n[内容过长，已截断]`;
+    return `${content.slice(0, MAX_STORED_CONTENT_CHARS)}\n\n${deepResearchText(
+      language,
+      'truncated',
+    )}`;
   }
 
   private truncateString(value: string, maxChars: number): string {

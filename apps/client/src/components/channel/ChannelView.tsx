@@ -419,12 +419,16 @@ export function ChannelView({
   const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
   const [deepResearchPanelTask, setDeepResearchPanelTask] =
     useState<DeepResearchTaskMeta | null>(null);
+  const knownDeepResearchChildChannelIdsRef = useRef<Set<string>>(new Set());
+  const hasInitializedDeepResearchTasksRef = useRef(false);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
   useEffect(() => {
     setIsAgentSessionPanelOpen(false);
     setDeepResearchPanelTask(null);
+    knownDeepResearchChildChannelIdsRef.current = new Set();
+    hasInitializedDeepResearchTasksRef.current = false;
   }, [channelId]);
 
   const isAgentSessionCandidate =
@@ -486,6 +490,48 @@ export function ChannelView({
     () => messagesData?.pages.flatMap((p) => p.messages) ?? [],
     [messagesData],
   );
+
+  useEffect(() => {
+    if (messagesLoading) return;
+
+    const knownChildChannelIds = knownDeepResearchChildChannelIdsRef.current;
+    let latestNewTask: {
+      meta: DeepResearchTaskMeta;
+      messageCreatedAtMs: number;
+    } | null = null;
+
+    for (const message of messages) {
+      if (message.channelId !== channelId) continue;
+      const meta = getDeepResearchTaskMeta(message.metadata, channelId);
+      if (!meta) continue;
+
+      const isNewTask =
+        hasInitializedDeepResearchTasksRef.current &&
+        !knownChildChannelIds.has(meta.childChannelId);
+      if (isNewTask) {
+        const messageCreatedAtMs = new Date(message.createdAt).getTime();
+        const candidate = {
+          meta,
+          messageCreatedAtMs: Number.isNaN(messageCreatedAtMs)
+            ? getTaskUpdatedAtMs(meta)
+            : messageCreatedAtMs,
+        };
+        if (
+          !latestNewTask ||
+          candidate.messageCreatedAtMs >= latestNewTask.messageCreatedAtMs
+        ) {
+          latestNewTask = candidate;
+        }
+      }
+      knownChildChannelIds.add(meta.childChannelId);
+    }
+
+    hasInitializedDeepResearchTasksRef.current = true;
+    if (latestNewTask) {
+      setDeepResearchPanelTask(latestNewTask.meta);
+    }
+  }, [channelId, messages, messagesLoading]);
+
   useEffect(() => {
     if (!deepResearchPanelTask) return;
 

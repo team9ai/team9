@@ -10,6 +10,7 @@ import {
 import { BotService } from '../bot/bot.service.js';
 import { ValidateBotTokenDto } from './dto/index.js';
 import { InternalAuthGuard } from './internal-auth.guard.js';
+import { AgentTempTokenValidatorService } from './agent-temp-token-validator.service.js';
 
 type ValidateBotTokenSuccessResponse = {
   valid: true;
@@ -24,16 +25,19 @@ type ValidateBotTokenSuccessResponse = {
 })
 @UseGuards(InternalAuthGuard)
 export class InternalAuthController {
-  constructor(private readonly botService: BotService) {}
+  constructor(
+    private readonly botService: BotService,
+    private readonly agentTempTokenValidator: AgentTempTokenValidatorService,
+  ) {}
 
   @Post('validate-bot-token')
   @HttpCode(HttpStatus.OK)
   async validateBotToken(
     @Body() dto: ValidateBotTokenDto,
   ): Promise<ValidateBotTokenSuccessResponse> {
-    const context = await this.botService.validateAccessTokenWithContext(
-      dto.token,
-    );
+    const context =
+      (await this.botService.validateAccessTokenWithContext(dto.token)) ??
+      this.agentTempTokenValidator.validateCapabilityHubToken(dto.token);
 
     if (!context) {
       throw new NotFoundException({

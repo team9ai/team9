@@ -99,7 +99,7 @@ function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
 const FIXED_BASE_MODEL_LABELS = {
   claude: "Claude Sonnet 4.6",
   chatgpt: "GPT-5.4 Mini",
-  gemini: "Gemini 3 Flash Preview",
+  gemini: "Gemini 3.5 Flash",
 } as const;
 
 function getAgentModelLabel(

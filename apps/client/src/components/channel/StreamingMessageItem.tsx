@@ -1,5 +1,7 @@
 import { memo } from "react";
 import { motion } from "motion/react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
 import {
@@ -14,18 +16,23 @@ interface StreamingMessageItemProps {
   members: ChannelMember[];
 }
 
+type ChannelTFunction = TFunction<"channel">;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function formatElapsed(startedAt: number): string {
+function formatElapsed(startedAt: number, t: ChannelTFunction): string {
   const elapsedMs = Math.max(0, Date.now() - startedAt);
   const minutes = Math.floor(elapsedMs / 60_000);
-  if (minutes <= 0) return "刚刚开始";
-  return `已运行 ${minutes} 分钟`;
+  if (minutes <= 0) return t("deepResearch.stream.elapsedJustStarted");
+  return t("deepResearch.stream.elapsedMinutes", { count: minutes });
 }
 
-function getDeepResearchStatus(stream: StreamingMessage): string | null {
+function getDeepResearchStatus(
+  stream: StreamingMessage,
+  t: ChannelTFunction,
+): string | null {
   const deepResearch = isRecord(stream.metadata?.deepResearch)
     ? stream.metadata.deepResearch
     : null;
@@ -36,10 +43,14 @@ function getDeepResearchStatus(stream: StreamingMessage): string | null {
     typeof deepResearch.status === "string" ? deepResearch.status : "running";
   if (status === "failed") {
     const error =
-      typeof deepResearch.error === "string" ? `：${deepResearch.error}` : "";
+      typeof deepResearch.error === "string"
+        ? t("deepResearch.stream.errorSuffix", {
+            error: deepResearch.error,
+          })
+        : "";
     return kind === "plan"
-      ? `研究方案生成失败${error}`
-      : `深度研究失败${error}`;
+      ? t("deepResearch.stream.failedPlan", { error })
+      : t("deepResearch.stream.failedReport", { error });
   }
 
   const phase =
@@ -47,40 +58,55 @@ function getDeepResearchStatus(stream: StreamingMessage): string | null {
   const phaseText =
     kind === "plan"
       ? phase === "submitted"
-        ? "正在准备研究方案"
+        ? t("deepResearch.stream.phase.planSubmitted")
         : phase === "started"
-          ? "正在拟定研究方案"
+          ? t("deepResearch.stream.phase.planStarted")
           : phase === "finalizing_plan" || phase === "plan_ready"
-            ? "正在整理研究方案"
-            : "正在梳理研究方向和资料范围"
+            ? t("deepResearch.stream.phase.planFinalizing")
+            : t("deepResearch.stream.phase.planDefault")
       : phase === "submitted"
-        ? "正在启动深度研究"
+        ? t("deepResearch.stream.phase.reportSubmitted")
         : phase === "started"
-          ? "正在规划研究并检索资料"
+          ? t("deepResearch.stream.phase.reportStarted")
           : phase === "synthesizing"
-            ? "正在整理研究报告"
-            : "正在检索和分析资料";
-  const completionTarget = kind === "plan" ? "方案" : "报告";
+            ? t("deepResearch.stream.phase.reportSynthesizing")
+            : t("deepResearch.stream.phase.reportDefault");
+  const completionTarget =
+    kind === "plan"
+      ? t("deepResearch.stream.targetPlan")
+      : t("deepResearch.stream.targetReport");
 
-  return `${phaseText}，${formatElapsed(stream.startedAt)}。${completionTarget}完成后会直接显示在这里。`;
+  return t("deepResearch.stream.statusLine", {
+    phase: phaseText,
+    elapsed: formatElapsed(stream.startedAt, t),
+    target: completionTarget,
+  });
 }
 
-function getDeepResearchStatusLabel(stream: StreamingMessage): string {
+function getDeepResearchStatusLabel(
+  stream: StreamingMessage,
+  t: ChannelTFunction,
+): string {
   const deepResearch = isRecord(stream.metadata?.deepResearch)
     ? stream.metadata.deepResearch
     : null;
-  if (!deepResearch) return "streaming...";
+  if (!deepResearch) return t("deepResearch.stream.defaultStatus");
   const kind = deepResearch.kind === "plan" ? "plan" : "report";
   if (kind === "plan") {
-    return stream.isStreaming ? "拟定方案中" : "研究方案";
+    return stream.isStreaming
+      ? t("deepResearch.stream.planStreamingLabel")
+      : t("deepResearch.stream.planDoneLabel");
   }
-  return stream.isStreaming ? "深度研究中" : "深度研究";
+  return stream.isStreaming
+    ? t("deepResearch.stream.reportStreamingLabel")
+    : t("deepResearch.stream.reportDoneLabel");
 }
 
 export const StreamingMessageItem = memo(function StreamingMessageItem({
   stream,
   members,
 }: StreamingMessageItemProps) {
+  const { t } = useTranslation("channel");
   const botMember = members.find((m) => m.userId === stream.senderId);
   const botUser = botMember?.user;
   const botName = botUser?.displayName || botUser?.username || "Bot";
@@ -92,8 +118,8 @@ export const StreamingMessageItem = memo(function StreamingMessageItem({
         className="inline-block w-1.5 h-4 bg-foreground/70 animate-pulse ml-0.5 align-text-bottom"
       />
     ) : null;
-  const deepResearchStatus = getDeepResearchStatus(stream);
-  const statusLabel = getDeepResearchStatusLabel(stream);
+  const deepResearchStatus = getDeepResearchStatus(stream, t);
+  const statusLabel = getDeepResearchStatusLabel(stream, t);
   const deepResearchProgress = getDeepResearchProgressMeta(stream.metadata);
 
   return (

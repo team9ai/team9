@@ -259,5 +259,136 @@
       "tasks": "작업",
       "messages": "메시지"
     }
+  },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "실패",
+        "planReady": "검토 필요",
+        "completed": "완료",
+        "running": "진행 중"
+      },
+      "detail": {
+        "failed": "연구 작업 실패",
+        "planReady": "연구 계획 생성됨",
+        "completed": "연구 보고서 완료",
+        "generatingPlan": "연구 계획 생성 중",
+        "running": "연구 실행 중"
+      },
+      "updatedAt": "{{time}} 업데이트"
+    },
+    "plan": {
+      "fallbackTitle": "연구 계획",
+      "intro": "제가 작성한 계획입니다. 연구를 시작하기 전에 변경할 점이 있으면 알려주세요.",
+      "steps": {
+        "websites": "웹사이트 조사",
+        "analyze": "결과 분석",
+        "report": "보고서 생성",
+        "estimate": "준비에는 몇 분만 걸립니다"
+      },
+      "more": "더 보기",
+      "collapse": "접기",
+      "editPlaceholder": "연구 계획을 어떻게 조정할지 입력...",
+      "retryWithout": "Deep Research 없이 다시 시도",
+      "submitEdit": "변경사항 제출",
+      "modify": "계획 수정",
+      "cancel": "취소",
+      "start": "연구 시작",
+      "actionInput": {
+        "modify": "연구 계획 수정",
+        "start": "연구 시작",
+        "retryWithout": "Deep Research 없이 직접 답변하세요: {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "연구 컨텍스트를 기다리는 중...",
+      "waitingForReport": "연구가 진행 중입니다. 완료 후 이어서 질문할 수 있습니다...",
+      "generatingPlan": "연구 계획 생성 중...",
+      "modifyPlan": "연구 계획을 어떻게 조정할지 입력...",
+      "followUp": "이 Deep Research에 이어서 질문..."
+    },
+    "panel": {
+      "loading": "Deep Research 로딩 중",
+      "loadFailed": "Deep Research 세부 정보를 불러오지 못했습니다.",
+      "noUpdates": "아직 Deep Research 업데이트가 없습니다.",
+      "retry": "다시 시도",
+      "status": {
+        "failed": "연구 실패",
+        "completed": "보고서 완료",
+        "reportCompleted": "연구 보고서 완료",
+        "planReady": "계획 확인 대기 중",
+        "generatingPlan": "연구 계획 생성 중",
+        "running": "연구 실행 중",
+        "submitted": "Deep Research 시작 중...",
+        "answering": "보고서를 바탕으로 답변 생성 중...",
+        "synthesizing": "보고서 생성 중...",
+        "planning": "연구 방향 정리 중...",
+        "inProgress": "Deep Research 진행 중..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "연구 실패",
+        "reportCompleted": "연구 보고서 완료",
+        "researchingWebsites_one": "{{count}}개 웹사이트 조사 중...",
+        "researchingWebsites_other": "{{count}}개 웹사이트 조사 중...",
+        "started": "연구 계획 수립 및 자료 검색 중...",
+        "submitted": "Deep Research 시작 중...",
+        "synthesizing": "보고서 생성 중...",
+        "planning": "연구 방향 정리 중...",
+        "running": "Deep Research 진행 중...",
+        "justStarted": "방금 시작됨",
+        "elapsedMinutes_one": "{{count}}분 경과",
+        "elapsedMinutes_other": "{{count}}분 경과"
+      },
+      "emptyThoughts": "아직 기록된 연구 과정이 없습니다",
+      "thoughtTitle": "연구 생각",
+      "visualAlt": "Deep Research 시각 자료",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "웹",
+        "files": "파일",
+        "visuals": "시각 자료"
+      },
+      "steps": {
+        "framework": "연구 프레임워크 구성 중",
+        "researchingWebsites_one": "웹사이트 조사 중 - {{count}}",
+        "researchingWebsites_other": "웹사이트 조사 중 - {{count}}",
+        "researchingWebsitesPending": "웹사이트 조사 중",
+        "researchedWebsites_one": "조사한 웹사이트 - {{count}}",
+        "researchedWebsites_other": "조사한 웹사이트 - {{count}}",
+        "visuals_one": "시각 결과 - {{count}}",
+        "visuals_other": "시각 결과 - {{count}}",
+        "report": "보고서 생성"
+      }
+    },
+    "stream": {
+      "defaultStatus": "스트리밍 중...",
+      "planStreamingLabel": "계획 작성 중",
+      "planDoneLabel": "연구 계획",
+      "reportStreamingLabel": "Deep Research 진행 중",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "방금 시작됨",
+      "elapsedMinutes_one": "{{count}}분 경과",
+      "elapsedMinutes_other": "{{count}}분 경과",
+      "errorSuffix": ": {{error}}",
+      "failedPlan": "연구 계획 생성 실패{{error}}",
+      "failedReport": "Deep Research 실패{{error}}",
+      "phase": {
+        "planSubmitted": "연구 계획 준비 중",
+        "planStarted": "연구 계획 작성 중",
+        "planFinalizing": "연구 계획 정리 중",
+        "planDefault": "연구 방향과 출처 범위 정리 중",
+        "reportSubmitted": "Deep Research 시작 중",
+        "reportStarted": "연구 계획 수립 및 자료 검색 중",
+        "reportSynthesizing": "연구 보고서 정리 중",
+        "reportDefault": "자료 검색 및 분석 중"
+      },
+      "targetPlan": "계획",
+      "targetReport": "보고서",
+      "statusLine": "{{phase}}, {{elapsed}}. {{target}}이 준비되면 여기에 표시됩니다."
+    }
   }
 }

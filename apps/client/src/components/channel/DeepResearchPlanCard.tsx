@@ -11,6 +11,7 @@ import {
   Search,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -117,7 +118,7 @@ function getPlanLabel(
   return { label: "plan", value };
 }
 
-function extractTitle(content: string): string {
+function extractTitle(content: string, fallback: string): string {
   const heading = content.match(/^\s{0,3}#{1,3}\s+(.+)$/m)?.[1];
   if (heading) {
     return stripMarkdownInline(heading);
@@ -130,7 +131,7 @@ function extractTitle(content: string): string {
     }
   }
 
-  return "研究方案";
+  return fallback;
 }
 
 function extractInput(content: string, fallback: string): string {
@@ -212,6 +213,7 @@ export function DeepResearchPlanCard({
   className,
   interactive = true,
 }: DeepResearchPlanCardProps) {
+  const { t } = useTranslation("channel");
   const [expanded, setExpanded] = useState(false);
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [planInstruction, setPlanInstruction] = useState("");
@@ -221,7 +223,10 @@ export function DeepResearchPlanCard({
   const [isRetryingWithoutDeepResearch, setIsRetryingWithoutDeepResearch] =
     useState(false);
   const planMeta = getDeepResearchPlanMeta(message.metadata);
-  const title = useMemo(() => extractTitle(message.content), [message.content]);
+  const title = useMemo(
+    () => extractTitle(message.content, t("deepResearch.plan.fallbackTitle")),
+    [message.content, t],
+  );
   const retryInput = useMemo(
     () => extractInput(message.content, title),
     [message.content, title],
@@ -252,8 +257,8 @@ export function DeepResearchPlanCard({
     try {
       const input =
         action === "modify_plan"
-          ? instruction?.trim() || "修改研究方案"
-          : "开始研究";
+          ? instruction?.trim() || t("deepResearch.plan.actionInput.modify")
+          : t("deepResearch.plan.actionInput.start");
       await imApi.deepResearchSessions.action(planMeta.session.childChannelId, {
         action,
         planMessageId: message.id,
@@ -285,7 +290,9 @@ export function DeepResearchPlanCard({
       }
 
       await imApi.messages.sendMessage(retryChannelId, {
-        content: `不使用 Deep Research，直接回答这个问题：${retryInput}`,
+        content: t("deepResearch.plan.actionInput.retryWithout", {
+          input: retryInput,
+        }),
         metadata: {
           deepResearchBypass: bypass,
         },
@@ -303,7 +310,7 @@ export function DeepResearchPlanCard({
       )}
     >
       <p className="mb-3 text-muted-foreground">
-        这是我拟定的方案。如果你需要进行任何改动，请在我开始研究前告诉我。
+        {t("deepResearch.plan.intro")}
       </p>
 
       <div className="mb-3 font-semibold text-base text-foreground">
@@ -311,7 +318,7 @@ export function DeepResearchPlanCard({
       </div>
 
       <div>
-        <PlanStep icon={Search} title="研究网站">
+        <PlanStep icon={Search} title={t("deepResearch.plan.steps.websites")}>
           {visiblePlanLines.length > 0 && (
             <div className="space-y-1.5 text-muted-foreground">
               {visiblePlanLines.map((line, index) => (
@@ -329,22 +336,31 @@ export function DeepResearchPlanCard({
             >
               {expanded ? (
                 <>
-                  收起 <ChevronUp className="size-4" />
+                  {t("deepResearch.plan.collapse")}{" "}
+                  <ChevronUp className="size-4" />
                 </>
               ) : (
                 <>
-                  更多 <ChevronDown className="size-4" />
+                  {t("deepResearch.plan.more")}{" "}
+                  <ChevronDown className="size-4" />
                 </>
               )}
             </button>
           )}
         </PlanStep>
 
-        <PlanStep icon={ListFilter} title="分析结果" />
+        <PlanStep
+          icon={ListFilter}
+          title={t("deepResearch.plan.steps.analyze")}
+        />
 
-        <PlanStep icon={FileText} title="生成报告" />
+        <PlanStep icon={FileText} title={t("deepResearch.plan.steps.report")} />
 
-        <PlanStep icon={Clock3} title="只需要几分钟就可以准备好" isLast />
+        <PlanStep
+          icon={Clock3}
+          title={t("deepResearch.plan.steps.estimate")}
+          isLast
+        />
       </div>
 
       {interactive && isEditingPlan && (
@@ -353,7 +369,7 @@ export function DeepResearchPlanCard({
             value={planInstruction}
             onChange={(event) => setPlanInstruction(event.target.value)}
             rows={3}
-            placeholder="告诉我想怎样调整研究方案..."
+            placeholder={t("deepResearch.plan.editPlaceholder")}
             className="min-h-20 resize-none bg-background"
           />
         </div>
@@ -369,7 +385,7 @@ export function DeepResearchPlanCard({
             onClick={() => void handleRetryWithoutDeepResearch()}
           >
             <RefreshCw className="size-4" />
-            不使用 Deep Research 重试
+            {t("deepResearch.plan.retryWithout")}
           </Button>
           <div className="flex flex-wrap justify-end gap-2">
             <Button
@@ -386,7 +402,9 @@ export function DeepResearchPlanCard({
               }}
             >
               <Pencil className="size-4" />
-              {isEditingPlan ? "提交修改" : "修改方案"}
+              {isEditingPlan
+                ? t("deepResearch.plan.submitEdit")
+                : t("deepResearch.plan.modify")}
             </Button>
             {isEditingPlan && (
               <Button
@@ -399,7 +417,7 @@ export function DeepResearchPlanCard({
                   setPlanInstruction("");
                 }}
               >
-                取消
+                {t("deepResearch.plan.cancel")}
               </Button>
             )}
             <Button
@@ -409,7 +427,7 @@ export function DeepResearchPlanCard({
               onClick={() => void handleAction("start_research")}
             >
               <Play className="size-4" />
-              开始研究
+              {t("deepResearch.plan.start")}
             </Button>
           </div>
         </div>
