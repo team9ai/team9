@@ -88,6 +88,7 @@ describe('StreamingController', () => {
   let redisService: {
     set: MockFn;
     get: MockFn;
+    getClient: MockFn;
     del: MockFn;
     sadd: MockFn;
     srem: MockFn;
@@ -111,11 +112,16 @@ describe('StreamingController', () => {
     redisService = {
       set: jest.fn<any>().mockResolvedValue(undefined),
       get: jest.fn<any>().mockResolvedValue(null),
+      getClient: jest.fn<any>(),
       del: jest.fn<any>().mockResolvedValue(undefined),
       sadd: jest.fn<any>().mockResolvedValue(undefined),
       srem: jest.fn<any>().mockResolvedValue(undefined),
       expire: jest.fn<any>().mockResolvedValue(undefined),
     };
+    redisService.getClient.mockReturnValue({
+      scan: jest.fn<any>().mockResolvedValue(['0', []]),
+      mget: jest.fn<any>().mockResolvedValue([]),
+    });
 
     websocketGateway = {
       sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
@@ -246,6 +252,28 @@ describe('StreamingController', () => {
       );
     });
 
+    it('uses a long Redis TTL for deep research streams', async () => {
+      await controller.startStreaming(BOT_USER_ID, CHANNEL_ID, {
+        metadata: {
+          longRunning: true,
+          deepResearch: {
+            kind: 'report',
+            status: 'running',
+          },
+        },
+      });
+
+      expect(redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        expect.stringContaining('"deepResearch"'),
+        5400,
+      );
+      expect(redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS(BOT_USER_ID),
+        5400,
+      );
+    });
+
     it('rejects non-bot users with ForbiddenException', async () => {
       botService.isBot.mockResolvedValue(false);
 
@@ -268,6 +296,86 @@ describe('StreamingController', () => {
       // Should not proceed to Redis or WS operations
       expect(redisService.set).not.toHaveBeenCalled();
       expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── getActiveStreamingSessions ─────────────────────────────────────────────
+
+  describe('getActiveStreamingSessions', () => {
+    it('returns active stream snapshots for the requested channel', async () => {
+      const redisClient = {
+        scan: jest
+          .fn<any>()
+          .mockResolvedValue([
+            '0',
+            [
+              REDIS_KEYS.STREAMING_SESSION('stream-a'),
+              REDIS_KEYS.STREAMING_SESSION('stream-b'),
+              REDIS_KEYS.BOT_ACTIVE_STREAMS(BOT_USER_ID),
+              REDIS_KEYS.STREAMING_FINALIZED('stream-c'),
+            ],
+          ]),
+        mget: jest.fn<any>().mockResolvedValue([
+          JSON.stringify(
+            makeSession({
+              startedAt: 2000,
+              content: 'partial report',
+              thinking: 'research path',
+              metadata: {
+                longRunning: true,
+                deepResearch: { kind: 'report', status: 'running' },
+              },
+            }),
+          ),
+          JSON.stringify(
+            makeSession({
+              channelId: 'other-channel',
+              startedAt: 1000,
+              content: 'wrong channel',
+            }),
+          ),
+        ]),
+      };
+      redisService.getClient.mockReturnValue(redisClient);
+
+      await expect(
+        controller.getActiveStreamingSessions(NON_BOT_USER_ID, CHANNEL_ID),
+      ).resolves.toEqual([
+        {
+          streamId: 'stream-a',
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          parentId: PARENT_ID,
+          startedAt: 2000,
+          content: 'partial report',
+          thinking: 'research path',
+          metadata: {
+            longRunning: true,
+            deepResearch: { kind: 'report', status: 'running' },
+          },
+        },
+      ]);
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        NON_BOT_USER_ID,
+      );
+      expect(redisClient.scan).toHaveBeenCalledWith(
+        '0',
+        'MATCH',
+        REDIS_KEYS.STREAMING_SESSION('*'),
+        'COUNT',
+        100,
+      );
+    });
+
+    it('rejects non-members with ForbiddenException', async () => {
+      channelsService.isMember.mockResolvedValue(false);
+
+      await expect(
+        controller.getActiveStreamingSessions(NON_BOT_USER_ID, CHANNEL_ID),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(redisService.getClient).not.toHaveBeenCalled();
     });
   });
 
@@ -302,18 +410,7 @@ describe('StreamingController', () => {
 
       expect(redisService.set).toHaveBeenCalledWith(
         REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
-        JSON.stringify(
-          makeSession({
-            metadata: {
-              agentEventType: 'tool_call',
-              status: 'running',
-              toolCallId: 'tc-1',
-              toolName: 'RunScript',
-              toolArgsText: '{"cmd":"pnpm test"}',
-              toolPhase: 'args_streaming',
-            },
-          }),
-        ),
+        expect.stringContaining('"toolArgsText":"{\\"cmd\\":\\"pnpm test\\"}"'),
         120,
       );
       expect(redisService.expire).toHaveBeenCalledWith(
@@ -366,18 +463,7 @@ describe('StreamingController', () => {
 
       expect(redisService.set).toHaveBeenCalledWith(
         REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
-        JSON.stringify(
-          makeSession({
-            metadata: {
-              agentEventType: 'tool_call',
-              status: 'running',
-              toolCallId: 'tc-1',
-              toolName: 'RunScript',
-              toolArgsText: '{"cmd":"pnpm test"}',
-              toolPhase: 'args_streaming',
-            },
-          }),
-        ),
+        expect.stringContaining('"toolArgsText":"{\\"cmd\\":\\"pnpm test\\"}"'),
         120,
       );
       expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
@@ -394,6 +480,44 @@ describe('StreamingController', () => {
         },
       );
     });
+
+    it('deep-merges deep research metadata so progress survives heartbeat updates', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(
+          makeSession({
+            metadata: {
+              longRunning: true,
+              deepResearch: {
+                status: 'running',
+                phase: 'searching',
+                progress: {
+                  phase: 'searching',
+                  sources: [{ url: 'https://example.com/a', title: 'A' }],
+                  counts: { websites: 1 },
+                },
+              },
+            },
+          }),
+        ),
+      );
+
+      await expect(
+        controller.updateMetadata(BOT_USER_ID, STREAM_ID, {
+          metadata: {
+            deepResearch: {
+              status: 'running',
+              phase: 'synthesizing',
+            },
+          },
+        }),
+      ).resolves.toEqual({ success: true });
+
+      expect(redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        expect.stringContaining('"phase":"synthesizing"'),
+        5400,
+      );
+    });
   });
 
   // ── updateContent ────────────────────────────────────────────────────────────
@@ -407,6 +531,12 @@ describe('StreamingController', () => {
       });
 
       expect(result).toEqual({ success: true });
+
+      expect(redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        JSON.stringify(makeSession({ content: 'partial content...' })),
+        120,
+      );
 
       // Refreshes session TTL
       expect(redisService.expire).toHaveBeenCalledWith(
@@ -484,6 +614,14 @@ describe('StreamingController', () => {
       );
 
       expect(result).toEqual({ success: true });
+
+      expect(redisService.set).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        JSON.stringify(
+          makeSession({ thinking: 'thinking about the problem...' }),
+        ),
+        120,
+      );
 
       // Refreshes session TTL
       expect(redisService.expire).toHaveBeenCalledWith(
@@ -622,6 +760,41 @@ describe('StreamingController', () => {
       );
 
       expect(gatewayMQService.publishWorkspaceEvent).not.toHaveBeenCalled();
+    });
+
+    it('returns the finalized message on duplicate endStreaming after the session was cleaned up', async () => {
+      const message = makeMessage();
+      redisService.get.mockResolvedValueOnce(null).mockResolvedValueOnce(
+        JSON.stringify({
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          messageId: MSG_ID,
+          finalizedAt: 1700000000000,
+        }),
+      );
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+
+      const result = await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: 'Final content',
+      });
+
+      expect(result).toEqual({ success: true, messageId: MSG_ID });
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.STREAMING.END,
+        {
+          streamId: STREAM_ID,
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          message,
+        },
+      );
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.NEW,
+        message,
+      );
     });
 
     it('persists long streaming content as long_text so preview clients can fetch full content', async () => {

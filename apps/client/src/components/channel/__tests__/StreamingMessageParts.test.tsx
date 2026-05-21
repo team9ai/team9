@@ -126,4 +126,45 @@ describe("StreamingMessageParts", () => {
     expect(screen.queryByText(/^Thought for/)).not.toBeInTheDocument();
     expect(container.firstChild).toBeNull();
   });
+
+  it("suppresses ordinary thinking rows for deep research streams", () => {
+    render(
+      <StreamingMessageParts
+        stream={makeStream({
+          content: "",
+          thinking: "research thinking",
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              kind: "report",
+              status: "running",
+              phase: "searching",
+              progress: {
+                thoughts: [
+                  {
+                    text: "真实研究思路来自 deepResearch progress。",
+                  },
+                ],
+              },
+            },
+          },
+          parts: [
+            {
+              id: "stream-1-0",
+              type: "thinking",
+              content: "ordinary hidden thinking",
+              startedAt: Date.now() - 5000,
+              isStreaming: true,
+            },
+          ],
+        })}
+        members={[]}
+      />,
+    );
+
+    expect(screen.queryByText(/Thought/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("真实研究思路来自 deepResearch progress。"),
+    ).toBeInTheDocument();
+  });
 });

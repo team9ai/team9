@@ -55,6 +55,7 @@ export class TopicSessionsController {
       ...(dto.model ? { model: dto.model } : {}),
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.attachments?.length ? { attachments: dto.attachments } : {}),
+      ...(dto.metadata ? { metadata: dto.metadata } : {}),
     });
   }
 

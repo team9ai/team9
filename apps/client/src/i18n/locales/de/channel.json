@@ -259,5 +259,136 @@
       "tasks": "Aufgaben",
       "messages": "Nachrichten"
     }
+  },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "Fehlgeschlagen",
+        "planReady": "Pruefung noetig",
+        "completed": "Abgeschlossen",
+        "running": "In Bearbeitung"
+      },
+      "detail": {
+        "failed": "Rechercheaufgabe fehlgeschlagen",
+        "planReady": "Rechercheplan erstellt",
+        "completed": "Recherchebericht abgeschlossen",
+        "generatingPlan": "Rechercheplan wird erstellt",
+        "running": "Recherche laeuft"
+      },
+      "updatedAt": "Aktualisiert um {{time}}"
+    },
+    "plan": {
+      "fallbackTitle": "Rechercheplan",
+      "intro": "Das ist der von mir entworfene Plan. Sag mir vor dem Start der Recherche, wenn du Aenderungen brauchst.",
+      "steps": {
+        "websites": "Websites recherchieren",
+        "analyze": "Ergebnisse analysieren",
+        "report": "Bericht erstellen",
+        "estimate": "Nur wenige Minuten zur Vorbereitung"
+      },
+      "more": "Mehr",
+      "collapse": "Einklappen",
+      "editPlaceholder": "Sag mir, wie der Rechercheplan angepasst werden soll...",
+      "retryWithout": "Ohne Deep Research erneut versuchen",
+      "submitEdit": "Aenderungen senden",
+      "modify": "Plan bearbeiten",
+      "cancel": "Abbrechen",
+      "start": "Recherche starten",
+      "actionInput": {
+        "modify": "Rechercheplan bearbeiten",
+        "start": "Recherche starten",
+        "retryWithout": "Beantworte dies direkt ohne Deep Research: {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "Warte auf Recherchekontext...",
+      "waitingForReport": "Die Recherche laeuft. Danach kannst du nachfragen...",
+      "generatingPlan": "Rechercheplan wird erstellt...",
+      "modifyPlan": "Sag mir, wie der Rechercheplan angepasst werden soll...",
+      "followUp": "Diese Deep Research fortsetzen..."
+    },
+    "panel": {
+      "loading": "Deep Research wird geladen",
+      "loadFailed": "Deep-Research-Details konnten nicht geladen werden.",
+      "noUpdates": "Noch keine Deep-Research-Updates.",
+      "retry": "Erneut versuchen",
+      "status": {
+        "failed": "Recherche fehlgeschlagen",
+        "completed": "Bericht abgeschlossen",
+        "reportCompleted": "Recherchebericht abgeschlossen",
+        "planReady": "Wartet auf Planbestaetigung",
+        "generatingPlan": "Rechercheplan wird erstellt",
+        "running": "Recherche laeuft",
+        "submitted": "Deep Research wird gestartet...",
+        "answering": "Antwort aus dem Bericht wird erstellt...",
+        "synthesizing": "Bericht wird erstellt...",
+        "planning": "Rechercheausrichtung wird strukturiert...",
+        "inProgress": "Deep Research laeuft..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "Recherche fehlgeschlagen",
+        "reportCompleted": "Recherchebericht abgeschlossen",
+        "researchingWebsites_one": "{{count}} Website wird recherchiert...",
+        "researchingWebsites_other": "{{count}} Websites werden recherchiert...",
+        "started": "Recherche wird geplant und Quellen werden gesucht...",
+        "submitted": "Deep Research wird gestartet...",
+        "synthesizing": "Bericht wird erstellt...",
+        "planning": "Rechercheausrichtung wird strukturiert...",
+        "running": "Deep Research laeuft...",
+        "justStarted": "gerade gestartet",
+        "elapsedMinutes_one": "{{count}} Minute vergangen",
+        "elapsedMinutes_other": "{{count}} Minuten vergangen"
+      },
+      "emptyThoughts": "Noch kein Rechercheprozess aufgezeichnet",
+      "thoughtTitle": "Recherchegedanken",
+      "visualAlt": "Deep-Research-Visualisierung",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "Web",
+        "files": "Dateien",
+        "visuals": "Visuals"
+      },
+      "steps": {
+        "framework": "Recherchegeruest wird aufgebaut",
+        "researchingWebsites_one": "Websites recherchieren - {{count}}",
+        "researchingWebsites_other": "Websites recherchieren - {{count}}",
+        "researchingWebsitesPending": "Websites recherchieren",
+        "researchedWebsites_one": "Recherchierte Websites - {{count}}",
+        "researchedWebsites_other": "Recherchierte Websites - {{count}}",
+        "visuals_one": "Visuelles Ergebnis - {{count}}",
+        "visuals_other": "Visuelle Ergebnisse - {{count}}",
+        "report": "Bericht erstellen"
+      }
+    },
+    "stream": {
+      "defaultStatus": "streamt...",
+      "planStreamingLabel": "Plan wird entworfen",
+      "planDoneLabel": "Rechercheplan",
+      "reportStreamingLabel": "Deep Research laeuft",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "gerade gestartet",
+      "elapsedMinutes_one": "{{count}} Minute vergangen",
+      "elapsedMinutes_other": "{{count}} Minuten vergangen",
+      "errorSuffix": ": {{error}}",
+      "failedPlan": "Erstellung des Rechercheplans fehlgeschlagen{{error}}",
+      "failedReport": "Deep Research fehlgeschlagen{{error}}",
+      "phase": {
+        "planSubmitted": "Rechercheplan wird vorbereitet",
+        "planStarted": "Rechercheplan wird entworfen",
+        "planFinalizing": "Rechercheplan wird organisiert",
+        "planDefault": "Rechercheausrichtung und Quellenumfang werden geplant",
+        "reportSubmitted": "Deep Research wird gestartet",
+        "reportStarted": "Recherche wird geplant und Quellen werden gesucht",
+        "reportSynthesizing": "Recherchebericht wird organisiert",
+        "reportDefault": "Quellen werden gesucht und analysiert"
+      },
+      "targetPlan": "Der Plan",
+      "targetReport": "Der Bericht",
+      "statusLine": "{{phase}}, {{elapsed}}. {{target}} erscheint hier, sobald er fertig ist."
+    }
   }
 }

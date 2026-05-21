@@ -310,14 +310,22 @@ function resolveToolCall(
       const nestedParams = toolArgs.params;
       return {
         toolName: nestedToolName,
-        ...(isRecord(nestedParams) ? { toolArgs: nestedParams } : {}),
+        ...(isRecord(nestedParams)
+          ? {
+              toolArgs: nestedParams,
+            }
+          : {}),
       };
     }
   }
 
   return {
     toolName: fallbackToolName,
-    ...(toolArgs ? { toolArgs } : {}),
+    ...(toolArgs
+      ? {
+          toolArgs,
+        }
+      : {}),
   };
 }
 

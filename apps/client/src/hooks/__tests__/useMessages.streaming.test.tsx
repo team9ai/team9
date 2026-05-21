@@ -20,6 +20,7 @@ const streamStore = vi.hoisted(() => ({
   setThinkingContent: vi.fn(),
   setStreamMetadata: vi.fn(),
   closeThinkingForSender: vi.fn(),
+  restoreStream: vi.fn(),
   endStream: vi.fn(),
   abortStream: vi.fn(),
 }));
@@ -28,6 +29,7 @@ const mockImApi = vi.hoisted(() => ({
   messages: {
     getMessages: vi.fn(),
     getMessagesPaginated: vi.fn(),
+    getActiveStreams: vi.fn(),
     sendMessage: vi.fn(),
   },
 }));
@@ -214,7 +216,13 @@ describe("useMessages streaming events", () => {
     vi.clearAllMocks();
     streamStore.streams = new Map();
     mockImApi.messages.getMessages.mockResolvedValue([]);
+    mockImApi.messages.getActiveStreams.mockResolvedValue([]);
     mockImApi.messages.getMessagesPaginated.mockReset();
+    mockImApi.messages.getMessagesPaginated.mockResolvedValue({
+      messages: [],
+      hasOlder: false,
+      hasNewer: false,
+    });
     mockImApi.messages.sendMessage.mockReset();
   });
 
@@ -291,6 +299,47 @@ describe("useMessages streaming events", () => {
       channelId: "ch-1",
       senderId: "bot-1",
     });
+  });
+
+  it("restores active streams when a channel is opened", async () => {
+    const { wrapper } = makeWrapper();
+    mockImApi.messages.getActiveStreams.mockResolvedValueOnce([
+      {
+        streamId: "stream-1",
+        channelId: "ch-1",
+        senderId: "bot-1",
+        startedAt: 1000,
+        content: "partial report",
+        thinking: "research path",
+        metadata: {
+          longRunning: true,
+          deepResearch: {
+            kind: "report",
+            status: "running",
+          },
+        },
+      },
+    ]);
+
+    renderHook(() => useMessages("ch-1"), { wrapper });
+
+    await waitFor(() =>
+      expect(streamStore.restoreStream).toHaveBeenCalledWith({
+        streamId: "stream-1",
+        channelId: "ch-1",
+        senderId: "bot-1",
+        startedAt: 1000,
+        content: "partial report",
+        thinking: "research path",
+        metadata: {
+          longRunning: true,
+          deepResearch: {
+            kind: "report",
+            status: "running",
+          },
+        },
+      }),
+    );
   });
 
   it("refetches channel messages when a stream ends without a message payload", async () => {

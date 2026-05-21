@@ -58,6 +58,30 @@ type ThreadQueryData = InfiniteData<ThreadResponse>;
 type SubRepliesQueryData = InfiniteData<SubRepliesResponse>;
 type MessageReplier = NonNullable<Message["lastRepliers"]>[number];
 
+function useActiveStreamingRecovery(channelId: string | undefined): void {
+  useEffect(() => {
+    if (!channelId) return;
+
+    let cancelled = false;
+    void imApi.messages
+      .getActiveStreams(channelId)
+      .then((streams) => {
+        if (cancelled) return;
+        const streamingStore = useStreamingStore.getState();
+        for (const stream of streams) {
+          streamingStore.restoreStream(stream);
+        }
+      })
+      .catch((error) => {
+        console.warn("Failed to restore active streams", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId]);
+}
+
 function findPendingTempId(clientMsgId?: string | null): string | undefined {
   if (!clientMsgId) return undefined;
   return pendingByClientMsgId.get(clientMsgId);
@@ -190,6 +214,7 @@ function closeActiveThinkingOnAgentProgress(message: Message): void {
  */
 export function useMessages(channelId: string | undefined) {
   const queryClient = useQueryClient();
+  useActiveStreamingRecovery(channelId);
 
   const query = useInfiniteQuery({
     queryKey: ["messages", channelId],
@@ -846,6 +871,7 @@ export function useChannelMessages(
 ) {
   const queryClient = useQueryClient();
   const isAnchored = !!options?.anchorMessageId;
+  useActiveStreamingRecovery(channelId);
 
   const query = useInfiniteQuery({
     queryKey: ["messages", channelId, options?.anchorMessageId ?? "latest"],

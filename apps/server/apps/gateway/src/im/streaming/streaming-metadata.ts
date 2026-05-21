@@ -1,5 +1,5 @@
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function getDeltaText(metadata: Record<string, unknown>): string | undefined {
@@ -38,6 +38,26 @@ function stripTransientDeltaFields(
   return rest;
 }
 
+function mergeDeepResearchMetadata(
+  previous: unknown,
+  incoming: unknown,
+): unknown {
+  if (!isRecord(previous) || !isRecord(incoming)) {
+    return incoming;
+  }
+
+  const next = {
+    ...previous,
+    ...incoming,
+  };
+
+  if (!('progress' in incoming) && 'progress' in previous) {
+    next.progress = previous.progress;
+  }
+
+  return next;
+}
+
 export function mergeStreamingMetadataSnapshot(
   previous: Record<string, unknown> | undefined,
   incoming: Record<string, unknown> | undefined,
@@ -49,6 +69,13 @@ export function mergeStreamingMetadataSnapshot(
     ...(previous ?? {}),
     ...stripTransientDeltaFields(incoming),
   };
+
+  if ('deepResearch' in incoming) {
+    next.deepResearch = mergeDeepResearchMetadata(
+      previous?.deepResearch,
+      incoming.deepResearch,
+    );
+  }
 
   if (deltaText !== undefined) {
     const previousText =

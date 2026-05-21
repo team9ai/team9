@@ -48,6 +48,11 @@ const translationMap: Record<
   dashboardPromptHint: "Press Enter to send. Use Shift+Enter for a new line.",
   dashboardActionDeepResearch: "Deep research",
   dashboardDeepResearchTemplate: "Please run a deep research task...",
+  dashboardDeepResearchOptions: "Deep Research",
+  dashboardDeepResearchModeStandard: "Research",
+  dashboardDeepResearchModeMax: "Max",
+  dashboardDeepResearchVisualsOn: "Visuals on",
+  dashboardDeepResearchVisualsOff: "Visuals off",
   dashboardActionVideoGeneration: "Create video",
   dashboardVideoGenerationTemplate: "Please generate a short video...",
   dashboardModeSwitchLabel: "Dashboard mode",
@@ -307,6 +312,7 @@ describe("HomeMainContent", () => {
     ).toBeInTheDocument();
     // Video generation chip injects a prompt template that routes through the
     // normal topic-session pipeline — no special endpoints.
+    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
     expect(screen.getByText(/create video/i)).toBeInTheDocument();
     const planCreditsPill = screen.getByTestId("dashboard-plan-credits-pill");
     expect(within(planCreditsPill).getByText("Starter")).toBeInTheDocument();
@@ -356,6 +362,72 @@ describe("HomeMainContent", () => {
         to: "/channels/$channelId",
         params: { channelId: "topic-ch-new" },
       });
+    });
+  });
+
+  it("attaches official-style Deep Research request metadata from the dashboard", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    const prompt = screen.getByPlaceholderText(/message dashboard/i);
+    const deepResearchButton = screen.getByRole("button", {
+      name: /deep research/i,
+    });
+
+    expect(deepResearchButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(deepResearchButton);
+    expect(prompt).toHaveValue("");
+    expect(deepResearchButton).toHaveAttribute("aria-pressed", "true");
+    expect(deepResearchButton.className).toContain("bg-[#2f67ff]");
+    fireEvent.click(deepResearchButton);
+    expect(deepResearchButton).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("Deep Research")).not.toBeInTheDocument();
+    fireEvent.click(deepResearchButton);
+    expect(deepResearchButton).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: /max/i }));
+    fireEvent.click(screen.getByRole("button", { name: /visuals on/i }));
+    fireEvent.change(prompt, {
+      target: { value: "Research the cloud GPU market" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTopicSessionMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          botUserId: "agent-1",
+          initialMessage: "Research the cloud GPU market",
+          metadata: {
+            deepResearchRequest: expect.objectContaining({
+              source: "team9",
+              kind: "request",
+              agent: "deep-research-max-preview-04-2026",
+              mode: "max",
+              background: true,
+              stream: true,
+              requestPlanFirst: true,
+              agentConfig: expect.objectContaining({
+                type: "deep-research",
+                thinkingSummaries: "auto",
+                thinking_summaries: "auto",
+                visualization: "off",
+                collaborativePlanning: true,
+                collaborative_planning: true,
+              }),
+              sources: {
+                googleSearch: true,
+                uploadedFiles: false,
+              },
+              tools: expect.arrayContaining([
+                { type: "google_search" },
+                { type: "url_context" },
+                { type: "code_execution" },
+              ]),
+            }),
+          },
+        }),
+      );
     });
   });
 
@@ -671,6 +743,7 @@ describe("HomeMainContent", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: /gpt-4.1/i }));
 
     expect(await screen.findByText("Gemini 3.1 Pro")).toBeInTheDocument();
+    expect(screen.getByText("Gemini 3.5 Flash")).toBeInTheDocument();
     expect(screen.getByText("Gemini 3 Flash")).toBeInTheDocument();
     expect(screen.queryByText(/preview/i)).not.toBeInTheDocument();
     expect(screen.queryByText("OpenAI")).not.toBeInTheDocument();
@@ -682,7 +755,7 @@ describe("HomeMainContent", () => {
     const menu = within(screen.getByRole("menu"));
     expect(menu.getAllByRole("img", { name: "Claude logo" })).toHaveLength(2);
     expect(menu.getAllByRole("img", { name: "ChatGPT logo" })).toHaveLength(3);
-    expect(menu.getAllByRole("img", { name: "Gemini logo" })).toHaveLength(2);
+    expect(menu.getAllByRole("img", { name: "Gemini logo" })).toHaveLength(3);
     expect(
       menu.getByRole("img", { name: "DeepSeek logo" }),
     ).toBeInTheDocument();

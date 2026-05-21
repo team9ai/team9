@@ -66,3 +66,7 @@ export interface CreateTaskRunDto {
 export interface UpdateTaskRunDto {
   title?: string;
 }
+
+export interface UpdateTaskRunDto {
+  title?: string;
+}

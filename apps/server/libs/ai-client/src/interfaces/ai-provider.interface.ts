@@ -39,6 +39,7 @@ export type OpenAIModel = (typeof OPENAI_MODELS)[number];
 
 // Google Gemini Models
 export const GEMINI_MODELS = [
+  'gemini-3.5-flash',
   'gemini-3-pro-preview',
   'gemini-2.0-flash',
 ] as const;
@@ -50,6 +51,7 @@ export const OPENROUTER_MODELS = [
   'openai/gpt-4-turbo',
   'anthropic/claude-3.5-sonnet',
   'anthropic/claude-3-opus',
+  'google/gemini-3.5-flash',
   'google/gemini-pro-1.5',
   'meta-llama/llama-3.1-405b-instruct',
   'meta-llama/llama-3.1-70b-instruct',

@@ -4,6 +4,7 @@ import type { AttachmentDto, Message, ChannelMember } from "@/types/im";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import type { BotThinkingStatus } from "./bot-thinking-state";
 import type { ReactNode } from "react";
+import type { DeepResearchTaskMeta } from "./DeepResearchTaskCard";
 
 export interface ChannelContentProps {
   // MessageList props
@@ -51,6 +52,7 @@ export interface ChannelContentProps {
   readOnlyLabel?: string;
   /** Optional action rendered in the read-only bar */
   readOnlyAction?: ReactNode;
+  onOpenDeepResearch?: (meta: DeepResearchTaskMeta) => void;
 }
 
 export function ChannelContent({
@@ -79,6 +81,7 @@ export function ChannelContent({
   showReadOnlyBar,
   readOnlyLabel,
   readOnlyAction,
+  onOpenDeepResearch,
   isBotDm,
   botModelSwitch,
 }: ChannelContentProps) {
@@ -101,6 +104,7 @@ export function ChannelContent({
         thinkingStatuses={thinkingStatuses}
         members={members}
         lastReadMessageId={lastReadMessageId}
+        onOpenDeepResearch={onOpenDeepResearch}
       />
 
       {showReadOnlyBar ? (

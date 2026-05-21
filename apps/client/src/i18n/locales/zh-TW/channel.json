@@ -188,6 +188,137 @@
       "loading": "載入中..."
     }
   },
+  "deepResearch": {
+    "title": "深度研究",
+    "task": {
+      "status": {
+        "failed": "失敗",
+        "planReady": "待確認",
+        "completed": "已完成",
+        "running": "進行中"
+      },
+      "detail": {
+        "failed": "研究任務執行失敗",
+        "planReady": "研究計畫已產生",
+        "completed": "研究報告已完成",
+        "generatingPlan": "正在產生研究計畫",
+        "running": "正在執行研究"
+      },
+      "updatedAt": "更新於 {{time}}"
+    },
+    "plan": {
+      "fallbackTitle": "研究方案",
+      "intro": "這是我擬定的方案。如果您需要進行任何改動，請在我開始研究前告訴我。",
+      "steps": {
+        "websites": "研究網站",
+        "analyze": "分析結果",
+        "report": "產生報告",
+        "estimate": "只需要幾分鐘就可以準備好"
+      },
+      "more": "更多",
+      "collapse": "收起",
+      "editPlaceholder": "告訴我想怎樣調整研究方案...",
+      "retryWithout": "不使用 Deep Research 重試",
+      "submitEdit": "提交修改",
+      "modify": "修改方案",
+      "cancel": "取消",
+      "start": "開始研究",
+      "actionInput": {
+        "modify": "修改研究方案",
+        "start": "開始研究",
+        "retryWithout": "不使用 Deep Research，直接回答這個問題：{{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "等待研究服務返回可繼續對話的上下文...",
+      "waitingForReport": "研究正在執行，完成後可以繼續追問...",
+      "generatingPlan": "正在產生研究計畫...",
+      "modifyPlan": "告訴我怎樣調整研究計畫...",
+      "followUp": "繼續追問這次深度研究..."
+    },
+    "panel": {
+      "loading": "正在載入深度研究",
+      "loadFailed": "載入深度研究詳情失敗。",
+      "noUpdates": "暫時還沒有深度研究更新。",
+      "retry": "重試",
+      "status": {
+        "failed": "研究失敗",
+        "completed": "報告已完成",
+        "reportCompleted": "研究報告已完成",
+        "planReady": "等待確認研究計畫",
+        "generatingPlan": "正在產生研究計畫",
+        "running": "正在執行研究",
+        "submitted": "正在啟動深度研究...",
+        "answering": "正在基於報告產生回答...",
+        "synthesizing": "正在產生報告...",
+        "planning": "正在梳理研究方向...",
+        "inProgress": "正在進行深度研究..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "研究失敗",
+        "reportCompleted": "研究報告已完成",
+        "researchingWebsites_other": "正在研究 {{count}} 個網站...",
+        "started": "正在規劃研究並檢索資料...",
+        "submitted": "正在啟動深度研究...",
+        "synthesizing": "正在產生報告...",
+        "planning": "正在梳理研究方向...",
+        "running": "正在進行深度研究...",
+        "justStarted": "剛剛開始",
+        "elapsedMinutes_other": "已執行 {{count}} 分鐘",
+        "researchingWebsites_one": "正在研究 {{count}} 個網站...",
+        "elapsedMinutes_one": "已執行 {{count}} 分鐘"
+      },
+      "emptyThoughts": "暫無研究過程記錄",
+      "thoughtTitle": "研究思路",
+      "visualAlt": "深度研究視覺化",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "網頁",
+        "files": "檔案",
+        "visuals": "視覺化"
+      },
+      "steps": {
+        "framework": "系統建立研究框架",
+        "researchingWebsites_other": "正在研究網站 · {{count}}",
+        "researchingWebsitesPending": "正在研究網站",
+        "researchedWebsites_other": "研究過的網站 · {{count}}",
+        "visuals_other": "視覺化結果 · {{count}}",
+        "report": "產生報告",
+        "researchingWebsites_one": "正在研究網站 · {{count}}",
+        "researchedWebsites_one": "研究過的網站 · {{count}}",
+        "visuals_one": "視覺化結果 · {{count}}"
+      }
+    },
+    "stream": {
+      "defaultStatus": "streaming...",
+      "planStreamingLabel": "擬定方案中",
+      "planDoneLabel": "研究方案",
+      "reportStreamingLabel": "深度研究中",
+      "reportDoneLabel": "深度研究",
+      "elapsedJustStarted": "剛剛開始",
+      "elapsedMinutes_other": "已執行 {{count}} 分鐘",
+      "errorSuffix": "：{{error}}",
+      "failedPlan": "研究方案產生失敗{{error}}",
+      "failedReport": "深度研究失敗{{error}}",
+      "phase": {
+        "planSubmitted": "正在準備研究方案",
+        "planStarted": "正在擬定研究方案",
+        "planFinalizing": "正在整理研究方案",
+        "planDefault": "正在梳理研究方向和資料範圍",
+        "reportSubmitted": "正在啟動深度研究",
+        "reportStarted": "正在規劃研究並檢索資料",
+        "reportSynthesizing": "正在整理研究報告",
+        "reportDefault": "正在檢索和分析資料"
+      },
+      "targetPlan": "方案",
+      "targetReport": "報告",
+      "statusLine": "{{phase}}，{{elapsed}}。{{target}}完成後會直接顯示在這裡。",
+      "elapsedMinutes_one": "已執行 {{count}} 分鐘"
+    }
+  },
   "properties": {
     "tab": "屬性",
     "definitionsTitle": "屬性定義",

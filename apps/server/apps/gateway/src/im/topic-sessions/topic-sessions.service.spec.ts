@@ -30,6 +30,8 @@ const { ChannelsService } = await import('../channels/channels.service.js');
 const { WebsocketGateway } = await import('../websocket/websocket.gateway.js');
 const { ImWorkerGrpcClientService } =
   await import('../services/im-worker-grpc-client.service.js');
+const { DeepResearchSessionsService } =
+  await import('../deep-research-sessions/deep-research-sessions.service.js');
 
 // --------------------------------------------------------------------
 // Test helpers
@@ -134,6 +136,10 @@ describe('TopicSessionsService', () => {
   let ws: { sendToUser: MockFn };
   let gatewayMQ: { isReady: MockFn; publishPostBroadcast: MockFn };
   let eventEmitter: { emit: MockFn };
+  let deepResearchSessions: {
+    createChildChannel: MockFn;
+    startPlan: MockFn;
+  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -159,6 +165,12 @@ describe('TopicSessionsService', () => {
       publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
     };
     eventEmitter = { emit: jest.fn<any>() };
+    deepResearchSessions = {
+      createChildChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'deep-child-1' }),
+      startPlan: jest.fn<any>(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -169,6 +181,10 @@ describe('TopicSessionsService', () => {
         { provide: ImWorkerGrpcClientService, useValue: imWorkerGrpc },
         { provide: WebsocketGateway, useValue: ws },
         { provide: EventEmitter2, useValue: eventEmitter },
+        {
+          provide: DeepResearchSessionsService,
+          useValue: deepResearchSessions,
+        },
         { provide: GatewayMQService, useValue: gatewayMQ },
       ],
     }).compile();
@@ -250,6 +266,61 @@ describe('TopicSessionsService', () => {
         expect.objectContaining({
           channelId: result.channelId,
           sessionId: result.sessionId,
+        }),
+      );
+    });
+
+    it('persists optional metadata on the first topic-session message', async () => {
+      db.limit.mockResolvedValueOnce([makeHiveBotRow()]);
+      channels.createTopicSessionChannel.mockImplementationOnce(
+        async ({ channelId }: any) =>
+          makeTopicChannelRow(channelId ?? 'generated'),
+      );
+
+      const metadata = {
+        deepResearchRequest: {
+          source: 'team9',
+          kind: 'request',
+          agent: 'deep-research-preview-04-2026',
+        },
+      };
+
+      await service.create({
+        creatorId: CREATOR_ID,
+        tenantId: TENANT_ID,
+        botUserId: BOT_USER_ID,
+        initialMessage: 'Research cloud GPUs',
+        metadata,
+      });
+
+      expect(imWorkerGrpc.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Research cloud GPUs',
+          metadata: expect.objectContaining({
+            deepResearchRequest: metadata.deepResearchRequest,
+            deepResearchSessionRef: expect.objectContaining({
+              childChannelId: 'deep-child-1',
+              parentChannelId: expect.any(String),
+              agentWakePolicy: 'none',
+            }),
+          }),
+        }),
+      );
+      expect(deepResearchSessions.createChildChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          creatorId: CREATOR_ID,
+          tenantId: TENANT_ID,
+          parentChannelId: expect.any(String),
+          title: 'Research cloud GPUs',
+        }),
+      );
+      expect(deepResearchSessions.startPlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: CREATOR_ID,
+          tenantId: TENANT_ID,
+          childChannelId: 'deep-child-1',
+          parentMessageId: 'msg-1',
+          input: 'Research cloud GPUs',
         }),
       );
     });

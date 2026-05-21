@@ -1,12 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MessageItem } from "../MessageItem";
 import type { Message } from "@/types/im";
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
 }));
 
 const queryClient = new QueryClient({
@@ -82,6 +85,76 @@ describe("MessageItem - agent event rendering", () => {
 
     // Should render normally with sender name
     expect(screen.getByText("Test User")).toBeInTheDocument();
+  });
+
+  it("renders deep research task metadata as an isolated entry card", () => {
+    const onOpen = vi.fn();
+    const msg = makeMessage({
+      senderId: null,
+      content: "# Full plan should stay in the child channel",
+      metadata: {
+        deepResearchTask: {
+          childChannelId: "child-1",
+          parentChannelId: "ch-1",
+          title: "USDT 对传统金融的冲击",
+          kind: "plan",
+          status: "plan_ready",
+          phase: "plan_ready",
+          updatedAt: "2026-05-19T05:00:00.000Z",
+        },
+      },
+    });
+
+    renderWithProviders(
+      <MessageItem message={msg} onOpenDeepResearch={onOpen} />,
+    );
+
+    expect(screen.getByText("USDT 对传统金融的冲击")).toBeInTheDocument();
+    expect(
+      screen.getByText("deepResearch.task.detail.planReady"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Full plan should stay in the child channel"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /USDT 对传统金融的冲击/ }),
+    );
+    expect(onOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        childChannelId: "child-1",
+        parentChannelId: "ch-1",
+        status: "plan_ready",
+      }),
+    );
+  });
+
+  it("collapses legacy mirrored deep research messages in the parent channel", () => {
+    const msg = makeMessage({
+      senderId: null,
+      content: "# Legacy mirrored plan\n\n1. Hidden parent detail",
+      metadata: {
+        deepResearch: {
+          kind: "plan",
+          status: "completed",
+          phase: "plan_ready",
+          title: "Legacy Research",
+          interactionId: "interaction-1",
+          session: {
+            childChannelId: "child-1",
+            parentChannelId: "ch-1",
+            agentWakePolicy: "none",
+          },
+        },
+      },
+    });
+
+    renderWithProviders(<MessageItem message={msg} />);
+
+    expect(screen.getByText("Legacy Research")).toBeInTheDocument();
+    expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();
+    expect(screen.queryByText("Hidden parent detail")).not.toBeInTheDocument();
   });
 
   it("should NOT render as agent event when agentEventType is not a string", () => {

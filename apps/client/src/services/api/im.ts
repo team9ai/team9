@@ -5,6 +5,7 @@ import { useAppStore } from "@/stores/useAppStore";
 import type { ClientContext } from "@/types/im";
 import type {
   AttachmentDto,
+  ActiveStreamingMessage,
   Channel,
   ChannelWithUnread,
   ChannelMember,
@@ -297,6 +298,16 @@ export const messagesApi = {
     }
     const paginated = data as PaginatedMessagesResponse;
     return { ...paginated, messages: normalizeMessages(paginated.messages) };
+  },
+
+  // Restore in-flight bot streams after opening or refreshing a channel.
+  getActiveStreams: async (
+    channelId: string,
+  ): Promise<ActiveStreamingMessage[]> => {
+    const response = await http.get<ActiveStreamingMessage[]>(
+      `/v1/im/channels/${channelId}/streaming/active`,
+    );
+    return response.data;
   },
 
   // Send message to channel
@@ -627,6 +638,8 @@ export interface CreateTopicSessionDto {
   title?: string;
   /** Optional attachments (presigned + confirmed) to send with the first message. */
   attachments?: AttachmentDto[];
+  /** Optional metadata persisted on the first message and forwarded to the agent. */
+  metadata?: Record<string, unknown>;
 }
 
 export interface TopicSessionResponse {
@@ -703,6 +716,44 @@ export const topicSessionsApi = {
   },
 };
 
+export interface DeepResearchSessionActionDto {
+  action: "modify_plan" | "start_research" | "follow_up";
+  planMessageId: string;
+  planInteractionId: string;
+  input?: string;
+}
+
+export interface DeepResearchSessionContextResponse {
+  channelId: string;
+  messages: Message[];
+}
+
+export const deepResearchSessionsApi = {
+  action: async (
+    channelId: string,
+    data: DeepResearchSessionActionDto,
+  ): Promise<{ accepted: true }> => {
+    const response = await http.post<{ accepted: true }>(
+      `/v1/im/deep-research-sessions/${channelId}/actions`,
+      data,
+    );
+    return response.data;
+  },
+  getContext: async (
+    channelId: string,
+    limit = 50,
+  ): Promise<DeepResearchSessionContextResponse> => {
+    const response = await http.get<DeepResearchSessionContextResponse>(
+      `/v1/im/deep-research-sessions/${channelId}/context`,
+      { params: { limit } },
+    );
+    return {
+      ...response.data,
+      messages: normalizeMessages(response.data.messages),
+    };
+  },
+};
+
 // Sync API
 export const syncApi = {
   // Sync messages for a channel (lazy loading - called when opening a channel)
@@ -731,6 +782,7 @@ export const imApi = {
   sync: syncApi,
   sections: sectionsApi,
   topicSessions: topicSessionsApi,
+  deepResearchSessions: deepResearchSessionsApi,
 };
 
 export default imApi;

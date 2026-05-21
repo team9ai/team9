@@ -97,6 +97,7 @@ export interface ChannelResponse {
   isArchived: boolean;
   isActivated: boolean;
   snapshot: ChannelSnapshot | null;
+  propertySettings?: unknown;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -149,6 +150,12 @@ interface ChannelListOptions {
 
 const GROUP_CHANNEL_TYPES = ['public', 'private'] as const;
 const DIRECT_CHANNEL_TYPES = ['direct', 'echo'] as const;
+// Built lazily (as a function) rather than at module load so importing this
+// service does not eagerly dereference schema.channels — some specs mock
+// @team9/database/schemas with only the columns the test under inspection needs.
+const excludeDeepResearchChildChannels = () => sql`
+  (${schema.channels.propertySettings}->'deepResearchSession') IS NULL
+`;
 
 type ChannelUserSummaryRow = {
   userId: string;
@@ -672,6 +679,65 @@ export class ChannelsService {
     );
     await this.redis.invalidate(
       REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, botUserId),
+    );
+
+    return channel;
+  }
+
+  /**
+   * Create a Deep Research child channel.
+   *
+   * The channel deliberately has only the requesting human as a member. Deep
+   * Research output is written as system-authored messages, and no hive agent
+   * is joined to this child channel. The `propertySettings.deepResearchSession`
+   * marker lets normal sidebars hide the implementation channel while still
+   * allowing direct navigation and read access through membership.
+   */
+  async createDeepResearchSessionChannel(params: {
+    creatorId: string;
+    tenantId: string | null;
+    parentChannelId: string;
+    title: string | null;
+    channelId?: string;
+  }): Promise<ChannelResponse> {
+    const channelId = params.channelId ?? uuidv7();
+    const propertySettings: unknown = {
+      deepResearchSession: {
+        role: 'child',
+        parentChannelId: params.parentChannelId,
+        title: params.title,
+        agentWakePolicy: 'none',
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    const channel = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(schema.channels)
+        .values({
+          id: channelId,
+          tenantId: params.tenantId ?? null,
+          type: 'private',
+          name: params.title,
+          createdBy: params.creatorId,
+          propertySettings,
+        })
+        .returning();
+
+      await tx.insert(schema.channelMembers).values({
+        id: uuidv7(),
+        channelId: row.id,
+        userId: params.creatorId,
+        role: 'member' as const,
+      });
+
+      return row;
+    });
+
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channel.id));
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, params.creatorId),
     );
 
     return channel;
@@ -1397,6 +1463,7 @@ export class ChannelsService {
         and(
           eq(schema.channelMembers.userId, userId),
           isNull(schema.channelMembers.leftAt),
+          excludeDeepResearchChildChannels(),
           tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
           requestedTypes
             ? inArray(schema.channels.type, requestedTypes)
@@ -1562,6 +1629,7 @@ export class ChannelsService {
       .where(
         and(
           inArray(schema.channels.id, channelIds),
+          excludeDeepResearchChildChannels(),
           requestedTypes
             ? inArray(schema.channels.type, requestedTypes)
             : notInArray(schema.channels.type, ['direct', 'echo']),

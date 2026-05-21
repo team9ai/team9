@@ -8,6 +8,7 @@ import { env } from '@team9/shared';
 import { InternalAuthController } from './internal-auth.controller.js';
 import { InternalAuthGuard } from './internal-auth.guard.js';
 import { TurnstileService } from './turnstile.service.js';
+import { AgentTempTokenValidatorService } from './agent-temp-token-validator.service.js';
 
 const accessTokenExpiresIn = env.JWT_EXPIRES_IN as JwtSignOptions['expiresIn'];
 
@@ -28,7 +29,12 @@ const accessTokenExpiresIn = env.JWT_EXPIRES_IN as JwtSignOptions['expiresIn'];
     }),
   ],
   controllers: [AuthController, InternalAuthController],
-  providers: [AuthService, InternalAuthGuard, TurnstileService],
+  providers: [
+    AuthService,
+    InternalAuthGuard,
+    TurnstileService,
+    AgentTempTokenValidatorService,
+  ],
   exports: [AuthService, SharedAuthModule],
 })
 export class AuthModule {}

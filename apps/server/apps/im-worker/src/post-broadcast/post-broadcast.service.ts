@@ -39,6 +39,21 @@ interface MessageWithContext {
 
 type MessageContextLoader = () => Promise<MessageWithContext | null>;
 
+type HiveBotTarget = {
+  userId: string;
+  botId: string;
+  managedMeta: schema.ManagedMeta | null;
+  mentorId: string | null;
+};
+
+type TaskChannelSessionTarget = {
+  scope: 'routine' | 'task';
+  scopeId: string;
+  taskId: string;
+  executionId: string;
+  taskcastTaskId: string | null;
+};
+
 /**
  * Post-Broadcast Service
  *
@@ -66,6 +81,25 @@ export class PostBroadcastService {
 
   private isHumanAuthoredMessage(sender: schema.User): boolean {
     return sender.userType === 'human';
+  }
+
+  private shouldSuppressHiveFanout(message: schema.Message): boolean {
+    const metadata = message.metadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return false;
+    }
+
+    const sessionRef = metadata.deepResearchSessionRef;
+    if (
+      sessionRef &&
+      typeof sessionRef === 'object' &&
+      !Array.isArray(sessionRef) &&
+      (sessionRef as Record<string, unknown>).agentWakePolicy === 'none'
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   private async getAttachmentPublicUrl(
@@ -632,6 +666,7 @@ export class PostBroadcastService {
    * Trigger rules:
    *   - DM channel: always trigger for all hive bots
    *   - Tracking channel: always trigger (guidance routed to same session)
+   *   - Task channel: always trigger, routed to the active task/routine session
    *   - Group channel: only trigger if the bot is @mentioned
    * Fire-and-forget: failures are logged but do not block message delivery.
    */
@@ -679,6 +714,13 @@ export class PostBroadcastService {
       const { message, sender, channel, mentions, parentMessage, attachments } =
         messageData;
 
+      if (this.shouldSuppressHiveFanout(message)) {
+        this.logger.debug(
+          `Skipping hive bot fanout for isolated deep research message ${msgId}`,
+        );
+        return;
+      }
+
       if (!this.isHumanAuthoredMessage(sender)) {
         this.logger.debug(
           `Skipping hive bot fanout for non-human-authored message ${msgId}`,
@@ -703,8 +745,9 @@ export class PostBroadcastService {
       // layer concerns (sidebar, search, title generation). Always
       // forwarded and never spawn a tracking channel, same as DM.
       const isTopicSession = channel.type === 'topic-session';
+      const isTask = channel.type === 'task';
       const alwaysForward =
-        isDm || isTracking || isRoutineSession || isTopicSession;
+        isDm || isTracking || isRoutineSession || isTopicSession || isTask;
       const mentionedUserIds = alwaysForward
         ? null
         : extractMentionedUserIds(mentions);
@@ -763,8 +806,9 @@ export class PostBroadcastService {
       // as the IM abstraction (sidebar grouping, search, title gen);
       // the mapping to 'dm' only happens at the wire.
       const channelLocation: Record<string, unknown> = {
-        type:
-          isDm || isRoutineSession || isTopicSession
+        type: isTask
+          ? 'task'
+          : isDm || isRoutineSession || isTopicSession
             ? 'dm'
             : isTracking
               ? 'tracking'
@@ -789,6 +833,16 @@ export class PostBroadcastService {
 
       for (const bot of targetBots) {
         const agentId = bot.managedMeta!.agentId!;
+        const taskSession = isTask
+          ? await this.resolveTaskChannelSession(channel, bot)
+          : null;
+
+        if (isTask && !taskSession) {
+          this.logger.warn(
+            `Skipping task channel hive fanout for ${channel.id}; no active session found for bot ${bot.botId}`,
+          );
+          continue;
+        }
 
         // Check if this bot has an existing tracking channel in this thread
         const existingTrackingId = threadTrackingMap.get(bot.userId);
@@ -808,7 +862,13 @@ export class PostBroadcastService {
         // tracking channel — the bot already has an active session keyed
         // off the original channel id from the kickoff event.
         let trackingChannelId: string | undefined;
-        if (!isDm && !isTracking && !isRoutineSession && !isTopicSession) {
+        if (
+          !isDm &&
+          !isTracking &&
+          !isRoutineSession &&
+          !isTopicSession &&
+          !isTask
+        ) {
           trackingChannelId = await this.createTrackingChannel(
             tenantId || null,
             bot.userId,
@@ -822,6 +882,9 @@ export class PostBroadcastService {
         // Session ID:
         //   DM / routine-session / topic-session:
         //     team9/{tenant}/{agent}/dm/{channelId}
+        //   Task channel:
+        //     team9/{tenant}/{agent}/task/{runId}
+        //     or team9/{tenant}/{agent}/routine/{executionId}
         //   Group @mention: team9/{tenant}/{agent}/tracking/{newTrackingChannelId}
         //   Tracking guidance: team9/{tenant}/{agent}/tracking/{existingChannelId}
         //
@@ -829,10 +892,14 @@ export class PostBroadcastService {
         // channelId is UUIDv7-unique so there is no id collision across
         // direct / routine-session / topic-session sessions for the
         // same (tenant, agent) pair.
-        const scope: 'dm' | 'tracking' =
-          isDm || isRoutineSession || isTopicSession ? 'dm' : 'tracking';
-        const scopeId =
-          isDm || isRoutineSession || isTopicSession
+        const scope: 'dm' | 'tracking' | 'routine' | 'task' = taskSession
+          ? taskSession.scope
+          : isDm || isRoutineSession || isTopicSession
+            ? 'dm'
+            : 'tracking';
+        const scopeId = taskSession
+          ? taskSession.scopeId
+          : isDm || isRoutineSession || isTopicSession
             ? channel.id
             : (trackingChannelId ?? channel.id);
         const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
@@ -842,11 +909,24 @@ export class PostBroadcastService {
         // dynamic fields like `isMentorDm` always reflect the current DB state
         // (e.g. after a mentor change, the next message will automatically
         // flip the flag — no session delete/recreate required).
-        const team9Context = this.deriveTeam9Context({
+        const baseTeam9Context = this.deriveTeam9Context({
           channel,
           bot: { userId: bot.userId, mentorId: bot.mentorId },
           sender,
         });
+        const team9Context = taskSession
+          ? {
+              ...baseTeam9Context,
+              scopeType: 'task' as const,
+              scopeId: taskSession.scopeId,
+              taskId: taskSession.taskId,
+              executionId: taskSession.executionId,
+              channelId: channel.id,
+              ...(taskSession.taskcastTaskId
+                ? { taskcastTaskId: taskSession.taskcastTaskId }
+                : {}),
+            }
+          : baseTeam9Context;
 
         const senderPayload = {
           id: sender.id,
@@ -858,7 +938,6 @@ export class PostBroadcastService {
         const isFileMessage =
           hasAttachments &&
           (message.type === 'file' || message.type === 'image');
-
         const event = isFileMessage
           ? {
               type: 'team9:message.file' as const,
@@ -930,6 +1009,76 @@ export class PostBroadcastService {
       this.logger.warn(`Hive bot push failed: ${error}`);
       // Don't throw - hive failures should never block message delivery
     }
+  }
+
+  private async resolveTaskChannelSession(
+    channel: schema.Channel,
+    bot: HiveBotTarget,
+  ): Promise<TaskChannelSessionTarget | null> {
+    const [routineExecution] = await this.db
+      .select({
+        executionId: schema.routineExecutions.id,
+        routineId: schema.routineExecutions.routineId,
+        taskcastTaskId: schema.routineExecutions.taskcastTaskId,
+      })
+      .from(schema.routineExecutions)
+      .innerJoin(
+        schema.routines,
+        eq(schema.routines.id, schema.routineExecutions.routineId),
+      )
+      .where(
+        and(
+          eq(schema.routineExecutions.channelId, channel.id),
+          eq(schema.routines.botId, bot.botId),
+          channel.tenantId
+            ? eq(schema.routines.tenantId, channel.tenantId)
+            : undefined,
+        ),
+      )
+      .orderBy(desc(schema.routineExecutions.createdAt))
+      .limit(1);
+
+    if (routineExecution) {
+      return {
+        scope: 'routine',
+        scopeId: routineExecution.executionId,
+        taskId: routineExecution.routineId,
+        executionId: routineExecution.executionId,
+        taskcastTaskId: routineExecution.taskcastTaskId ?? null,
+      };
+    }
+
+    const [taskRun] = await this.db
+      .select({
+        executionId: schema.taskRuns.id,
+        routineId: schema.taskRuns.routineId,
+        taskcastTaskId: schema.taskRuns.taskcastTaskId,
+      })
+      .from(schema.taskRuns)
+      .where(
+        and(
+          eq(schema.taskRuns.channelId, channel.id),
+          eq(schema.taskRuns.botId, bot.botId),
+          isNull(schema.taskRuns.routineId),
+          channel.tenantId
+            ? eq(schema.taskRuns.tenantId, channel.tenantId)
+            : undefined,
+        ),
+      )
+      .orderBy(desc(schema.taskRuns.createdAt))
+      .limit(1);
+
+    if (!taskRun) {
+      return null;
+    }
+
+    return {
+      scope: 'task',
+      scopeId: taskRun.executionId,
+      taskId: taskRun.routineId ?? taskRun.executionId,
+      executionId: taskRun.executionId,
+      taskcastTaskId: taskRun.taskcastTaskId ?? null,
+    };
   }
 
   /**
@@ -1027,7 +1176,7 @@ export class PostBroadcastService {
     agentId: string;
     tenantId: string | null;
     sessionId: string;
-    scope: 'dm' | 'tracking';
+    scope: 'dm' | 'tracking' | 'routine' | 'task';
     scopeId: string;
     channelId: string;
     trackingChannelId?: string;

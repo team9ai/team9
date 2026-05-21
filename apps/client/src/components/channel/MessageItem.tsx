@@ -15,6 +15,19 @@ import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
+import {
+  DeepResearchPlanCard,
+  getDeepResearchPlanMeta,
+} from "./DeepResearchPlanCard";
+import {
+  DeepResearchProgressCard,
+  getDeepResearchProgressMeta,
+} from "./DeepResearchProgressCard";
+import {
+  DeepResearchTaskCard,
+  getDeepResearchTaskMeta,
+  type DeepResearchTaskMeta,
+} from "./DeepResearchTaskCard";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { UserHoverCard } from "./UserHoverCard";
 import {
@@ -88,6 +101,8 @@ export interface MessageItemProps {
    * the hover toolbar's Properties button is hidden.
    */
   supportsProperties?: boolean;
+  /** Open an isolated deep research session in the side panel. */
+  onOpenDeepResearch?: (meta: DeepResearchTaskMeta) => void;
 }
 
 function getThinkingMetadata(
@@ -124,9 +139,22 @@ export function MessageItem({
   onEditSave,
   onEditCancel,
   supportsProperties = false,
+  onOpenDeepResearch,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
+  const deepResearchPlanMeta = getDeepResearchPlanMeta(message.metadata);
+  const rawDeepResearchProgressMeta = getDeepResearchProgressMeta(
+    message.metadata,
+  );
+  const deepResearchProgressMeta =
+    !deepResearchPlanMeta && rawDeepResearchProgressMeta?.kind === "report"
+      ? rawDeepResearchProgressMeta
+      : null;
+  const deepResearchTaskMeta = getDeepResearchTaskMeta(
+    message.metadata,
+    message.channelId,
+  );
   const [isHovered, setIsHovered] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
@@ -188,6 +216,25 @@ export function MessageItem({
     return (
       <div id={`message-${message.id}`} className="py-2 px-2">
         <TrackingCard message={message} />
+      </div>
+    );
+  }
+
+  if (deepResearchTaskMeta) {
+    return (
+      <div
+        id={`message-${message.id}`}
+        className={cn(
+          "px-2 py-1 mr-4",
+          indent && "ml-6",
+          isHighlighted &&
+            "rounded-md bg-warning/20 ring-2 ring-warning dark:bg-warning/30 dark:ring-warning",
+        )}
+      >
+        <DeepResearchTaskCard
+          meta={deepResearchTaskMeta}
+          onOpen={onOpenDeepResearch}
+        />
       </div>
     );
   }
@@ -505,15 +552,25 @@ export function MessageItem({
           </div>
         ) : (
           <>
-            {hasContent && (
+            {deepResearchPlanMeta ? (
+              <div className="channel-message-content w-full">
+                <DeepResearchPlanCard message={message} />
+              </div>
+            ) : hasContent ? (
               <div className="channel-message-content">
+                {deepResearchProgressMeta && (
+                  <DeepResearchProgressCard
+                    meta={deepResearchProgressMeta}
+                    className="mb-3"
+                  />
+                )}
                 <MessageContent
                   content={message.content}
                   className="text-sm whitespace-pre-wrap break-words"
                   message={message}
                 />
               </div>
-            )}
+            ) : null}
           </>
         )}
         {hasAttachments && (

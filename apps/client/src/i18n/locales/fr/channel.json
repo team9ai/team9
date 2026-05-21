@@ -259,5 +259,136 @@
       "tasks": "Tâches",
       "messages": "Messages"
     }
+  },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "Echec",
+        "planReady": "A valider",
+        "completed": "Termine",
+        "running": "En cours"
+      },
+      "detail": {
+        "failed": "La tache de recherche a echoue",
+        "planReady": "Plan de recherche genere",
+        "completed": "Rapport de recherche termine",
+        "generatingPlan": "Generation du plan de recherche",
+        "running": "Recherche en cours"
+      },
+      "updatedAt": "Mis a jour a {{time}}"
+    },
+    "plan": {
+      "fallbackTitle": "Plan de recherche",
+      "intro": "Voici le plan que j ai prepare. Dis-moi avant le lancement si tu veux des modifications.",
+      "steps": {
+        "websites": "Rechercher des sites web",
+        "analyze": "Analyser les resultats",
+        "report": "Generer le rapport",
+        "estimate": "Quelques minutes suffisent pour preparer"
+      },
+      "more": "Plus",
+      "collapse": "Reduire",
+      "editPlaceholder": "Indique comment ajuster le plan de recherche...",
+      "retryWithout": "Reessayer sans Deep Research",
+      "submitEdit": "Envoyer les modifications",
+      "modify": "Modifier le plan",
+      "cancel": "Annuler",
+      "start": "Lancer la recherche",
+      "actionInput": {
+        "modify": "Modifier le plan de recherche",
+        "start": "Lancer la recherche",
+        "retryWithout": "Reponds directement sans Deep Research : {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "En attente du contexte de recherche...",
+      "waitingForReport": "La recherche est en cours. Tu pourras poursuivre une fois terminee...",
+      "generatingPlan": "Generation du plan de recherche...",
+      "modifyPlan": "Indique comment ajuster le plan de recherche...",
+      "followUp": "Continuer cette recherche approfondie..."
+    },
+    "panel": {
+      "loading": "Chargement de Deep Research",
+      "loadFailed": "Impossible de charger les details Deep Research.",
+      "noUpdates": "Aucune mise a jour Deep Research pour le moment.",
+      "retry": "Reessayer",
+      "status": {
+        "failed": "Recherche echouee",
+        "completed": "Rapport termine",
+        "reportCompleted": "Rapport de recherche termine",
+        "planReady": "En attente de confirmation du plan",
+        "generatingPlan": "Generation du plan de recherche",
+        "running": "Recherche en cours",
+        "submitted": "Lancement de Deep Research...",
+        "answering": "Generation d une reponse a partir du rapport...",
+        "synthesizing": "Generation du rapport...",
+        "planning": "Structuration de la direction de recherche...",
+        "inProgress": "Deep Research en cours..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "Recherche echouee",
+        "reportCompleted": "Rapport de recherche termine",
+        "researchingWebsites_one": "Recherche de {{count}} site web...",
+        "researchingWebsites_other": "Recherche de {{count}} sites web...",
+        "started": "Planification de la recherche et recherche de sources...",
+        "submitted": "Lancement de Deep Research...",
+        "synthesizing": "Generation du rapport...",
+        "planning": "Structuration de la direction de recherche...",
+        "running": "Deep Research en cours...",
+        "justStarted": "a l instant",
+        "elapsedMinutes_one": "{{count}} minute ecoulee",
+        "elapsedMinutes_other": "{{count}} minutes ecoulees"
+      },
+      "emptyThoughts": "Aucun processus de recherche enregistre pour le moment",
+      "thoughtTitle": "Pistes de recherche",
+      "visualAlt": "Visuel Deep Research",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "Web",
+        "files": "Fichiers",
+        "visuals": "Visuels"
+      },
+      "steps": {
+        "framework": "Construction du cadre de recherche",
+        "researchingWebsites_one": "Recherche de sites web - {{count}}",
+        "researchingWebsites_other": "Recherche de sites web - {{count}}",
+        "researchingWebsitesPending": "Recherche de sites web",
+        "researchedWebsites_one": "Sites web recherches - {{count}}",
+        "researchedWebsites_other": "Sites web recherches - {{count}}",
+        "visuals_one": "Resultat visuel - {{count}}",
+        "visuals_other": "Resultats visuels - {{count}}",
+        "report": "Generer le rapport"
+      }
+    },
+    "stream": {
+      "defaultStatus": "diffusion...",
+      "planStreamingLabel": "Redaction du plan",
+      "planDoneLabel": "Plan de recherche",
+      "reportStreamingLabel": "Deep Research en cours",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "a l instant",
+      "elapsedMinutes_one": "{{count}} minute ecoulee",
+      "elapsedMinutes_other": "{{count}} minutes ecoulees",
+      "errorSuffix": " : {{error}}",
+      "failedPlan": "La generation du plan de recherche a echoue{{error}}",
+      "failedReport": "Deep Research a echoue{{error}}",
+      "phase": {
+        "planSubmitted": "Preparation du plan de recherche",
+        "planStarted": "Redaction du plan de recherche",
+        "planFinalizing": "Organisation du plan de recherche",
+        "planDefault": "Definition de la direction et du perimetre des sources",
+        "reportSubmitted": "Lancement de Deep Research",
+        "reportStarted": "Planification de la recherche et recherche de sources",
+        "reportSynthesizing": "Organisation du rapport de recherche",
+        "reportDefault": "Recherche et analyse des sources"
+      },
+      "targetPlan": "Le plan",
+      "targetReport": "Le rapport",
+      "statusLine": "{{phase}}, {{elapsed}}. {{target}} apparaitra ici une fois pret."
+    }
   }
 }

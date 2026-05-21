@@ -34,6 +34,7 @@ function mockDb() {
     'delete',
     'innerJoin',
     'leftJoin',
+    'orderBy',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
@@ -522,8 +523,10 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     db.limit
       .mockResolvedValueOnce([message]) // messages table
       .mockResolvedValueOnce([sender]) // users table
-      .mockResolvedValueOnce([channel]) // channels table
-      .mockResolvedValueOnce(parentMessage ? [parentMessage] : []); // parent
+      .mockResolvedValueOnce([channel]); // channels table
+    if (message.parentId) {
+      db.limit.mockResolvedValueOnce(parentMessage ? [parentMessage] : []);
+    }
   }
 
   function setupDbForNotificationTasks(opts: {
@@ -773,7 +776,12 @@ describe('PostBroadcastService — pushToHiveBots', () => {
 
   it('sends correct event payload with message content and sender info', async () => {
     const bot = makeHiveBot('claude');
-    const msg = makeMessage({ content: 'Test content' });
+    const msg = makeMessage({
+      content: 'Test content',
+      metadata: {
+        clientContext: { kind: 'web' },
+      },
+    });
     const sender = makeSender();
     setupDbForHivePush({ bots: [bot], message: msg, sender });
 
@@ -790,6 +798,31 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(event.payload.content).toBe('Test content');
     expect(event.payload.sender.id).toBe(sender.id);
     expect(event.payload.sender.username).toBe(sender.username);
+    expect(event.payload.metadata).toBeUndefined();
+  });
+
+  it('does not forward isolated deep research session messages to hive bots', async () => {
+    const bot = makeHiveBot('claude');
+    const msg = makeMessage({
+      content: 'Deep research should be handled by Team9 directly',
+      metadata: {
+        deepResearchRequest: {
+          source: 'team9',
+          kind: 'request',
+        },
+        deepResearchSessionRef: {
+          childChannelId: 'child-channel-id',
+          parentChannelId: CHANNEL_ID,
+          agentWakePolicy: 'none',
+        },
+      },
+    });
+
+    setupDbForHivePush({ bots: [bot], message: msg });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).not.toHaveBeenCalled();
   });
 
   it('sends attachment publicUrl to hive bots', async () => {
@@ -1458,6 +1491,96 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
 
     expect(createTrackingSpy).not.toHaveBeenCalled();
+  });
+
+  it('routes task channel follow-up to the existing task session without @mention', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('task'),
+    });
+    db.where.mockReturnValueOnce(db);
+    db.limit.mockResolvedValueOnce([]);
+    db.where.mockReturnValueOnce(db);
+    db.limit.mockResolvedValueOnce([
+      {
+        executionId: 'task-run-1',
+        routineId: null,
+        taskcastTaskId: 'agent_task_exec_task-run-1',
+      },
+    ]);
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
+    const [sessionId, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    expect(sessionId).toBe(
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/task/task-run-1`,
+    );
+    expect(event.payload.location).toEqual(
+      expect.objectContaining({
+        type: 'task',
+        id: CHANNEL_ID,
+      }),
+    );
+    expect(event.payload.team9Context).toEqual(
+      expect.objectContaining({
+        source: 'team9',
+        scopeType: 'task',
+        scopeId: 'task-run-1',
+      }),
+    );
+    expect(event.payload.trackingChannelId).toBeUndefined();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('routes routine-backed task channel follow-up to the existing routine session', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      channel: makeChannel('task'),
+    });
+    db.where.mockReturnValueOnce(db);
+    db.limit.mockResolvedValueOnce([
+      {
+        executionId: 'routine-exec-1',
+        routineId: 'routine-1',
+        taskcastTaskId: 'agent_task_exec_routine-exec-1',
+      },
+    ]);
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledTimes(1);
+    const [sessionId, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    expect(sessionId).toBe(
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/routine/routine-exec-1`,
+    );
+    expect(event.payload.location).toEqual(
+      expect.objectContaining({
+        type: 'task',
+        id: CHANNEL_ID,
+      }),
+    );
+    expect(event.payload.team9Context).toEqual(
+      expect.objectContaining({
+        source: 'team9',
+        scopeType: 'task',
+        scopeId: 'routine-exec-1',
+        taskId: 'routine-1',
+        executionId: 'routine-exec-1',
+      }),
+    );
+    expect(event.payload.trackingChannelId).toBeUndefined();
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   it('routes tracking channel message to same session without creating new channel', async () => {

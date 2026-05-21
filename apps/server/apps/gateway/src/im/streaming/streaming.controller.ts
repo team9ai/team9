@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   Param,
   Header,
@@ -38,15 +39,22 @@ import {
   EndStreamingDto,
 } from './dto/streaming.dto.js';
 import { mergeStreamingMetadataSnapshot } from './streaming-metadata.js';
+import {
+  STREAMING_FINALIZED_TTL,
+  getStreamIdFromStreamingSessionKey,
+  hasDeepResearchMetadata,
+  parseStreamingSessionSnapshot,
+  resolveStreamingSessionTtl,
+  toActiveStreamingSessionDto,
+  type ActiveStreamingSessionDto,
+  type StreamingSessionSnapshot,
+} from './streaming-session.js';
 
-const STREAM_TTL = 120;
-
-interface StreamingSession {
+interface FinalizedStreamingMessage {
   channelId: string;
   senderId: string;
-  parentId?: string;
-  metadata?: Record<string, unknown>;
-  startedAt: number;
+  messageId: string;
+  finalizedAt: number;
 }
 
 const STREAMING_REST_DEPRECATION_MESSAGE =
@@ -76,8 +84,33 @@ export class StreamingController {
     return sender?.userType === 'human' && sender.agentType === null;
   }
 
-  private parseStreamingSession(sessionRaw: string): StreamingSession {
-    return JSON.parse(sessionRaw) as StreamingSession;
+  private parseStreamingSession(sessionRaw: string): StreamingSessionSnapshot {
+    const session = parseStreamingSessionSnapshot(sessionRaw);
+    if (!session) {
+      throw new ForbiddenException('Streaming session is invalid');
+    }
+    return session;
+  }
+
+  private async storeStreamingSession(
+    streamId: string,
+    session: StreamingSessionSnapshot,
+  ): Promise<void> {
+    await this.redisService.set(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+      JSON.stringify(session),
+      resolveStreamingSessionTtl(session.metadata),
+    );
+  }
+
+  private resolveFinalMessageParentId(
+    session: StreamingSessionSnapshot,
+    metadata: Record<string, unknown> | undefined,
+  ): string | undefined {
+    // Deep research is a long-running report artifact. Older agent-pi builds may
+    // start the stream with a parentId inherited from the triggering user
+    // message; final reports should still land in the channel timeline.
+    return hasDeepResearchMetadata(metadata) ? undefined : session.parentId;
   }
 
   /**
@@ -119,16 +152,18 @@ export class StreamingController {
     const startedAt = Date.now();
 
     // Store session in Redis (same keys as WebSocket handler)
+    const session: StreamingSessionSnapshot = {
+      channelId,
+      senderId: userId,
+      parentId: dto.parentId,
+      metadata: dto.metadata,
+      startedAt,
+    };
+    const sessionTtl = resolveStreamingSessionTtl(session.metadata);
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(streamId),
-      JSON.stringify({
-        channelId,
-        senderId: userId,
-        parentId: dto.parentId,
-        metadata: dto.metadata,
-        startedAt,
-      }),
-      STREAM_TTL,
+      JSON.stringify(session),
+      sessionTtl,
     );
 
     await this.redisService.sadd(
@@ -137,7 +172,7 @@ export class StreamingController {
     );
     await this.redisService.expire(
       REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
-      STREAM_TTL,
+      sessionTtl,
     );
 
     // Broadcast to channel via Socket.io
@@ -155,6 +190,57 @@ export class StreamingController {
     );
 
     return { streamId };
+  }
+
+  // ── GET /v1/im/channels/:channelId/streaming/active ───────────────
+
+  @Get('channels/:channelId/streaming/active')
+  async getActiveStreamingSessions(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+  ): Promise<ActiveStreamingSessionDto[]> {
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
+
+    const redis = this.redisService.getClient();
+    const activeSessions: ActiveStreamingSessionDto[] = [];
+    let cursor = '0';
+
+    do {
+      const [nextCursor, keys] = await redis.scan(
+        cursor,
+        'MATCH',
+        REDIS_KEYS.STREAMING_SESSION('*'),
+        'COUNT',
+        100,
+      );
+      cursor = nextCursor;
+
+      const sessionKeys = keys
+        .map((key) => ({
+          key,
+          streamId: getStreamIdFromStreamingSessionKey(key),
+        }))
+        .filter(
+          (entry): entry is { key: string; streamId: string } =>
+            entry.streamId !== null,
+        );
+
+      if (sessionKeys.length === 0) continue;
+
+      const values = await redis.mget(sessionKeys.map((entry) => entry.key));
+      for (let i = 0; i < sessionKeys.length; i += 1) {
+        const session = parseStreamingSessionSnapshot(values[i]);
+        if (!session || session.channelId !== channelId) continue;
+        activeSessions.push(
+          toActiveStreamingSessionDto(sessionKeys[i].streamId, session),
+        );
+      }
+    } while (cursor !== '0');
+
+    return activeSessions.sort((a, b) => a.startedAt - b.startedAt);
   }
 
   // ── POST /v1/im/streaming/:streamId/content ────────────────────────
@@ -181,14 +267,21 @@ export class StreamingController {
       throw new ForbiddenException('Not the owner of this stream');
     }
 
+    const nextSession: StreamingSessionSnapshot = {
+      ...session,
+      content: dto.content,
+    };
+    const sessionTtl = resolveStreamingSessionTtl(nextSession.metadata);
+    await this.storeStreamingSession(streamId, nextSession);
+
     // Refresh TTL on both session and active-streams set
     await this.redisService.expire(
       REDIS_KEYS.STREAMING_SESSION(streamId),
-      STREAM_TTL,
+      sessionTtl,
     );
     await this.redisService.expire(
       REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
-      STREAM_TTL,
+      sessionTtl,
     );
 
     await this.websocketGateway.sendToChannelMembers(
@@ -229,14 +322,21 @@ export class StreamingController {
       throw new ForbiddenException('Not the owner of this stream');
     }
 
+    const nextSession: StreamingSessionSnapshot = {
+      ...session,
+      thinking: dto.content,
+    };
+    const sessionTtl = resolveStreamingSessionTtl(nextSession.metadata);
+    await this.storeStreamingSession(streamId, nextSession);
+
     // Refresh TTL on both session and active-streams set
     await this.redisService.expire(
       REDIS_KEYS.STREAMING_SESSION(streamId),
-      STREAM_TTL,
+      sessionTtl,
     );
     await this.redisService.expire(
       REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
-      STREAM_TTL,
+      sessionTtl,
     );
 
     await this.websocketGateway.sendToChannelMembers(
@@ -279,18 +379,19 @@ export class StreamingController {
 
     // Keep only the latest metadata snapshot. This supports long tool_call
     // argument streaming without persisting every intermediate delta.
-    const nextSession: StreamingSession = {
+    const nextSession: StreamingSessionSnapshot = {
       ...session,
       metadata: mergeStreamingMetadataSnapshot(session.metadata, dto.metadata),
     };
+    const sessionTtl = resolveStreamingSessionTtl(nextSession.metadata);
     await this.redisService.set(
       REDIS_KEYS.STREAMING_SESSION(streamId),
       JSON.stringify(nextSession),
-      STREAM_TTL,
+      sessionTtl,
     );
     await this.redisService.expire(
       REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
-      STREAM_TTL,
+      sessionTtl,
     );
 
     await this.websocketGateway.sendToChannelMembers(
@@ -323,6 +424,13 @@ export class StreamingController {
       REDIS_KEYS.STREAMING_SESSION(streamId),
     );
     if (!sessionRaw) {
+      const finalized = await this.resolveFinalizedStreamingMessage(
+        streamId,
+        userId,
+      );
+      if (finalized) {
+        return finalized;
+      }
       throw new ForbiddenException('Streaming session not found or expired');
     }
     const session = this.parseStreamingSession(sessionRaw);
@@ -361,11 +469,17 @@ export class StreamingController {
       channelId,
       senderId: userId,
       content: dto.content,
-      parentId: session.parentId,
+      parentId: this.resolveFinalMessageParentId(session, metadata),
       type: determineMessageType(dto.content, false),
       workspaceId,
       metadata,
     });
+    await this.rememberFinalizedStreamingMessage(
+      streamId,
+      userId,
+      channelId,
+      result.msgId,
+    );
 
     // Fetch the persisted message with sender/attachment details.
     // If this fails, we still have enough data to broadcast a minimal message.
@@ -476,5 +590,115 @@ export class StreamingController {
     }
 
     return { success: true, messageId: result.msgId };
+  }
+
+  private async rememberFinalizedStreamingMessage(
+    streamId: string,
+    senderId: string,
+    channelId: string,
+    messageId: string,
+  ): Promise<void> {
+    const payload: FinalizedStreamingMessage = {
+      channelId,
+      senderId,
+      messageId,
+      finalizedAt: Date.now(),
+    };
+    try {
+      await this.redisService.set(
+        REDIS_KEYS.STREAMING_FINALIZED(streamId),
+        JSON.stringify(payload),
+        STREAMING_FINALIZED_TTL,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[endStreaming] failed to cache finalized stream=${streamId} msg=${messageId}: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  private async resolveFinalizedStreamingMessage(
+    streamId: string,
+    userId: string,
+  ): Promise<{ success: true; messageId: string } | null> {
+    const raw = await this.redisService.get(
+      REDIS_KEYS.STREAMING_FINALIZED(streamId),
+    );
+    const finalized = this.parseFinalizedStreamingMessage(raw);
+    if (!finalized) {
+      return null;
+    }
+    if (finalized.senderId !== userId) {
+      throw new ForbiddenException('Not the owner of this stream');
+    }
+
+    let message: MessageResponse | null = null;
+    try {
+      message = await this.messagesService.getMessageWithDetails(
+        finalized.messageId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `[endStreaming] get finalized message details failed for ${finalized.messageId}: ${(error as Error).message}`,
+      );
+    }
+
+    if (message) {
+      await this.websocketGateway.sendToChannelMembers(
+        finalized.channelId,
+        WS_EVENTS.STREAMING.END,
+        {
+          streamId,
+          channelId: finalized.channelId,
+          senderId: userId,
+          message,
+        },
+      );
+      await this.websocketGateway.sendToChannelMembers(
+        finalized.channelId,
+        WS_EVENTS.MESSAGE.NEW,
+        message,
+      );
+    } else {
+      await this.websocketGateway.sendToChannelMembers(
+        finalized.channelId,
+        WS_EVENTS.STREAMING.END,
+        {
+          streamId,
+          channelId: finalized.channelId,
+          senderId: userId,
+          message: null,
+        },
+      );
+    }
+
+    return { success: true, messageId: finalized.messageId };
+  }
+
+  private parseFinalizedStreamingMessage(
+    raw: string | null,
+  ): FinalizedStreamingMessage | null {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as Partial<FinalizedStreamingMessage>;
+      if (
+        typeof parsed.channelId !== 'string' ||
+        typeof parsed.senderId !== 'string' ||
+        typeof parsed.messageId !== 'string'
+      ) {
+        return null;
+      }
+      return {
+        channelId: parsed.channelId,
+        senderId: parsed.senderId,
+        messageId: parsed.messageId,
+        finalizedAt:
+          typeof parsed.finalizedAt === 'number'
+            ? parsed.finalizedAt
+            : Date.now(),
+      };
+    } catch {
+      return null;
+    }
   }
 }

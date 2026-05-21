@@ -286,7 +286,7 @@ vi.mock("zustand/react/shallow", () => ({
 // ---------------------------------------------------------------------------
 // After mocks: import the component under test.
 // ---------------------------------------------------------------------------
-import { MessageList } from "../MessageList";
+import { MessageList, collapseDeepResearchTaskMessages } from "../MessageList";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -307,6 +307,41 @@ function makeMessage(id: string, overrides: Partial<Message> = {}): Message {
     ...overrides,
   };
 }
+
+describe("collapseDeepResearchTaskMessages", () => {
+  it("keeps one latest entry card per deep research child channel", () => {
+    const messages = [
+      makeMessage("task-running", {
+        updatedAt: "2026-05-19T07:00:00.000Z",
+        metadata: {
+          deepResearchTask: {
+            childChannelId: "child-1",
+            parentChannelId: "ch-1",
+            title: "研究一下 中印关系",
+            status: "running",
+          },
+        },
+      }),
+      makeMessage("task-plan-ready", {
+        updatedAt: "2026-05-19T07:01:00.000Z",
+        metadata: {
+          deepResearchTask: {
+            childChannelId: "child-1",
+            parentChannelId: "ch-1",
+            title: "研究一下 中印关系",
+            status: "plan_ready",
+          },
+        },
+      }),
+      makeMessage("ordinary"),
+    ];
+
+    expect(collapseDeepResearchTaskMessages(messages, "ch-1")).toEqual([
+      messages[1],
+      messages[2],
+    ]);
+  });
+});
 
 function makeAgentEvent(
   id: string,
@@ -1189,6 +1224,147 @@ describe("MessageList — round auto-fold", () => {
       expect(screen.queryByTestId("streaming-item")).not.toBeInTheDocument();
       expect(screen.queryByTestId("tool-event-frame")).not.toBeInTheDocument();
       expect(container.querySelector(".py-2")).toBeNull();
+    });
+
+    it("suppresses companion writing and bot thinking while deep research is active", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "deepresearch-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: "running",
+              phase: "started",
+              taskId: "task-1",
+            },
+          },
+        },
+        {
+          streamId: "writing-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "Focusing",
+          isThinking: true,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "writing",
+            status: "running",
+          },
+        },
+      ];
+
+      renderList([], {
+        channelType: "direct",
+        thinkingBotIds: ["bot-1"],
+      });
+
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(1);
+      expect(screen.queryByTestId("bot-thinking")).not.toBeInTheDocument();
+    });
+
+    it("keeps writing content visible while deep research is active", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "deepresearch-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: "running",
+              phase: "started",
+              taskId: "task-1",
+            },
+          },
+        },
+        {
+          streamId: "writing-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "I found a first result.",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "writing",
+            status: "running",
+          },
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(2);
+      expect(screen.getByText("I found a first result.")).toBeInTheDocument();
+    });
+
+    it("keeps other bots visible while deep research is active", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "deepresearch-stream",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+          metadata: {
+            longRunning: true,
+            deepResearch: {
+              status: "running",
+              phase: "started",
+              taskId: "task-1",
+            },
+          },
+        },
+        {
+          streamId: "other-bot-writing-stream",
+          channelId: "ch-1",
+          senderId: "bot-2",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1001,
+          parts: [],
+          metadata: {
+            agentEventType: "writing",
+            status: "running",
+          },
+        },
+      ];
+
+      renderList([], {
+        channelType: "direct",
+        thinkingBotIds: ["bot-1", "bot-2"],
+      });
+
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(1);
+      expect(
+        screen.getByText("tracking.thinking.thinkingWithDuration"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
     });
   });
 

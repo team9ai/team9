@@ -24,6 +24,7 @@ import { ChannelContent } from "./ChannelContent";
 import { ChannelHeader } from "./ChannelHeader";
 import { ChannelTabs } from "./ChannelTabs";
 import { ThreadPanel } from "./ThreadPanel";
+import { DeepResearchPanel } from "./DeepResearchPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
 import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
@@ -63,6 +64,10 @@ import type {
 import { isValidMessageId } from "@/lib/utils";
 import { fileApi } from "@/services/api/file";
 import { AgentSessionPanel } from "./agent-session/AgentSessionPanel";
+import {
+  getDeepResearchTaskMeta,
+  type DeepResearchTaskMeta,
+} from "./DeepResearchTaskCard";
 
 const BOT_THINKING_RECOVERY_REFETCH_MS = 3000;
 const BOT_THINKING_RECOVERY_MAX_ATTEMPTS = 40;
@@ -203,6 +208,28 @@ function getLatestMessageTimeMs(messages: readonly Message[]): number {
     const time = new Date(message.createdAt).getTime();
     return Number.isNaN(time) ? latest : Math.max(latest, time);
   }, 0);
+}
+
+function getTaskUpdatedAtMs(task: DeepResearchTaskMeta): number {
+  if (!task.updatedAt) return 0;
+  const time = new Date(task.updatedAt).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function isSameDeepResearchTask(
+  left: DeepResearchTaskMeta,
+  right: DeepResearchTaskMeta,
+): boolean {
+  return (
+    left.childChannelId === right.childChannelId &&
+    left.status === right.status &&
+    left.phase === right.phase &&
+    left.kind === right.kind &&
+    left.updatedAt === right.updatedAt &&
+    left.interactionId === right.interactionId &&
+    left.reportS3Key === right.reportS3Key &&
+    left.error === right.error
+  );
 }
 
 interface ChannelViewProps {
@@ -424,15 +451,23 @@ export function ChannelView({
       onAgentSessionPanelOpenChange,
     ],
   );
+  const [deepResearchPanelWidth, setDeepResearchPanelWidth] = useState(600);
+  const [deepResearchPanelTask, setDeepResearchPanelTask] =
+    useState<DeepResearchTaskMeta | null>(null);
+  const knownDeepResearchChildChannelIdsRef = useRef<Set<string>>(new Set());
+  const hasInitializedDeepResearchTasksRef = useRef(false);
   const threadPanelWidthRef = useRef(threadPanelWidth);
   threadPanelWidthRef.current = threadPanelWidth;
 
   useEffect(() => {
     if (isAgentSessionPanelControlled) {
       onAgentSessionPanelOpenChange?.(false);
-      return;
+    } else {
+      setInternalAgentSessionPanelOpen(false);
     }
-    setInternalAgentSessionPanelOpen(false);
+    setDeepResearchPanelTask(null);
+    knownDeepResearchChildChannelIdsRef.current = new Set();
+    hasInitializedDeepResearchTasksRef.current = false;
   }, [channelId, isAgentSessionPanelControlled, onAgentSessionPanelOpenChange]);
 
   const isAgentSessionCandidate =
@@ -464,7 +499,9 @@ export function ChannelView({
   const openThreadPanelCount =
     (primaryThread.isOpen && primaryThread.rootMessageId ? 1 : 0) +
     (secondaryThread.isOpen && secondaryThread.rootMessageId ? 1 : 0);
-  const sidePanelCount = agentPanelCount + openThreadPanelCount;
+  const deepResearchPanelCount = deepResearchPanelTask ? 1 : 0;
+  const sidePanelCount =
+    agentPanelCount + deepResearchPanelCount + openThreadPanelCount;
 
   useEffect(() => {
     if (
@@ -503,6 +540,73 @@ export function ChannelView({
     () => messagesData?.pages.flatMap((p) => p.messages) ?? [],
     [messagesData],
   );
+
+  useEffect(() => {
+    if (messagesLoading) return;
+
+    const knownChildChannelIds = knownDeepResearchChildChannelIdsRef.current;
+    let latestNewTask: {
+      meta: DeepResearchTaskMeta;
+      messageCreatedAtMs: number;
+    } | null = null;
+
+    for (const message of messages) {
+      if (message.channelId !== channelId) continue;
+      const meta = getDeepResearchTaskMeta(message.metadata, channelId);
+      if (!meta) continue;
+
+      const isNewTask =
+        hasInitializedDeepResearchTasksRef.current &&
+        !knownChildChannelIds.has(meta.childChannelId);
+      if (isNewTask) {
+        const messageCreatedAtMs = new Date(message.createdAt).getTime();
+        const candidate = {
+          meta,
+          messageCreatedAtMs: Number.isNaN(messageCreatedAtMs)
+            ? getTaskUpdatedAtMs(meta)
+            : messageCreatedAtMs,
+        };
+        if (
+          !latestNewTask ||
+          candidate.messageCreatedAtMs >= latestNewTask.messageCreatedAtMs
+        ) {
+          latestNewTask = candidate;
+        }
+      }
+      knownChildChannelIds.add(meta.childChannelId);
+    }
+
+    hasInitializedDeepResearchTasksRef.current = true;
+    if (latestNewTask) {
+      setDeepResearchPanelTask(latestNewTask.meta);
+    }
+  }, [channelId, messages, messagesLoading]);
+
+  useEffect(() => {
+    if (!deepResearchPanelTask) return;
+
+    let latestTask: DeepResearchTaskMeta | null = null;
+    for (const message of messages) {
+      const meta = getDeepResearchTaskMeta(message.metadata, channelId);
+      if (meta?.childChannelId !== deepResearchPanelTask.childChannelId) {
+        continue;
+      }
+      if (
+        !latestTask ||
+        getTaskUpdatedAtMs(meta) >= getTaskUpdatedAtMs(latestTask)
+      ) {
+        latestTask = meta;
+      }
+    }
+
+    if (
+      latestTask &&
+      !isSameDeepResearchTask(latestTask, deepResearchPanelTask)
+    ) {
+      setDeepResearchPanelTask(latestTask);
+    }
+  }, [channelId, deepResearchPanelTask, messages]);
+
   const latestMessageTimeMs = useMemo(
     () => getLatestMessageTimeMs(messages),
     [messages],
@@ -707,8 +811,12 @@ export function ChannelView({
       const mainChatWidth =
         containerWidth -
         agentPanelCount * agentPanelWidth -
+        deepResearchPanelCount * deepResearchPanelWidth -
         openThreadPanelCount * threadPanelWidthRef.current;
-      setIsSnapped(openThreadPanelCount > 0 && mainChatWidth < 400);
+      setIsSnapped(
+        (openThreadPanelCount > 0 || deepResearchPanelCount > 0) &&
+          mainChatWidth < 400,
+      );
     };
 
     // Recalculate immediately for threadPanelWidth changes
@@ -720,6 +828,8 @@ export function ChannelView({
   }, [
     agentPanelCount,
     agentPanelWidth,
+    deepResearchPanelCount,
+    deepResearchPanelWidth,
     openThreadPanelCount,
     sidePanelCount,
     threadPanelWidth,
@@ -735,7 +845,11 @@ export function ChannelView({
 
     startBotThinking(content);
     try {
-      await sendMessage.mutateAsync({ content, contentAst, attachments });
+      await sendMessage.mutateAsync({
+        content,
+        contentAst,
+        attachments,
+      });
     } catch {
       // Clear thinking indicators on send failure to avoid stale state
       setThinkingStatuses([]);
@@ -874,6 +988,7 @@ export function ChannelView({
             botModelSwitch={
               isBotDm ? (channelModelSwitch ?? botModelSwitch) : undefined
             }
+            onOpenDeepResearch={setDeepResearchPanelTask}
           />
         )}
 
@@ -902,6 +1017,15 @@ export function ChannelView({
           isError={agentComponents.isError}
           width={agentPanelWidth}
           onWidthChange={setAgentPanelWidth}
+        />
+      )}
+
+      {deepResearchPanelTask && (
+        <DeepResearchPanel
+          task={deepResearchPanelTask}
+          width={deepResearchPanelWidth}
+          onWidthChange={setDeepResearchPanelWidth}
+          onClose={() => setDeepResearchPanelTask(null)}
         />
       )}
 

@@ -77,6 +77,10 @@ export const REDIS_KEYS = {
   // Active streaming session (TTL 120s, auto-cleanup)
   STREAMING_SESSION: (streamId: string) => `im:streaming:${streamId}`,
 
+  // Recently finalized streaming message (TTL 5m, retry/idempotency window)
+  STREAMING_FINALIZED: (streamId: string) =>
+    `im:streaming:finalized:${streamId}`,
+
   // Bot's active stream IDs - Set: streamIds for cleanup on disconnect
   BOT_ACTIVE_STREAMS: (userId: string) => `im:streaming:bot:${userId}`,
 };

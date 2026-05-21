@@ -275,5 +275,136 @@
       "tasks": "Taken",
       "messages": "Berichten"
     }
+  },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "Mislukt",
+        "planReady": "Controle nodig",
+        "completed": "Voltooid",
+        "running": "Bezig"
+      },
+      "detail": {
+        "failed": "Onderzoekstaak mislukt",
+        "planReady": "Onderzoeksplan gemaakt",
+        "completed": "Onderzoeksrapport voltooid",
+        "generatingPlan": "Onderzoeksplan wordt gemaakt",
+        "running": "Onderzoek loopt"
+      },
+      "updatedAt": "Bijgewerkt om {{time}}"
+    },
+    "plan": {
+      "fallbackTitle": "Onderzoeksplan",
+      "intro": "Dit is het plan dat ik heb opgesteld. Zeg het voor de start als er wijzigingen nodig zijn.",
+      "steps": {
+        "websites": "Websites onderzoeken",
+        "analyze": "Resultaten analyseren",
+        "report": "Rapport genereren",
+        "estimate": "Voorbereiding duurt maar een paar minuten"
+      },
+      "more": "Meer",
+      "collapse": "Inklappen",
+      "editPlaceholder": "Vertel hoe ik het onderzoeksplan moet aanpassen...",
+      "retryWithout": "Opnieuw zonder Deep Research",
+      "submitEdit": "Wijzigingen verzenden",
+      "modify": "Plan wijzigen",
+      "cancel": "Annuleren",
+      "start": "Onderzoek starten",
+      "actionInput": {
+        "modify": "Onderzoeksplan wijzigen",
+        "start": "Onderzoek starten",
+        "retryWithout": "Beantwoord dit direct zonder Deep Research: {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "Wachten op onderzoekscontext...",
+      "waitingForReport": "Onderzoek loopt. Je kunt opvolgen wanneer het klaar is...",
+      "generatingPlan": "Onderzoeksplan wordt gemaakt...",
+      "modifyPlan": "Vertel hoe ik het onderzoeksplan moet aanpassen...",
+      "followUp": "Ga verder met deze Deep Research..."
+    },
+    "panel": {
+      "loading": "Deep Research laden",
+      "loadFailed": "Kan Deep Research-details niet laden.",
+      "noUpdates": "Nog geen Deep Research-updates.",
+      "retry": "Opnieuw proberen",
+      "status": {
+        "failed": "Onderzoek mislukt",
+        "completed": "Rapport voltooid",
+        "reportCompleted": "Onderzoeksrapport voltooid",
+        "planReady": "Wachten op planbevestiging",
+        "generatingPlan": "Onderzoeksplan wordt gemaakt",
+        "running": "Onderzoek loopt",
+        "submitted": "Deep Research wordt gestart...",
+        "answering": "Antwoord uit rapport wordt gemaakt...",
+        "synthesizing": "Rapport wordt gegenereerd...",
+        "planning": "Onderzoeksrichting wordt uitgewerkt...",
+        "inProgress": "Deep Research is bezig..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "Onderzoek mislukt",
+        "reportCompleted": "Onderzoeksrapport voltooid",
+        "researchingWebsites_one": "{{count}} website onderzoeken...",
+        "researchingWebsites_other": "{{count}} websites onderzoeken...",
+        "started": "Onderzoek plannen en bronnen zoeken...",
+        "submitted": "Deep Research wordt gestart...",
+        "synthesizing": "Rapport wordt gegenereerd...",
+        "planning": "Onderzoeksrichting wordt uitgewerkt...",
+        "running": "Deep Research is bezig...",
+        "justStarted": "net gestart",
+        "elapsedMinutes_one": "{{count}} minuut verstreken",
+        "elapsedMinutes_other": "{{count}} minuten verstreken"
+      },
+      "emptyThoughts": "Nog geen onderzoeksproces vastgelegd",
+      "thoughtTitle": "Onderzoeksgedachten",
+      "visualAlt": "Deep Research-visual",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "Web",
+        "files": "Bestanden",
+        "visuals": "Visuals"
+      },
+      "steps": {
+        "framework": "Onderzoekskader opbouwen",
+        "researchingWebsites_one": "Websites onderzoeken - {{count}}",
+        "researchingWebsites_other": "Websites onderzoeken - {{count}}",
+        "researchingWebsitesPending": "Websites onderzoeken",
+        "researchedWebsites_one": "Onderzochte websites - {{count}}",
+        "researchedWebsites_other": "Onderzochte websites - {{count}}",
+        "visuals_one": "Visueel resultaat - {{count}}",
+        "visuals_other": "Visuele resultaten - {{count}}",
+        "report": "Rapport genereren"
+      }
+    },
+    "stream": {
+      "defaultStatus": "streamen...",
+      "planStreamingLabel": "Plan opstellen",
+      "planDoneLabel": "Onderzoeksplan",
+      "reportStreamingLabel": "Deep Research bezig",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "net gestart",
+      "elapsedMinutes_one": "{{count}} minuut verstreken",
+      "elapsedMinutes_other": "{{count}} minuten verstreken",
+      "errorSuffix": ": {{error}}",
+      "failedPlan": "Onderzoeksplan genereren mislukt{{error}}",
+      "failedReport": "Deep Research mislukt{{error}}",
+      "phase": {
+        "planSubmitted": "Onderzoeksplan voorbereiden",
+        "planStarted": "Onderzoeksplan opstellen",
+        "planFinalizing": "Onderzoeksplan organiseren",
+        "planDefault": "Onderzoeksrichting en bronbereik bepalen",
+        "reportSubmitted": "Deep Research starten",
+        "reportStarted": "Onderzoek plannen en bronnen zoeken",
+        "reportSynthesizing": "Onderzoeksrapport organiseren",
+        "reportDefault": "Bronnen zoeken en analyseren"
+      },
+      "targetPlan": "Het plan",
+      "targetReport": "Het rapport",
+      "statusLine": "{{phase}}, {{elapsed}}. {{target}} verschijnt hier wanneer het klaar is."
+    }
   }
 }
