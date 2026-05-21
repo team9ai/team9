@@ -9,6 +9,7 @@ const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
+const mockUseSkills = vi.hoisted(() => vi.fn());
 const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
 const mockCreateTaskRun = vi.hoisted(() => vi.fn());
@@ -55,6 +56,11 @@ const translationMap: Record<
   dashboardDeepResearchVisualsOff: "Visuals off",
   dashboardActionVideoGeneration: "Create video",
   dashboardVideoGenerationTemplate: "Please generate a short video...",
+  dashboardActionSelectSkills: "Select skills",
+  dashboardSkillsSelectedCount: (options) =>
+    `${options?.count ?? 0} skills selected`,
+  dashboardSkillsLoading: "Loading skills...",
+  dashboardSkillsEmpty: "No skills available",
   dashboardModeSwitchLabel: "Dashboard mode",
   dashboardActionConversationMode: "Conversation mode",
   dashboardActionTaskMode: "Task mode",
@@ -129,6 +135,10 @@ vi.mock("@/hooks/useTopicSessions", () => ({
 
 vi.mock("@/hooks/useFileUpload", () => ({
   useFileUpload: mockUseFileUpload,
+}));
+
+vi.mock("@/hooks/useSkills", () => ({
+  useSkills: mockUseSkills,
 }));
 
 vi.mock("@/services/api/tasks", () => ({
@@ -253,6 +263,37 @@ describe("HomeMainContent", () => {
           agentModelFamily: null,
         },
       ],
+    });
+    mockUseSkills.mockReturnValue({
+      data: [
+        {
+          id: "skill-1",
+          tenantId: "ws-1",
+          name: "Draft campaign brief",
+          description: "Prepare a concise launch brief",
+          type: "prompt_template",
+          icon: null,
+          folderId: null,
+          agentAccess: "read",
+          creatorId: "user-1",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+        {
+          id: "skill-2",
+          tenantId: "ws-1",
+          name: "Analyze metrics",
+          description: "Summarize performance changes",
+          type: "general",
+          icon: null,
+          folderId: null,
+          agentAccess: "read",
+          creatorId: "user-1",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ],
+      isLoading: false,
     });
     mockUseUser.mockReturnValue({
       createdAt: "2024-01-01T00:00:00.000Z",
@@ -840,7 +881,7 @@ describe("HomeMainContent", () => {
     );
   });
 
-  it("uses the task draft copy and real agent data in task mode", async () => {
+  it("uses the task draft copy, skill selector, and hidden agent suggestions in task mode", async () => {
     renderWithProviders(<HomeMainContent mode="task" />);
 
     expect(
@@ -849,25 +890,43 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
     ).toBeInTheDocument();
-    const taskAgentsSection = screen.getByText("Agents 2").closest("section");
-    expect(taskAgentsSection).not.toBeNull();
-    const taskAgents = within(taskAgentsSection!);
-
-    expect(taskAgents.getByText("查看全部")).toBeInTheDocument();
-    expect(taskAgents.getByText("Alpha Agent")).toBeInTheDocument();
-    expect(taskAgents.getByText("@alpha_agent")).toBeInTheDocument();
-    expect(taskAgents.getByText("Beta Agent")).toBeInTheDocument();
-    expect(taskAgents.getByText("@beta_agent")).toBeInTheDocument();
-    expect(taskAgents.queryByText("@网红营销 BD")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agents 2")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /create video/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /deep research/i }),
+    ).not.toBeInTheDocument();
+    const skillSelector = screen.getByRole("button", {
+      name: /select skills/i,
+    });
+    expect(skillSelector).toBeInTheDocument();
+    fireEvent.pointerDown(skillSelector);
+    const firstSkill = await screen.findByRole("menuitemcheckbox", {
+      name: /draft campaign brief/i,
+    });
+    const secondSkill = screen.getByRole("menuitemcheckbox", {
+      name: /analyze metrics/i,
+    });
+    fireEvent.click(firstSkill);
+    fireEvent.click(secondSkill);
+    expect(firstSkill).toHaveAttribute("aria-checked", "true");
+    expect(secondSkill).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menu", { name: /2 skills selected/i }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(secondSkill, { key: "Escape" });
+    expect(
+      screen.getByRole("button", { name: /2 skills selected/i }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Run after creation" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Beta Agent/i }));
     fireEvent.change(
       screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
       {
-        target: { value: "让 beta 处理这个任务" },
+        target: { value: "让 alpha 处理这个任务" },
       },
     );
     await act(async () => {
@@ -876,7 +935,7 @@ describe("HomeMainContent", () => {
 
     await vi.waitFor(() => {
       expect(mockCreateTaskRun).toHaveBeenCalledWith(
-        expect.objectContaining({ botId: "bot-2" }),
+        expect.objectContaining({ botId: "bot-1" }),
       );
     });
   });

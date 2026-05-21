@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -55,6 +56,7 @@ import {
   type DashboardAgentModel,
   useDashboardAgents,
 } from "@/hooks/useDashboardAgents";
+import { useSkills } from "@/hooks/useSkills";
 import {
   useWorkspaceBillingOverview,
   useWorkspaceBillingSummary,
@@ -78,10 +80,11 @@ import {
 } from "@/lib/base-model-agent";
 import type { WorkspaceBillingAccount } from "@/types/workspace";
 import type { AttachmentDto } from "@/types/im";
+import type { Skill } from "@/types/skill";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
-const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
+const CONVERSATION_DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
   key: ParseKeys<["navigation", "message"]>;
   templateKey?: ParseKeys<["navigation", "message"]>;
   icon: typeof Search;
@@ -101,6 +104,9 @@ const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
     className: "",
   },
 ];
+
+const SHOW_TASK_AGENT_SUGGESTIONS = false;
+const EMPTY_SKILLS: Skill[] = [];
 
 type DashboardMode = "conversation" | "task";
 
@@ -556,6 +562,84 @@ function DashboardActionChip({
       <Icon size={14} strokeWidth={1.8} />
       <span>{label}</span>
     </Component>
+  );
+}
+
+function DashboardSkillMultiSelect({
+  skills,
+  selectedSkillIds,
+  isLoading,
+  onToggleSkill,
+}: {
+  skills: Skill[];
+  selectedSkillIds: string[];
+  isLoading: boolean;
+  onToggleSkill: (skillId: string) => void;
+}) {
+  const { t } = useTranslation("navigation");
+  const selectedSkills = skills.filter((skill) =>
+    selectedSkillIds.includes(skill.id),
+  );
+  const selectedLabel =
+    selectedSkills.length === 0
+      ? t("dashboardActionSelectSkills")
+      : selectedSkills.length === 1
+        ? selectedSkills[0].name
+        : t("dashboardSkillsSelectedCount", {
+            count: selectedSkills.length,
+          });
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={selectedLabel}
+          className="dashboard-composer-chip inline-flex h-[2.375rem] max-w-[14rem] cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium text-[#6c6359] transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58c6a]/25"
+        >
+          <Sparkles size={14} strokeWidth={1.8} />
+          <span className="min-w-0 truncate">{selectedLabel}</span>
+          <ChevronDown size={12} strokeWidth={1.8} />
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="start"
+        sideOffset={8}
+        className="max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] w-[18rem] overflow-y-auto rounded-2xl border-[#e8ded3] bg-white/[0.98] p-1.5 text-[#2f333b] shadow-[0_18px_44px_rgba(67,58,48,0.14)] backdrop-blur-xl"
+      >
+        {isLoading ? (
+          <DropdownMenuItem disabled className="rounded-xl px-3 py-2 text-sm">
+            {t("dashboardSkillsLoading")}
+          </DropdownMenuItem>
+        ) : skills.length > 0 ? (
+          skills.map((skill) => (
+            <DropdownMenuCheckboxItem
+              key={skill.id}
+              checked={selectedSkillIds.includes(skill.id)}
+              onCheckedChange={() => onToggleSkill(skill.id)}
+              onSelect={(event) => event.preventDefault()}
+              className="!cursor-pointer items-start gap-2 rounded-xl py-2 pl-8 pr-3 text-left text-sm data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b]"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-[#30343b]">
+                  {skill.name}
+                </span>
+                {skill.description ? (
+                  <span className="mt-0.5 block line-clamp-2 text-xs text-[#817568]">
+                    {skill.description}
+                  </span>
+                ) : null}
+              </span>
+            </DropdownMenuCheckboxItem>
+          ))
+        ) : (
+          <DropdownMenuItem disabled className="rounded-xl px-3 py-2 text-sm">
+            {t("dashboardSkillsEmpty")}
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1068,11 +1152,16 @@ export function HomeMainContent({
   const { agents } = useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
-  const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<DashboardMode>(initialMode);
+  const isTaskMode = mode === "task";
+  const skillsQuery = useSkills(undefined, { enabled: isTaskMode });
+  const skills = skillsQuery.data ?? EMPTY_SKILLS;
+  const areSkillsLoading = skillsQuery.isLoading;
+  const [prompt, setPrompt] = useState("");
   const [taskTriggerMode, setTaskTriggerMode] =
     useState<DashboardTaskTriggerMode>("immediate");
   const [taskScheduledAt, setTaskScheduledAt] = useState("");
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [deepResearchConfig, setDeepResearchConfig] =
     useState<DeepResearchComposerConfig | null>(null);
   const [draftAttachments, setDraftAttachments] = useState<AttachmentDto[]>([]);
@@ -1113,7 +1202,6 @@ export function HomeMainContent({
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
-  const isTaskMode = mode === "task";
   const draftKey =
     workspaceId && selectedAgent
       ? buildDashboardComposerDraftKey(workspaceId, selectedAgent.userId)
@@ -1186,6 +1274,20 @@ export function HomeMainContent({
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    if (isTaskMode) {
+      setDeepResearchConfig(null);
+    }
+  }, [isTaskMode]);
+
+  useEffect(() => {
+    const validSkillIds = new Set(skills.map((skill) => skill.id));
+    setSelectedSkillIds((current) => {
+      const next = current.filter((skillId) => validSkillIds.has(skillId));
+      return next.length === current.length ? current : next;
+    });
+  }, [skills]);
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
@@ -1276,7 +1378,9 @@ export function HomeMainContent({
     });
   };
 
-  const handleActionChip = (chip: (typeof DASHBOARD_ACTION_CHIPS)[number]) => {
+  const handleActionChip = (
+    chip: (typeof CONVERSATION_DASHBOARD_ACTION_CHIPS)[number],
+  ) => {
     if (chip.mode === "deep-research") {
       setDeepResearchConfig((current) =>
         current ? null : DEFAULT_DEEP_RESEARCH_CONFIG,
@@ -1289,6 +1393,14 @@ export function HomeMainContent({
       insertTemplate(chip.templateKey);
     }
   };
+
+  const handleToggleSkill = useCallback((skillId: string) => {
+    setSelectedSkillIds((current) =>
+      current.includes(skillId)
+        ? current.filter((id) => id !== skillId)
+        : [...current, skillId],
+    );
+  }, []);
 
   const handlePromptChange = (
     event: React.ChangeEvent<HTMLTextAreaElement>,
@@ -1340,6 +1452,7 @@ export function HomeMainContent({
         });
 
         setPrompt("");
+        setSelectedSkillIds([]);
         setDraftAttachments([]);
         clearFiles();
         if (draftKey) {
@@ -1652,28 +1765,36 @@ export function HomeMainContent({
                       }}
                     />
 
-                    {DASHBOARD_ACTION_CHIPS.map((chip) => (
-                      <DashboardActionChip
-                        key={chip.key}
-                        label={t(chip.key)}
-                        icon={chip.icon}
-                        className={chip.className}
-                        onClick={() => handleActionChip(chip)}
-                        isActive={
-                          chip.mode === "deep-research" &&
-                          deepResearchConfig !== null
-                        }
-                      />
-                    ))}
-
                     {isTaskMode ? (
-                      <DashboardTaskTriggerSettingsDialog
-                        triggerMode={taskTriggerMode}
-                        scheduledAt={taskScheduledAt}
-                        onTriggerModeChange={setTaskTriggerMode}
-                        onScheduledAtChange={setTaskScheduledAt}
-                      />
-                    ) : null}
+                      <>
+                        <DashboardSkillMultiSelect
+                          skills={skills}
+                          selectedSkillIds={selectedSkillIds}
+                          isLoading={areSkillsLoading}
+                          onToggleSkill={handleToggleSkill}
+                        />
+                        <DashboardTaskTriggerSettingsDialog
+                          triggerMode={taskTriggerMode}
+                          scheduledAt={taskScheduledAt}
+                          onTriggerModeChange={setTaskTriggerMode}
+                          onScheduledAtChange={setTaskScheduledAt}
+                        />
+                      </>
+                    ) : (
+                      CONVERSATION_DASHBOARD_ACTION_CHIPS.map((chip) => (
+                        <DashboardActionChip
+                          key={chip.key}
+                          label={t(chip.key)}
+                          icon={chip.icon}
+                          className={chip.className}
+                          onClick={() => handleActionChip(chip)}
+                          isActive={
+                            chip.mode === "deep-research" &&
+                            deepResearchConfig !== null
+                          }
+                        />
+                      ))
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
@@ -1710,23 +1831,25 @@ export function HomeMainContent({
                 )}
               </div>
 
-              <div
-                aria-hidden={!isTaskMode}
-                className={cn(
-                  "grid w-full transition-[grid-template-rows,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                  isTaskMode
-                    ? "grid-rows-[1fr] translate-y-0 opacity-100"
-                    : "pointer-events-none grid-rows-[0fr] -translate-y-2 opacity-0",
-                )}
-              >
-                <div className="overflow-hidden">
-                  <DashboardTaskAgentSuggestions
-                    agents={agents}
-                    selectedAgentUserId={selectedAgent?.userId ?? null}
-                    onSelectAgent={setSelectedAgentUserId}
-                  />
+              {SHOW_TASK_AGENT_SUGGESTIONS ? (
+                <div
+                  aria-hidden={!isTaskMode}
+                  className={cn(
+                    "grid w-full transition-[grid-template-rows,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                    isTaskMode
+                      ? "grid-rows-[1fr] translate-y-0 opacity-100"
+                      : "pointer-events-none grid-rows-[0fr] -translate-y-2 opacity-0",
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <DashboardTaskAgentSuggestions
+                      agents={agents}
+                      selectedAgentUserId={selectedAgent?.userId ?? null}
+                      onSelectAgent={setSelectedAgentUserId}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
 
             {/* <DashboardTaskPill /> */}
