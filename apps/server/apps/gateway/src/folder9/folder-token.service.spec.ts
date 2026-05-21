@@ -103,7 +103,7 @@ const AGENT_ID = 'agent-1';
 const TENANT_ID = 'tenant-1';
 const ROUTINE_ID = 'routine-1';
 const FOLDER_ID = 'folder-1';
-const USER_ID = 'user-1';
+const USER_ID = '123e4567-e89b-12d3-a456-426614174000';
 const CHANNEL_ID = 'channel-dm-1';
 const SKILL_ID = 'skill-1';
 // Canonical sessionIds matching `parseSessionShape` layout —
@@ -777,6 +777,26 @@ describe('FolderTokenService', () => {
         expect(folder9Client.createToken).not.toHaveBeenCalled();
       });
 
+      it(`403: ${logicalKey} rejects non-UUID userId before probing channel membership`, async () => {
+        queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
+        queueMount({ scopeId: USER_ID });
+
+        const dto = makeDto({
+          logicalKey,
+          sessionId: DM_SESSION_ID,
+          userId: 'auto',
+          permission: 'read',
+        });
+        await expect(
+          service.issueToken(dto, BOT_USER_ID, TENANT_ID),
+        ).rejects.toThrow(/valid userId/);
+
+        // Bot lookup + mount lookup only. The invalid sentinel must not reach
+        // im_channel_members.user_id, which is a uuid column in Postgres.
+        expect(db.select).toHaveBeenCalledTimes(2);
+        expect(folder9Client.createToken).not.toHaveBeenCalled();
+      });
+
       it(`403: ${logicalKey} rejects when userId is not a member of the DM channel`, async () => {
         queueBot({ id: BOT_ID, managedMeta: { agentId: AGENT_ID } });
         queueMount({ scopeId: USER_ID });
@@ -953,13 +973,41 @@ describe('FolderTokenService', () => {
         tenantId: TENANT_ID,
         folderId: FOLDER_ID,
       });
-      folder9Client.createToken.mockRejectedValueOnce(
-        new Folder9ApiError(502, '/api/tokens', { error: 'gateway' }),
-      );
+      const err = new Folder9ApiError(502, '/api/tokens', {
+        error: 'gateway',
+      });
+      folder9Client.createToken.mockRejectedValueOnce(err);
+      folder9Client.createToken.mockRejectedValueOnce(err);
 
       await expect(
         service.issueToken(makeDto(), BOT_USER_ID, TENANT_ID),
       ).rejects.toThrow(ServiceUnavailableException);
+      expect(folder9Client.createToken).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries a retryable folder9 5xx once before returning the token', async () => {
+      queueBot({ userId: BOT_USER_ID });
+      queueRoutine({
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        folderId: FOLDER_ID,
+      });
+      folder9Client.createToken
+        .mockRejectedValueOnce(
+          new Folder9ApiError(502, '/api/tokens', { error: 'gateway' }),
+        )
+        .mockResolvedValueOnce(
+          mintedTokenResponse({ token: 'opaque-token-after-retry' }),
+        );
+
+      const result = await service.issueToken(
+        makeDto(),
+        BOT_USER_ID,
+        TENANT_ID,
+      );
+
+      expect(result.token).toBe('opaque-token-after-retry');
+      expect(folder9Client.createToken).toHaveBeenCalledTimes(2);
     });
 
     it('maps generic / network errors to ServiceUnavailableException', async () => {
