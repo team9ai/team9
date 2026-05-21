@@ -259,5 +259,136 @@
       "tasks": "タスク",
       "messages": "メッセージ"
     }
+  },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "失敗",
+        "planReady": "確認が必要",
+        "completed": "完了",
+        "running": "進行中"
+      },
+      "detail": {
+        "failed": "調査タスクに失敗しました",
+        "planReady": "調査計画を生成しました",
+        "completed": "調査レポートが完了しました",
+        "generatingPlan": "調査計画を生成中",
+        "running": "調査を実行中"
+      },
+      "updatedAt": "{{time}} に更新"
+    },
+    "plan": {
+      "fallbackTitle": "調査計画",
+      "intro": "これは作成した計画です。調査を開始する前に変更が必要なら教えてください。",
+      "steps": {
+        "websites": "Webサイトを調査",
+        "analyze": "結果を分析",
+        "report": "レポートを生成",
+        "estimate": "準備には数分だけかかります"
+      },
+      "more": "もっと見る",
+      "collapse": "折りたたむ",
+      "editPlaceholder": "調査計画の調整内容を入力...",
+      "retryWithout": "Deep Research なしで再試行",
+      "submitEdit": "変更を送信",
+      "modify": "計画を変更",
+      "cancel": "キャンセル",
+      "start": "調査を開始",
+      "actionInput": {
+        "modify": "調査計画を変更",
+        "start": "調査を開始",
+        "retryWithout": "Deep Research を使わず直接回答してください: {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "調査コンテキストを待っています...",
+      "waitingForReport": "調査中です。完了後に続けて質問できます...",
+      "generatingPlan": "調査計画を生成中...",
+      "modifyPlan": "調査計画の調整内容を入力...",
+      "followUp": "この Deep Research に続けて質問..."
+    },
+    "panel": {
+      "loading": "Deep Research を読み込み中",
+      "loadFailed": "Deep Research の詳細を読み込めませんでした。",
+      "noUpdates": "Deep Research の更新はまだありません。",
+      "retry": "再試行",
+      "status": {
+        "failed": "調査失敗",
+        "completed": "レポート完了",
+        "reportCompleted": "調査レポート完了",
+        "planReady": "計画の確認待ち",
+        "generatingPlan": "調査計画を生成中",
+        "running": "調査を実行中",
+        "submitted": "Deep Research を開始中...",
+        "answering": "レポートに基づく回答を生成中...",
+        "synthesizing": "レポートを生成中...",
+        "planning": "調査方針を整理中...",
+        "inProgress": "Deep Research 進行中..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "調査失敗",
+        "reportCompleted": "調査レポート完了",
+        "researchingWebsites_one": "{{count}} 件のWebサイトを調査中...",
+        "researchingWebsites_other": "{{count}} 件のWebサイトを調査中...",
+        "started": "調査を計画し、情報源を検索中...",
+        "submitted": "Deep Research を開始中...",
+        "synthesizing": "レポートを生成中...",
+        "planning": "調査方針を整理中...",
+        "running": "Deep Research 進行中...",
+        "justStarted": "開始したばかり",
+        "elapsedMinutes_one": "{{count}} 分経過",
+        "elapsedMinutes_other": "{{count}} 分経過"
+      },
+      "emptyThoughts": "調査プロセスはまだ記録されていません",
+      "thoughtTitle": "調査メモ",
+      "visualAlt": "Deep Research ビジュアル",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "Web",
+        "files": "ファイル",
+        "visuals": "ビジュアル"
+      },
+      "steps": {
+        "framework": "調査フレームワークを構築中",
+        "researchingWebsites_one": "Webサイトを調査中 - {{count}}",
+        "researchingWebsites_other": "Webサイトを調査中 - {{count}}",
+        "researchingWebsitesPending": "Webサイトを調査中",
+        "researchedWebsites_one": "調査済みWebサイト - {{count}}",
+        "researchedWebsites_other": "調査済みWebサイト - {{count}}",
+        "visuals_one": "ビジュアル結果 - {{count}}",
+        "visuals_other": "ビジュアル結果 - {{count}}",
+        "report": "レポートを生成"
+      }
+    },
+    "stream": {
+      "defaultStatus": "ストリーミング中...",
+      "planStreamingLabel": "計画を作成中",
+      "planDoneLabel": "調査計画",
+      "reportStreamingLabel": "Deep Research 進行中",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "開始したばかり",
+      "elapsedMinutes_one": "{{count}} 分経過",
+      "elapsedMinutes_other": "{{count}} 分経過",
+      "errorSuffix": ": {{error}}",
+      "failedPlan": "調査計画の生成に失敗しました{{error}}",
+      "failedReport": "Deep Research に失敗しました{{error}}",
+      "phase": {
+        "planSubmitted": "調査計画を準備中",
+        "planStarted": "調査計画を作成中",
+        "planFinalizing": "調査計画を整理中",
+        "planDefault": "調査方針と情報源範囲を整理中",
+        "reportSubmitted": "Deep Research を開始中",
+        "reportStarted": "調査を計画し、情報源を検索中",
+        "reportSynthesizing": "調査レポートを整理中",
+        "reportDefault": "情報源を検索・分析中"
+      },
+      "targetPlan": "計画",
+      "targetReport": "レポート",
+      "statusLine": "{{phase}}、{{elapsed}}。{{target}}は準備でき次第ここに表示されます。"
+    }
   }
 }

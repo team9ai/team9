@@ -261,6 +261,137 @@
       "loading": "Loading..."
     }
   },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "Failed",
+        "planReady": "Needs review",
+        "completed": "Completed",
+        "running": "In progress"
+      },
+      "detail": {
+        "failed": "Research task failed",
+        "planReady": "Research plan generated",
+        "completed": "Research report completed",
+        "generatingPlan": "Generating research plan",
+        "running": "Running research"
+      },
+      "updatedAt": "Updated at {{time}}"
+    },
+    "plan": {
+      "fallbackTitle": "Research plan",
+      "intro": "This is the plan I drafted. Tell me before I start researching if you need any changes.",
+      "steps": {
+        "websites": "Research websites",
+        "analyze": "Analyze results",
+        "report": "Generate report",
+        "estimate": "Only a few minutes to prepare"
+      },
+      "more": "More",
+      "collapse": "Collapse",
+      "editPlaceholder": "Tell me how to adjust the research plan...",
+      "retryWithout": "Retry without Deep Research",
+      "submitEdit": "Submit changes",
+      "modify": "Modify plan",
+      "cancel": "Cancel",
+      "start": "Start research",
+      "actionInput": {
+        "modify": "Modify the research plan",
+        "start": "Start research",
+        "retryWithout": "Answer this directly without Deep Research: {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "Waiting for research context...",
+      "waitingForReport": "Research is running. You can follow up after it finishes...",
+      "generatingPlan": "Generating the research plan...",
+      "modifyPlan": "Tell me how to adjust the research plan...",
+      "followUp": "Continue this deep research..."
+    },
+    "panel": {
+      "loading": "Loading deep research",
+      "loadFailed": "Failed to load deep research details.",
+      "noUpdates": "No deep research updates yet.",
+      "retry": "Retry",
+      "status": {
+        "failed": "Research failed",
+        "completed": "Report completed",
+        "reportCompleted": "Research report completed",
+        "planReady": "Waiting for plan confirmation",
+        "generatingPlan": "Generating research plan",
+        "running": "Running research",
+        "submitted": "Starting deep research...",
+        "answering": "Generating an answer from the report...",
+        "synthesizing": "Generating report...",
+        "planning": "Mapping research direction...",
+        "inProgress": "Deep research in progress..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "Research failed",
+        "reportCompleted": "Research report completed",
+        "researchingWebsites_one": "Researching {{count}} website...",
+        "researchingWebsites_other": "Researching {{count}} websites...",
+        "started": "Planning research and searching sources...",
+        "submitted": "Starting deep research...",
+        "synthesizing": "Generating report...",
+        "planning": "Mapping research direction...",
+        "running": "Deep research in progress...",
+        "justStarted": "just started",
+        "elapsedMinutes_one": "{{count}} minute elapsed",
+        "elapsedMinutes_other": "{{count}} minutes elapsed"
+      },
+      "emptyThoughts": "No research process recorded yet",
+      "thoughtTitle": "Research thoughts",
+      "visualAlt": "Deep Research visual",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "Web",
+        "files": "Files",
+        "visuals": "Visuals"
+      },
+      "steps": {
+        "framework": "Building research framework",
+        "researchingWebsites_one": "Researching websites · {{count}}",
+        "researchingWebsites_other": "Researching websites · {{count}}",
+        "researchingWebsitesPending": "Researching websites",
+        "researchedWebsites_one": "Researched websites · {{count}}",
+        "researchedWebsites_other": "Researched websites · {{count}}",
+        "visuals_one": "Visual result · {{count}}",
+        "visuals_other": "Visual results · {{count}}",
+        "report": "Generate report"
+      }
+    },
+    "stream": {
+      "defaultStatus": "streaming...",
+      "planStreamingLabel": "Drafting plan",
+      "planDoneLabel": "Research plan",
+      "reportStreamingLabel": "Deep research in progress",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "just started",
+      "elapsedMinutes_one": "{{count}} minute elapsed",
+      "elapsedMinutes_other": "{{count}} minutes elapsed",
+      "errorSuffix": ": {{error}}",
+      "failedPlan": "Research plan generation failed{{error}}",
+      "failedReport": "Deep research failed{{error}}",
+      "phase": {
+        "planSubmitted": "Preparing the research plan",
+        "planStarted": "Drafting the research plan",
+        "planFinalizing": "Organizing the research plan",
+        "planDefault": "Mapping research direction and source scope",
+        "reportSubmitted": "Starting deep research",
+        "reportStarted": "Planning research and searching sources",
+        "reportSynthesizing": "Organizing the research report",
+        "reportDefault": "Searching and analyzing sources"
+      },
+      "targetPlan": "The plan",
+      "targetReport": "The report",
+      "statusLine": "{{phase}}, {{elapsed}}. {{target}} will appear here when ready."
+    }
+  },
   "properties": {
     "tab": "Properties",
     "definitionsTitle": "Property Definitions",

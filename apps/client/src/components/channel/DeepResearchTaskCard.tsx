@@ -5,6 +5,8 @@ import {
   PanelRightOpen,
   SearchCheck,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 
 type DeepResearchTaskStatus = "running" | "plan_ready" | "completed" | "failed";
@@ -97,6 +99,8 @@ function fromTaskRecord(record: Record<string, unknown>) {
   } satisfies DeepResearchTaskMeta;
 }
 
+type ChannelTFunction = TFunction<"channel">;
+
 export function getDeepResearchTaskMeta(
   metadata: unknown,
   currentChannelId?: string,
@@ -124,12 +128,12 @@ export function getDeepResearchTaskMeta(
   return null;
 }
 
-function getStatusView(meta: DeepResearchTaskMeta) {
+function getStatusView(meta: DeepResearchTaskMeta, t: ChannelTFunction) {
   if (meta.status === "failed") {
     return {
       icon: AlertCircle,
-      label: "失败",
-      detail: meta.error ?? "研究任务执行失败",
+      label: t("deepResearch.task.status.failed"),
+      detail: meta.error ?? t("deepResearch.task.detail.failed"),
       className:
         "border-destructive/30 bg-destructive/10 text-destructive dark:bg-destructive/15",
     };
@@ -137,8 +141,8 @@ function getStatusView(meta: DeepResearchTaskMeta) {
   if (meta.status === "plan_ready") {
     return {
       icon: CheckCircle2,
-      label: "待确认",
-      detail: "研究计划已生成",
+      label: t("deepResearch.task.status.planReady"),
+      detail: t("deepResearch.task.detail.planReady"),
       className:
         "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
     };
@@ -146,29 +150,35 @@ function getStatusView(meta: DeepResearchTaskMeta) {
   if (meta.status === "completed") {
     return {
       icon: CheckCircle2,
-      label: "已完成",
-      detail: "研究报告已完成",
+      label: t("deepResearch.task.status.completed"),
+      detail: t("deepResearch.task.detail.completed"),
       className:
         "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     };
   }
   return {
     icon: Clock3,
-    label: "进行中",
+    label: t("deepResearch.task.status.running"),
     detail:
       meta.kind === "plan" || meta.phase === "planning"
-        ? "正在生成研究计划"
-        : "正在执行研究",
+        ? t("deepResearch.task.detail.generatingPlan")
+        : t("deepResearch.task.detail.running"),
     className:
       "border-info/30 bg-info/10 text-info dark:border-info/35 dark:bg-info/15",
   };
 }
 
-function formatUpdatedAt(value: string | undefined) {
+function formatUpdatedAt(
+  value: string | undefined,
+  locale: string | undefined,
+) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function DeepResearchTaskCard({
@@ -176,9 +186,13 @@ export function DeepResearchTaskCard({
   className,
   onOpen,
 }: DeepResearchTaskCardProps) {
-  const status = getStatusView(meta);
+  const { t, i18n } = useTranslation("channel");
+  const status = getStatusView(meta, t);
   const StatusIcon = status.icon;
-  const updatedAt = formatUpdatedAt(meta.updatedAt);
+  const updatedAt = formatUpdatedAt(
+    meta.updatedAt,
+    i18n.resolvedLanguage ?? i18n.language,
+  );
 
   return (
     <button
@@ -210,7 +224,11 @@ export function DeepResearchTaskCard({
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>{status.detail}</span>
-            {updatedAt && <span>更新于 {updatedAt}</span>}
+            {updatedAt && (
+              <span>
+                {t("deepResearch.task.updatedAt", { time: updatedAt })}
+              </span>
+            )}
           </div>
         </div>
         <PanelRightOpen className="mt-1 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />

@@ -8,7 +8,11 @@ import {
   SearchCheck,
   type LucideIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
+
+type ChannelTFunction = TFunction<"channel">;
 
 interface DeepResearchThoughtProgress {
   id?: string;
@@ -210,7 +214,7 @@ export function getDeepResearchProgressMeta(
   if (!hasProgress) return null;
 
   return {
-    title: stringValue(deepResearch.title) ?? "深度研究",
+    title: stringValue(deepResearch.title) ?? "Deep Research",
     kind: "report",
     ...(stringValue(deepResearch.status)
       ? { status: stringValue(deepResearch.status) }
@@ -247,26 +251,39 @@ function getWebsiteCount(progress: DeepResearchProgressSnapshot | undefined) {
 function getStatusText(
   meta: DeepResearchProgressMeta,
   isStreaming: boolean,
+  t: ChannelTFunction,
 ): string {
   const phase = meta.progress?.phase ?? meta.phase;
   const websites = getWebsiteCount(meta.progress);
-  if (meta.status === "failed" || phase === "failed") return "研究失败";
-  if (!isStreaming || phase === "completed") {
-    return "研究报告已完成";
+  if (meta.status === "failed" || phase === "failed") {
+    return t("deepResearch.progress.status.failed");
   }
-  if (websites > 0) return `正在研究 ${websites} 个网站...`;
-  if (phase === "started") return "正在规划研究并检索资料...";
-  if (phase === "submitted") return "正在启动深度研究...";
-  if (phase === "synthesizing") return "正在生成报告...";
-  if (phase === "planning") return "正在梳理研究方向...";
-  return meta.progress?.activeStep ?? "正在进行深度研究...";
+  if (!isStreaming || phase === "completed") {
+    return t("deepResearch.progress.status.reportCompleted");
+  }
+  if (websites > 0) {
+    return t("deepResearch.progress.status.researchingWebsites", {
+      count: websites,
+    });
+  }
+  if (phase === "started") return t("deepResearch.progress.status.started");
+  if (phase === "submitted") return t("deepResearch.progress.status.submitted");
+  if (phase === "synthesizing") {
+    return t("deepResearch.progress.status.synthesizing");
+  }
+  if (phase === "planning") return t("deepResearch.progress.status.planning");
+  return meta.progress?.activeStep ?? t("deepResearch.progress.status.running");
 }
 
-function formatElapsed(startedAt: number, now: number): string {
+function formatElapsed(
+  startedAt: number,
+  now: number,
+  t: ChannelTFunction,
+): string {
   const elapsedMs = Math.max(0, now - startedAt);
   const minutes = Math.floor(elapsedMs / 60_000);
-  if (minutes <= 0) return "刚刚开始";
-  return `已运行 ${minutes} 分钟`;
+  if (minutes <= 0) return t("deepResearch.progress.status.justStarted");
+  return t("deepResearch.progress.status.elapsedMinutes", { count: minutes });
 }
 
 function sourceDomain(source: DeepResearchSourceProgress): string {
@@ -306,13 +323,17 @@ function faviconUrl(domain: string): string {
 function ThoughtTimeline({
   thoughts,
   isStreaming,
+  t,
 }: {
   thoughts: DeepResearchThoughtProgress[];
   isStreaming: boolean;
+  t: ChannelTFunction;
 }) {
   if (thoughts.length === 0 && !isStreaming) {
     return (
-      <div className="text-sm text-muted-foreground">暂无研究过程记录</div>
+      <div className="text-sm text-muted-foreground">
+        {t("deepResearch.progress.emptyThoughts")}
+      </div>
     );
   }
 
@@ -342,7 +363,7 @@ function ThoughtTimeline({
             </div>
             <div className="min-w-0 pb-1">
               <div className="mb-1 text-sm font-semibold">
-                {thought.title ?? "研究思路"}
+                {thought.title ?? t("deepResearch.progress.thoughtTitle")}
               </div>
               <div className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">
                 {thought.text}
@@ -422,7 +443,13 @@ function SourceSkeletonGrid() {
   );
 }
 
-function VisualGrid({ visuals }: { visuals: DeepResearchVisualProgress[] }) {
+function VisualGrid({
+  visuals,
+  t,
+}: {
+  visuals: DeepResearchVisualProgress[];
+  t: ChannelTFunction;
+}) {
   if (visuals.length === 0) return null;
 
   return (
@@ -434,7 +461,9 @@ function VisualGrid({ visuals }: { visuals: DeepResearchVisualProgress[] }) {
         >
           <img
             src={visual.src}
-            alt={visual.alt ?? visual.title ?? "Deep Research visual"}
+            alt={
+              visual.alt ?? visual.title ?? t("deepResearch.progress.visualAlt")
+            }
             className="aspect-video w-full object-cover"
             loading="lazy"
           />
@@ -449,16 +478,24 @@ function VisualGrid({ visuals }: { visuals: DeepResearchVisualProgress[] }) {
   );
 }
 
-function getContextBadges(meta: DeepResearchProgressMeta): string[] {
+function getContextBadges(
+  meta: DeepResearchProgressMeta,
+  t: ChannelTFunction,
+): string[] {
   const badges: string[] = [];
   if (meta.mode === "max") {
-    badges.push("Deep Research Max");
+    badges.push(t("deepResearch.progress.badges.max"));
   } else if (meta.mode) {
-    badges.push("Deep Research");
+    badges.push(t("deepResearch.progress.badges.standard"));
   }
-  if (meta.sources?.googleSearch) badges.push("Web");
-  if (meta.sources?.uploadedFiles) badges.push("Files");
-  if (meta.visualization === "auto") badges.push("Visuals");
+  if (meta.sources?.googleSearch)
+    badges.push(t("deepResearch.progress.badges.web"));
+  if (meta.sources?.uploadedFiles) {
+    badges.push(t("deepResearch.progress.badges.files"));
+  }
+  if (meta.visualization === "auto") {
+    badges.push(t("deepResearch.progress.badges.visuals"));
+  }
   return badges;
 }
 
@@ -497,6 +534,7 @@ export function DeepResearchProgressCard({
   startedAt,
   className,
 }: DeepResearchProgressCardProps) {
+  const { t } = useTranslation("channel");
   const progress = meta.progress;
   const thoughts = progress?.thoughts ?? [];
   const sources = progress?.sources ?? [];
@@ -508,16 +546,18 @@ export function DeepResearchProgressCard({
     visuals.length > 0 ||
     queries.length > 0;
   const showProcess = hasProcessData || isStreaming;
-  const contextBadges = getContextBadges(meta);
+  const contextBadges = getContextBadges(meta, t);
   const [now, setNow] = useState(() => Date.now());
   const statusText = useMemo(
-    () => getStatusText(meta, isStreaming),
-    [meta, isStreaming],
+    () => getStatusText(meta, isStreaming, t),
+    [meta, isStreaming, t],
   );
   const visibleStatusText =
     isStreaming && startedAt
-      ? `${statusText} · ${formatElapsed(startedAt, now)}`
+      ? `${statusText} · ${formatElapsed(startedAt, now, t)}`
       : statusText;
+  const displayTitle =
+    meta.title === "Deep Research" ? t("deepResearch.title") : meta.title;
 
   useEffect(() => {
     if (!isStreaming || !startedAt) return;
@@ -537,7 +577,7 @@ export function DeepResearchProgressCard({
           <SearchCheck className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{meta.title}</div>
+          <div className="truncate font-semibold">{displayTitle}</div>
           <div className="truncate text-muted-foreground">
             {visibleStatusText}
           </div>
@@ -559,11 +599,21 @@ export function DeepResearchProgressCard({
       {showProcess && (
         <div className="mt-4 border-t border-border pt-4">
           {thoughts.length > 0 ? (
-            <ProcessStep icon={Brain} title="系统构建研究框架">
-              <ThoughtTimeline thoughts={thoughts} isStreaming={isStreaming} />
+            <ProcessStep
+              icon={Brain}
+              title={t("deepResearch.progress.steps.framework")}
+            >
+              <ThoughtTimeline
+                thoughts={thoughts}
+                isStreaming={isStreaming}
+                t={t}
+              />
             </ProcessStep>
           ) : isStreaming ? (
-            <ProcessStep icon={Brain} title="系统构建研究框架">
+            <ProcessStep
+              icon={Brain}
+              title={t("deepResearch.progress.steps.framework")}
+            >
               <div className="space-y-2 py-1">
                 <div className="h-3 w-56 rounded bg-muted animate-pulse" />
                 <div className="h-3 w-full max-w-xl rounded bg-muted animate-pulse" />
@@ -578,9 +628,13 @@ export function DeepResearchProgressCard({
               title={
                 sources.length > 0
                   ? isStreaming
-                    ? `正在研究网站 · ${sources.length}`
-                    : `研究过的网站 · ${sources.length}`
-                  : "正在研究网站"
+                    ? t("deepResearch.progress.steps.researchingWebsites", {
+                        count: sources.length,
+                      })
+                    : t("deepResearch.progress.steps.researchedWebsites", {
+                        count: sources.length,
+                      })
+                  : t("deepResearch.progress.steps.researchingWebsitesPending")
               }
             >
               {sources.length > 0 ? (
@@ -606,13 +660,19 @@ export function DeepResearchProgressCard({
           {visuals.length > 0 && (
             <ProcessStep
               icon={ImageIcon}
-              title={`可视化结果 · ${visuals.length}`}
+              title={t("deepResearch.progress.steps.visuals", {
+                count: visuals.length,
+              })}
             >
-              <VisualGrid visuals={visuals} />
+              <VisualGrid visuals={visuals} t={t} />
             </ProcessStep>
           )}
 
-          <ProcessStep icon={FileText} title="生成报告" isLast>
+          <ProcessStep
+            icon={FileText}
+            title={t("deepResearch.progress.steps.report")}
+            isLast
+          >
             {queries.length > 0 && sources.length > 0 && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {queries.map((query) => (
