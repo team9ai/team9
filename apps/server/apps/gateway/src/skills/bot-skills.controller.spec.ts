@@ -38,6 +38,7 @@ describe('BotSkillsController', () => {
   let service: {
     listForAgent: MockFn;
     getByIdForAgent: MockFn;
+    getFolderTreeForAgent: MockFn;
     getFolderBlobForAgent: MockFn;
     create: MockFn;
   };
@@ -53,6 +54,7 @@ describe('BotSkillsController', () => {
 
     service.listForAgent = jest.fn<MockFn>();
     service.getByIdForAgent = jest.fn<MockFn>();
+    service.getFolderTreeForAgent = jest.fn<MockFn>();
     service.getFolderBlobForAgent = jest.fn<MockFn>();
     service.create = jest.fn<MockFn>();
   });
@@ -92,6 +94,19 @@ describe('BotSkillsController', () => {
           'other-id',
           TENANT_ID,
           'skill.md',
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects getFolderTree when header bot id mismatches authenticated user', async () => {
+      await expect(
+        controller.getFolderTree(
+          SKILL_ID,
+          BOT_USER_ID,
+          'other-id',
+          TENANT_ID,
+          '/',
+          'true',
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -165,6 +180,72 @@ describe('BotSkillsController', () => {
       );
       await expect(
         controller.getById(SKILL_ID, BOT_USER_ID, BOT_USER_ID, TENANT_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  // ── GET /v1/bot/skills/:id/folder/tree ────────────────────────────────────
+
+  describe('getFolderTree', () => {
+    it('calls getFolderTreeForAgent with path and recursive=true', async () => {
+      const treeResponse = [
+        { path: 'SKILL.md', type: 'file', size: 42 },
+        { path: 'references/tools.md', type: 'file', size: 12 },
+      ];
+      service.getFolderTreeForAgent.mockResolvedValue(treeResponse);
+
+      const result = await controller.getFolderTree(
+        SKILL_ID,
+        BOT_USER_ID,
+        BOT_USER_ID,
+        TENANT_ID,
+        '/',
+        'true',
+      );
+
+      expect(result).toEqual(treeResponse);
+      expect(service.getFolderTreeForAgent).toHaveBeenCalledWith(
+        SKILL_ID,
+        BOT_USER_ID,
+        TENANT_ID,
+        { path: '/', recursive: true },
+      );
+    });
+
+    it('treats missing recursive query as false', async () => {
+      service.getFolderTreeForAgent.mockResolvedValue([]);
+
+      await controller.getFolderTree(
+        SKILL_ID,
+        BOT_USER_ID,
+        BOT_USER_ID,
+        TENANT_ID,
+        undefined,
+        undefined,
+      );
+
+      expect(service.getFolderTreeForAgent).toHaveBeenCalledWith(
+        SKILL_ID,
+        BOT_USER_ID,
+        TENANT_ID,
+        { path: undefined, recursive: false },
+      );
+    });
+
+    it('forwards ForbiddenException from service when skill is hidden', async () => {
+      service.getFolderTreeForAgent.mockRejectedValue(
+        new ForbiddenException('Skill is hidden from agents'),
+      );
+
+      await expect(
+        controller.getFolderTree(
+          SKILL_ID,
+          BOT_USER_ID,
+          BOT_USER_ID,
+          TENANT_ID,
+          '/',
+          'true',
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
