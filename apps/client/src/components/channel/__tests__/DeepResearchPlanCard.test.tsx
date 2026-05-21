@@ -73,11 +73,11 @@ describe("DeepResearchPlanCard", () => {
     render(<DeepResearchPlanCard message={makeMessage()} />);
 
     expect(screen.getByText("猜想未来科技与社会趋势")).toBeInTheDocument();
-    expect(screen.getByText("研究网站")).toBeInTheDocument();
-    expect(screen.getByText("分析结果")).toBeInTheDocument();
-    expect(screen.getByText("生成报告")).toBeInTheDocument();
-    expect(screen.getByText("修改方案")).toBeInTheDocument();
-    expect(screen.getByText("开始研究")).toBeInTheDocument();
+    expect(screen.getByText("Research websites")).toBeInTheDocument();
+    expect(screen.getByText("Analyze results")).toBeInTheDocument();
+    expect(screen.getByText("Generate report")).toBeInTheDocument();
+    expect(screen.getByText("Modify plan")).toBeInTheDocument();
+    expect(screen.getByText("Start research")).toBeInTheDocument();
     expect(screen.queryByText(/^#/)).not.toBeInTheDocument();
   });
 
@@ -110,14 +110,14 @@ describe("DeepResearchPlanCard", () => {
   it("starts research through the isolated deep research session action endpoint", async () => {
     render(<DeepResearchPlanCard message={makeMessage()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /开始研究/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Start research/ }));
 
     await waitFor(() => {
       expect(mocks.sessionAction).toHaveBeenCalledWith("deep-child-1", {
         action: "start_research",
         planMessageId: "plan-msg-1",
         planInteractionId: "interaction-plan-1",
-        input: "开始研究",
+        input: "Start research",
       });
       expect(mocks.mutateAsync).not.toHaveBeenCalled();
     });
@@ -138,8 +138,10 @@ describe("DeepResearchPlanCard", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /开始研究/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /修改方案/ })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Start research/ }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Modify plan/ })).toBeDisabled();
   });
 
   it("can retry the original prompt in the parent channel without Deep Research metadata", async () => {
@@ -168,13 +170,13 @@ describe("DeepResearchPlanCard", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: /不使用 Deep Research 重试/ }),
+      screen.getByRole("button", { name: /Retry without Deep Research/ }),
     );
 
     await waitFor(() => {
       expect(mocks.sendMessage).toHaveBeenCalledWith("parent-1", {
         content:
-          "不使用 Deep Research，直接回答这个问题：1962 年中印战争对中印关系的影响",
+          "Answer this directly without Deep Research: 1962 年中印战争对中印关系的影响",
         metadata: {
           deepResearchBypass: expect.objectContaining({
             source: "team9",
@@ -197,14 +199,14 @@ describe("DeepResearchPlanCard", () => {
       <DeepResearchPlanCard message={makeMessage({ parentId: "root-1" })} />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /修改方案/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Modify plan/ }));
     fireEvent.change(
-      screen.getByPlaceholderText("告诉我想怎样调整研究方案..."),
+      screen.getByPlaceholderText("Tell me how to adjust the research plan..."),
       {
         target: { value: "重点比较竞品硬件，减少历史背景。" },
       },
     );
-    fireEvent.click(screen.getByRole("button", { name: /提交修改/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Submit changes/ }));
 
     await waitFor(() => {
       expect(mocks.sessionAction).toHaveBeenCalledWith("deep-child-1", {

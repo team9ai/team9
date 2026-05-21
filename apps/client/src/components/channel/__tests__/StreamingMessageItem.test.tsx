@@ -72,15 +72,15 @@ describe("StreamingMessageItem", () => {
       />,
     );
 
-    expect(screen.getByText("深度研究")).toBeInTheDocument();
+    expect(screen.getByText("Deep Research")).toBeInTheDocument();
     expect(
-      screen.getAllByText(/正在规划研究并检索资料/).length,
+      screen.getAllByText(/Planning research and searching sources/).length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText(/已运行 2 分钟/).length).toBeGreaterThan(0);
-    expect(screen.getByText("系统构建研究框架")).toBeInTheDocument();
-    expect(screen.getByText("正在研究网站")).toBeInTheDocument();
+    expect(screen.getAllByText(/2 minutes elapsed/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Building research framework")).toBeInTheDocument();
+    expect(screen.getByText("Researching websites")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /隐藏思考过程/ }),
+      screen.queryByRole("button", { name: /Hide thinking/ }),
     ).not.toBeInTheDocument();
 
     vi.useRealTimers();
@@ -124,11 +124,13 @@ describe("StreamingMessageItem", () => {
       />,
     );
 
-    expect(screen.getByText("拟定方案中")).toBeInTheDocument();
-    expect(screen.getAllByText(/正在拟定研究方案/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/已运行 1 分钟/)).toBeInTheDocument();
+    expect(screen.getByText("Drafting plan")).toBeInTheDocument();
     expect(
-      screen.queryByText(/正在等待研究服务返回可展示过程/),
+      screen.getAllByText(/Drafting the research plan/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/1 minute elapsed/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Waiting for research progress from the service/),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Plan source")).not.toBeInTheDocument();
     expect(screen.queryByText("plan query")).not.toBeInTheDocument();
@@ -196,7 +198,9 @@ describe("StreamingMessageItem", () => {
     );
 
     expect(screen.getByText("伊朗局势研究与分析")).toBeInTheDocument();
-    expect(screen.getAllByText(/正在研究 1 个网站/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Researching 1 website/).length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getAllByText("梳理研究脉络").length).toBeGreaterThan(0);
     expect(screen.getByText("Deep Research Max")).toBeInTheDocument();
     expect(screen.getByText("Web")).toBeInTheDocument();

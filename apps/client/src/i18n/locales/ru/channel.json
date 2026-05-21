@@ -259,5 +259,136 @@
       "tasks": "Задачи",
       "messages": "Сообщения"
     }
+  },
+  "deepResearch": {
+    "title": "Deep Research",
+    "task": {
+      "status": {
+        "failed": "Ошибка",
+        "planReady": "Нужна проверка",
+        "completed": "Завершено",
+        "running": "В процессе"
+      },
+      "detail": {
+        "failed": "Задача исследования завершилась ошибкой",
+        "planReady": "План исследования создан",
+        "completed": "Отчет исследования готов",
+        "generatingPlan": "Создается план исследования",
+        "running": "Исследование выполняется"
+      },
+      "updatedAt": "Обновлено в {{time}}"
+    },
+    "plan": {
+      "fallbackTitle": "План исследования",
+      "intro": "Это подготовленный план. Сообщите перед стартом, если нужны изменения.",
+      "steps": {
+        "websites": "Исследовать сайты",
+        "analyze": "Анализировать результаты",
+        "report": "Создать отчет",
+        "estimate": "Подготовка займет всего несколько минут"
+      },
+      "more": "Еще",
+      "collapse": "Свернуть",
+      "editPlaceholder": "Опишите, как изменить план исследования...",
+      "retryWithout": "Повторить без Deep Research",
+      "submitEdit": "Отправить изменения",
+      "modify": "Изменить план",
+      "cancel": "Отмена",
+      "start": "Начать исследование",
+      "actionInput": {
+        "modify": "Изменить план исследования",
+        "start": "Начать исследование",
+        "retryWithout": "Ответь напрямую без Deep Research: {{input}}"
+      }
+    },
+    "input": {
+      "waitingForContext": "Ожидание контекста исследования...",
+      "waitingForReport": "Исследование выполняется. Можно будет продолжить после завершения...",
+      "generatingPlan": "Создается план исследования...",
+      "modifyPlan": "Опишите, как изменить план исследования...",
+      "followUp": "Продолжить это Deep Research..."
+    },
+    "panel": {
+      "loading": "Загрузка Deep Research",
+      "loadFailed": "Не удалось загрузить детали Deep Research.",
+      "noUpdates": "Обновлений Deep Research пока нет.",
+      "retry": "Повторить",
+      "status": {
+        "failed": "Исследование завершилось ошибкой",
+        "completed": "Отчет готов",
+        "reportCompleted": "Отчет исследования готов",
+        "planReady": "Ожидание подтверждения плана",
+        "generatingPlan": "Создается план исследования",
+        "running": "Исследование выполняется",
+        "submitted": "Запуск Deep Research...",
+        "answering": "Создается ответ на основе отчета...",
+        "synthesizing": "Создается отчет...",
+        "planning": "Формируется направление исследования...",
+        "inProgress": "Deep Research выполняется..."
+      }
+    },
+    "progress": {
+      "status": {
+        "failed": "Исследование завершилось ошибкой",
+        "reportCompleted": "Отчет исследования готов",
+        "researchingWebsites_one": "Исследуется {{count}} сайт...",
+        "researchingWebsites_other": "Исследуется {{count}} сайтов...",
+        "started": "Планируется исследование и выполняется поиск источников...",
+        "submitted": "Запуск Deep Research...",
+        "synthesizing": "Создается отчет...",
+        "planning": "Формируется направление исследования...",
+        "running": "Deep Research выполняется...",
+        "justStarted": "только началось",
+        "elapsedMinutes_one": "Прошла {{count}} минута",
+        "elapsedMinutes_other": "Прошло {{count}} минут"
+      },
+      "emptyThoughts": "Процесс исследования пока не записан",
+      "thoughtTitle": "Ход исследования",
+      "visualAlt": "Визуализация Deep Research",
+      "badges": {
+        "max": "Deep Research Max",
+        "standard": "Deep Research",
+        "web": "Веб",
+        "files": "Файлы",
+        "visuals": "Визуализации"
+      },
+      "steps": {
+        "framework": "Строится структура исследования",
+        "researchingWebsites_one": "Исследуются сайты - {{count}}",
+        "researchingWebsites_other": "Исследуются сайты - {{count}}",
+        "researchingWebsitesPending": "Исследуются сайты",
+        "researchedWebsites_one": "Исследованные сайты - {{count}}",
+        "researchedWebsites_other": "Исследованные сайты - {{count}}",
+        "visuals_one": "Визуальный результат - {{count}}",
+        "visuals_other": "Визуальные результаты - {{count}}",
+        "report": "Создать отчет"
+      }
+    },
+    "stream": {
+      "defaultStatus": "поток...",
+      "planStreamingLabel": "Создается план",
+      "planDoneLabel": "План исследования",
+      "reportStreamingLabel": "Deep Research выполняется",
+      "reportDoneLabel": "Deep Research",
+      "elapsedJustStarted": "только началось",
+      "elapsedMinutes_one": "Прошла {{count}} минута",
+      "elapsedMinutes_other": "Прошло {{count}} минут",
+      "errorSuffix": ": {{error}}",
+      "failedPlan": "Не удалось создать план исследования{{error}}",
+      "failedReport": "Deep Research завершился ошибкой{{error}}",
+      "phase": {
+        "planSubmitted": "Подготовка плана исследования",
+        "planStarted": "Создание плана исследования",
+        "planFinalizing": "Упорядочивание плана исследования",
+        "planDefault": "Определение направления и источников",
+        "reportSubmitted": "Запуск Deep Research",
+        "reportStarted": "Планируется исследование и выполняется поиск источников",
+        "reportSynthesizing": "Упорядочивание отчета исследования",
+        "reportDefault": "Поиск и анализ источников"
+      },
+      "targetPlan": "План",
+      "targetReport": "Отчет",
+      "statusLine": "{{phase}}, {{elapsed}}. {{target}} появится здесь, когда будет готов."
+    }
   }
 }

@@ -6,7 +6,10 @@ import { MessageItem } from "../MessageItem";
 import type { Message } from "@/types/im";
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: "en", resolvedLanguage: "en" },
+  }),
 }));
 
 const queryClient = new QueryClient({
@@ -107,7 +110,9 @@ describe("MessageItem - agent event rendering", () => {
     );
 
     expect(screen.getByText("USDT 对传统金融的冲击")).toBeInTheDocument();
-    expect(screen.getByText("研究计划已生成")).toBeInTheDocument();
+    expect(
+      screen.getByText("deepResearch.task.detail.planReady"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Full plan should stay in the child channel"),
