@@ -72,6 +72,23 @@ describe("DynamicSubSidebar", () => {
     expect(screen.getByTestId("tasks-sub-sidebar")).toBeInTheDocument();
   });
 
+  it("keeps the home task sidebar on the legacy channels dashboard route", () => {
+    pathname = "/channels";
+
+    render(<DynamicSubSidebar />);
+
+    expect(screen.getByTestId("tasks-sub-sidebar")).toBeInTheDocument();
+  });
+
+  it("keeps the workspace sidebar on the channels index when Workspace is active", () => {
+    pathname = "/channels";
+    useAppStore.getState().setActiveSidebar("workspace");
+
+    render(<DynamicSubSidebar />);
+
+    expect(screen.getByTestId("home-sub-sidebar")).toBeInTheDocument();
+  });
+
   it("persists drag resizing and clamps the maximum width", () => {
     render(<DynamicSubSidebar />);
 

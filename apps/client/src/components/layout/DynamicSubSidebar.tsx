@@ -24,7 +24,7 @@ function getSidebarType(
 ): SidebarType {
   // For channel routes, use the stored activeSidebar to maintain context
   if (pathname === "/channels" || pathname === "/channels/") {
-    return activeSidebar === "workspace" ? "workspace" : null;
+    return activeSidebar === "workspace" ? "workspace" : "home";
   }
   if (pathname.startsWith("/channels")) {
     return "workspace";
@@ -63,6 +63,9 @@ export function DynamicSubSidebar() {
   let sidebar: ReactNode = null;
 
   switch (sidebarType) {
+    case "home":
+      sidebar = <TasksSubSidebar />;
+      break;
     case "workspace":
       sidebar = <WorkspaceSubSidebar />;
       break;
