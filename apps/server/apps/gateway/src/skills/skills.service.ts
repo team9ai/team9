@@ -170,6 +170,19 @@ export class SkillsService {
     return skill;
   }
 
+  async getFolderTreeForAgent(
+    skillId: string,
+    userId: string,
+    tenantId: string,
+    opts: { path?: string; recursive?: boolean } = {},
+  ): Promise<Folder9TreeEntry[]> {
+    const skill = await this.getSkillOrThrow(skillId, tenantId);
+    if (skill.agentAccess === 'none') {
+      throw new ForbiddenException('Skill is hidden from agents');
+    }
+    return this.getSkillFolderTreeInternal(skill, userId, tenantId, opts);
+  }
+
   async getFolderBlobForAgent(
     skillId: string,
     userId: string,
@@ -193,6 +206,15 @@ export class SkillsService {
     opts: { path?: string; recursive?: boolean } = {},
   ): Promise<Folder9TreeEntry[]> {
     const skill = await this.getSkillOrThrow(skillId, tenantId);
+    return this.getSkillFolderTreeInternal(skill, userId, tenantId, opts);
+  }
+
+  private async getSkillFolderTreeInternal(
+    skill: schema.Skill,
+    userId: string,
+    tenantId: string,
+    opts: { path?: string; recursive?: boolean } = {},
+  ): Promise<Folder9TreeEntry[]> {
     const folderId = await this.ensureSkillFolder(skill, userId, tenantId);
     const token = await this.mintSkillFolderToken(
       folderId,
