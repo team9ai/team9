@@ -43,8 +43,13 @@ const SKILLS_LIST_WIDTH_DEFAULT = 360;
 const SKILLS_LIST_WIDTH_MIN = 280;
 const SKILLS_LIST_WIDTH_MAX = 640;
 const SKILL_ENTRY_PATH = "SKILL.md";
-const LEGACY_SKILL_ENTRY_PATH = "skill.md";
-const SKILL_ENTRY_PATH_CANDIDATES = [SKILL_ENTRY_PATH, LEGACY_SKILL_ENTRY_PATH];
+const SKILL_ENTRY_NAMES = ["SKILL", "INDEX", "README"] as const;
+const SKILL_ENTRY_EXTENSIONS = ["md9", "md", "txt", ""] as const;
+const SKILL_ENTRY_PATH_CANDIDATES = SKILL_ENTRY_NAMES.flatMap((name) =>
+  SKILL_ENTRY_EXTENSIONS.map((extension) =>
+    extension ? `${name}.${extension}` : name,
+  ),
+);
 
 function clampSkillsListWidth(width: number) {
   return Math.min(

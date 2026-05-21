@@ -3,6 +3,7 @@ import { MessageInput } from "./MessageInput";
 import type { AttachmentDto, Message, ChannelMember } from "@/types/im";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import type { BotThinkingStatus } from "./bot-thinking-state";
+import type { ReactNode } from "react";
 
 export interface ChannelContentProps {
   // MessageList props
@@ -48,6 +49,8 @@ export interface ChannelContentProps {
   showReadOnlyBar?: boolean;
   /** Optional reason shown in the read-only bar */
   readOnlyLabel?: string;
+  /** Optional action rendered in the read-only bar */
+  readOnlyAction?: ReactNode;
 }
 
 export function ChannelContent({
@@ -75,6 +78,7 @@ export function ChannelContent({
   onInitialDraftAutoSent,
   showReadOnlyBar,
   readOnlyLabel,
+  readOnlyAction,
   isBotDm,
   botModelSwitch,
 }: ChannelContentProps) {
@@ -100,10 +104,11 @@ export function ChannelContent({
       />
 
       {showReadOnlyBar ? (
-        <div className="px-4 py-3 border-t border-border bg-muted/30 text-center">
+        <div className="flex items-center justify-center gap-3 border-t border-border bg-muted/30 px-4 py-3 text-center">
           <span className="text-sm text-muted-foreground">
             {readOnlyLabel ?? "Read-only"}
           </span>
+          {readOnlyAction}
         </div>
       ) : onSend ? (
         <MessageInput

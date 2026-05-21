@@ -124,6 +124,21 @@ describe("ChannelContent", () => {
     expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
   });
 
+  it("renders a read-only action next to the read-only label", () => {
+    render(
+      <ChannelContent
+        {...BASE_PROPS}
+        showReadOnlyBar
+        readOnlyAction={<button type="button">激活任务</button>}
+      />,
+    );
+
+    expect(screen.getByText("Read-only")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "激活任务" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders read-only bar even when onSend is provided if showReadOnlyBar=true", () => {
     const onSend = makeOnSendMock();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} showReadOnlyBar />);

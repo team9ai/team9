@@ -55,9 +55,9 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
   paused: "已暂停",
   pending_action: "待处理",
   completed: "查收结果",
-  failed: "已归档",
-  stopped: "已归档",
-  timeout: "已归档",
+  failed: "失败",
+  stopped: "已停止",
+  timeout: "已超时",
 };
 
 const TASK_SIDEBAR_ACTION_CLASS =
@@ -69,6 +69,9 @@ const TASK_SIDEBAR_VISIBLE_STATUSES = new Set<TaskRunStatus>([
   "paused",
   "pending_action",
   "completed",
+  "failed",
+  "stopped",
+  "timeout",
 ]);
 
 function getTaskGroupLabel(task: TaskRun) {
@@ -82,7 +85,10 @@ function getStatusClass(status: TaskRunStatus) {
   if (status === "pending_action") {
     return "bg-blue-50 text-blue-700";
   }
-  if (status === "failed" || status === "stopped" || status === "timeout") {
+  if (status === "failed" || status === "timeout") {
+    return "bg-red-50 text-red-700";
+  }
+  if (status === "stopped") {
     return "bg-nav-hover text-nav-foreground-faint";
   }
   return "bg-blue-50 text-blue-700";

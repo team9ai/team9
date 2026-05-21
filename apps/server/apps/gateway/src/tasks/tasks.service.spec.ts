@@ -333,7 +333,7 @@ describe('TasksService', () => {
     });
   });
 
-  it('hides, unhides, and archives task runs with timestamp metadata', async () => {
+  it('hides, unhides, archives, and activates task runs with timestamp metadata', async () => {
     const existingRun = {
       id: 'run-1',
       tenantId: 'tenant-1',
@@ -342,16 +342,23 @@ describe('TasksService', () => {
       status: 'completed',
     };
 
-    selectResults.push([existingRun], [existingRun], [existingRun]);
+    selectResults.push(
+      [existingRun],
+      [existingRun],
+      [existingRun],
+      [existingRun],
+    );
     updatePlans.push(
       { returning: [{ ...existingRun, hiddenAt: new Date() }] },
       { returning: [{ ...existingRun, hiddenAt: null }] },
       { returning: [{ ...existingRun, archivedAt: new Date() }] },
+      { returning: [{ ...existingRun, archivedAt: null }] },
     );
 
     await service.hide('run-1', 'user-1', 'tenant-1');
     await service.unhide('run-1', 'user-1', 'tenant-1');
     await service.archive('run-1', 'user-1', 'tenant-1');
+    await service.activate('run-1', 'user-1', 'tenant-1');
 
     expect(updatedValues[0]).toMatchObject({
       hiddenAt: expect.any(Date),
@@ -363,6 +370,11 @@ describe('TasksService', () => {
     });
     expect(updatedValues[2]).toMatchObject({
       archivedAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+    });
+    expect(updatedValues[3]).toMatchObject({
+      archivedAt: null,
+      hiddenAt: null,
       updatedAt: expect.any(Date),
     });
   });

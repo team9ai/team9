@@ -46,14 +46,14 @@ const TASK_COLUMNS: TaskColumnConfig[] = [
   },
   {
     key: "completed",
-    title: "执行完毕",
-    statuses: ["completed"],
+    title: "已结束",
+    statuses: ["completed", "failed", "stopped", "timeout"],
     dotClass: "border-sky-600 text-sky-600",
   },
   {
     key: "archived",
     title: "归档",
-    statuses: ["failed", "stopped", "timeout"],
+    statuses: [],
     dotClass: "border-muted-foreground text-muted-foreground",
   },
 ];

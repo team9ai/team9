@@ -239,17 +239,32 @@ function resolveInitialPathCandidate(
 ): string | null {
   const files = entries.filter((entry) => entry.type === "file");
   for (const candidate of candidates) {
-    const exact = files.find((entry) => entry.path === candidate);
-    if (exact) return exact.path;
-  }
-  for (const candidate of candidates) {
-    const lowerCandidate = candidate.toLowerCase();
-    const caseInsensitive = files.find(
-      (entry) => entry.path.toLowerCase() === lowerCandidate,
-    );
+    const normalizedCandidate = normalizeFolderPath(candidate);
+    const lowerCandidate = normalizedCandidate.toLowerCase();
+    let caseInsensitive: TreeEntryDto | null = null;
+    let caseInsensitiveScore = -1;
+
+    for (const file of files) {
+      const normalizedPath = normalizeFolderPath(file.path);
+      if (normalizedPath === normalizedCandidate) return file.path;
+      if (normalizedPath.toLowerCase() !== lowerCandidate) continue;
+
+      const score = uppercaseStemScore(normalizedPath);
+      if (score > caseInsensitiveScore) {
+        caseInsensitive = file;
+        caseInsensitiveScore = score;
+      }
+    }
+
     if (caseInsensitive) return caseInsensitive.path;
   }
   return null;
+}
+
+function uppercaseStemScore(path: string): number {
+  const name = fileNameFromPath(path);
+  const stem = name.includes(".") ? name.slice(0, name.indexOf(".")) : name;
+  return Array.from(stem).filter((char) => /[A-Z]/.test(char)).length;
 }
 
 function commitErrorMessage(error: unknown): string {

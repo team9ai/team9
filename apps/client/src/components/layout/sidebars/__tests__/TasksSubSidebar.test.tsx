@@ -256,8 +256,13 @@ describe("TasksSubSidebar", () => {
       }),
       makeTaskRun({
         id: "failed-1",
-        title: "失败已归档不显示",
+        title: "失败任务显示",
         status: "failed",
+      }),
+      makeTaskRun({
+        id: "timeout-1",
+        title: "超时任务显示",
+        status: "timeout",
       }),
       makeTaskRun({
         id: "hidden-1",
@@ -277,9 +282,12 @@ describe("TasksSubSidebar", () => {
 
     expect(await screen.findByText("正在执行的任务")).toBeInTheDocument();
     expect(screen.getByText("待查收结果")).toBeInTheDocument();
+    expect(screen.getByText("失败任务显示")).toBeInTheDocument();
+    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.getByText("超时任务显示")).toBeInTheDocument();
+    expect(screen.getByText("已超时")).toBeInTheDocument();
     expect(screen.queryByText("待执行不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("草稿不显示")).not.toBeInTheDocument();
-    expect(screen.queryByText("失败已归档不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("隐藏不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("手动归档不显示")).not.toBeInTheDocument();
   });

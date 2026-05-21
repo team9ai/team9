@@ -108,6 +108,12 @@ describe("/_authenticated/tasks/ index route", () => {
         title: "已停止任务",
         status: "stopped",
       }),
+      makeTask({
+        id: "manually-archived-1",
+        title: "手动归档任务",
+        status: "completed",
+        archivedAt: "2026-05-21T00:00:00.000Z",
+      }),
     ]);
   });
 
@@ -130,8 +136,12 @@ describe("/_authenticated/tasks/ index route", () => {
     expect(
       within(runningColumn).getByText("东鹏特饮找20位 KOC"),
     ).toBeInTheDocument();
-    expect(within(completedColumn).getByText("执行完毕")).toBeInTheDocument();
+    expect(within(completedColumn).getByText("已结束")).toBeInTheDocument();
+    expect(within(completedColumn).getByText("已停止任务")).toBeInTheDocument();
     expect(within(archivedColumn).getByText("归档")).toBeInTheDocument();
+    expect(
+      within(archivedColumn).getByText("手动归档任务"),
+    ).toBeInTheDocument();
   });
 
   it("opens the task detail route instead of navigating into routines", async () => {

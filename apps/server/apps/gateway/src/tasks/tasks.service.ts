@@ -375,6 +375,28 @@ export class TasksService {
     return updated;
   }
 
+  async activate(runId: string, userId: string, tenantId: string) {
+    await this.getRunForMutationOrThrow(runId, userId, tenantId);
+    const now = new Date();
+
+    const [updated] = await this.db
+      .update(schema.taskRuns)
+      .set({
+        archivedAt: null,
+        hiddenAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .returning();
+
+    return updated;
+  }
+
   async delete(runId: string, userId: string, tenantId: string) {
     await this.getRunForMutationOrThrow(runId, userId, tenantId);
 

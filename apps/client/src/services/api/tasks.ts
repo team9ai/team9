@@ -213,6 +213,11 @@ export const tasksApi = {
     return response.data;
   },
 
+  activate: async (id: string): Promise<TaskRun> => {
+    const response = await http.post<TaskRun>(`/v1/tasks/${id}/activate`);
+    return response.data;
+  },
+
   delete: async (id: string): Promise<void> => {
     try {
       await http.delete(`/v1/tasks/${id}`);

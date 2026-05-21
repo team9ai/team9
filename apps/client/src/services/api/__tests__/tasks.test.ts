@@ -305,16 +305,18 @@ describe("tasksApi", () => {
     expect(result).toEqual(task);
   });
 
-  it("hides, unhides, archives, and deletes native task runs", async () => {
+  it("hides, unhides, archives, activates, and deletes native task runs", async () => {
     mockHttp.post
       .mockResolvedValueOnce({ data: { id: "task-1", hiddenAt: "now" } })
       .mockResolvedValueOnce({ data: { id: "task-1", hiddenAt: null } })
-      .mockResolvedValueOnce({ data: { id: "task-1", archivedAt: "now" } });
+      .mockResolvedValueOnce({ data: { id: "task-1", archivedAt: "now" } })
+      .mockResolvedValueOnce({ data: { id: "task-1", archivedAt: null } });
     mockHttp.delete.mockResolvedValueOnce({ data: { success: true } });
 
     await tasksApi.hide("task-1");
     await tasksApi.unhide("task-1");
     await tasksApi.archive("task-1");
+    await tasksApi.activate("task-1");
     await tasksApi.delete("task-1");
 
     expect(mockHttp.post).toHaveBeenNthCalledWith(1, "/v1/tasks/task-1/hide");
@@ -322,6 +324,10 @@ describe("tasksApi", () => {
     expect(mockHttp.post).toHaveBeenNthCalledWith(
       3,
       "/v1/tasks/task-1/archive",
+    );
+    expect(mockHttp.post).toHaveBeenNthCalledWith(
+      4,
+      "/v1/tasks/task-1/activate",
     );
     expect(mockHttp.delete).toHaveBeenCalledWith("/v1/tasks/task-1");
   });

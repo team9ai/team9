@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import { Loader2, File, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
@@ -216,6 +223,7 @@ interface ChannelViewProps {
   hideHeader?: boolean;
   // Show a read-only bar instead of the message input
   readOnly?: boolean;
+  readOnlyAction?: ReactNode;
   // Optional external control for the agent session side panel when the built-in header is hidden
   isAgentSessionPanelOpen?: boolean;
   onAgentSessionPanelOpenChange?: (open: boolean) => void;
@@ -235,6 +243,7 @@ export function ChannelView({
   previewChannel,
   hideHeader,
   readOnly,
+  readOnlyAction,
   isAgentSessionPanelOpen: controlledAgentSessionPanelOpen,
   onAgentSessionPanelOpenChange,
 }: ChannelViewProps) {
@@ -848,13 +857,14 @@ export function ChannelView({
             isLoadingNewer={isFetchingPreviousPage}
             highlightMessageId={jumpHighlightId ?? initialMessageId}
             highlightSeq={jumpSeq}
-            readOnly={isPreviewMode || isArchivedChannel}
+            readOnly={isPreviewMode || Boolean(readOnly) || isArchivedChannel}
             thinkingBotIds={thinkingBotIds}
             thinkingStatuses={thinkingStatuses}
             members={members}
             lastReadMessageId={unreadAnchor}
             showReadOnlyBar={showComposerReadOnlyBar}
             readOnlyLabel={readOnlyLabel}
+            readOnlyAction={readOnlyAction}
             onSend={showComposerReadOnlyBar ? undefined : handleSendMessage}
             isSendDisabled={showOverlay}
             initialDraft={initialDraft}

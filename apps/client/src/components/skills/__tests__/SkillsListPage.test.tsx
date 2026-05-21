@@ -81,12 +81,25 @@ describe("SkillsListPage", () => {
     });
   });
 
-  it("configures the folder editor to prefer SKILL.md and fall back to legacy skill.md", () => {
+  it("configures the folder editor with the skill default file priority order", () => {
     render(<SkillsListPage selectedSkillId="skill-1" />);
 
     expect(mockFolderEditor).toHaveBeenCalledWith(
       expect.objectContaining({
-        initialPathCandidates: ["SKILL.md", "skill.md"],
+        initialPathCandidates: [
+          "SKILL.md9",
+          "SKILL.md",
+          "SKILL.txt",
+          "SKILL",
+          "INDEX.md9",
+          "INDEX.md",
+          "INDEX.txt",
+          "INDEX",
+          "README.md9",
+          "README.md",
+          "README.txt",
+          "README",
+        ],
         missingInitialPathCreate: expect.objectContaining({
           path: "SKILL.md",
           content: expect.stringContaining("# 测试"),
