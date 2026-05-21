@@ -20,10 +20,12 @@ import {
   type AgentTempTokenRequestDto,
   type AgentTempTokenResponse,
 } from './dto/agent-temp-token-request.dto.js';
+import {
+  AGENT_TEMP_TOKEN_ISSUER,
+  AGENT_TEMP_TOKEN_TTL_SECONDS,
+  AGENT_TEMP_TOKEN_USE,
+} from './agent-temp-token.constants.js';
 
-const TEMP_TOKEN_TTL_SECONDS = 3600;
-const TOKEN_USE = 'team9-agent-temp';
-const TOKEN_ISSUER = 'team9';
 const ALLOWED_AUDIENCES = new Set<string>(AGENT_TEMP_TOKEN_AUDIENCES);
 
 interface BotAgentRow {
@@ -72,25 +74,29 @@ export class AgentTempTokenService {
 
     const tokenId = uuidv7();
     const expiresAt = new Date(
-      Date.now() + TEMP_TOKEN_TTL_SECONDS * 1000,
+      Date.now() + AGENT_TEMP_TOKEN_TTL_SECONDS * 1000,
     ).toISOString();
     const agentId = requestedAgentId ?? managedAgentId;
 
     const token = this.jwtService.sign(
       {
         sub: callerBotUserId,
+        userId: callerBotUserId,
+        botUserId: callerBotUserId,
+        botId: bot.id,
         tenantId: callerTenantId,
         sessionId: dto.sessionId,
         agentId,
-        tokenUse: TOKEN_USE,
+        tokenUse: AGENT_TEMP_TOKEN_USE,
         jti: tokenId,
+        capabilityHubAccess: 'inherit',
       },
       {
         privateKey: env.JWT_PRIVATE_KEY,
         algorithm: 'ES256',
-        expiresIn: TEMP_TOKEN_TTL_SECONDS,
+        expiresIn: AGENT_TEMP_TOKEN_TTL_SECONDS,
         audience: dto.audiences,
-        issuer: TOKEN_ISSUER,
+        issuer: AGENT_TEMP_TOKEN_ISSUER,
       },
     );
 
@@ -102,7 +108,7 @@ export class AgentTempTokenService {
       throw new BadRequestException('sessionId is required');
     }
 
-    if (dto.ttlSeconds !== TEMP_TOKEN_TTL_SECONDS) {
+    if (dto.ttlSeconds !== AGENT_TEMP_TOKEN_TTL_SECONDS) {
       throw new BadRequestException('ttlSeconds must be 3600');
     }
 

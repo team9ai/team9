@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import request from 'supertest';
 import { BotService } from '../bot/bot.service.js';
+import { AgentTempTokenValidatorService } from './agent-temp-token-validator.service.js';
 import { InternalAuthController } from './internal-auth.controller.js';
 import { InternalAuthGuard } from './internal-auth.guard.js';
 
@@ -24,9 +25,18 @@ function mockBotService() {
   };
 }
 
+function mockAgentTempTokenValidatorService() {
+  return {
+    validateCapabilityHubToken: jest.fn<any>(),
+  };
+}
+
 describe('InternalAuthController (integration)', () => {
   let app: INestApplication;
   let botService: ReturnType<typeof mockBotService>;
+  let agentTempTokenValidator: ReturnType<
+    typeof mockAgentTempTokenValidatorService
+  >;
   const previousInternalToken = process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
   const wellFormedBotToken = `t9bot_${'a'.repeat(96)}`;
   const anotherWellFormedBotToken = `t9bot_${'b'.repeat(96)}`;
@@ -34,12 +44,18 @@ describe('InternalAuthController (integration)', () => {
   beforeEach(async () => {
     process.env.INTERNAL_AUTH_VALIDATION_TOKEN = 'internal-secret';
     botService = mockBotService();
+    agentTempTokenValidator = mockAgentTempTokenValidatorService();
+    agentTempTokenValidator.validateCapabilityHubToken.mockReturnValue(null);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [InternalAuthController],
       providers: [
         InternalAuthGuard,
         { provide: BotService, useValue: botService },
+        {
+          provide: AgentTempTokenValidatorService,
+          useValue: agentTempTokenValidator,
+        },
       ],
     }).compile();
 
@@ -81,6 +97,37 @@ describe('InternalAuthController (integration)', () => {
     expect(botService.validateAccessTokenWithContext).toHaveBeenCalledWith(
       wellFormedBotToken,
     );
+    expect(
+      agentTempTokenValidator.validateCapabilityHubToken,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 with validation context for a valid Capability Hub agent temp token', async () => {
+    botService.validateAccessTokenWithContext.mockResolvedValue(null);
+    agentTempTokenValidator.validateCapabilityHubToken.mockReturnValue({
+      botId: 'agent-1',
+      userId: 'bot-user-1',
+      tenantId: 'tenant-1',
+    });
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/internal/auth/validate-bot-token')
+      .set('Authorization', 'Bearer internal-secret')
+      .send({ token: 'jwt-agent-temp-token' })
+      .expect(200);
+
+    expect(res.body).toEqual({
+      valid: true,
+      botId: 'agent-1',
+      userId: 'bot-user-1',
+      tenantId: 'tenant-1',
+    });
+    expect(botService.validateAccessTokenWithContext).toHaveBeenCalledWith(
+      'jwt-agent-temp-token',
+    );
+    expect(
+      agentTempTokenValidator.validateCapabilityHubToken,
+    ).toHaveBeenCalledWith('jwt-agent-temp-token');
   });
 
   it('returns 400 when token is missing', async () => {
@@ -109,6 +156,9 @@ describe('InternalAuthController (integration)', () => {
     expect(botService.validateAccessTokenWithContext).toHaveBeenCalledWith(
       'invalid-token-format',
     );
+    expect(
+      agentTempTokenValidator.validateCapabilityHubToken,
+    ).toHaveBeenCalledWith('invalid-token-format');
   });
 
   it('returns 401 when bearer secret is invalid', async () => {
@@ -137,6 +187,9 @@ describe('InternalAuthController (integration)', () => {
     expect(botService.validateAccessTokenWithContext).toHaveBeenCalledWith(
       anotherWellFormedBotToken,
     );
+    expect(
+      agentTempTokenValidator.validateCapabilityHubToken,
+    ).toHaveBeenCalledWith(anotherWellFormedBotToken);
   });
 });
 

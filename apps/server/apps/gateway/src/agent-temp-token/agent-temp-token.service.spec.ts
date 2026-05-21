@@ -124,11 +124,15 @@ describe('AgentTempTokenService', () => {
     const [payload, options] = jwtService.sign.mock.calls[0];
     expect(payload).toEqual({
       sub: BOT_USER_ID,
+      userId: BOT_USER_ID,
+      botUserId: BOT_USER_ID,
+      botId: BOT_ID,
       tenantId: TENANT_ID,
       sessionId: 'team9/tenant-1/agent-1/dm/channel-1',
       agentId: AGENT_ID,
       tokenUse: 'team9-agent-temp',
       jti: result.tokenId,
+      capabilityHubAccess: 'inherit',
     });
     expect(options).toEqual({
       privateKey: 'jwt-private-key',
