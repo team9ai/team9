@@ -19,6 +19,7 @@
     "build:client:windows": "pnpm -C apps/client build:windows",
     "test": "turbo run test",
     "test:cov": "turbo run test:cov",
+    "check:migrations": "node scripts/check-drizzle-migration-order.mjs",
     "lint": "pnpm --filter @team9/client lint && pnpm -C apps/server lint",
     "lint:ci": "pnpm --filter @team9/client lint:ci && pnpm -C apps/server lint:ci",
     "start:prod": "pnpm -C apps/server start:prod",
