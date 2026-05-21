@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -8,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { MessageSquare, Link, Copy, Pin, Trash2, Pencil } from "lucide-react";
+import imApi from "@/services/api/im";
 import type { Message } from "@/types/im";
 
 interface MessageContextMenuProps {
@@ -36,12 +38,10 @@ export function MessageContextMenu({
   onDelete,
 }: MessageContextMenuProps) {
   const { t } = useTranslation("message");
+  const queryClient = useQueryClient();
 
   const handleCopyMessage = () => {
-    if (message.content) {
-      navigator.clipboard.writeText(message.content);
-      onCopyMessage?.();
-    }
+    void copyMessageContent(message, queryClient, onCopyMessage);
   };
 
   const handleCopyLink = () => {
@@ -118,4 +118,54 @@ export function MessageContextMenu({
       </ContextMenuContent>
     </ContextMenu>
   );
+}
+
+function shouldFetchFullContentForCopy(message: Message): boolean {
+  return (
+    message.type === "long_text" &&
+    (message.isTruncated === true ||
+      (typeof message.fullContentLength === "number" &&
+        message.fullContentLength > message.content.length))
+  );
+}
+
+async function resolveMessageCopyContent(
+  message: Message,
+  queryClient: QueryClient,
+): Promise<string> {
+  if (!shouldFetchFullContentForCopy(message)) return message.content;
+
+  try {
+    const fullContent = await queryClient.ensureQueryData({
+      queryKey: ["message-full-content", message.id],
+      queryFn: () => imApi.messages.getFullContent(message.id),
+      staleTime: Infinity,
+    });
+    return fullContent.content || message.content;
+  } catch (error) {
+    console.warn("Failed to load full message content for copy", error);
+    return message.content;
+  }
+}
+
+async function copyMessageContent(
+  message: Message,
+  queryClient: QueryClient,
+  onCopyMessage?: () => void,
+) {
+  if (!message.content) return;
+
+  const clipboard = navigator.clipboard;
+  if (!clipboard?.writeText) {
+    console.warn("Clipboard API unavailable");
+    return;
+  }
+
+  try {
+    const content = await resolveMessageCopyContent(message, queryClient);
+    await clipboard.writeText(content);
+    onCopyMessage?.();
+  } catch (error) {
+    console.warn("Failed to copy message content", error);
+  }
 }
