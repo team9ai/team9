@@ -66,6 +66,27 @@ export class BotSkillsController {
     );
   }
 
+  @Get(':id/folder/tree')
+  async getFolderTree(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') authenticatedUserId: string,
+    @Headers('x-team9-bot-user-id') headerBotUserId: string | undefined,
+    @CurrentTenantId() tenantId: string,
+    @Query('path') path?: string,
+    @Query('recursive') recursive?: string,
+  ) {
+    this.assertBot(headerBotUserId, authenticatedUserId);
+    return this.skillsService.getFolderTreeForAgent(
+      id,
+      authenticatedUserId,
+      tenantId,
+      {
+        path,
+        recursive: recursive === 'true',
+      },
+    );
+  }
+
   @Post()
   async create(
     @Body() dto: CreateSkillDto,

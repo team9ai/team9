@@ -120,6 +120,7 @@ describe('SkillsService', () => {
     createToken: jest.Mock;
     commit: jest.Mock;
     deleteFolder: jest.Mock;
+    getTree: jest.Mock;
   };
   let service: InstanceType<typeof SkillsService>;
 
@@ -156,6 +157,7 @@ describe('SkillsService', () => {
       createToken: jest.fn(async () => ({ token: 'folder-token-1' })),
       commit: jest.fn(async () => ({ commit: 'commit-1', branch: 'main' })),
       deleteFolder: jest.fn(async () => undefined),
+      getTree: jest.fn(async () => []),
     };
 
     service = new SkillsService(db as never, folder9Client as never);
@@ -654,6 +656,70 @@ describe('SkillsService', () => {
       await expect(
         service.getByIdForAgent('missing', tenantId),
       ).rejects.toThrow(new NotFoundException('Skill not found'));
+    });
+  });
+
+  // ── getFolderTreeForAgent ──────────────────────────────────────────────────
+
+  describe('getFolderTreeForAgent', () => {
+    it('throws ForbiddenException when agentAccess is none', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [
+          {
+            id: 'skill-1',
+            name: 'Hidden',
+            agentAccess: 'none',
+            folderId: 'folder-1',
+          },
+        ],
+      });
+
+      await expect(
+        service.getFolderTreeForAgent('skill-1', userId, tenantId, {
+          path: '/',
+          recursive: true,
+        }),
+      ).rejects.toThrow(new ForbiddenException('Skill is hidden from agents'));
+    });
+
+    it('returns folder9 tree entries for visible skills', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [
+          {
+            id: 'skill-1',
+            name: 'Visible',
+            agentAccess: 'read',
+            folderId: 'folder-1',
+          },
+        ],
+      });
+      const tree = [
+        { path: 'SKILL.md', type: 'file', size: 42 },
+        { path: 'references/tools.md', type: 'file', size: 12 },
+      ];
+      folder9Client.createToken.mockResolvedValueOnce({ token: 'read-token' });
+      folder9Client.getTree.mockResolvedValueOnce(tree);
+
+      await expect(
+        service.getFolderTreeForAgent('skill-1', userId, tenantId, {
+          path: '/',
+          recursive: true,
+        }),
+      ).resolves.toEqual(tree);
+      expect(folder9Client.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'folder-1',
+          permission: 'read',
+        }),
+      );
+      expect(folder9Client.getTree).toHaveBeenCalledWith(
+        tenantId,
+        'folder-1',
+        'read-token',
+        { path: '/', recursive: true },
+      );
     });
   });
 
