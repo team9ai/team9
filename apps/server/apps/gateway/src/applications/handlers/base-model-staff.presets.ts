@@ -28,7 +28,7 @@ export const BASE_MODEL_PRESETS: BaseModelPreset[] = [
     key: 'gemini',
     name: 'Gemini',
     provider: 'openrouter',
-    modelId: 'google/gemini-3-flash-preview',
+    modelId: 'google/gemini-3.5-flash',
     emoji: '🔵',
     avatar: '/assets/avatars/gemini.png',
   },

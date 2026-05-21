@@ -66,6 +66,12 @@ describe("COMMON_STAFF_MODELS", () => {
         }),
         expect.objectContaining({
           provider: "openrouter",
+          id: "google/gemini-3.5-flash",
+          label: "Gemini 3.5 Flash",
+          family: "google",
+        }),
+        expect.objectContaining({
+          provider: "openrouter",
           id: "google/gemini-3-flash-preview",
           label: "Gemini 3 Flash (Preview)",
           family: "google",
@@ -74,6 +80,9 @@ describe("COMMON_STAFF_MODELS", () => {
     );
     expect(formatStaffModelDisplayLabel("Gemini 3 Flash (Preview)")).toBe(
       "Gemini 3 Flash",
+    );
+    expect(formatStaffModelDisplayLabel("Gemini 3.5 Flash")).toBe(
+      "Gemini 3.5 Flash",
     );
   });
 
