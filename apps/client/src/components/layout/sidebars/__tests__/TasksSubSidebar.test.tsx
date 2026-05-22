@@ -12,6 +12,10 @@ const mockUpdateTask = vi.fn();
 const mockHideTask = vi.fn();
 const mockArchiveTask = vi.fn();
 const mockDeleteTask = vi.fn();
+const mockLoadMoreTopicSessions = vi.fn();
+const mockRenameTopicSession = vi.fn();
+const mockArchiveTopicSession = vi.fn();
+const mockDeleteTopicSession = vi.fn();
 let pathname = HOME_ENTRY_PATH;
 let params: { taskId?: string } = {};
 
@@ -85,6 +89,46 @@ vi.mock("@/services/api/tasks", () => ({
   },
 }));
 
+vi.mock("@/hooks/useAgentGroupsForSidebar", () => ({
+  useAgentGroupsForSidebar: () => ({
+    groups: [
+      {
+        agentUserId: "agent-user-1",
+        agentId: "agent-1",
+        agentDisplayName: "Lia",
+        agentSubtitle: "Winrey Ma助理",
+        agentAvatarUrl: null,
+        legacyDirectChannelId: null,
+        totalCount: 1,
+        recentSessions: [
+          {
+            channelId: "topic-channel-1",
+            sessionId: "session-1",
+            title: "P2 AI Agent topic",
+            lastMessageAt: "2026-05-22T00:00:00.000Z",
+            unreadCount: 0,
+            createdAt: "2026-05-22T00:00:00.000Z",
+          },
+        ],
+      },
+    ],
+    isLoading: false,
+    loadMoreTopicSessions: mockLoadMoreTopicSessions,
+    isLoadingMoreTopicSessions: false,
+  }),
+}));
+
+vi.mock("@/hooks/useTopicSessions", () => ({
+  useRenameTopicSession: () => ({
+    mutateAsync: mockRenameTopicSession,
+    isPending: false,
+  }),
+  useDeleteTopicSession: () => ({
+    mutateAsync: mockArchiveTopicSession,
+    isPending: false,
+  }),
+}));
+
 import {
   TASK_SIDEBAR_MAX_VISIBLE_TASKS,
   TasksSubSidebar,
@@ -147,6 +191,10 @@ describe("TasksSubSidebar", () => {
     mockHideTask.mockReset();
     mockArchiveTask.mockReset();
     mockDeleteTask.mockReset();
+    mockLoadMoreTopicSessions.mockReset();
+    mockRenameTopicSession.mockReset();
+    mockArchiveTopicSession.mockReset();
+    mockDeleteTopicSession.mockReset();
     mockListTasks.mockResolvedValue([]);
     mockCreateTask.mockResolvedValue({ id: "run-1" });
     mockUpdateTask.mockResolvedValue({ id: "run-1" });
@@ -172,6 +220,42 @@ describe("TasksSubSidebar", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: HOME_ENTRY_PATH,
     });
+  });
+
+  it("renders centered conversation and task tabs", () => {
+    renderTasksSubSidebar();
+
+    const tablist = screen.getByRole("tablist", { name: "首页模式" });
+
+    expect(tablist).toHaveClass("mx-auto", "grid", "grid-cols-2");
+    expect(screen.getByRole("tab", { name: "对话" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "任务" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+  });
+
+  it("shows AI Agents in conversation mode", () => {
+    renderTasksSubSidebar();
+
+    expect(screen.getByText("AI Agents")).toBeInTheDocument();
+    expect(screen.getByText("Lia")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Lia"));
+    expect(screen.getByText("P2 AI Agent topic")).toBeInTheDocument();
+    expect(screen.queryByText("暂无任务")).not.toBeInTheDocument();
+  });
+
+  it("switches left sidebar mode through routes", () => {
+    renderTasksSubSidebar();
+
+    fireEvent.click(screen.getByRole("tab", { name: "任务" }));
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/tasks/new-task" });
+
+    fireEvent.click(screen.getByText("新对话"));
+    expect(mockNavigate).toHaveBeenCalledWith({ to: HOME_ENTRY_PATH });
   });
 
   it("opens a task draft page when starting a new task", () => {
@@ -210,6 +294,7 @@ describe("TasksSubSidebar", () => {
   });
 
   it("constrains long task titles to the sidebar width before truncating", async () => {
+    pathname = "/tasks/new-task";
     const longTitle =
       "请你根据下面这个要求给我找youtube平台的 30 个竞品账号并输出完整分析报告";
     mockListTasks.mockResolvedValue([
@@ -233,6 +318,7 @@ describe("TasksSubSidebar", () => {
   });
 
   it("only shows normal unhidden task rows in the sidebar", async () => {
+    pathname = "/tasks/new-task";
     mockListTasks.mockResolvedValue([
       makeTaskRun({
         id: "running-1",
@@ -293,6 +379,7 @@ describe("TasksSubSidebar", () => {
   });
 
   it("offers task row actions from the hover menu", async () => {
+    pathname = "/tasks/new-task";
     mockListTasks.mockResolvedValue([
       makeTaskRun({
         id: "task-actions",
@@ -321,6 +408,7 @@ describe("TasksSubSidebar", () => {
   });
 
   it("keeps the rename dialog open and explains when saving fails", async () => {
+    pathname = "/tasks/new-task";
     mockListTasks.mockResolvedValue([
       makeTaskRun({
         id: "task-actions",
@@ -350,6 +438,7 @@ describe("TasksSubSidebar", () => {
   });
 
   it("caps rendered task rows so the Mac sidebar does not lay out every normal task", async () => {
+    pathname = "/tasks/new-task";
     const tasks = Array.from(
       { length: TASK_SIDEBAR_MAX_VISIBLE_TASKS + 3 },
       (_, index) =>

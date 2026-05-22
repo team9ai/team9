@@ -177,6 +177,27 @@ describe("AgentGroupList", () => {
     );
   });
 
+  it("uses the provided new-topic callback instead of default navigation", () => {
+    const onNewTopic = vi.fn();
+
+    render(
+      <AgentGroupList
+        linkPrefix="/channels"
+        groups={[
+          makeGroup({
+            agentUserId: "agent-user-1",
+            agentDisplayName: "Agent",
+          }),
+        ]}
+        onNewTopic={onNewTopic}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "新建话题" }));
+
+    expect(onNewTopic).toHaveBeenCalledWith("agent-user-1");
+  });
+
   it("shows a compact more row when an expanded agent has hidden topic sessions", () => {
     const onLoadMoreTopicSessions = vi.fn();
 

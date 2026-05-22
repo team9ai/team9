@@ -81,7 +81,11 @@ import {
 import type { WorkspaceBillingAccount } from "@/types/workspace";
 import type { AttachmentDto } from "@/types/im";
 import type { Skill } from "@/types/skill";
-import { useSelectedWorkspaceId } from "@/stores";
+import {
+  HOME_ENTRY_PATH,
+  TASK_ENTRY_PATH,
+  useSelectedWorkspaceId,
+} from "@/stores";
 import { cn } from "@/lib/utils";
 
 const CONVERSATION_DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
@@ -1657,6 +1661,16 @@ export function HomeMainContent({
     setSessionModelOverride(model);
   };
 
+  const handleModeChange = useCallback(
+    (nextMode: DashboardMode) => {
+      setMode(nextMode);
+      void navigate({
+        to: nextMode === "task" ? TASK_ENTRY_PATH : HOME_ENTRY_PATH,
+      });
+    },
+    [navigate],
+  );
+
   return (
     <main className="dashboard-landing h-full overflow-y-auto">
       <div className="dashboard-landing-shell min-h-full">
@@ -1672,7 +1686,7 @@ export function HomeMainContent({
           />
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-8 pb-8 pt-14 sm:gap-10 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
-            <DashboardModeSwitch mode={mode} onModeChange={setMode} />
+            <DashboardModeSwitch mode={mode} onModeChange={handleModeChange} />
 
             <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-8 sm:gap-10">
               <DashboardModeTitle mode={mode} />

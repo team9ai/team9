@@ -861,7 +861,7 @@ describe("HomeMainContent", () => {
     });
     fireEvent.click(screen.getByRole("tab", { name: /task mode/i }));
 
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/tasks/new-task" });
     expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -875,7 +875,9 @@ describe("HomeMainContent", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
 
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/tasks/new-conversation",
+    });
     expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
       "keep this draft",
     );
