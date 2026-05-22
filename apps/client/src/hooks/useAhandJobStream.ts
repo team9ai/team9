@@ -21,6 +21,7 @@ export function useAhandJobStream(
 ): void {
   useEffect(() => {
     if (!enabled || !hubJobId || !deviceId) return;
+    if (isTerminalJob(hubJobId)) return;
 
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,6 +48,7 @@ export function useAhandJobStream(
       }
 
       if (disposed) return;
+      if (isTerminalJob(hubJobId)) return;
 
       const params = new URLSearchParams({
         deviceId,
@@ -68,9 +70,11 @@ export function useAhandJobStream(
       eventSource.onerror = () => {
         if (disposed || reconnecting) return;
 
-        reconnecting = true;
         eventSource?.close();
         eventSource = null;
+        if (isTerminalJob(hubJobId)) return;
+
+        reconnecting = true;
 
         void (async () => {
           const nextToken = await getValidAccessToken();
@@ -80,6 +84,7 @@ export function useAhandJobStream(
           }
 
           if (disposed) return;
+          if (isTerminalJob(hubJobId)) return;
 
           reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
@@ -98,6 +103,11 @@ export function useAhandJobStream(
       eventSource?.close();
     };
   }, [deviceId, enabled, hubJobId]);
+}
+
+function isTerminalJob(hubJobId: string): boolean {
+  const status = useAhandJobTelemetryStore.getState().jobs[hubJobId]?.status;
+  return status === "finished" || status === "error";
 }
 
 function parseEventData(data: string): unknown {

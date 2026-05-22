@@ -94,4 +94,33 @@ describe("useAhandJobStream", () => {
       "http://localhost:3000/v1/ahand/jobs/hub-job-1/stream?deviceId=hub-device-1&token=token-1&lastEventId=7",
     );
   });
+
+  it("does not reconnect after the job reaches a terminal state", async () => {
+    renderHook(() => useAhandJobStream("hub-job-1", "hub-device-1", true));
+
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        eventSources[0].dispatch(
+          "job.finished",
+          JSON.stringify({ exit_code: 0, error: "" }),
+          "8",
+        );
+        eventSources[0].onerror?.();
+      });
+
+      expect(eventSources[0].closed).toBe(true);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+
+      expect(eventSources).toHaveLength(1);
+      expect(auth.getValidAccessToken).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

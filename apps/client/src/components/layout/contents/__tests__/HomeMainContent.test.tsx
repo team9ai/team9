@@ -910,7 +910,7 @@ describe("HomeMainContent", () => {
     const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
     expect(
       within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("left-1", "transition-[left]");
+    ).toHaveClass("left-1", "translate-x-0");
 
     fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
       target: { value: "keep this draft" },
@@ -932,7 +932,7 @@ describe("HomeMainContent", () => {
     await waitFor(() =>
       expect(
         within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-      ).toHaveClass("left-1/2"),
+      ).toHaveStyle("transform: translateX(100%)"),
     );
 
     fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
@@ -960,7 +960,7 @@ describe("HomeMainContent", () => {
     const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
     expect(
       within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("left-1", "transition-[left]");
+    ).toHaveClass("left-1", "translate-x-0");
 
     firstView.unmount();
     mockDashboardModeState.value = "task";
@@ -981,76 +981,58 @@ describe("HomeMainContent", () => {
     });
     expect(
       within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("left-1", "transition-[left]");
+    ).toHaveAttribute("data-animating", "true");
     expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-
-    await waitFor(() =>
-      expect(
-        within(remountedSwitcher).getByTestId(
-          "dashboard-mode-switch-indicator",
-        ),
-      ).toHaveClass("left-1/2", "transition-[left]"),
-    );
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("dashboard-mode-switch-indicator--animating");
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveStyle("--dashboard-mode-indicator-from: translateX(0)");
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveStyle("--dashboard-mode-indicator-to: translateX(100%)");
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveStyle("transform: translateX(100%)");
   });
 
-  it("waits one painted frame before moving the right mode switch after remount", () => {
-    const animationFrames: FrameRequestCallback[] = [];
-    const requestAnimationFrameSpy = vi
-      .spyOn(window, "requestAnimationFrame")
-      .mockImplementation((callback) => {
-        animationFrames.push(callback);
-        return animationFrames.length;
-      });
-    const cancelAnimationFrameSpy = vi
-      .spyOn(window, "cancelAnimationFrame")
-      .mockImplementation((id) => {
-        animationFrames[id - 1] = () => undefined;
-      });
+  it("uses a mount-safe keyframe animation for the right mode switch indicator", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mockDashboardModeState.value = "task";
+    mockDashboardModeTransitionState.value = {
+      id: 1,
+      from: "conversation",
+      to: "task",
+    };
 
-    try {
-      const queryClient = new QueryClient({
-        defaultOptions: { queries: { retry: false } },
-      });
-      mockDashboardModeState.value = "task";
-      mockDashboardModeTransitionState.value = {
-        id: 1,
-        from: "conversation",
-        to: "task",
-      };
+    render(
+      <QueryClientProvider client={queryClient}>
+        <HomeMainContent mode="task" />
+      </QueryClientProvider>,
+    );
 
-      render(
-        <QueryClientProvider client={queryClient}>
-          <HomeMainContent mode="task" />
-        </QueryClientProvider>,
-      );
+    const switcher = screen.getByRole("tablist", {
+      name: /dashboard mode/i,
+    });
+    const indicator = within(switcher).getByTestId(
+      "dashboard-mode-switch-indicator",
+    );
 
-      const switcher = screen.getByRole("tablist", {
-        name: /dashboard mode/i,
-      });
-      const indicator = within(switcher).getByTestId(
-        "dashboard-mode-switch-indicator",
-      );
-
-      expect(indicator).toHaveClass("left-1", "transition-[left]");
-
-      act(() => {
-        animationFrames.shift()?.(0);
-      });
-
-      expect(indicator).toHaveClass("left-1");
-
-      act(() => {
-        animationFrames.shift()?.(16);
-      });
-
-      expect(indicator).toHaveClass("left-1/2");
-    } finally {
-      requestAnimationFrameSpy.mockRestore();
-      cancelAnimationFrameSpy.mockRestore();
-    }
+    expect(indicator).toHaveAttribute("data-animating", "true");
+    expect(indicator).toHaveClass("dashboard-mode-switch-indicator--animating");
+    expect(indicator).toHaveStyle(
+      "--dashboard-mode-indicator-from: translateX(0)",
+    );
+    expect(indicator).toHaveStyle(
+      "--dashboard-mode-indicator-to: translateX(100%)",
+    );
+    expect(indicator).toHaveStyle("transform: translateX(100%)");
   });
 
   it("uses the task draft copy, skill selector, and hidden agent suggestions in task mode", async () => {

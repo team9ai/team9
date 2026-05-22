@@ -1,4 +1,8 @@
-import type { CompositionEventHandler, KeyboardEventHandler } from "react";
+import type {
+  CompositionEventHandler,
+  CSSProperties,
+  KeyboardEventHandler,
+} from "react";
 import {
   type LucideIcon,
   ArrowUp,
@@ -446,6 +450,10 @@ function DashboardHeader({
 
 const DASHBOARD_MODE_TRANSITION_MS = 300;
 
+function getDashboardModeIndicatorTransform(mode: DashboardMode) {
+  return mode === "task" ? "translateX(100%)" : "translateX(0)";
+}
+
 function DashboardModeSwitch({
   mode,
   indicatorMode = mode,
@@ -458,6 +466,22 @@ function DashboardModeSwitch({
   const { t } = useTranslation("navigation");
   const isTaskMode = mode === "task";
   const isIndicatorTaskMode = indicatorMode === "task";
+  const transition = useDashboardModeTransition();
+  const indicatorTransition =
+    transition && transition.to === mode && transition.from !== mode
+      ? transition
+      : null;
+  const indicatorStyle = indicatorTransition
+    ? ({
+        "--dashboard-mode-indicator-from": getDashboardModeIndicatorTransform(
+          indicatorTransition.from,
+        ),
+        "--dashboard-mode-indicator-to": getDashboardModeIndicatorTransform(
+          indicatorTransition.to,
+        ),
+        transform: getDashboardModeIndicatorTransform(indicatorTransition.to),
+      } as CSSProperties)
+    : undefined;
 
   const setMode = (nextMode: DashboardMode) => {
     if (nextMode === mode) return;
@@ -472,10 +496,16 @@ function DashboardModeSwitch({
     >
       <span
         data-testid="dashboard-mode-switch-indicator"
+        data-animating={indicatorTransition ? "true" : undefined}
         aria-hidden="true"
+        style={indicatorStyle}
         className={cn(
-          "absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow-[0_6px_18px_rgba(132,114,88,0.12)] transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          isIndicatorTaskMode ? "left-1/2" : "left-1",
+          "absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] transform-gpu rounded-full bg-white shadow-[0_6px_18px_rgba(132,114,88,0.12)]",
+          indicatorTransition
+            ? "dashboard-mode-switch-indicator--animating"
+            : isIndicatorTaskMode
+              ? "translate-x-full"
+              : "translate-x-0",
         )}
       />
       <button
