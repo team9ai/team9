@@ -1,29 +1,24 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { BadRequestException } from '@nestjs/common';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
+import {
+  BadRequestException,
+  type INestApplication,
+  ValidationPipe,
+  VersioningType,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-
-jest.unstable_mockModule('@team9/auth', () => ({
-  AuthGuard: class AuthGuard {},
-  CurrentUser: () => () => undefined,
-}));
-
-jest.unstable_mockModule(
-  '../common/decorators/current-tenant.decorator.js',
-  () => ({
-    CurrentTenantId: () => () => undefined,
-  }),
-);
-
-jest.unstable_mockModule('../workspace/guards/workspace.guard.js', () => ({
-  WorkspaceGuard: class WorkspaceGuard {},
-}));
-
-jest.unstable_mockModule('./agent-hub.service.js', () => ({
-  AgentHubService: class AgentHubService {},
-}));
-
-const { AgentHubController } = await import('./agent-hub.controller.js');
-const { AgentHubService } = await import('./agent-hub.service.js');
+import type { Request, Response, NextFunction } from 'express';
+import request from 'supertest';
+import { AuthGuard } from '@team9/auth';
+import { WorkspaceGuard } from '../workspace/guards/workspace.guard.js';
+import { AgentHubController } from './agent-hub.controller.js';
+import { AgentHubService } from './agent-hub.service.js';
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
@@ -54,7 +49,12 @@ describe('AgentHubController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AgentHubController],
       providers: [{ provide: AgentHubService, useValue: service }],
-    }).compile();
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(WorkspaceGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get(AgentHubController);
   });
@@ -116,5 +116,95 @@ describe('AgentHubController', () => {
     ).rejects.toThrow(BadRequestException);
 
     expect(service.installRecommendedStaff).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentHubController validation', () => {
+  let app: INestApplication;
+  let service: {
+    listRecommendedStaff: MockFn;
+    installRecommendedStaff: MockFn;
+  };
+
+  beforeEach(async () => {
+    service = {
+      listRecommendedStaff: jest.fn<any>().mockResolvedValue([]),
+      installRecommendedStaff: jest.fn<any>().mockResolvedValue({
+        botId: 'bot-1',
+        userId: 'bot-user-1',
+        agentId: 'common-staff-bot-1',
+        displayName: 'Sales Analyst',
+      }),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [AgentHubController],
+      providers: [{ provide: AgentHubService, useValue: service }],
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (ctx: {
+          switchToHttp: () => {
+            getRequest: () => Request & { user?: unknown };
+          };
+        }) => {
+          const req = ctx.switchToHttp().getRequest();
+          req.user = { sub: 'user-1' };
+          return true;
+        },
+      })
+      .overrideGuard(WorkspaceGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    app = module.createNestApplication();
+    app.setGlobalPrefix('api');
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+    app.use(
+      (
+        req: Request & { tenantId?: string },
+        _res: Response,
+        next: NextFunction,
+      ) => {
+        const tenantId = req.headers['x-tenant-id'];
+        if (typeof tenantId === 'string') {
+          req.tenantId = tenantId;
+        }
+        next();
+      },
+    );
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('rejects invalid mentorId before delegating to the service', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/agent-hub/recommended-staff/sales-analyst/install')
+      .set('x-tenant-id', 'tenant-1')
+      .send({ mentorId: 'not-a-uuid' })
+      .expect(400);
+
+    expect(service.installRecommendedStaff).not.toHaveBeenCalled();
+  });
+
+  it('transforms blank mentorId to null before service delegation', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/agent-hub/recommended-staff/sales-analyst/install')
+      .set('x-tenant-id', 'tenant-1')
+      .send({ mentorId: '   ', extra: 'ignored' })
+      .expect(201);
+
+    expect(service.installRecommendedStaff).toHaveBeenCalledWith(
+      'tenant-1',
+      'user-1',
+      'sales-analyst',
+      expect.objectContaining({ mentorId: null }),
+    );
+    const dto = service.installRecommendedStaff.mock.calls[0]?.[3];
+    expect(dto).not.toHaveProperty('extra');
   });
 });
