@@ -41,8 +41,13 @@ import {
 import type { InstallRecommendedStaffDto } from './dto/install-recommended-staff.dto.js';
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
-const INSTALL_LOCK_TTL_SECONDS = 30;
+const INSTALL_LOCK_TTL_SECONDS = 10 * 60;
+const INSTALL_LOCK_RENEW_INTERVAL_MS = 60 * 1000;
 const RESERVED_COMPONENT_CONFIG_KEYS = new Set(['team9']);
+const RELEASE_LOCK_SCRIPT =
+  'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
+const RENEW_LOCK_SCRIPT =
+  'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("expire", KEYS[1], ARGV[2]) else return 0 end';
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -322,16 +327,36 @@ export class AgentHubService {
       });
     }
 
-    try {
-      return await callback();
-    } finally {
-      await client
+    const renewTimer = setInterval(() => {
+      void client
         .eval(
-          `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+          RENEW_LOCK_SCRIPT,
           1,
           lockKey,
           lockToken,
+          String(INSTALL_LOCK_TTL_SECONDS),
         )
+        .then((renewed) => {
+          if (renewed !== 1 && renewed !== '1') {
+            this.logger.warn(
+              'Recommended staff install lock was not renewed because ownership changed',
+            );
+          }
+        })
+        .catch((err) =>
+          this.logger.warn(
+            'Failed to renew recommended staff install lock',
+            err,
+          ),
+        );
+    }, INSTALL_LOCK_RENEW_INTERVAL_MS);
+
+    try {
+      return await callback();
+    } finally {
+      clearInterval(renewTimer);
+      await client
+        .eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockToken)
         .catch((err) =>
           this.logger.warn(
             'Failed to release recommended staff install lock',

@@ -512,11 +512,49 @@ describe('AgentHubService catalog', () => {
       'agent-hub:install-recommended-staff:tenant-1:common-app-1:sales-analyst',
       expect.any(String),
       'EX',
-      30,
+      600,
       'NX',
     );
     expect(redisClient.eval).toHaveBeenCalledWith(
-      expect.stringContaining('redis.call("get", KEYS[1])'),
+      expect.stringContaining('redis.call("del", KEYS[1])'),
+      1,
+      'agent-hub:install-recommended-staff:tenant-1:common-app-1:sales-analyst',
+      expect.any(String),
+    );
+  });
+
+  it('renews the unique install lock while staff creation is running', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockImplementation(async () => {
+      jest.advanceTimersByTime(60 * 1000);
+      await Promise.resolve();
+      return {
+        botId: 'bot-1',
+        userId: 'bot-user-1',
+        agentId: 'common-staff-bot-1',
+        displayName: 'Sales Analyst',
+      };
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    expect(redisClient.eval).toHaveBeenCalledWith(
+      expect.stringContaining('redis.call("expire", KEYS[1], ARGV[2])'),
+      1,
+      'agent-hub:install-recommended-staff:tenant-1:common-app-1:sales-analyst',
+      expect.any(String),
+      '600',
+    );
+    expect(redisClient.eval).toHaveBeenCalledWith(
+      expect.stringContaining('redis.call("del", KEYS[1])'),
       1,
       'agent-hub:install-recommended-staff:tenant-1:common-app-1:sales-analyst',
       expect.any(String),
