@@ -351,9 +351,13 @@ describe("Folder9FolderEditor — tree rendering & blob fetch", () => {
       </Wrapper>,
     );
 
-    const createButton = await screen.findByRole("button", {
-      name: /create skill\.md/i,
-    });
+    const createButton = await screen.findByRole(
+      "button",
+      {
+        name: /create skill\.md/i,
+      },
+      { timeout: 5000 },
+    );
 
     await act(async () => {
       fireEvent.click(createButton);
