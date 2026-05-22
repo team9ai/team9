@@ -105,4 +105,36 @@ describe('StaffService', () => {
       }),
     );
   });
+
+  it('keeps the generated agent id authoritative over managed metadata extras', async () => {
+    await service.createBotWithAgent({
+      agentIdPrefix: 'common-staff',
+      blueprintId: 'team9-common-staff',
+      ownerId: 'owner-1',
+      tenantId: 'tenant-1',
+      displayName: 'Analyst',
+      installedApplicationId: 'app-1',
+      mentorId: null,
+      model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+      botExtra: {
+        commonStaff: {
+          roleTitle: 'Analyst',
+          prefabTemplateId: 'template-1',
+        },
+      },
+      managedMeta: {
+        agentId: 'wrong-id',
+        prefabTemplateId: 'template-1',
+      },
+    });
+
+    expect(db.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        managedMeta: {
+          agentId: 'common-staff-bot-1',
+          prefabTemplateId: 'template-1',
+        },
+      }),
+    );
+  });
 });

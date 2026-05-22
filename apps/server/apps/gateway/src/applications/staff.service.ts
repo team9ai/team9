@@ -353,7 +353,7 @@ export class StaffService {
       await this.db
         .update(schema.bots)
         .set({
-          managedMeta: { agentId, ...(managedMeta ?? {}) },
+          managedMeta: { ...(managedMeta ?? {}), agentId },
           updatedAt: new Date(),
         })
         .where(eq(schema.bots.id, bot.botId));
