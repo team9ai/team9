@@ -673,6 +673,18 @@ describe("ToolCallBlock", () => {
       useAhandJobTelemetryStore
         .getState()
         .applyEvent("hub-job-1", "job.stdout", { chunk: "live line\n" }, "1");
+      useAhandJobTelemetryStore
+        .getState()
+        .applyEvent("hub-job-1", "job.progress", 42, "2");
+      useAhandJobTelemetryStore.getState().applyEvent(
+        "hub-job-1",
+        "job.finished",
+        {
+          exit_code: 2,
+          error: "script failed",
+        },
+        "3",
+      );
 
       render(
         <ToolCallBlock
@@ -705,6 +717,12 @@ describe("ToolCallBlock", () => {
 
       expect(screen.getByText("stdout")).toBeInTheDocument();
       expect(screen.getByText("live line")).toBeInTheDocument();
+      expect(screen.getByText("progress")).toBeInTheDocument();
+      expect(screen.getByText("42%")).toBeInTheDocument();
+      expect(screen.getByText("message")).toBeInTheDocument();
+      expect(screen.getByText("script failed")).toBeInTheDocument();
+      expect(screen.getByText("exitCode")).toBeInTheDocument();
+      expect(screen.getByText("2")).toBeInTheDocument();
     });
 
     it("renders cloud sandbox as a cloud icon with tooltip and shows backend after expansion", async () => {

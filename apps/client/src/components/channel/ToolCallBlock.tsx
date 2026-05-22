@@ -25,7 +25,10 @@ import { useFullContent } from "@/hooks/useMessages";
 import { buildToolDisplayState } from "@/lib/tool-events";
 import Prism from "@/lib/prism";
 import { sanitizeMessageHtml } from "@/lib/sanitize";
-import { useAhandJobTelemetryStore } from "@/stores/useAhandJobTelemetryStore";
+import {
+  useAhandJobTelemetryStore,
+  type AhandJobProgress,
+} from "@/stores/useAhandJobTelemetryStore";
 import { MessageAttachments } from "./MessageAttachments";
 import type {
   CommandExecutionDisplay,
@@ -1237,6 +1240,22 @@ function getElapsedMs(
   return Number.isFinite(elapsedMs) && elapsedMs >= 0 ? elapsedMs : undefined;
 }
 
+function formatAhandJobProgress(
+  progress: AhandJobProgress | undefined,
+): string {
+  if (!progress) return "";
+  const parts: string[] = [];
+  if (
+    typeof progress.percent === "number" &&
+    Number.isFinite(progress.percent)
+  ) {
+    parts.push(`${progress.percent}%`);
+  }
+  if (progress.phase) parts.push(progress.phase);
+  if (progress.message) parts.push(progress.message);
+  return parts.join(" - ");
+}
+
 export function ToolCallBlock({
   callMetadata,
   resultMetadata,
@@ -1309,6 +1328,7 @@ export function ToolCallBlock({
     baseCommandExecution && liveJob
       ? {
           ...baseCommandExecution,
+          message: liveJob.errorMessage || baseCommandExecution.message,
           stdout: liveJob.stdout || baseCommandExecution.stdout,
           stderr: liveJob.stderr || baseCommandExecution.stderr,
           ...(liveJob.exitCode !== undefined
@@ -1325,6 +1345,8 @@ export function ToolCallBlock({
   const hasCommandStderr = !!commandExecution?.stderr.trim();
   const commandMessage = commandExecution?.message;
   const hasCommandMessage = !!commandMessage?.trim();
+  const commandProgress = formatAhandJobProgress(liveJob?.progress);
+  const hasCommandProgress = commandProgress.length > 0;
   const commandExitCode = commandExecution?.exitCode;
   const shouldShowCommandExitCode =
     commandExitCode !== undefined &&
@@ -1507,6 +1529,15 @@ export function ToolCallBlock({
                 <StreamBlock
                   label="message"
                   value={commandMessage ?? ""}
+                  tone="neutral"
+                  emptyText={translate("tracking.toolCall.emptyStream")}
+                  t={translate}
+                />
+              )}
+              {hasCommandProgress && (
+                <StreamBlock
+                  label="progress"
+                  value={commandProgress}
                   tone="neutral"
                   emptyText={translate("tracking.toolCall.emptyStream")}
                   t={translate}

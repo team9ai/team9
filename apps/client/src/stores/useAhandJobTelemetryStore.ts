@@ -62,8 +62,15 @@ export const useAhandJobTelemetryStore = create<AhandJobTelemetryState>(
             next.progress = progressFromData(data);
             break;
           case "finished":
-            next.status = "finished";
-            next.exitCode = numberFromField(data, "exitCode");
+            next.exitCode =
+              numberFromField(data, "exitCode") ??
+              numberFromField(data, "exit_code");
+            next.errorMessage = messageFromData(data);
+            next.status =
+              (next.exitCode !== undefined && next.exitCode !== 0) ||
+              next.errorMessage
+                ? "error"
+                : "finished";
             break;
           case "error":
             next.status = "error";
@@ -122,6 +129,11 @@ function textFromData(data: unknown): string {
 }
 
 function numberFromField(data: unknown, field: string): number | undefined {
+  if (typeof data === "number" && Number.isFinite(data)) return data;
+  if (typeof data === "string" && data.trim() !== "") {
+    const parsed = Number(data);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
   if (!isRecord(data)) return undefined;
   const value = data[field];
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -139,6 +151,13 @@ function stringFromField(data: unknown, field: string): string | undefined {
 }
 
 function progressFromData(data: unknown): AhandJobProgress {
+  if (typeof data === "number" && Number.isFinite(data)) {
+    return { percent: data };
+  }
+  if (typeof data === "string" && data.trim() !== "") {
+    const parsed = Number(data);
+    return Number.isFinite(parsed) ? { percent: parsed } : {};
+  }
   return {
     ...(numberFromField(data, "percent") !== undefined
       ? { percent: numberFromField(data, "percent") }
@@ -153,6 +172,7 @@ function progressFromData(data: unknown): AhandJobProgress {
 }
 
 function messageFromData(data: unknown): string | undefined {
+  if (typeof data === "string" && data.trim() !== "") return data;
   return stringFromField(data, "message") ?? stringFromField(data, "error");
 }
 
