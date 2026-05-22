@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +24,14 @@ const mockUseFileUpload = vi.hoisted(() => vi.fn());
 const mockSetDashboardMode = vi.hoisted(() => vi.fn());
 const mockDashboardModeState = vi.hoisted(() => ({
   value: "conversation" as "conversation" | "task",
+}));
+const mockDashboardModeTransitionState = vi.hoisted(() => ({
+  value: null as null | {
+    id: number;
+    from: "conversation" | "task";
+    to: "conversation" | "task";
+  },
+  nextId: 0,
 }));
 const mockUploadState = vi.hoisted(() => ({
   uploadingFiles: [] as Array<{
@@ -130,12 +145,36 @@ vi.mock("@/stores", () => ({
   HOME_ENTRY_PATH: "/tasks/new-conversation",
   TASK_ENTRY_PATH: "/tasks/new-task",
   homeActions: {
-    setDashboardMode: (mode: "conversation" | "task") => {
+    setDashboardMode: (
+      mode: "conversation" | "task",
+      options?: { animate?: boolean },
+    ) => {
+      const from = mockDashboardModeState.value;
+      if (from === mode) return;
+
       mockDashboardModeState.value = mode;
-      mockSetDashboardMode(mode);
+      mockDashboardModeTransitionState.value = options?.animate
+        ? {
+            id: ++mockDashboardModeTransitionState.nextId,
+            from,
+            to: mode,
+          }
+        : null;
+      mockSetDashboardMode(mode, options);
+    },
+    clearDashboardModeTransition: (transitionId?: number) => {
+      if (
+        transitionId !== undefined &&
+        mockDashboardModeTransitionState.value?.id !== transitionId
+      ) {
+        return;
+      }
+
+      mockDashboardModeTransitionState.value = null;
     },
   },
   useDashboardMode: () => mockDashboardModeState.value,
+  useDashboardModeTransition: () => mockDashboardModeTransitionState.value,
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
   useUser: mockUseUser,
 }));
@@ -218,6 +257,8 @@ describe("HomeMainContent", () => {
     localStorage.clear();
     mockUploadState.uploadingFiles = [];
     mockDashboardModeState.value = "conversation";
+    mockDashboardModeTransitionState.value = null;
+    mockDashboardModeTransitionState.nextId = 0;
     window.history.replaceState(null, "", "/tasks/new-conversation");
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
@@ -861,7 +902,7 @@ describe("HomeMainContent", () => {
     ).toBeInTheDocument();
   });
 
-  it("animates mode switching in place while preserving the composer draft", () => {
+  it("animates mode switching in place while preserving the composer draft", async () => {
     renderWithProviders(<HomeMainContent />);
     mockNavigate.mockClear();
     mockSetDashboardMode.mockClear();
@@ -876,7 +917,9 @@ describe("HomeMainContent", () => {
     });
     fireEvent.click(screen.getByRole("tab", { name: /task mode/i }));
 
-    expect(mockSetDashboardMode).toHaveBeenCalledWith("task");
+    expect(mockSetDashboardMode).toHaveBeenCalledWith("task", {
+      animate: true,
+    });
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/tasks/new-task");
     expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
@@ -886,13 +929,17 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
     ).toHaveValue("keep this draft");
-    expect(
-      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("left-1/2");
+    await waitFor(() =>
+      expect(
+        within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+      ).toHaveClass("left-1/2"),
+    );
 
     fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
 
-    expect(mockSetDashboardMode).toHaveBeenLastCalledWith("conversation");
+    expect(mockSetDashboardMode).toHaveBeenLastCalledWith("conversation", {
+      animate: true,
+    });
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(window.location.pathname).toBe("/tasks/new-conversation");
     expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
@@ -900,11 +947,11 @@ describe("HomeMainContent", () => {
     );
   });
 
-  it("keeps the right mode switch animated when the sidebar changes the shared mode", () => {
+  it("keeps the right mode switch animated across a dashboard route remount", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    const view = render(
+    const firstView = render(
       <QueryClientProvider client={queryClient}>
         <HomeMainContent />
       </QueryClientProvider>,
@@ -915,19 +962,37 @@ describe("HomeMainContent", () => {
       within(switcher).getByTestId("dashboard-mode-switch-indicator"),
     ).toHaveClass("left-1", "transition-[left]");
 
+    firstView.unmount();
     mockDashboardModeState.value = "task";
-    view.rerender(
+    mockDashboardModeTransitionState.value = {
+      id: 1,
+      from: "conversation",
+      to: "task",
+    };
+
+    render(
       <QueryClientProvider client={queryClient}>
-        <HomeMainContent />
+        <HomeMainContent mode="task" />
       </QueryClientProvider>,
     );
 
+    const remountedSwitcher = screen.getByRole("tablist", {
+      name: /dashboard mode/i,
+    });
     expect(
-      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("left-1/2", "transition-[left]");
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("left-1", "transition-[left]");
     expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
       "aria-selected",
       "true",
+    );
+
+    await waitFor(() =>
+      expect(
+        within(remountedSwitcher).getByTestId(
+          "dashboard-mode-switch-indicator",
+        ),
+      ).toHaveClass("left-1/2", "transition-[left]"),
     );
   });
 

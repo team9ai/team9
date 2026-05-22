@@ -84,6 +84,7 @@ import type { Skill } from "@/types/skill";
 import {
   homeActions,
   useDashboardMode,
+  useDashboardModeTransition,
   useSelectedWorkspaceId,
   type HomeDashboardMode,
 } from "@/stores";
@@ -443,15 +444,20 @@ function DashboardHeader({
   );
 }
 
+const DASHBOARD_MODE_TRANSITION_MS = 300;
+
 function DashboardModeSwitch({
   mode,
+  indicatorMode = mode,
   onModeChange,
 }: {
   mode: DashboardMode;
+  indicatorMode?: DashboardMode;
   onModeChange: (mode: DashboardMode) => void;
 }) {
   const { t } = useTranslation("navigation");
   const isTaskMode = mode === "task";
+  const isIndicatorTaskMode = indicatorMode === "task";
 
   const setMode = (nextMode: DashboardMode) => {
     if (nextMode === mode) return;
@@ -469,7 +475,7 @@ function DashboardModeSwitch({
         aria-hidden="true"
         className={cn(
           "absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow-[0_6px_18px_rgba(132,114,88,0.12)] transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          isTaskMode ? "left-1/2" : "left-1",
+          isIndicatorTaskMode ? "left-1/2" : "left-1",
         )}
       />
       <button
@@ -504,9 +510,16 @@ function DashboardModeSwitch({
   );
 }
 
-function DashboardModeTitle({ mode }: { mode: DashboardMode }) {
+function DashboardModeTitle({
+  mode,
+  visualMode = mode,
+}: {
+  mode: DashboardMode;
+  visualMode?: DashboardMode;
+}) {
   const { t } = useTranslation("navigation");
   const isTaskMode = mode === "task";
+  const isVisualTaskMode = visualMode === "task";
   const title = isTaskMode ? t("dashboardTaskTitle") : t("dashboardTitle");
 
   return (
@@ -518,7 +531,9 @@ function DashboardModeTitle({ mode }: { mode: DashboardMode }) {
         aria-hidden="true"
         className={cn(
           "block transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          isTaskMode ? "-translate-y-2 opacity-0" : "translate-y-0 opacity-100",
+          isVisualTaskMode
+            ? "-translate-y-2 opacity-0"
+            : "translate-y-0 opacity-100",
         )}
       >
         {t("dashboardTitle")}
@@ -527,13 +542,57 @@ function DashboardModeTitle({ mode }: { mode: DashboardMode }) {
         aria-hidden="true"
         className={cn(
           "absolute inset-0 flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          isTaskMode ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+          isVisualTaskMode
+            ? "translate-y-0 opacity-100"
+            : "translate-y-2 opacity-0",
         )}
       >
         {t("dashboardTaskTitle")}
       </span>
     </h1>
   );
+}
+
+function useDashboardModeMotion(mode: DashboardMode) {
+  const transition = useDashboardModeTransition();
+  const [visualMode, setVisualMode] = useState<DashboardMode>(() =>
+    transition && transition.to === mode && transition.from !== mode
+      ? transition.from
+      : mode,
+  );
+  const activeTransitionIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (
+      transition &&
+      transition.to === mode &&
+      transition.from !== mode &&
+      activeTransitionIdRef.current !== transition.id
+    ) {
+      activeTransitionIdRef.current = transition.id;
+      setVisualMode(transition.from);
+
+      const animationFrame = window.requestAnimationFrame(() => {
+        setVisualMode(mode);
+      });
+
+      return () => window.cancelAnimationFrame(animationFrame);
+    }
+
+    setVisualMode(mode);
+  }, [mode, transition]);
+
+  useEffect(() => {
+    if (!transition || transition.to !== mode) return;
+
+    const timeoutId = window.setTimeout(() => {
+      homeActions.clearDashboardModeTransition(transition.id);
+    }, DASHBOARD_MODE_TRANSITION_MS + 80);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [mode, transition]);
+
+  return visualMode;
 }
 
 function DashboardActionChip({
@@ -1162,6 +1221,8 @@ export function HomeMainContent({
   const [mode, setMode] = useState<DashboardMode>(initialMode);
   const hasSyncedInitialModeRef = useRef(false);
   const isTaskMode = mode === "task";
+  const visualMode = useDashboardModeMotion(mode);
+  const isVisualTaskMode = visualMode === "task";
   const skillsQuery = useSkills(undefined, { enabled: isTaskMode });
   const skills = skillsQuery.data ?? EMPTY_SKILLS;
   const areSkillsLoading = skillsQuery.isLoading;
@@ -1678,7 +1739,7 @@ export function HomeMainContent({
 
   const handleModeChange = useCallback((nextMode: DashboardMode) => {
     setMode(nextMode);
-    homeActions.setDashboardMode(nextMode);
+    homeActions.setDashboardMode(nextMode, { animate: true });
     replaceDashboardModeEntryUrl(nextMode);
   }, []);
 
@@ -1697,10 +1758,14 @@ export function HomeMainContent({
           />
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-8 pb-8 pt-14 sm:gap-10 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
-            <DashboardModeSwitch mode={mode} onModeChange={handleModeChange} />
+            <DashboardModeSwitch
+              mode={mode}
+              indicatorMode={visualMode}
+              onModeChange={handleModeChange}
+            />
 
             <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-8 sm:gap-10">
-              <DashboardModeTitle mode={mode} />
+              <DashboardModeTitle mode={mode} visualMode={visualMode} />
 
               <div
                 ref={composerSurfaceRef}
@@ -1861,7 +1926,7 @@ export function HomeMainContent({
                   aria-hidden={!isTaskMode}
                   className={cn(
                     "grid w-full transition-[grid-template-rows,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                    isTaskMode
+                    isVisualTaskMode
                       ? "grid-rows-[1fr] translate-y-0 opacity-100"
                       : "pointer-events-none grid-rows-[0fr] -translate-y-2 opacity-0",
                   )}

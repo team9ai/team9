@@ -297,7 +297,7 @@ export function TasksSubSidebar() {
 
   const openDashboardEntry = (nextMode: DashboardSidebarMode) => {
     appActions.setActiveSidebar("home");
-    homeActions.setDashboardMode(nextMode);
+    homeActions.setDashboardMode(nextMode, { animate: true });
 
     if (isDashboardModeEntryPath(location.pathname)) {
       replaceDashboardModeEntryUrl(nextMode);
@@ -317,7 +317,7 @@ export function TasksSubSidebar() {
 
   const openConversationTopic = (agentId: string) => {
     appActions.setActiveSidebar("home");
-    homeActions.setDashboardMode("conversation");
+    homeActions.setDashboardMode("conversation", { animate: true });
     void navigate({
       to: HOME_ENTRY_PATH,
       search: { agentId },
@@ -326,7 +326,7 @@ export function TasksSubSidebar() {
 
   const selectConversationMode = () => {
     appActions.setActiveSidebar("home");
-    homeActions.setDashboardMode("conversation");
+    homeActions.setDashboardMode("conversation", { animate: true });
     if (isDashboardModeEntryPath(location.pathname)) {
       replaceDashboardModeEntryUrl("conversation");
     }
@@ -334,7 +334,7 @@ export function TasksSubSidebar() {
 
   const selectTaskMode = () => {
     appActions.setActiveSidebar("home");
-    homeActions.setDashboardMode("task");
+    homeActions.setDashboardMode("task", { animate: true });
     if (isDashboardModeEntryPath(location.pathname)) {
       replaceDashboardModeEntryUrl("task");
     }
