@@ -92,12 +92,12 @@ describe("NavigationRail task entry", () => {
       "Workspace",
       "Activity",
       "Staff",
-      "Routines",
       "Skills",
       "Apps",
       "More",
     ]);
     expect(screen.queryByTitle("DMs")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Routines")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Tasks")).not.toBeInTheDocument();
   });
 
