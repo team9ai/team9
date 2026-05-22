@@ -12,7 +12,10 @@ import {
   beforeEach,
   afterEach,
 } from '@jest/globals';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { AgentHubService } from './agent-hub.service.js';
+import { InstallRecommendedStaffDto } from './dto/install-recommended-staff.dto.js';
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
@@ -41,7 +44,8 @@ function makeTemplate(overrides: Record<string, unknown> = {}) {
 describe('AgentHubService catalog', () => {
   let service: AgentHubService;
   let clawHive: { listPrefabAgentTemplates: MockFn };
-  let redis: { get: MockFn; set: MockFn };
+  let redisClient: { set: MockFn; eval: MockFn };
+  let redis: { get: MockFn; set: MockFn; getClient: MockFn };
   let installedApplications: {
     findByApplicationId: MockFn;
     ensureAutoInstallApps: MockFn;
@@ -59,9 +63,14 @@ describe('AgentHubService catalog', () => {
     jest.setSystemTime(now);
 
     clawHive = { listPrefabAgentTemplates: jest.fn<any>() };
+    redisClient = {
+      set: jest.fn<any>().mockResolvedValue('OK'),
+      eval: jest.fn<any>().mockResolvedValue(1),
+    };
     redis = {
       get: jest.fn<any>().mockResolvedValue(null),
       set: jest.fn<any>().mockResolvedValue('OK'),
+      getClient: jest.fn<any>().mockReturnValue(redisClient),
     };
     installedApplications = {
       findByApplicationId: jest.fn<any>(),
@@ -498,6 +507,19 @@ describe('AgentHubService catalog', () => {
       }),
     );
     expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+    expect(redisClient.set).toHaveBeenCalledWith(
+      'agent-hub:install-recommended-staff:tenant-1:common-app-1:sales-analyst',
+      expect.any(String),
+      'EX',
+      30,
+      'NX',
+    );
+    expect(redisClient.eval).toHaveBeenCalledWith(
+      expect.stringContaining('redis.call("get", KEYS[1])'),
+      1,
+      'agent-hub:install-recommended-staff:tenant-1:common-app-1:sales-analyst',
+      expect.any(String),
+    );
   });
 
   it('rejects duplicate installs for unique templates', async () => {
@@ -522,6 +544,47 @@ describe('AgentHubService catalog', () => {
         {},
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects unique install when another install holds the lock', async () => {
+    redisClient.set.mockResolvedValue(null);
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'sales-analyst',
+        {},
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(botService.getBotsByInstalledApplicationId).not.toHaveBeenCalled();
+    expect(staffService.createBotWithAgent).not.toHaveBeenCalled();
+    expect(redisClient.eval).not.toHaveBeenCalled();
+  });
+
+  it('returns unavailable when unique install lock acquisition fails', async () => {
+    redisClient.set.mockRejectedValue(new Error('redis down'));
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'sales-analyst',
+        {},
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(botService.getBotsByInstalledApplicationId).not.toHaveBeenCalled();
+    expect(staffService.createBotWithAgent).not.toHaveBeenCalled();
   });
 
   it('generates short role title when the template does not provide one', async () => {
@@ -603,6 +666,38 @@ describe('AgentHubService catalog', () => {
     );
   });
 
+  it('still returns installed staff when mentor DM creation fails', async () => {
+    const query = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([{ userId: 'mentor-1' }]),
+    };
+    db.select.mockReturnValue(query);
+    channelsService.createDirectChannel.mockRejectedValue(new Error('dm down'));
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    const result = await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      { mentorId: 'mentor-1' },
+    );
+
+    expect(result).toMatchObject({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+    });
+  });
+
   it('throws not found when the recommended staff template id is missing', async () => {
     clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
 
@@ -614,6 +709,59 @@ describe('AgentHubService catalog', () => {
         {},
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('only calls Hive once when an uncached template id is missing', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'missing-template',
+        {},
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(clawHive.listPrefabAgentTemplates).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns unavailable when stale cache misses the requested template and Hive refresh fails', async () => {
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        cachedAt: new Date(now - 10 * 60 * 1000).toISOString(),
+        templates: [
+          {
+            templateId: 'stale-template',
+            name: 'Stale',
+            displayName: 'Stale',
+            roleTitle: 'Stale Role',
+            shortRoleTitle: null,
+            persona: null,
+            jobDescription: null,
+            avatarUrl: null,
+            description: null,
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
+            blueprintId: 'team9-common-staff',
+            componentConfigs: {},
+            unique: false,
+          },
+        ],
+      }),
+    );
+    clawHive.listPrefabAgentTemplates.mockRejectedValue(new Error('hive down'));
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'sales-analyst',
+        {},
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('auto-installs Common Staff when missing and then retries lookup', async () => {
@@ -751,5 +899,76 @@ describe('AgentHubService catalog', () => {
     expect(extraComponentConfigs).not.toHaveProperty('bad-string');
     expect(extraComponentConfigs).not.toHaveProperty('bad-null');
     expect(extraComponentConfigs).not.toHaveProperty('bad-array');
+  });
+
+  it('does not let template component configs override reserved platform configs', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({
+        componentConfigs: {
+          team9: { team9AuthToken: 'attacker-token' },
+          folder9: { workspaceId: 'wrong-workspace' },
+          'system-prompt': { prompt: 'Analyze sales data.' },
+        },
+      }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    const [{ extraComponentConfigs }] =
+      staffService.createBotWithAgent.mock.calls[0];
+    expect(extraComponentConfigs).not.toHaveProperty('team9');
+    expect(extraComponentConfigs.folder9).toEqual({
+      folder9Url: process.env.FOLDER9_API_URL,
+      workspaceId: 'tenant-1',
+    });
+  });
+
+  it('treats an omitted install DTO as empty', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      undefined as never,
+    );
+
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ mentorId: null }),
+    );
+  });
+
+  it('treats blank mentorId DTO values as absent before UUID validation', async () => {
+    const dto = plainToInstance(InstallRecommendedStaffDto, {
+      mentorId: '   ',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual([]);
+    expect(dto.mentorId).toBeNull();
   });
 });

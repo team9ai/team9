@@ -15,10 +15,12 @@ import {
   and,
   DATABASE_CONNECTION,
   eq,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
+import { randomUUID } from 'node:crypto';
 import { BotService } from '../bot/bot.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import {
@@ -39,6 +41,8 @@ import {
 import type { InstallRecommendedStaffDto } from './dto/install-recommended-staff.dto.js';
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
+const INSTALL_LOCK_TTL_SECONDS = 30;
+const RESERVED_COMPONENT_CONFIG_KEYS = new Set(['team9']);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -69,6 +73,16 @@ function normalizeComponentConfigs(
   return Object.fromEntries(
     Object.entries(value).filter(
       (entry): entry is [string, Record<string, unknown>] => isObject(entry[1]),
+    ),
+  );
+}
+
+function safeTemplateComponentConfigs(
+  value: unknown,
+): Record<string, Record<string, unknown>> {
+  return Object.fromEntries(
+    Object.entries(normalizeComponentConfigs(value)).filter(
+      ([key]) => !RESERVED_COMPONENT_CONFIG_KEYS.has(key),
     ),
   );
 }
@@ -123,7 +137,9 @@ function normalizeTemplate(
   const resolvedModel = model ?? DEFAULT_RECOMMENDED_STAFF_MODEL;
 
   const displayName = metadata.displayName ?? name;
-  const componentConfigs = normalizeComponentConfigs(template.componentConfigs);
+  const componentConfigs = safeTemplateComponentConfigs(
+    template.componentConfigs,
+  );
 
   return {
     templateId,
@@ -168,23 +184,11 @@ export class AgentHubService {
     tenantId: string,
     actorUserId: string,
     templateId: string,
-    dto: InstallRecommendedStaffDto,
+    dto?: InstallRecommendedStaffDto,
   ): Promise<StaffBotResult> {
     const template = await this.getTemplateById(templateId);
     const app = await this.getCommonStaffApp(tenantId, actorUserId);
-
-    const existingBotId = await this.findInstalledTemplateBot(
-      app.id,
-      template.templateId,
-    );
-    if (template.unique && existingBotId) {
-      throw new ConflictException({
-        message: 'Recommended staff template is already installed',
-        botId: existingBotId,
-      });
-    }
-
-    const mentorId = await this.validateMentor(tenantId, dto.mentorId);
+    const mentorId = await this.validateMentor(tenantId, dto?.mentorId);
     const shortRoleTitle =
       template.shortRoleTitle ??
       (await this.generateShortRoleTitleOrNull(
@@ -193,13 +197,72 @@ export class AgentHubService {
         template.roleTitle,
       ));
 
+    const createStaff = async () => {
+      if (template.unique) {
+        const existingBotId = await this.findInstalledTemplateBot(
+          app.id,
+          template.templateId,
+        );
+        if (existingBotId) {
+          throw new ConflictException({
+            message: 'Recommended staff template is already installed',
+            botId: existingBotId,
+          });
+        }
+      }
+
+      return this.createRecommendedStaffBot({
+        tenantId,
+        actorUserId,
+        appId: app.id,
+        template,
+        mentorId,
+        shortRoleTitle,
+      });
+    };
+
+    const result = template.unique
+      ? await this.withUniqueInstallLock(
+          tenantId,
+          app.id,
+          template.templateId,
+          createStaff,
+        )
+      : await createStaff();
+
+    if (mentorId) {
+      await this.createMentorDirectChannelBestEffort(
+        result.userId,
+        mentorId,
+        tenantId,
+      );
+    }
+
+    return result;
+  }
+
+  private async createRecommendedStaffBot({
+    tenantId,
+    actorUserId,
+    appId,
+    template,
+    mentorId,
+    shortRoleTitle,
+  }: {
+    tenantId: string;
+    actorUserId: string;
+    appId: string;
+    template: CachedRecommendedStaffTemplate;
+    mentorId: string | null;
+    shortRoleTitle: string | null;
+  }): Promise<StaffBotResult> {
     const result = await this.staffService.createBotWithAgent({
       agentIdPrefix: 'common-staff',
       blueprintId: template.blueprintId,
       ownerId: actorUserId,
       tenantId,
       displayName: template.displayName,
-      installedApplicationId: app.id,
+      installedApplicationId: appId,
       mentorId,
       avatarUrl: template.avatarUrl ?? undefined,
       model: template.model,
@@ -216,30 +279,118 @@ export class AgentHubService {
         },
       },
       extraComponentConfigs: {
-        ...normalizeComponentConfigs(template.componentConfigs),
+        ...safeTemplateComponentConfigs(template.componentConfigs),
         ...this.requiredTeam9ComponentConfigs(tenantId),
       },
     });
 
-    if (mentorId) {
-      await this.channels.createDirectChannel(
-        result.userId,
-        mentorId,
-        tenantId,
+    return result;
+  }
+
+  private async withUniqueInstallLock<T>(
+    tenantId: string,
+    appId: string,
+    templateId: string,
+    callback: () => Promise<T>,
+  ): Promise<T> {
+    const lockKey = `agent-hub:install-recommended-staff:${tenantId}:${appId}:${templateId}`;
+    const lockToken = randomUUID();
+    const client = this.redis.getClient();
+
+    let acquired: unknown;
+    try {
+      acquired = await client.set(
+        lockKey,
+        lockToken,
+        'EX',
+        INSTALL_LOCK_TTL_SECONDS,
+        'NX',
+      );
+    } catch (error) {
+      this.logger.warn(
+        'Failed to acquire recommended staff install lock',
+        error,
+      );
+      throw new ServiceUnavailableException(
+        'Recommended staff install is temporarily unavailable',
       );
     }
 
-    return result;
+    if (!acquired) {
+      throw new ConflictException({
+        message: 'Recommended staff template install is already in progress',
+      });
+    }
+
+    try {
+      return await callback();
+    } finally {
+      await client
+        .eval(
+          `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+          1,
+          lockKey,
+          lockToken,
+        )
+        .catch((err) =>
+          this.logger.warn(
+            'Failed to release recommended staff install lock',
+            err,
+          ),
+        );
+    }
+  }
+
+  private async createMentorDirectChannelBestEffort(
+    botUserId: string,
+    mentorId: string,
+    tenantId: string,
+  ): Promise<void> {
+    try {
+      await this.channels.createDirectChannel(botUserId, mentorId, tenantId);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create recommended staff mentor DM for bot user ${botUserId}`,
+        error,
+      );
+    }
   }
 
   private async getTemplateById(
     templateId: string,
   ): Promise<CachedRecommendedStaffTemplate> {
-    const cached = await this.getCachedTemplates();
-    const found = cached.find((template) => template.templateId === templateId);
-    if (found) return found;
+    const cached = await this.readCache();
+    if (cached && this.isFresh(cached)) {
+      const cachedFound = cached.templates.find(
+        (template) => template.templateId === templateId,
+      );
+      if (cachedFound) return cachedFound;
+      throw new NotFoundException(
+        `Recommended staff template ${templateId} not found`,
+      );
+    }
 
-    const refreshed = await this.refreshTemplates();
+    let refreshed: CachedRecommendedStaffTemplate[];
+    try {
+      refreshed = await this.refreshTemplates();
+    } catch (error) {
+      if (cached) {
+        const staleFound = cached.templates.find(
+          (template) => template.templateId === templateId,
+        );
+        if (staleFound) return staleFound;
+
+        throw new ServiceUnavailableException(
+          'AgentHub recommended staff is temporarily unavailable',
+        );
+      }
+
+      if (error instanceof NotFoundException) throw error;
+      throw new ServiceUnavailableException(
+        'AgentHub recommended staff is temporarily unavailable',
+      );
+    }
+
     const refreshedFound = refreshed.find(
       (template) => template.templateId === templateId,
     );
@@ -302,6 +453,7 @@ export class AgentHubService {
         and(
           eq(schema.tenantMembers.tenantId, tenantId),
           eq(schema.tenantMembers.userId, normalizedMentorId),
+          isNull(schema.tenantMembers.leftAt),
         ),
       )
       .limit(1);
