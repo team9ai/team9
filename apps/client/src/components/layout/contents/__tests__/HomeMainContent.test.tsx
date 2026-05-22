@@ -869,7 +869,7 @@ describe("HomeMainContent", () => {
     const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
     expect(
       within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("transition-transform");
+    ).toHaveClass("left-1", "transition-[left]");
 
     fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
       target: { value: "keep this draft" },
@@ -888,7 +888,7 @@ describe("HomeMainContent", () => {
     ).toHaveValue("keep this draft");
     expect(
       within(switcher).getByTestId("dashboard-mode-switch-indicator"),
-    ).toHaveClass("translate-x-[calc(100%+0.25rem)]");
+    ).toHaveClass("left-1/2");
 
     fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
 
@@ -897,6 +897,37 @@ describe("HomeMainContent", () => {
     expect(window.location.pathname).toBe("/tasks/new-conversation");
     expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
       "keep this draft",
+    );
+  });
+
+  it("keeps the right mode switch animated when the sidebar changes the shared mode", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <HomeMainContent />
+      </QueryClientProvider>,
+    );
+
+    const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
+    expect(
+      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("left-1", "transition-[left]");
+
+    mockDashboardModeState.value = "task";
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <HomeMainContent />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("left-1/2", "transition-[left]");
+    expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
   });
 

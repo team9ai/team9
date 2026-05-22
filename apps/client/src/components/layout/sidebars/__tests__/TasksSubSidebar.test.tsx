@@ -255,7 +255,8 @@ describe("TasksSubSidebar", () => {
     renderTasksSubSidebar();
 
     expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
-      "transition-transform",
+      "left-0.5",
+      "transition-[left]",
       "duration-200",
     );
     expect(screen.getByTestId("dashboard-sidebar-mode-content")).toHaveClass(
@@ -287,7 +288,7 @@ describe("TasksSubSidebar", () => {
       "true",
     );
     expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
-      "translate-x-full",
+      "left-1/2",
     );
     expect(screen.getByText("新对话").closest("button")).not.toHaveClass(
       "bg-nav-active",
@@ -346,7 +347,7 @@ describe("TasksSubSidebar", () => {
     renderTasksSubSidebar();
 
     expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
-      "translate-x-full",
+      "left-1/2",
     );
     expect(screen.getByText("新任务").closest("button")).toHaveClass(
       "bg-nav-active",

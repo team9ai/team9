@@ -393,8 +393,8 @@ export function TasksSubSidebar() {
               aria-hidden="true"
               data-testid="dashboard-sidebar-mode-indicator"
               className={cn(
-                "pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-lg bg-nav-active transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                isTaskMode && "translate-x-full",
+                "pointer-events-none absolute bottom-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-lg bg-nav-active transition-[left] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                isTaskMode ? "left-1/2" : "left-0.5",
               )}
             />
             <button

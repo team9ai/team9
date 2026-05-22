@@ -468,8 +468,8 @@ function DashboardModeSwitch({
         data-testid="dashboard-mode-switch-indicator"
         aria-hidden="true"
         className={cn(
-          "absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow-[0_6px_18px_rgba(132,114,88,0.12)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          isTaskMode && "translate-x-[calc(100%+0.25rem)]",
+          "absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white shadow-[0_6px_18px_rgba(132,114,88,0.12)] transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+          isTaskMode ? "left-1/2" : "left-1",
         )}
       />
       <button
