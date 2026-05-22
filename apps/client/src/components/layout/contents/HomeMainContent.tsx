@@ -572,11 +572,19 @@ function useDashboardModeMotion(mode: DashboardMode) {
       activeTransitionIdRef.current = transition.id;
       setVisualMode(transition.from);
 
-      const animationFrame = window.requestAnimationFrame(() => {
-        setVisualMode(mode);
+      let nextAnimationFrame: number | null = null;
+      const paintFrame = window.requestAnimationFrame(() => {
+        nextAnimationFrame = window.requestAnimationFrame(() => {
+          setVisualMode(mode);
+        });
       });
 
-      return () => window.cancelAnimationFrame(animationFrame);
+      return () => {
+        window.cancelAnimationFrame(paintFrame);
+        if (nextAnimationFrame !== null) {
+          window.cancelAnimationFrame(nextAnimationFrame);
+        }
+      };
     }
 
     setVisualMode(mode);

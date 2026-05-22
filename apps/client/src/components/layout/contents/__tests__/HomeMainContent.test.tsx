@@ -996,6 +996,63 @@ describe("HomeMainContent", () => {
     );
   });
 
+  it("waits one painted frame before moving the right mode switch after remount", () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      });
+    const cancelAnimationFrameSpy = vi
+      .spyOn(window, "cancelAnimationFrame")
+      .mockImplementation((id) => {
+        animationFrames[id - 1] = () => undefined;
+      });
+
+    try {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      mockDashboardModeState.value = "task";
+      mockDashboardModeTransitionState.value = {
+        id: 1,
+        from: "conversation",
+        to: "task",
+      };
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <HomeMainContent mode="task" />
+        </QueryClientProvider>,
+      );
+
+      const switcher = screen.getByRole("tablist", {
+        name: /dashboard mode/i,
+      });
+      const indicator = within(switcher).getByTestId(
+        "dashboard-mode-switch-indicator",
+      );
+
+      expect(indicator).toHaveClass("left-1", "transition-[left]");
+
+      act(() => {
+        animationFrames.shift()?.(0);
+      });
+
+      expect(indicator).toHaveClass("left-1");
+
+      act(() => {
+        animationFrames.shift()?.(16);
+      });
+
+      expect(indicator).toHaveClass("left-1/2");
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+      cancelAnimationFrameSpy.mockRestore();
+    }
+  });
+
   it("uses the task draft copy, skill selector, and hidden agent suggestions in task mode", async () => {
     renderWithProviders(<HomeMainContent mode="task" />);
 
