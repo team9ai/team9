@@ -64,8 +64,8 @@ describe("DynamicSubSidebar", () => {
     );
   });
 
-  it("uses the tasks secondary sidebar on task routes", () => {
-    pathname = "/tasks/task-1";
+  it("keeps the home task sidebar on task routes", () => {
+    pathname = "/tasks/new-conversation";
 
     render(<DynamicSubSidebar />);
 
@@ -82,6 +82,27 @@ describe("DynamicSubSidebar", () => {
 
   it("keeps the workspace sidebar on the channels index when Workspace is active", () => {
     pathname = "/channels";
+    useAppStore.getState().setActiveSidebar("workspace");
+
+    render(<DynamicSubSidebar />);
+
+    expect(screen.getByTestId("home-sub-sidebar")).toBeInTheDocument();
+  });
+
+  it("keeps the home task sidebar on a channel opened from the Home tab", () => {
+    // An AI Agent conversation opened from the Home tab navigates to
+    // /channels/$channelId while activeSidebar stays "home"; the Home
+    // (Tasks) sidebar must remain visible instead of snapping to workspace.
+    pathname = "/channels/agent-channel-1";
+    useAppStore.getState().setActiveSidebar("home");
+
+    render(<DynamicSubSidebar />);
+
+    expect(screen.getByTestId("tasks-sub-sidebar")).toBeInTheDocument();
+  });
+
+  it("keeps the workspace sidebar on a channel opened from the workspace", () => {
+    pathname = "/channels/workspace-channel-1";
     useAppStore.getState().setActiveSidebar("workspace");
 
     render(<DynamicSubSidebar />);

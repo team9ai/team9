@@ -342,6 +342,54 @@ describe('BotService', () => {
         tenantId,
       );
     });
+
+    it('should persist managed metadata even when no other managed fields are provided', async () => {
+      const ownerRow = { id: ownerId, username: 'alice' };
+      const userRow = {
+        id: 'bot-user-uuid',
+        email: 'bot@team9.local',
+        username: 'bot_abc_123',
+        displayName: 'Metadata Bot',
+      };
+      const botRow = {
+        id: 'bot-uuid',
+        userId: 'bot-user-uuid',
+        type: 'custom',
+        ownerId,
+        description: 'Metadata Bot for alice',
+        capabilities: { canSendMessages: true, canReadMessages: true },
+        isActive: true,
+        webhookUrl: null,
+        installedApplicationId: null,
+        mentorId: null,
+        managedProvider: null,
+        managedMeta: null,
+      };
+
+      db.limit.mockResolvedValue([ownerRow] as any);
+
+      const tx = (db as any)._txChain;
+      let returningCallCount = 0;
+      tx.returning.mockImplementation((() => {
+        returningCallCount++;
+        if (returningCallCount === 1) return Promise.resolve([userRow]);
+        return Promise.resolve([botRow]);
+      }) as any);
+
+      await service.createWorkspaceBot({
+        ownerId,
+        tenantId,
+        displayName: 'Metadata Bot',
+        managedMeta: { agentId: 'agent-only' },
+      });
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          managedMeta: { agentId: 'agent-only' },
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
   });
 
   describe('updateBotMentor', () => {

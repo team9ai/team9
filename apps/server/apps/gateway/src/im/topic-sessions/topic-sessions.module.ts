@@ -6,6 +6,7 @@ import { AuthModule } from '../../auth/auth.module.js';
 import { WebsocketModule } from '../websocket/websocket.module.js';
 import { ChannelsModule } from '../channels/channels.module.js';
 import { MessagesModule } from '../messages/messages.module.js';
+import { ShortTitleGeneratorModule } from '../../common/ai/short-title-generator.module.js';
 import { CapabilityHubModule } from '../../capability-hub/capability-hub.module.js';
 import { ClawHiveModule } from '@team9/claw-hive';
 import { DeepResearchSessionsModule } from '../deep-research-sessions/deep-research-sessions.module.js';
@@ -16,6 +17,7 @@ import { DeepResearchSessionsModule } from '../deep-research-sessions/deep-resea
     forwardRef(() => WebsocketModule),
     forwardRef(() => ChannelsModule),
     MessagesModule,
+    ShortTitleGeneratorModule,
     // Brings CapabilityHubClient into scope so TopicTitleGeneratorService
     // can proxy title-generation LLM calls through capability-hub's
     // pre-authorize → record → billing-hub pipeline, same as every

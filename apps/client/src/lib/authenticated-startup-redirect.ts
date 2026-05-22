@@ -106,8 +106,10 @@ export function getAuthenticatedStartupRedirect(
     const normalizedSidebar =
       activeSidebar as keyof typeof DEFAULT_SECTION_PATHS;
     const lastVisitedPath =
-      lastVisitedPaths[normalizedSidebar] ??
-      DEFAULT_SECTION_PATHS[normalizedSidebar];
+      normalizedSidebar === "home"
+        ? DEFAULT_SECTION_PATHS.home
+        : (lastVisitedPaths[normalizedSidebar] ??
+          DEFAULT_SECTION_PATHS[normalizedSidebar]);
 
     if (isRestorableSectionPath(lastVisitedPath)) {
       return { to: lastVisitedPath };

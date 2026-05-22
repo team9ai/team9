@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AttachmentPreview } from "../AttachmentPreview";
 import type { UploadingFile } from "@/hooks/useFileUpload";
@@ -57,6 +57,20 @@ describe("AttachmentPreview", () => {
     const img = screen.getByAltText("image.png");
     const thumb = img.parentElement as HTMLElement;
     expect(thumb.className).toMatch(/border-info\/30/);
+  });
+
+  it("lets users remove an in-progress image upload", () => {
+    const onRemove = vi.fn();
+    render(
+      <AttachmentPreview
+        files={[makeFile({ status: "uploading", progress: 40 })]}
+        onRemove={onRemove}
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("Remove"));
+
+    expect(onRemove).toHaveBeenCalledWith("file-1");
   });
 
   it("keeps the error state border for failed images", () => {

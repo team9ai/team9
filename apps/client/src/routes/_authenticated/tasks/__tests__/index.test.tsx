@@ -6,6 +6,7 @@ import type { TaskRun } from "@/types/task";
 
 const mockNavigate = vi.fn();
 const mockListTasks = vi.fn();
+const mockCreateTask = vi.fn();
 const mockUnhideTask = vi.fn();
 const MAX_VISIBLE_CARDS_PER_COLUMN = 50;
 
@@ -23,6 +24,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/services/api/tasks", () => ({
   tasksApi: {
     list: () => mockListTasks(),
+    create: () => mockCreateTask(),
     unhide: (id: string) => mockUnhideTask(id),
   },
 }));
@@ -82,6 +84,7 @@ function renderRoute() {
 describe("/_authenticated/tasks/ index route", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockCreateTask.mockClear();
     mockUnhideTask.mockReset();
     mockUnhideTask.mockResolvedValue({ id: "run-1" });
     mockListTasks.mockResolvedValue([
@@ -105,6 +108,12 @@ describe("/_authenticated/tasks/ index route", () => {
         title: "已停止任务",
         status: "stopped",
       }),
+      makeTask({
+        id: "manually-archived-1",
+        title: "手动归档任务",
+        status: "completed",
+        archivedAt: "2026-05-21T00:00:00.000Z",
+      }),
     ]);
   });
 
@@ -127,8 +136,12 @@ describe("/_authenticated/tasks/ index route", () => {
     expect(
       within(runningColumn).getByText("东鹏特饮找20位 KOC"),
     ).toBeInTheDocument();
-    expect(within(completedColumn).getByText("执行完毕")).toBeInTheDocument();
+    expect(within(completedColumn).getByText("已结束")).toBeInTheDocument();
+    expect(within(completedColumn).getByText("已停止任务")).toBeInTheDocument();
     expect(within(archivedColumn).getByText("归档")).toBeInTheDocument();
+    expect(
+      within(archivedColumn).getByText("手动归档任务"),
+    ).toBeInTheDocument();
   });
 
   it("opens the task detail route instead of navigating into routines", async () => {
@@ -172,6 +185,7 @@ describe("/_authenticated/tasks/ index route", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /新增任务/ }));
 
+    expect(mockCreateTask).not.toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/tasks/new-task",
     });

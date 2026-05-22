@@ -1,13 +1,27 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseQueryOptions,
+} from "@tanstack/react-query";
 import { api } from "@/services/api";
-import type { CreateSkillDto, UpdateSkillDto, SkillType } from "@/types/skill";
+import type {
+  CreateSkillDto,
+  Skill,
+  UpdateSkillDto,
+  SkillType,
+} from "@/types/skill";
 
 // ── Query Hooks ─────────────────────────────────────────────────────
 
-export function useSkills(type?: SkillType) {
+export function useSkills(
+  type?: SkillType,
+  options?: Pick<UseQueryOptions<Skill[]>, "enabled">,
+) {
   return useQuery({
     queryKey: ["skills", { type }],
     queryFn: () => api.skills.list(type ? { type } : undefined),
+    ...options,
   });
 }
 

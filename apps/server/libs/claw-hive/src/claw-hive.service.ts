@@ -18,6 +18,20 @@ export interface HiveAgentSnapshot {
   cacheRetention?: 'none' | 'short' | 'long';
 }
 
+export interface HivePrefabAgentTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  blueprintId: string;
+  model?: HiveModelRef;
+  componentConfigs?: Record<string, Record<string, unknown>>;
+  metadata?: Record<string, unknown>;
+}
+
+interface HivePrefabAgentTemplatesResponse {
+  templates?: HivePrefabAgentTemplate[];
+}
+
 /**
  * Full session detail returned by agent-pi `GET /api/sessions/:id`.
  * `modelResolution` is the three-tier snapshot:
@@ -83,6 +97,24 @@ export class ClawHiveService {
     } catch {
       return false;
     }
+  }
+
+  async listPrefabAgentTemplates(): Promise<HivePrefabAgentTemplate[]> {
+    const res = await fetch(`${this.baseUrl}/api/prefab-agent-templates`, {
+      method: 'GET',
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(
+        `Failed to list prefab agent templates: ${res.status} ${text}`,
+      );
+    }
+
+    const body = (await res.json()) as
+      | HivePrefabAgentTemplate[]
+      | HivePrefabAgentTemplatesResponse;
+    return Array.isArray(body) ? body : (body.templates ?? []);
   }
 
   async registerAgent(params: {

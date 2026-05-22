@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
+import { TASK_ENTRY_PATH } from "@/stores";
 import type { TaskRun, TaskRunStatus } from "@/types/task";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({
@@ -45,14 +46,14 @@ const TASK_COLUMNS: TaskColumnConfig[] = [
   },
   {
     key: "completed",
-    title: "执行完毕",
-    statuses: ["completed"],
+    title: "已结束",
+    statuses: ["completed", "failed", "stopped", "timeout"],
     dotClass: "border-sky-600 text-sky-600",
   },
   {
     key: "archived",
     title: "归档",
-    statuses: ["failed", "stopped", "timeout"],
+    statuses: [],
     dotClass: "border-muted-foreground text-muted-foreground",
   },
 ];
@@ -64,7 +65,6 @@ const TASK_COLUMN_BY_STATUS = new Map<TaskRunStatus, TaskColumnKey>(
 );
 
 const TASK_BOARD_MAX_VISIBLE_PER_COLUMN = 50;
-const TASK_NEW_TASK_PATH = "/tasks/new-task";
 const INITIAL_VISIBLE_COUNTS: Record<TaskColumnKey, number> = {
   pending: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
   running: TASK_BOARD_MAX_VISIBLE_PER_COLUMN,
@@ -124,7 +124,7 @@ function TasksPage() {
   };
 
   const openNewTask = () => {
-    void navigate({ to: TASK_NEW_TASK_PATH });
+    void navigate({ to: TASK_ENTRY_PATH });
   };
 
   const loadMoreTasks = (columnKey: TaskColumnKey) => {

@@ -48,35 +48,51 @@ export const StreamingMessageParts = memo(function StreamingMessageParts({
     );
   }
 
+  const hasTextContent =
+    stream.content.length > 0 ||
+    stream.parts.some(
+      (part) => part.type === "content" && part.content.length > 0,
+    );
+
   if (stream.parts.length === 0) {
     return (
       <>
         <StreamingThinkingRow stream={stream} />
-        <StreamingMessageItem stream={stream} members={members} />
+        {stream.content.trim().length > 0 && (
+          <StreamingMessageItem stream={stream} members={members} />
+        )}
       </>
     );
   }
 
   return (
     <>
-      {stream.parts.map((part) =>
-        part.type === "thinking" ? (
-          <StreamingThinkingRow
-            key={part.id}
-            stream={stream}
-            thinking={part.content}
-            startedAt={part.startedAt}
-            isLive={part.isStreaming}
-            durationMs={part.durationMs}
-          />
-        ) : (
+      {stream.parts.map((part) => {
+        if (part.type === "thinking") {
+          if (!part.isStreaming && !hasTextContent) {
+            return null;
+          }
+
+          return (
+            <StreamingThinkingRow
+              key={part.id}
+              stream={stream}
+              thinking={part.content}
+              startedAt={part.startedAt}
+              isLive={part.isStreaming}
+              durationMs={part.durationMs}
+            />
+          );
+        }
+
+        return (
           <StreamingMessageItem
             key={part.id}
             stream={streamForContentPart(stream, part)}
             members={members}
           />
-        ),
-      )}
+        );
+      })}
     </>
   );
 });

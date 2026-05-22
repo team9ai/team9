@@ -44,6 +44,31 @@ function normalizeSelections(
   return result;
 }
 
+function normalizeAhandJobMonitor(
+  value: unknown,
+): AgentEventMetadata["jobMonitor"] | undefined {
+  if (!isRecord(value)) return undefined;
+  if (
+    value.provider !== "ahand" ||
+    typeof value.hubJobId !== "string" ||
+    typeof value.deviceId !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    provider: "ahand",
+    hubJobId: value.hubJobId,
+    deviceId: value.deviceId,
+    ...(typeof value.team9JobId === "string"
+      ? { team9JobId: value.team9JobId }
+      : {}),
+    ...(typeof value.backend === "string" ? { backend: value.backend } : {}),
+    ...(typeof value.commandPreview === "string"
+      ? { commandPreview: value.commandPreview }
+      : {}),
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -120,6 +145,8 @@ export function getOptionalAgentEventMetadata(
     return undefined;
   }
 
+  const jobMonitor = normalizeAhandJobMonitor(value.jobMonitor);
+
   return {
     agentEventType,
     status,
@@ -139,6 +166,7 @@ export function getOptionalAgentEventMetadata(
     ...(value.toolPhase === "args_streaming" || value.toolPhase === "executing"
       ? { toolPhase: value.toolPhase }
       : {}),
+    ...(jobMonitor ? { jobMonitor } : {}),
     ...(typeof value.success === "boolean" ? { success: value.success } : {}),
     ...(typeof value.errorCode === "string"
       ? { errorCode: value.errorCode }

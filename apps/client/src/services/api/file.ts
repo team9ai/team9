@@ -1,4 +1,4 @@
-import http, { API_BASE_URL } from "../http";
+import http, { API_BASE_URL, type HttpRequestConfig } from "../http";
 
 export type FileVisibility = "private" | "channel" | "workspace" | "public";
 
@@ -59,10 +59,12 @@ export const fileApi = {
    */
   createPresignedUpload: async (
     dto: CreatePresignedUploadDto,
+    config?: HttpRequestConfig,
   ): Promise<PresignedUploadCredentials> => {
     const response = await http.post<PresignedUploadCredentials>(
       "/v1/files/presign",
       dto,
+      config,
     );
     return response.data;
   },
@@ -73,10 +75,12 @@ export const fileApi = {
    */
   confirmUpload: async (
     dto: ConfirmUploadDto,
+    config?: HttpRequestConfig,
   ): Promise<ConfirmUploadResult> => {
     const response = await http.post<ConfirmUploadResult>(
       "/v1/files/confirm",
       dto,
+      config,
     );
     return response.data;
   },
@@ -153,9 +157,45 @@ export const fileApi = {
     file: File,
     fields: Record<string, string>,
     onProgress?: (progress: number) => void,
+    signal?: AbortSignal,
   ): Promise<void> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      let settled = false;
+
+      const createAbortError = () => {
+        const error = new Error("Upload cancelled");
+        error.name = "AbortError";
+        return error;
+      };
+
+      function handleSignalAbort() {
+        xhr.abort();
+        rejectOnce(createAbortError());
+      }
+
+      const cleanup = () => {
+        signal?.removeEventListener("abort", handleSignalAbort);
+      };
+
+      const rejectOnce = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      const resolveOnce = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+
+      if (signal?.aborted) {
+        rejectOnce(createAbortError());
+        return;
+      }
 
       // Build FormData with presigned fields
       const formData = new FormData();
@@ -175,20 +215,21 @@ export const fileApi = {
       xhr.addEventListener("load", () => {
         // S3 POST returns 204 on success
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
+          resolveOnce();
         } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
+          rejectOnce(new Error(`Upload failed with status ${xhr.status}`));
         }
       });
 
       xhr.addEventListener("error", () => {
-        reject(new Error("Upload failed"));
+        rejectOnce(new Error("Upload failed"));
       });
 
       xhr.addEventListener("abort", () => {
-        reject(new Error("Upload aborted"));
+        rejectOnce(createAbortError());
       });
 
+      signal?.addEventListener("abort", handleSignalAbort, { once: true });
       xhr.open("POST", presignedUrl);
       // Don't set Content-Type header - browser will set it with boundary for FormData
       xhr.send(formData);

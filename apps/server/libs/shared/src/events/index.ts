@@ -99,6 +99,8 @@ import type {
   RoutineStatusChangedEvent,
   RoutineExecutionCreatedEvent,
   RoutineUpdatedEvent,
+  // Task
+  TaskUpdatedEvent,
   // Streaming (AI bot)
   StreamingStartEvent,
   StreamingContentEvent,
@@ -216,6 +218,8 @@ export interface ServerToClientEvents {
   'routine:status_changed': RoutineStatusChangedEvent;
   'routine:execution_created': RoutineExecutionCreatedEvent;
   'routine:updated': RoutineUpdatedEvent;
+  // Task
+  task_updated: TaskUpdatedEvent;
   // Streaming (server -> client broadcast)
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;

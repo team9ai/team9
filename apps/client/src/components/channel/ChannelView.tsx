@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import { Loader2, File, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
@@ -243,6 +250,10 @@ interface ChannelViewProps {
   hideHeader?: boolean;
   // Show a read-only bar instead of the message input
   readOnly?: boolean;
+  readOnlyAction?: ReactNode;
+  // Optional external control for the agent session side panel when the built-in header is hidden
+  isAgentSessionPanelOpen?: boolean;
+  onAgentSessionPanelOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -259,6 +270,9 @@ export function ChannelView({
   previewChannel,
   hideHeader,
   readOnly,
+  readOnlyAction,
+  isAgentSessionPanelOpen: controlledAgentSessionPanelOpen,
+  onAgentSessionPanelOpenChange,
 }: ChannelViewProps) {
   const { t } = useTranslation("channel");
   const isPreviewMode = !!previewChannel;
@@ -415,8 +429,29 @@ export function ChannelView({
   const [isSnapped, setIsSnapped] = useState(false);
   const [threadPanelWidth, setThreadPanelWidth] = useState(600);
   const [agentPanelWidth, setAgentPanelWidth] = useState(360);
+  const [internalAgentSessionPanelOpen, setInternalAgentSessionPanelOpen] =
+    useState(false);
+  const isAgentSessionPanelControlled =
+    controlledAgentSessionPanelOpen !== undefined;
+  const isAgentSessionPanelOpen =
+    controlledAgentSessionPanelOpen ?? internalAgentSessionPanelOpen;
+  const setAgentSessionPanelOpen = useCallback(
+    (next: boolean | ((open: boolean) => boolean)) => {
+      const resolved =
+        typeof next === "function" ? next(isAgentSessionPanelOpen) : next;
+
+      if (!isAgentSessionPanelControlled) {
+        setInternalAgentSessionPanelOpen(resolved);
+      }
+      onAgentSessionPanelOpenChange?.(resolved);
+    },
+    [
+      isAgentSessionPanelControlled,
+      isAgentSessionPanelOpen,
+      onAgentSessionPanelOpenChange,
+    ],
+  );
   const [deepResearchPanelWidth, setDeepResearchPanelWidth] = useState(600);
-  const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
   const [deepResearchPanelTask, setDeepResearchPanelTask] =
     useState<DeepResearchTaskMeta | null>(null);
   const knownDeepResearchChildChannelIdsRef = useRef<Set<string>>(new Set());
@@ -425,11 +460,15 @@ export function ChannelView({
   threadPanelWidthRef.current = threadPanelWidth;
 
   useEffect(() => {
-    setIsAgentSessionPanelOpen(false);
+    if (isAgentSessionPanelControlled) {
+      onAgentSessionPanelOpenChange?.(false);
+    } else {
+      setInternalAgentSessionPanelOpen(false);
+    }
     setDeepResearchPanelTask(null);
     knownDeepResearchChildChannelIdsRef.current = new Set();
     hasInitializedDeepResearchTasksRef.current = false;
-  }, [channelId]);
+  }, [channelId, isAgentSessionPanelControlled, onAgentSessionPanelOpenChange]);
 
   const isAgentSessionCandidate =
     !isPreviewMode &&
@@ -447,6 +486,8 @@ export function ChannelView({
     (agentSession.data.supported ||
       (!!agentSession.data.unsupportedReason &&
         agentSession.data.unsupportedReason !== "no_bot"));
+  const hasResolvedAgentSessionPanelEligibility =
+    !!agentSession.data || agentSession.isFetched || agentSession.isError;
   const isAgentSessionPanelVisible =
     shouldShowAgentSessionPanel && isAgentSessionPanelOpen;
   const agentComponents = useAgentSessionComponents(
@@ -463,10 +504,19 @@ export function ChannelView({
     agentPanelCount + deepResearchPanelCount + openThreadPanelCount;
 
   useEffect(() => {
-    if (!shouldShowAgentSessionPanel) {
-      setIsAgentSessionPanelOpen(false);
+    if (
+      hasResolvedAgentSessionPanelEligibility &&
+      !shouldShowAgentSessionPanel &&
+      isAgentSessionPanelOpen
+    ) {
+      setAgentSessionPanelOpen(false);
     }
-  }, [shouldShowAgentSessionPanel]);
+  }, [
+    hasResolvedAgentSessionPanelEligibility,
+    isAgentSessionPanelOpen,
+    setAgentSessionPanelOpen,
+    shouldShowAgentSessionPanel,
+  ]);
 
   // Bot response indicator state (local)
   const [thinkingStatuses, setThinkingStatuses] = useState<BotThinkingStatus[]>(
@@ -844,7 +894,7 @@ export function ChannelView({
             showAgentSessionToggle={shouldShowAgentSessionPanel}
             isAgentSessionPanelOpen={isAgentSessionPanelVisible}
             onToggleAgentSessionPanel={() =>
-              setIsAgentSessionPanelOpen((open) => !open)
+              setAgentSessionPanelOpen((open) => !open)
             }
           />
         )}
@@ -939,6 +989,7 @@ export function ChannelView({
             onAtBottomChange={setIsMessageListAtBottom}
             showReadOnlyBar={showComposerReadOnlyBar}
             readOnlyLabel={readOnlyLabel}
+            readOnlyAction={readOnlyAction}
             onSend={showComposerReadOnlyBar ? undefined : handleSendMessage}
             isSendDisabled={showOverlay}
             initialDraft={initialDraft}

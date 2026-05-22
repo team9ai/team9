@@ -125,6 +125,19 @@ describe('ApplicationsService', () => {
       expect(autoApps.some((app) => app.id === 'common-staff')).toBe(true);
     });
 
+    it('auto-installs the managed Agent Hub app', () => {
+      expect(service.findById('agent-hub')).toMatchObject({
+        id: 'agent-hub',
+        name: 'Agent Hub',
+        type: 'managed',
+        singleton: true,
+        autoInstall: true,
+      });
+      expect(service.findAutoInstall().map((app) => app.id)).toContain(
+        'agent-hub',
+      );
+    });
+
     it('should include personal-staff', () => {
       const autoApps = service.findAutoInstall();
 

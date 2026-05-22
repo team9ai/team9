@@ -1,5 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockNavigate = vi.hoisted(() => vi.fn());
+const routeState = vi.hoisted(() => ({
+  pathname: "/tasks/new-conversation",
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -24,8 +29,8 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  useLocation: () => ({ pathname: "/tasks" }),
-  useNavigate: () => vi.fn(),
+  useLocation: () => routeState,
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock("@/hooks/useNotifications", () => ({
@@ -61,6 +66,12 @@ vi.mock("@/components/ui/button", () => ({
 import { navigationItems, NavigationRail } from "../NavigationRail";
 
 describe("NavigationRail task entry", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+    routeState.pathname = "/tasks/new-conversation";
+    localStorage.clear();
+  });
+
   it("shows Workspace in the default rail and hides DMs before unlock", () => {
     expect(
       navigationItems.find((item) => item.id === "workspace")?.labelKey,
@@ -68,9 +79,7 @@ describe("NavigationRail task entry", () => {
     expect(
       navigationItems.find((item) => item.id === "routines")?.labelKey,
     ).toBe("routines");
-    expect(navigationItems.find((item) => item.id === "tasks")?.labelKey).toBe(
-      "tasks",
-    );
+    expect(navigationItems.find((item) => item.id === "tasks")).toBeUndefined();
 
     render(<NavigationRail />);
 
@@ -83,12 +92,28 @@ describe("NavigationRail task entry", () => {
       "Workspace",
       "Activity",
       "Staff",
-      "Tasks",
-      "Routines",
       "Skills",
       "Apps",
       "More",
     ]);
     expect(screen.queryByTitle("DMs")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Routines")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Tasks")).not.toBeInTheDocument();
+  });
+
+  it("highlights Home on the task new conversation route", () => {
+    render(<NavigationRail />);
+
+    expect(screen.getByTitle("Home")).toHaveClass("bg-nav-active");
+  });
+
+  it("uses the task new conversation view as the Home destination", () => {
+    render(<NavigationRail />);
+
+    fireEvent.click(screen.getByTitle("Home"));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/tasks/new-conversation",
+    });
   });
 });

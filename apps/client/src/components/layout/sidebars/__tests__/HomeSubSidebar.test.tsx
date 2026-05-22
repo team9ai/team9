@@ -3,9 +3,9 @@ import { render, screen } from "@testing-library/react";
 
 import { HomeSubSidebar } from "../HomeSubSidebar";
 
-// HomeSubSidebar now renders bot DMs under the "AI Agents" grouping (see
-// AgentGroupList) and filters bots out of the flat DM list, so this fixture
-// uses a human user to exercise the DM avatar rendering path.
+// HomeSubSidebar filters bots out of the flat DM list (AI agents are surfaced
+// in the Home tab sidebar instead), so this fixture uses a human user to
+// exercise the DM avatar rendering path.
 const mockDirectChannels = vi.hoisted(() => [
   {
     id: "dm-alex",
@@ -67,29 +67,6 @@ vi.mock("@/hooks/useChannels", () => ({
     isLoading: false,
   }),
   useSetSidebarVisibility: () => ({
-    mutate: vi.fn(),
-    mutateAsync: vi.fn().mockResolvedValue(undefined),
-    isPending: false,
-  }),
-}));
-
-// Stub the agent-groups hook so the component does not pull in react-query's
-// useQuery chain (useCurrentUser / useDashboardAgents). No QueryClientProvider
-// is wrapped around this render.
-vi.mock("@/hooks/useAgentGroupsForSidebar", () => ({
-  useAgentGroupsForSidebar: () => ({
-    groups: [],
-    isLoading: false,
-  }),
-}));
-
-vi.mock("@/hooks/useTopicSessions", () => ({
-  useRenameTopicSession: () => ({
-    mutate: vi.fn(),
-    mutateAsync: vi.fn().mockResolvedValue(undefined),
-    isPending: false,
-  }),
-  useDeleteTopicSession: () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn().mockResolvedValue(undefined),
     isPending: false,

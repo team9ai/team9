@@ -39,6 +39,7 @@ import { useChannelScrollStore } from "./useChannelScrollState";
 import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage } from "@/lib/http-error";
 import { getOptionalAgentEventMetadata } from "@/lib/agent-event-metadata";
+import { getAgentMeta } from "@/lib/agent-events";
 
 // --- Temp message coordination ---
 // Coordinates between HTTP onSuccess and WebSocket handleNewMessage
@@ -200,6 +201,26 @@ function shouldNotifyForMainListMessage(message: Message): boolean {
   return !agentEventType || agentEventType === "writing";
 }
 
+function closeActiveThinkingOnAgentProgress(message: Message): void {
+  if (!message.senderId) return;
+
+  const meta = getAgentMeta(message);
+  if (!meta) return;
+
+  const shouldCloseThinking =
+    (meta.agentEventType === "thinking" && meta.status !== "running") ||
+    (meta.agentEventType !== "thinking" &&
+      meta.agentEventType !== "agent_start" &&
+      meta.agentEventType !== "turn_separator");
+
+  if (!shouldCloseThinking) return;
+
+  useStreamingStore.getState().closeThinkingForSender({
+    channelId: message.channelId,
+    senderId: message.senderId,
+  });
+}
+
 /**
  * Hook to fetch messages for a channel with infinite scroll
  */
@@ -233,6 +254,7 @@ export function useMessages(channelId: string | undefined) {
 
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
+      closeActiveThinkingOnAgentProgress(message);
 
       // If message is a reply (has parentId), don't add to main message list
       // Instead, handle thread updates via state machine
@@ -940,6 +962,7 @@ export function useChannelMessages(
 
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
+      closeActiveThinkingOnAgentProgress(message);
 
       // Thread replies - delegate to thread handling
       if (message.parentId) {

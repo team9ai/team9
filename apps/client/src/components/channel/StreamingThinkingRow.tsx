@@ -51,8 +51,11 @@ export const StreamingThinkingRow = memo(function StreamingThinkingRow({
 }: StreamingThinkingRowProps) {
   const thinkingContent = thinking ?? stream.thinking;
   const thinkingStartedAt = startedAt ?? stream.startedAt;
-  const hasContent = isLive === undefined ? stream.content.length > 0 : !isLive;
   const hasThinking = thinkingContent.length > 0;
+  const hasContent =
+    isLive === undefined
+      ? stream.content.length > 0 || (hasThinking && !stream.isThinking)
+      : !isLive;
 
   // Freeze the elapsed duration at the exact moment reply text first
   // arrives, instead of recomputing `Date.now() - startedAt` on every

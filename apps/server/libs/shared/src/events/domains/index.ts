@@ -34,6 +34,9 @@ export * from './notification.events.js';
 // Routine events
 export * from './routine.events.js';
 
+// Task events
+export * from './task.events.js';
+
 // Streaming events (AI bot)
 export * from './streaming.events.js';
 
