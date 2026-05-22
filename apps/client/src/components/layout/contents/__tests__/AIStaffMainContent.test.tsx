@@ -8,6 +8,8 @@ const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseCurrentUser = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceMembers = vi.hoisted(() => vi.fn());
 const mockCreateDMMutateAsync = vi.hoisted(() => vi.fn());
+const mockUseRecommendedStaff = vi.hoisted(() => vi.fn());
+const mockInstallRecommendedStaffMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -70,6 +72,14 @@ vi.mock("@/hooks/useWorkspace", () => ({
   useWorkspaceMembers: () => mockUseWorkspaceMembers(),
 }));
 
+vi.mock("@/hooks/useAgentHub", () => ({
+  useRecommendedStaff: () => mockUseRecommendedStaff(),
+  useInstallRecommendedStaff: () => ({
+    mutateAsync: mockInstallRecommendedStaffMutateAsync,
+    isPending: false,
+  }),
+}));
+
 import { AIStaffMainContent } from "../AIStaffMainContent";
 
 describe("AIStaffMainContent", () => {
@@ -80,6 +90,17 @@ describe("AIStaffMainContent", () => {
     mockUseWorkspaceMembers.mockReturnValue({
       data: { pages: [{ members: [] }] },
       isLoading: false,
+    });
+    mockUseRecommendedStaff.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    });
+    mockInstallRecommendedStaffMutateAsync.mockResolvedValue({
+      botId: "recommended-bot-1",
+      userId: "recommended-user-1",
+      agentId: "common-staff-recommended-bot-1",
+      displayName: "Sales Analyst",
     });
   });
 
@@ -143,6 +164,134 @@ describe("AIStaffMainContent", () => {
     expect(screen.getByText("My Personal Staff")).toBeInTheDocument();
     expect(screen.getByText("AI Staff")).toBeInTheDocument();
     expect(screen.getByText("Members")).toBeInTheDocument();
+  });
+
+  it("renders recommended staff cards", () => {
+    mockUseQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    });
+    mockUseRecommendedStaff.mockReturnValue({
+      data: [
+        {
+          templateId: "sales-analyst",
+          name: "Sales Analyst",
+          description: "Analyzes pipeline health",
+          displayName: "Sales Analyst",
+          roleTitle: "Sales Operations Analyst",
+          shortRoleTitle: "Sales Ops",
+          persona: null,
+          jobDescription: "Keeps the sales forecast accurate.",
+          avatarUrl: null,
+          model: {
+            provider: "openrouter",
+            id: "anthropic/claude-sonnet-4.6",
+          },
+          unique: true,
+          installed: false,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<AIStaffMainContent />);
+
+    expect(screen.getByText("Recommended Staff")).toBeInTheDocument();
+    expect(screen.getByText("Sales Analyst")).toBeInTheDocument();
+    expect(screen.getByText("Sales Operations Analyst")).toBeInTheDocument();
+    expect(screen.getByText("Analyzes pipeline health")).toBeInTheDocument();
+  });
+
+  it("installs recommended staff and navigates to the created bot", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    });
+    mockUseRecommendedStaff.mockReturnValue({
+      data: [
+        {
+          templateId: "sales-analyst",
+          name: "Sales Analyst",
+          description: null,
+          displayName: "Sales Analyst",
+          roleTitle: "Sales Operations Analyst",
+          shortRoleTitle: "Sales Ops",
+          persona: null,
+          jobDescription: null,
+          avatarUrl: null,
+          model: {
+            provider: "openrouter",
+            id: "anthropic/claude-sonnet-4.6",
+          },
+          unique: true,
+          installed: false,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+    mockInstallRecommendedStaffMutateAsync.mockResolvedValue({
+      botId: "created-bot-1",
+      userId: "created-user-1",
+      agentId: "common-staff-created-bot-1",
+      displayName: "Sales Analyst",
+    });
+
+    render(<AIStaffMainContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    await waitFor(() => {
+      expect(mockInstallRecommendedStaffMutateAsync).toHaveBeenCalledWith({
+        templateId: "sales-analyst",
+      });
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/ai-staff/$staffId",
+        params: { staffId: "created-bot-1" },
+      });
+    });
+  });
+
+  it("disables install for unique templates that are already installed", () => {
+    mockUseQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    });
+    mockUseRecommendedStaff.mockReturnValue({
+      data: [
+        {
+          templateId: "sales-analyst",
+          name: "Sales Analyst",
+          description: null,
+          displayName: "Sales Analyst",
+          roleTitle: "Sales Operations Analyst",
+          shortRoleTitle: "Sales Ops",
+          persona: null,
+          jobDescription: null,
+          avatarUrl: null,
+          model: {
+            provider: "openrouter",
+            id: "anthropic/claude-sonnet-4.6",
+          },
+          unique: true,
+          installed: true,
+          installedBotId: "existing-bot-1",
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<AIStaffMainContent />);
+
+    expect(screen.getByText("Installed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Installed" })).toBeDisabled();
   });
 
   it('shows header as "Staff" not "AI Staff"', () => {

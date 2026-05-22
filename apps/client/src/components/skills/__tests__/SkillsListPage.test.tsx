@@ -4,13 +4,17 @@ import { SkillsListPage } from "../SkillsListPage";
 import type { Skill } from "@/types/skill";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockFolderEditor = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
 vi.mock("@/components/folder9-editor/Folder9FolderEditor", () => ({
-  Folder9FolderEditor: () => <div data-testid="folder-editor" />,
+  Folder9FolderEditor: (props: Record<string, unknown>) => {
+    mockFolderEditor(props);
+    return <div data-testid="folder-editor" />;
+  },
 }));
 
 vi.mock("@/components/skills/CreateSkillDialog", () => ({
@@ -52,6 +56,7 @@ vi.mock("@/stores/useWorkspaceStore", () => ({
 describe("SkillsListPage", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockFolderEditor.mockClear();
   });
 
   it("lets the middle separator resize the skills list width", () => {
@@ -74,5 +79,32 @@ describe("SkillsListPage", () => {
     expect(screen.getByTestId("skills-list-sidebar")).toHaveStyle({
       width: "640px",
     });
+  });
+
+  it("configures the folder editor with the skill default file priority order", () => {
+    render(<SkillsListPage selectedSkillId="skill-1" />);
+
+    expect(mockFolderEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialPathCandidates: [
+          "SKILL.md9",
+          "SKILL.md",
+          "SKILL.txt",
+          "SKILL",
+          "INDEX.md9",
+          "INDEX.md",
+          "INDEX.txt",
+          "INDEX",
+          "README.md9",
+          "README.md",
+          "README.txt",
+          "README",
+        ],
+        missingInitialPathCreate: expect.objectContaining({
+          path: "SKILL.md",
+          content: expect.stringContaining("# 测试"),
+        }),
+      }),
+    );
   });
 });

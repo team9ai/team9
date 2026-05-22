@@ -926,6 +926,39 @@ describe("MessageList — round auto-fold", () => {
       expect(blocks[0].getAttribute("data-tool-call-id")).toBe("tc-stream");
       expect(blocks[0].getAttribute("data-tool-name")).toBe("RunScript");
       expect(blocks[0].getAttribute("data-result-tool-call-id")).toBe("");
+      expect(screen.queryByTestId("streaming-item")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("event-icon")).not.toBeInTheDocument();
+    });
+
+    it("shows only the latest synthetic thinking row for concurrent empty streams", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-old",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [],
+        },
+        {
+          streamId: "stream-new",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 2000,
+          parts: [],
+        },
+      ];
+
+      renderList([], { channelType: "direct" });
+
+      expect(screen.getAllByTestId("event-icon")).toHaveLength(1);
     });
 
     it("renders an active streaming func_call alias as a ToolCallBlock", () => {
@@ -1162,6 +1195,37 @@ describe("MessageList — round auto-fold", () => {
       expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
     });
 
+    it("does not leave a padded blank row for a closed pre-content stream", () => {
+      mockChannelStreams.current = [
+        {
+          streamId: "stream-closed-thinking",
+          channelId: "ch-1",
+          senderId: "bot-1",
+          content: "",
+          thinking: "planning",
+          isThinking: false,
+          isStreaming: true,
+          startedAt: 1000,
+          parts: [
+            {
+              id: "stream-closed-thinking-0",
+              type: "thinking",
+              content: "planning",
+              startedAt: 1000,
+              isStreaming: false,
+              durationMs: 12000,
+            },
+          ],
+        },
+      ];
+
+      const { container } = renderList([], { channelType: "direct" });
+
+      expect(screen.queryByTestId("streaming-item")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("tool-event-frame")).not.toBeInTheDocument();
+      expect(container.querySelector(".py-2")).toBeNull();
+    });
+
     it("suppresses companion writing and bot thinking while deep research is active", () => {
       mockChannelStreams.current = [
         {
@@ -1296,7 +1360,10 @@ describe("MessageList — round auto-fold", () => {
         thinkingBotIds: ["bot-1", "bot-2"],
       });
 
-      expect(screen.getAllByTestId("streaming-item")).toHaveLength(2);
+      expect(screen.getAllByTestId("streaming-item")).toHaveLength(1);
+      expect(
+        screen.getByText("tracking.thinking.thinkingWithDuration"),
+      ).toBeInTheDocument();
       expect(screen.getByTestId("bot-thinking")).toBeInTheDocument();
     });
   });

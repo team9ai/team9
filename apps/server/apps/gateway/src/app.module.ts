@@ -52,6 +52,7 @@ import { BillingHubModule } from './billing-hub/billing-hub.module.js';
 import { AccountModule } from './account/account.module.js';
 import { AhandModule } from './ahand/ahand.module.js';
 import { AgentTempTokenModule } from './agent-temp-token/agent-temp-token.module.js';
+import { AgentHubModule } from './agent-hub/agent-hub.module.js';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { AgentTempTokenModule } from './agent-temp-token/agent-temp-token.module
     WikisModule,
     Folder9Module,
     AgentTempTokenModule,
+    AgentHubModule,
     AhandModule,
   ],
   controllers: [AppController, HealthController],

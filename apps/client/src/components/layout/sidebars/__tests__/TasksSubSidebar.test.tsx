@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useAppStore } from "@/stores";
+import { HOME_ENTRY_PATH, useAppStore } from "@/stores";
 import type { TaskRun } from "@/types/task";
 
 const mockNavigate = vi.fn();
@@ -12,7 +12,7 @@ const mockUpdateTask = vi.fn();
 const mockHideTask = vi.fn();
 const mockArchiveTask = vi.fn();
 const mockDeleteTask = vi.fn();
-let pathname = "/tasks";
+let pathname = HOME_ENTRY_PATH;
 let params: { taskId?: string } = {};
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
@@ -140,7 +140,7 @@ function renderTasksSubSidebar() {
 
 describe("TasksSubSidebar", () => {
   beforeEach(() => {
-    pathname = "/tasks";
+    pathname = HOME_ENTRY_PATH;
     params = {};
     mockNavigate.mockClear();
     mockUpdateTask.mockReset();
@@ -154,30 +154,24 @@ describe("TasksSubSidebar", () => {
     mockArchiveTask.mockResolvedValue({ id: "run-1" });
     mockDeleteTask.mockResolvedValue(undefined);
     useAppStore.getState().reset();
-    useAppStore.getState().setActiveSidebar("tasks");
   });
 
-  it("keeps the task sidebar when starting a new conversation", () => {
+  it("labels the former task sidebar as Home", () => {
+    renderTasksSubSidebar();
+
+    expect(screen.getByText("首页")).toBeInTheDocument();
+  });
+
+  it("keeps the task conversation controls under the home section", () => {
+    useAppStore.getState().setActiveSidebar("tasks");
     renderTasksSubSidebar();
 
     fireEvent.click(screen.getByText("新对话"));
 
-    expect(useAppStore.getState().activeSidebar).toBe("tasks");
+    expect(useAppStore.getState().activeSidebar).toBe("home");
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/tasks/new-conversation",
+      to: HOME_ENTRY_PATH,
     });
-  });
-
-  it("marks the in-task new conversation view as selected", () => {
-    pathname = "/tasks/new-conversation";
-    renderTasksSubSidebar();
-
-    expect(screen.getByText("新对话").closest("button")).toHaveClass(
-      "bg-nav-active",
-    );
-    expect(screen.getByText("任务看板").closest("button")).not.toHaveClass(
-      "bg-nav-active",
-    );
   });
 
   it("opens a task draft page when starting a new task", () => {
@@ -189,6 +183,17 @@ describe("TasksSubSidebar", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/tasks/new-task",
     });
+  });
+
+  it("marks the home conversation entry as selected", () => {
+    renderTasksSubSidebar();
+
+    expect(screen.getByText("新对话").closest("button")).toHaveClass(
+      "bg-nav-active",
+    );
+    expect(screen.getByText("任务看板").closest("button")).not.toHaveClass(
+      "bg-nav-active",
+    );
   });
 
   it("marks the task draft entry as selected", () => {
@@ -204,7 +209,7 @@ describe("TasksSubSidebar", () => {
     );
   });
 
-  it("uses native sidebar scrolling and truncates long task titles", async () => {
+  it("constrains long task titles to the sidebar width before truncating", async () => {
     const longTitle =
       "请你根据下面这个要求给我找youtube平台的 30 个竞品账号并输出完整分析报告";
     mockListTasks.mockResolvedValue([
@@ -251,8 +256,13 @@ describe("TasksSubSidebar", () => {
       }),
       makeTaskRun({
         id: "failed-1",
-        title: "失败已归档不显示",
+        title: "失败任务显示",
         status: "failed",
+      }),
+      makeTaskRun({
+        id: "timeout-1",
+        title: "超时任务显示",
+        status: "timeout",
       }),
       makeTaskRun({
         id: "hidden-1",
@@ -272,9 +282,12 @@ describe("TasksSubSidebar", () => {
 
     expect(await screen.findByText("正在执行的任务")).toBeInTheDocument();
     expect(screen.getByText("待查收结果")).toBeInTheDocument();
+    expect(screen.getByText("失败任务显示")).toBeInTheDocument();
+    expect(screen.getByText("失败")).toBeInTheDocument();
+    expect(screen.getByText("超时任务显示")).toBeInTheDocument();
+    expect(screen.getByText("已超时")).toBeInTheDocument();
     expect(screen.queryByText("待执行不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("草稿不显示")).not.toBeInTheDocument();
-    expect(screen.queryByText("失败已归档不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("隐藏不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("手动归档不显示")).not.toBeInTheDocument();
   });

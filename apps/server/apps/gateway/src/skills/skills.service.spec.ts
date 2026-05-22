@@ -99,6 +99,14 @@ function createDeleteBuilder(deleteResults: unknown[]) {
   };
 }
 
+function arrayBufferFromText(text: string): ArrayBuffer {
+  const buffer = Buffer.from(text);
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength,
+  );
+}
+
 describe('SkillsService', () => {
   const userId = 'user-1';
   const tenantId = 'tenant-1';
@@ -121,6 +129,7 @@ describe('SkillsService', () => {
     commit: jest.Mock;
     deleteFolder: jest.Mock;
     getTree: jest.Mock;
+    getRaw: jest.Mock;
   };
   let service: InstanceType<typeof SkillsService>;
 
@@ -158,12 +167,13 @@ describe('SkillsService', () => {
       commit: jest.fn(async () => ({ commit: 'commit-1', branch: 'main' })),
       deleteFolder: jest.fn(async () => undefined),
       getTree: jest.fn(async () => []),
+      getRaw: jest.fn(async () => arrayBufferFromText('# Skill Content')),
     };
 
     service = new SkillsService(db as never, folder9Client as never);
   });
 
-  it('creates a light folder skill with a default skill.md', async () => {
+  it('creates a light folder skill with a default SKILL.md', async () => {
     insertPlans.push({
       terminal: 'returning',
       result: [
@@ -215,7 +225,7 @@ describe('SkillsService', () => {
         message: 'Initialize skill',
         files: [
           {
-            path: 'skill.md',
+            path: 'SKILL.md',
             content: expect.stringContaining('# Skill A'),
             action: 'create',
           },
@@ -276,7 +286,7 @@ describe('SkillsService', () => {
         message: 'Initialize skill',
         files: [
           {
-            path: 'skill.md',
+            path: 'SKILL.md',
             content: expect.stringContaining('# Skill A'),
             action: 'create',
           },
@@ -802,6 +812,44 @@ describe('SkillsService', () => {
           permission: 'read',
         }),
       );
+    });
+
+    it('resolves a lowercase skill.md read to uppercase SKILL.md when that is the actual folder path', async () => {
+      selectPlans.push({
+        terminal: 'limit',
+        result: [
+          {
+            id: 'skill-1',
+            name: 'Visible',
+            agentAccess: 'read',
+            folderId: 'folder-1',
+          },
+        ],
+      });
+
+      const text = '# Uppercase Skill Content';
+      const rawContent = arrayBufferFromText(text);
+      folder9Client.createToken.mockResolvedValueOnce({ token: 'read-token' });
+      folder9Client.getTree.mockResolvedValueOnce([
+        { name: 'SKILL.md', path: 'SKILL.md', type: 'file', size: 24 },
+      ]);
+      folder9Client.getRaw.mockResolvedValueOnce(rawContent);
+
+      const result = await service.getFolderBlobForAgent(
+        'skill-1',
+        userId,
+        tenantId,
+        'skill.md',
+      );
+
+      expect(folder9Client.getRaw).toHaveBeenCalledWith(
+        tenantId,
+        'folder-1',
+        'read-token',
+        'SKILL.md',
+      );
+      expect(result.path).toBe('SKILL.md');
+      expect(result.content).toContain('Uppercase Skill Content');
     });
   });
 });

@@ -43,7 +43,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
-import { appActions } from "@/stores";
+import { appActions, HOME_ENTRY_PATH, TASK_ENTRY_PATH } from "@/stores";
 import type { TaskRun, TaskRunStatus } from "@/types/task";
 
 const RENAME_TASK_ERROR_MESSAGE = "保存失败，请稍后重试。";
@@ -55,13 +55,11 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
   paused: "已暂停",
   pending_action: "待处理",
   completed: "查收结果",
-  failed: "已归档",
-  stopped: "已归档",
-  timeout: "已归档",
+  failed: "失败",
+  stopped: "已停止",
+  timeout: "已超时",
 };
 
-const TASK_NEW_CONVERSATION_PATH = "/tasks/new-conversation";
-const TASK_NEW_TASK_PATH = "/tasks/new-task";
 const TASK_SIDEBAR_ACTION_CLASS =
   "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
 
@@ -71,6 +69,9 @@ const TASK_SIDEBAR_VISIBLE_STATUSES = new Set<TaskRunStatus>([
   "paused",
   "pending_action",
   "completed",
+  "failed",
+  "stopped",
+  "timeout",
 ]);
 
 function getTaskGroupLabel(task: TaskRun) {
@@ -84,7 +85,10 @@ function getStatusClass(status: TaskRunStatus) {
   if (status === "pending_action") {
     return "bg-blue-50 text-blue-700";
   }
-  if (status === "failed" || status === "stopped" || status === "timeout") {
+  if (status === "failed" || status === "timeout") {
+    return "bg-red-50 text-red-700";
+  }
+  if (status === "stopped") {
     return "bg-nav-hover text-nav-foreground-faint";
   }
   return "bg-blue-50 text-blue-700";
@@ -107,16 +111,15 @@ function isVisibleSidebarTask(task: TaskRun) {
 
 export function TasksSubSidebar() {
   const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const params = useParams({ strict: false }) as { taskId?: string };
   const [renamingTask, setRenamingTask] = useState<TaskRun | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const selectedTaskId = params.taskId;
-  const isNewConversationSelected =
-    location.pathname === TASK_NEW_CONVERSATION_PATH;
-  const isNewTaskSelected = location.pathname === TASK_NEW_TASK_PATH;
+  const isNewConversationSelected = location.pathname === HOME_ENTRY_PATH;
+  const isNewTaskSelected = location.pathname === TASK_ENTRY_PATH;
   const isTaskBoardSelected =
     location.pathname === "/tasks" || location.pathname === "/tasks/";
 
@@ -179,7 +182,7 @@ export function TasksSubSidebar() {
     onSuccess: async (_result, taskId) => {
       await refreshTaskQueries(taskId);
       if (selectedTaskId === taskId) {
-        void navigate({ to: "/tasks" });
+        void navigate({ to: HOME_ENTRY_PATH });
       }
     },
   });
@@ -251,13 +254,13 @@ export function TasksSubSidebar() {
   }, [visibleTasks]);
 
   const openNewConversation = () => {
-    appActions.setActiveSidebar("tasks");
-    void navigate({ to: TASK_NEW_CONVERSATION_PATH });
+    appActions.setActiveSidebar("home");
+    void navigate({ to: HOME_ENTRY_PATH });
   };
 
   const openNewTask = () => {
-    appActions.setActiveSidebar("tasks");
-    void navigate({ to: TASK_NEW_TASK_PATH });
+    appActions.setActiveSidebar("home");
+    void navigate({ to: TASK_ENTRY_PATH });
   };
 
   return (
@@ -267,7 +270,7 @@ export function TasksSubSidebar() {
     >
       <div className="p-4 pb-2">
         <div className="px-2 py-1.5 text-lg font-semibold text-nav-foreground">
-          任务
+          首页
         </div>
       </div>
 
@@ -337,6 +340,7 @@ export function TasksSubSidebar() {
               </div>
             ))
           )}
+
           {hiddenTaskCount > 0 ? (
             <p className="px-2 py-2 text-xs text-nav-foreground-faint">
               还有 {hiddenTaskCount} 个任务，可在任务看板查看。

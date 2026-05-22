@@ -82,6 +82,15 @@ export class TasksController {
     return this.tasksService.archive(runId, userId, tenantId);
   }
 
+  @Post(':runId/activate')
+  async activate(
+    @Param('runId', ParseUUIDPipe) runId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.activate(runId, userId, tenantId);
+  }
+
   @Delete(':runId')
   async delete(
     @Param('runId', ParseUUIDPipe) runId: string,

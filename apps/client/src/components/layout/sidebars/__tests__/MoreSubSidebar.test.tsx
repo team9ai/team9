@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MoreSubSidebar } from "../MoreSubSidebar";
 
@@ -10,20 +10,22 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 describe("MoreSubSidebar", () => {
-  it("shows implemented entries including Tasks", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
+
+  it("does not expose the retired Tasks entry", () => {
     render(<MoreSubSidebar />);
 
     expect(screen.getByText(/^Settings$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Tasks$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Tasks$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Help$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^About$/i)).not.toBeInTheDocument();
   });
 
-  it("navigates to Tasks from the More sidebar", () => {
+  it("does not navigate from the static Settings row", () => {
     render(<MoreSubSidebar />);
 
-    fireEvent.click(screen.getByText(/^Tasks$/i));
-
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/tasks" });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

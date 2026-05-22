@@ -737,6 +737,39 @@ describe("useWebSocketEvents", () => {
     expect(cached[0].recentSessions[0].title).toBe("AI总结标题");
   });
 
+  it("patches task list and detail caches immediately when task title updates", () => {
+    queryCache.set(JSON.stringify(["tasks"]), [
+      {
+        id: "task-1",
+        title: "请根据下面这个要求给我找youtube达人",
+        status: "in_progress",
+      },
+    ]);
+    queryCache.set(JSON.stringify(["task", "task-1"]), {
+      id: "task-1",
+      title: "请根据下面这个要求给我找youtube达人",
+      status: "in_progress",
+      deliverables: [],
+    });
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("task_updated")?.[0];
+    expect(callback).toBeDefined();
+
+    callback?.({ taskId: "task-1", title: "寻找YouTube达人" });
+
+    const tasks = queryCache.get(JSON.stringify(["tasks"])) as Array<{
+      title: string;
+    }>;
+    const detail = queryCache.get(JSON.stringify(["task", "task-1"])) as {
+      title: string;
+    };
+
+    expect(tasks[0].title).toBe("寻找YouTube达人");
+    expect(detail.title).toBe("寻找YouTube达人");
+  });
+
   // ==================== Routine Updated ====================
 
   describe("routine:updated handler", () => {

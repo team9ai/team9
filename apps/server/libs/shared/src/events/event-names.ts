@@ -226,6 +226,15 @@ export const WS_EVENTS = {
     UPDATED: 'routine:updated',
   },
 
+  // ==================== Task Events ====================
+  /**
+   * Task run metadata events.
+   */
+  TASK: {
+    /** Task run metadata changed - broadcast by server */
+    UPDATED: 'task_updated',
+  },
+
   // ==================== Tracking Channel ====================
   /**
    * Tracking channel lifecycle events
@@ -345,6 +354,7 @@ export type WsEventName =
   | (typeof WS_EVENTS.SESSION)[keyof typeof WS_EVENTS.SESSION]
   | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC]
   | (typeof WS_EVENTS.ROUTINE)[keyof typeof WS_EVENTS.ROUTINE]
+  | (typeof WS_EVENTS.TASK)[keyof typeof WS_EVENTS.TASK]
   | (typeof WS_EVENTS.TRACKING)[keyof typeof WS_EVENTS.TRACKING]
   | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING]
   | (typeof WS_EVENTS.AGENT_TIMELINE)[keyof typeof WS_EVENTS.AGENT_TIMELINE]

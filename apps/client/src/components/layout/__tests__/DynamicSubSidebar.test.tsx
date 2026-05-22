@@ -64,8 +64,8 @@ describe("DynamicSubSidebar", () => {
     );
   });
 
-  it("uses the tasks secondary sidebar on task routes", () => {
-    pathname = "/tasks/task-1";
+  it("keeps the home task sidebar on task routes", () => {
+    pathname = "/tasks/new-conversation";
 
     render(<DynamicSubSidebar />);
 

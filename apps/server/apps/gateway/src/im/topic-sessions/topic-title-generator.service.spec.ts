@@ -26,7 +26,7 @@ function mockDb() {
 
 describe('TopicTitleGeneratorService', () => {
   let db: ReturnType<typeof mockDb>;
-  let hub: { request: MockFn; serviceHeaders: MockFn };
+  let titleGenerator: { generate: MockFn };
   let channels: { updateTopicSessionTitle: MockFn };
   let ws: { sendToUser: MockFn };
   let eventEmitter: { emit: MockFn };
@@ -34,16 +34,8 @@ describe('TopicTitleGeneratorService', () => {
 
   beforeEach(() => {
     db = mockDb();
-    hub = {
-      request: jest.fn<any>().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: 'AI总结标题' } }],
-        }),
-      }),
-      serviceHeaders: jest.fn<any>().mockReturnValue({
-        authorization: 'Bearer test',
-      }),
+    titleGenerator = {
+      generate: jest.fn<any>().mockResolvedValue('AI总结标题'),
     };
     channels = {
       updateTopicSessionTitle: jest.fn<any>().mockResolvedValue({
@@ -56,7 +48,7 @@ describe('TopicTitleGeneratorService', () => {
     eventEmitter = { emit: jest.fn<any>() };
     service = new TopicTitleGeneratorService(
       db as any,
-      hub as any,
+      titleGenerator as any,
       channels as any,
       ws as any,
       eventEmitter as any,
@@ -106,6 +98,10 @@ describe('TopicTitleGeneratorService', () => {
         titleSource: 'generated',
       },
     );
+    expect(titleGenerator.generate).toHaveBeenCalledWith('用户第一句话', {
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+    });
     expect(ws.sendToUser).toHaveBeenCalledWith(
       'user-1',
       'topic_session_updated',

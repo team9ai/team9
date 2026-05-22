@@ -52,10 +52,19 @@ export interface TaskRunDetail extends TaskRun {
   deliverables: TaskDeliverable[];
 }
 
+export type TaskRunTriggerMode = "immediate" | "scheduled" | "create_only";
+
 export interface CreateTaskRunDto {
   title: string;
   description?: string;
   botId?: string;
+  executeImmediately?: boolean;
+  triggerMode?: TaskRunTriggerMode;
+  scheduledAt?: string;
+}
+
+export interface UpdateTaskRunDto {
+  title?: string;
 }
 
 export interface UpdateTaskRunDto {

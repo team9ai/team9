@@ -48,7 +48,11 @@
     "fileCount": "{{count}} files",
     "rename": "Rename",
     "selectFile": "Select a file to view",
-    "review": "Review"
+    "review": "Review",
+    "skillMdMissingTitle": "SKILL.md is missing",
+    "skillMdMissingDescription": "Create the skill entry file to start editing this skill.",
+    "createSkillMd": "Create SKILL.md",
+    "creatingSkillMd": "Creating SKILL.md..."
   },
   "type": {
     "claude_code_skill": "Claude Code Skill",
