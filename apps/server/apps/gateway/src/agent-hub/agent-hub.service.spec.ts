@@ -1,4 +1,9 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import {
   jest,
   describe,
@@ -447,5 +452,304 @@ describe('AgentHubService catalog', () => {
       installed: false,
     });
     expect(result[0]).not.toHaveProperty('installedBotId');
+  });
+
+  it('installs a unique recommended staff template without mentor by default', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+      applicationId: 'common-staff',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    const result = await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    expect(result).toEqual({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blueprintId: 'team9-common-staff',
+        ownerId: 'installer-1',
+        tenantId: 'tenant-1',
+        installedApplicationId: 'common-app-1',
+        mentorId: null,
+        managedMeta: { prefabTemplateId: 'sales-analyst' },
+        botExtra: expect.objectContaining({
+          commonStaff: expect.objectContaining({
+            roleTitle: 'Sales Operations Analyst',
+            shortRoleTitle: 'Sales Ops',
+            prefabTemplateId: 'sales-analyst',
+          }),
+        }),
+      }),
+    );
+    expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate installs for unique templates', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    botService.getBotsByInstalledApplicationId.mockResolvedValue([
+      {
+        botId: 'bot-existing',
+        isActive: true,
+        managedMeta: { prefabTemplateId: 'sales-analyst' },
+        extra: {},
+      },
+    ]);
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'sales-analyst',
+        {},
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('generates short role title when the template does not provide one', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({
+        metadata: {
+          team9: {
+            displayName: 'Support Specialist',
+            roleTitle: 'Customer Support Specialist',
+            unique: false,
+          },
+        },
+      }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.generateShortRoleTitle.mockResolvedValue('Support');
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-2',
+      userId: 'bot-user-2',
+      agentId: 'common-staff-bot-2',
+      displayName: 'Support Specialist',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    expect(staffService.generateShortRoleTitle).toHaveBeenCalledWith({
+      tenantId: 'tenant-1',
+      installedApplicationId: 'common-app-1',
+      roleTitle: 'Customer Support Specialist',
+    });
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        botExtra: expect.objectContaining({
+          commonStaff: expect.objectContaining({ shortRoleTitle: 'Support' }),
+        }),
+      }),
+    );
+  });
+
+  it('validates mentor only when mentorId is provided and creates mentor DM', async () => {
+    const query = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([{ userId: 'mentor-1' }]),
+    };
+    db.select.mockReturnValue(query);
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      { mentorId: 'mentor-1' },
+    );
+
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ mentorId: 'mentor-1' }),
+    );
+    expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
+      'bot-user-1',
+      'mentor-1',
+      'tenant-1',
+    );
+  });
+
+  it('throws not found when the recommended staff template id is missing', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'missing-template',
+        {},
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('auto-installs Common Staff when missing and then retries lookup', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'common-app-1' });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    expect(installedApplications.ensureAutoInstallApps).toHaveBeenCalledWith(
+      'tenant-1',
+      'installer-1',
+    );
+    expect(installedApplications.findByApplicationId).toHaveBeenCalledTimes(2);
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ installedApplicationId: 'common-app-1' }),
+    );
+  });
+
+  it('rejects invalid mentorId and does not create staff', async () => {
+    const query = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([]),
+    };
+    db.select.mockReturnValue(query);
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    await expect(
+      service.installRecommendedStaff(
+        'tenant-1',
+        'installer-1',
+        'sales-analyst',
+        { mentorId: 'not-a-member' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(staffService.createBotWithAgent).not.toHaveBeenCalled();
+    expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+  });
+
+  it('installs with null short role title when generation fails', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({
+        metadata: {
+          team9: {
+            displayName: 'Support Specialist',
+            roleTitle: 'Customer Support Specialist',
+            unique: false,
+          },
+        },
+      }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.generateShortRoleTitle.mockRejectedValue(
+      new Error('llm down'),
+    );
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-2',
+      userId: 'bot-user-2',
+      agentId: 'common-staff-bot-2',
+      displayName: 'Support Specialist',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        botExtra: expect.objectContaining({
+          commonStaff: expect.objectContaining({ shortRoleTitle: null }),
+        }),
+      }),
+    );
+  });
+
+  it('does not forward non-object template component configs during install', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({
+        componentConfigs: {
+          'system-prompt': { prompt: 'Analyze sales data.' },
+          'bad-string': 'nope',
+          'bad-null': null,
+          'bad-array': [],
+        },
+      }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      {},
+    );
+
+    expect(staffService.createBotWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extraComponentConfigs: expect.objectContaining({
+          'system-prompt': { prompt: 'Analyze sales data.' },
+        }),
+      }),
+    );
+    const [{ extraComponentConfigs }] =
+      staffService.createBotWithAgent.mock.calls[0];
+    expect(extraComponentConfigs).not.toHaveProperty('bad-string');
+    expect(extraComponentConfigs).not.toHaveProperty('bad-null');
+    expect(extraComponentConfigs).not.toHaveProperty('bad-array');
   });
 });
