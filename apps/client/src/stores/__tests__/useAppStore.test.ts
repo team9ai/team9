@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SECTION_PATHS,
+  HOME_ENTRY_PATH,
   SUB_SIDEBAR_WIDTH_DEFAULT,
   SUB_SIDEBAR_WIDTH_MAX,
   SUB_SIDEBAR_WIDTH_MIN,
@@ -32,15 +33,17 @@ describe("useAppStore navigation helpers", () => {
     });
   });
 
-  it("keeps routines and tasks as separate sidebar sections", () => {
+  it("maps the retired task routes into the home section", () => {
+    expect(DEFAULT_SECTION_PATHS.home).toBe(HOME_ENTRY_PATH);
     expect(DEFAULT_SECTION_PATHS.workspace).toBe("/channels");
     expect(DEFAULT_SECTION_PATHS.routines).toBe("/routines");
     expect(DEFAULT_SECTION_PATHS.tasks).toBe("/tasks");
     expect(getSectionFromPath("/channels")).toBe("home");
     expect(getSectionFromPath("/channels/channel-1")).toBe("workspace");
+    expect(getSectionFromPath(HOME_ENTRY_PATH)).toBe("home");
     expect(getSectionFromPath("/routines")).toBe("routines");
-    expect(getSectionFromPath("/tasks")).toBe("tasks");
-    expect(getSectionFromPath("/tasks/task-1")).toBe("tasks");
+    expect(getSectionFromPath("/tasks")).toBe("home");
+    expect(getSectionFromPath("/tasks/task-1")).toBe("home");
   });
 
   it("resets all section paths, including skill detail pages, on workspace entry", () => {

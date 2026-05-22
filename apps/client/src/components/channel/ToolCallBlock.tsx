@@ -20,10 +20,15 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getLabelKey } from "@/config/toolLabels";
+import { useAhandJobStream } from "@/hooks/useAhandJobStream";
 import { useFullContent } from "@/hooks/useMessages";
 import { buildToolDisplayState } from "@/lib/tool-events";
 import Prism from "@/lib/prism";
 import { sanitizeMessageHtml } from "@/lib/sanitize";
+import {
+  useAhandJobTelemetryStore,
+  type AhandJobProgress,
+} from "@/stores/useAhandJobTelemetryStore";
 import { MessageAttachments } from "./MessageAttachments";
 import type {
   CommandExecutionDisplay,
@@ -1235,6 +1240,22 @@ function getElapsedMs(
   return Number.isFinite(elapsedMs) && elapsedMs >= 0 ? elapsedMs : undefined;
 }
 
+function formatAhandJobProgress(
+  progress: AhandJobProgress | undefined,
+): string {
+  if (!progress) return "";
+  const parts: string[] = [];
+  if (
+    typeof progress.percent === "number" &&
+    Number.isFinite(progress.percent)
+  ) {
+    parts.push(`${progress.percent}%`);
+  }
+  if (progress.phase) parts.push(progress.phase);
+  if (progress.message) parts.push(progress.message);
+  return parts.join(" - ");
+}
+
 export function ToolCallBlock({
   callMetadata,
   resultMetadata,
@@ -1244,6 +1265,15 @@ export function ToolCallBlock({
   const { t, i18n } = useTranslation("channel");
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
+  const jobMonitor = callMetadata.jobMonitor ?? resultMetadata?.jobMonitor;
+  useAhandJobStream(
+    jobMonitor?.hubJobId,
+    jobMonitor?.deviceId,
+    jobMonitor?.provider === "ahand",
+  );
+  const liveJob = useAhandJobTelemetryStore((state) =>
+    jobMonitor?.hubJobId ? state.jobs[jobMonitor.hubJobId] : undefined,
+  );
 
   const fullContentTargetId =
     resultMetadata?.fullContentMessageId ??
@@ -1293,7 +1323,19 @@ export function ToolCallBlock({
   const isRunning = displayState.isRunning;
   const isError = displayState.isError;
   const hasResultContent = unwrapped !== "";
-  const commandExecution = displayState.commandExecution;
+  const baseCommandExecution = displayState.commandExecution;
+  const commandExecution =
+    baseCommandExecution && liveJob
+      ? {
+          ...baseCommandExecution,
+          message: liveJob.errorMessage || baseCommandExecution.message,
+          stdout: liveJob.stdout || baseCommandExecution.stdout,
+          stderr: liveJob.stderr || baseCommandExecution.stderr,
+          ...(liveJob.exitCode !== undefined
+            ? { exitCode: String(liveJob.exitCode) }
+            : {}),
+        }
+      : baseCommandExecution;
   const isRunCommandDisplay = !!commandExecution;
   const loadedToolNames = displayState.loadedToolNames;
   const isLoadToolsDisplay = !!loadedToolNames;
@@ -1303,6 +1345,8 @@ export function ToolCallBlock({
   const hasCommandStderr = !!commandExecution?.stderr.trim();
   const commandMessage = commandExecution?.message;
   const hasCommandMessage = !!commandMessage?.trim();
+  const commandProgress = formatAhandJobProgress(liveJob?.progress);
+  const hasCommandProgress = commandProgress.length > 0;
   const commandExitCode = commandExecution?.exitCode;
   const shouldShowCommandExitCode =
     commandExitCode !== undefined &&
@@ -1485,6 +1529,15 @@ export function ToolCallBlock({
                 <StreamBlock
                   label="message"
                   value={commandMessage ?? ""}
+                  tone="neutral"
+                  emptyText={translate("tracking.toolCall.emptyStream")}
+                  t={translate}
+                />
+              )}
+              {hasCommandProgress && (
+                <StreamBlock
+                  label="progress"
+                  value={commandProgress}
                   tone="neutral"
                   emptyText={translate("tracking.toolCall.emptyStream")}
                   t={translate}

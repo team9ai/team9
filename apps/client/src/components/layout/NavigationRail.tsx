@@ -23,6 +23,7 @@ import {
   appActions,
   getLastVisitedPath,
   getSectionFromPath,
+  HOME_ENTRY_PATH,
   useActiveSidebar,
   type SidebarSection,
 } from "@/stores";
@@ -38,7 +39,6 @@ export const navigationItems = [
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   { id: "aiStaff", labelKey: "staff" as const, icon: IdCard },
-  { id: "tasks", labelKey: "tasks" as const, icon: ListChecks },
   { id: "routines", labelKey: "routines" as const, icon: ListChecks },
   { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },
@@ -81,11 +81,21 @@ export function NavigationRail() {
           const isChannelsIndex =
             location.pathname === "/channels" ||
             location.pathname === "/channels/";
+          // Mirror getSidebarType() in DynamicSubSidebar so the highlighted
+          // nav icon matches the rendered sub-sidebar: a channel opened from
+          // the Home tab stays under "home", workspace channels under
+          // "workspace".
           const currentSection = location.pathname.startsWith("/profile")
             ? null
-            : isChannelsIndex && activeSidebar === "workspace"
-              ? "workspace"
-              : getSectionFromPath(location.pathname);
+            : isChannelsIndex
+              ? activeSidebar === "workspace"
+                ? "workspace"
+                : "home"
+              : location.pathname.startsWith("/channels")
+                ? activeSidebar === "home"
+                  ? "home"
+                  : "workspace"
+                : getSectionFromPath(location.pathname);
           const isActive = currentSection === item.id;
           const label = tNav(item.labelKey);
 
@@ -114,7 +124,7 @@ export function NavigationRail() {
                 appActions.setActiveSidebar(section);
                 const targetPath =
                   section === "home"
-                    ? "/channels"
+                    ? HOME_ENTRY_PATH
                     : getLastVisitedPath(section);
                 navigate({ to: targetPath as never });
               }}

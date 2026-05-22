@@ -107,6 +107,15 @@ export interface ActiveStreamingMessage {
   thinking: string;
 }
 
+export interface AhandJobMonitorMetadata {
+  provider: "ahand";
+  hubJobId: string;
+  deviceId: string;
+  team9JobId?: string;
+  backend?: string;
+  commandPreview?: string;
+}
+
 export interface AgentEventMetadata {
   agentEventType:
     | "thinking"
@@ -131,6 +140,7 @@ export interface AgentEventMetadata {
   toolArgs?: Record<string, unknown>;
   toolArgsText?: string;
   toolPhase?: "args_streaming" | "executing";
+  jobMonitor?: AhandJobMonitorMetadata;
   success?: boolean;
   errorCode?: string;
   errorMessage?: string;

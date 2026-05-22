@@ -99,7 +99,6 @@ function ImageAttachmentItem({
         variant="secondary"
         size="sm"
         onClick={onRemove}
-        disabled={isUploading}
         className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-background border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
         title="Remove"
       >
@@ -222,7 +221,6 @@ function FileAttachmentItem({
           onClick={onRemove}
           className="h-6 w-6 p-0 hover:bg-muted"
           title="Remove"
-          disabled={isUploading}
         >
           <X className="w-3 h-3 text-muted-foreground" />
         </Button>

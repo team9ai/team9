@@ -2,6 +2,7 @@ export {
   ClawHiveService,
   type HiveModelRef,
   type HiveAgentSnapshot,
+  type HivePrefabAgentTemplate,
   type HiveSessionDetail,
   type HiveSessionComponentItem,
   type HiveSessionComponentsResponse,

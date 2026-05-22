@@ -42,8 +42,11 @@ export const ALL_SIDEBAR_SECTIONS: SidebarSection[] = [
 ];
 
 // Default paths for each sidebar section
+export const HOME_ENTRY_PATH = "/tasks/new-conversation";
+export const TASK_ENTRY_PATH = "/tasks/new-task";
+
 export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
-  home: "/channels",
+  home: HOME_ENTRY_PATH,
   workspace: "/channels",
   messages: "/messages",
   activity: "/activity",
@@ -96,13 +99,13 @@ export function sanitizeLastVisitedPaths(
  * Determines which section a path belongs to.
  */
 export function getSectionFromPath(pathname: string): SidebarSection {
+  if (pathname.startsWith("/tasks")) return "home";
   if (pathname === "/channels" || pathname === "/channels/") return "home";
   if (pathname.startsWith("/channels")) return "workspace";
   if (pathname.startsWith("/messages")) return "messages";
   if (pathname.startsWith("/activity")) return "activity";
   if (pathname.startsWith("/files")) return "files";
   if (pathname.startsWith("/ai-staff")) return "aiStaff";
-  if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/routines")) return "routines";
   if (pathname.startsWith("/skills")) return "skills";
   if (pathname.startsWith("/resources")) return "resources";

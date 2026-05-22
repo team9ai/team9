@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,9 +16,23 @@ const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
+const mockUseSkills = vi.hoisted(() => vi.fn());
 const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
+const mockCreateTaskRun = vi.hoisted(() => vi.fn());
 const mockUseFileUpload = vi.hoisted(() => vi.fn());
+const mockSetDashboardMode = vi.hoisted(() => vi.fn());
+const mockDashboardModeState = vi.hoisted(() => ({
+  value: "conversation" as "conversation" | "task",
+}));
+const mockDashboardModeTransitionState = vi.hoisted(() => ({
+  value: null as null | {
+    id: number;
+    from: "conversation" | "task";
+    to: "conversation" | "task";
+  },
+  nextId: 0,
+}));
 const mockUploadState = vi.hoisted(() => ({
   uploadingFiles: [] as Array<{
     id: string;
@@ -54,6 +75,24 @@ const translationMap: Record<
   dashboardDeepResearchVisualsOff: "Visuals off",
   dashboardActionVideoGeneration: "Create video",
   dashboardVideoGenerationTemplate: "Please generate a short video...",
+  dashboardActionSelectSkills: "Select skills",
+  dashboardSkillsSelectedCount: (options) =>
+    `${options?.count ?? 0} skills selected`,
+  dashboardSkillsLoading: "Loading skills...",
+  dashboardSkillsEmpty: "No skills available",
+  dashboardModeSwitchLabel: "Dashboard mode",
+  dashboardActionConversationMode: "Conversation mode",
+  dashboardActionTaskMode: "Task mode",
+  dashboardTaskTriggerSettings: "Task trigger settings",
+  dashboardTaskExecuteImmediately: "Run after creation",
+  dashboardTaskTriggerScheduled: "Schedule for a specific time",
+  dashboardTaskTriggerCreateOnly: "Create only",
+  dashboardTaskTriggerScheduledAt: "Execution time",
+  dashboardTaskTriggerDone: "Done",
+  dashboardTaskTitle: "创建一个新任务",
+  dashboardTaskPromptPlaceholder: "描述任务目标、对象、约束和交付物",
+  dashboardTaskAgentGroupTitle: (options) => `Agents ${options?.count ?? 0}`,
+  dashboardTaskAgentsViewAll: "查看全部",
   dashboardActionGenerateImage: "Generate image",
   dashboardPlan: "Free plan",
   dashboardUpgrade: "Upgrade",
@@ -103,6 +142,39 @@ vi.mock("@/hooks/useWorkspaceBilling", () => ({
 }));
 
 vi.mock("@/stores", () => ({
+  HOME_ENTRY_PATH: "/tasks/new-conversation",
+  TASK_ENTRY_PATH: "/tasks/new-task",
+  homeActions: {
+    setDashboardMode: (
+      mode: "conversation" | "task",
+      options?: { animate?: boolean },
+    ) => {
+      const from = mockDashboardModeState.value;
+      if (from === mode) return;
+
+      mockDashboardModeState.value = mode;
+      mockDashboardModeTransitionState.value = options?.animate
+        ? {
+            id: ++mockDashboardModeTransitionState.nextId,
+            from,
+            to: mode,
+          }
+        : null;
+      mockSetDashboardMode(mode, options);
+    },
+    clearDashboardModeTransition: (transitionId?: number) => {
+      if (
+        transitionId !== undefined &&
+        mockDashboardModeTransitionState.value?.id !== transitionId
+      ) {
+        return;
+      }
+
+      mockDashboardModeTransitionState.value = null;
+    },
+  },
+  useDashboardMode: () => mockDashboardModeState.value,
+  useDashboardModeTransition: () => mockDashboardModeTransitionState.value,
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
   useUser: mockUseUser,
 }));
@@ -113,6 +185,16 @@ vi.mock("@/hooks/useTopicSessions", () => ({
 
 vi.mock("@/hooks/useFileUpload", () => ({
   useFileUpload: mockUseFileUpload,
+}));
+
+vi.mock("@/hooks/useSkills", () => ({
+  useSkills: mockUseSkills,
+}));
+
+vi.mock("@/services/api/tasks", () => ({
+  tasksApi: {
+    create: mockCreateTaskRun,
+  },
 }));
 
 import { HomeMainContent } from "../HomeMainContent";
@@ -174,6 +256,10 @@ describe("HomeMainContent", () => {
     vi.clearAllMocks();
     localStorage.clear();
     mockUploadState.uploadingFiles = [];
+    mockDashboardModeState.value = "conversation";
+    mockDashboardModeTransitionState.value = null;
+    mockDashboardModeTransitionState.nextId = 0;
+    window.history.replaceState(null, "", "/tasks/new-conversation");
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
     mockUseWorkspaceBillingSummary.mockReturnValue({
@@ -232,6 +318,37 @@ describe("HomeMainContent", () => {
         },
       ],
     });
+    mockUseSkills.mockReturnValue({
+      data: [
+        {
+          id: "skill-1",
+          tenantId: "ws-1",
+          name: "Draft campaign brief",
+          description: "Prepare a concise launch brief",
+          type: "prompt_template",
+          icon: null,
+          folderId: null,
+          agentAccess: "read",
+          creatorId: "user-1",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+        {
+          id: "skill-2",
+          tenantId: "ws-1",
+          name: "Analyze metrics",
+          description: "Summarize performance changes",
+          type: "general",
+          icon: null,
+          folderId: null,
+          agentAccess: "read",
+          creatorId: "user-1",
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+    });
     mockUseUser.mockReturnValue({
       createdAt: "2024-01-01T00:00:00.000Z",
       name: "OpenClaw",
@@ -245,6 +362,9 @@ describe("HomeMainContent", () => {
       botUserId: "bot-2",
       title: null,
       createdAt: "2024-01-01T00:00:00.000Z",
+    });
+    mockCreateTaskRun.mockResolvedValue({
+      id: "task-run-new",
     });
     mockUseCreateTopicSession.mockReturnValue({
       mutateAsync: mockCreateTopicSessionMutate,
@@ -289,8 +409,19 @@ describe("HomeMainContent", () => {
     // normal topic-session pipeline — no special endpoints.
     expect(screen.getByText(/deep research/i)).toBeInTheDocument();
     expect(screen.getByText(/create video/i)).toBeInTheDocument();
-    expect(screen.getByText("Starter")).toBeInTheDocument();
-    expect(screen.getByText("5,875")).toBeInTheDocument();
+    const planCreditsPill = screen.getByTestId("dashboard-plan-credits-pill");
+    expect(within(planCreditsPill).getByText("Starter")).toBeInTheDocument();
+    expect(within(planCreditsPill).getByText("5,875")).toBeInTheDocument();
+    expect(
+      within(planCreditsPill).queryByRole("button", { name: "Upgrade" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /conversation mode/i }),
+    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger.className).toContain("cursor-pointer");
@@ -771,7 +902,298 @@ describe("HomeMainContent", () => {
     ).toBeInTheDocument();
   });
 
-  it("falls back to the free plan label when no subscription exists", () => {
+  it("animates mode switching in place while preserving the composer draft", async () => {
+    renderWithProviders(<HomeMainContent />);
+    mockNavigate.mockClear();
+    mockSetDashboardMode.mockClear();
+
+    const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
+    expect(
+      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("left-1", "translate-x-0");
+
+    fireEvent.change(screen.getByPlaceholderText(/message dashboard/i), {
+      target: { value: "keep this draft" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: /task mode/i }));
+
+    expect(mockSetDashboardMode).toHaveBeenCalledWith("task", {
+      animate: true,
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/tasks/new-task");
+    expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+    ).toHaveValue("keep this draft");
+    await waitFor(() =>
+      expect(
+        within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+      ).toHaveStyle("transform: translateX(100%)"),
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
+
+    expect(mockSetDashboardMode).toHaveBeenLastCalledWith("conversation", {
+      animate: true,
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/tasks/new-conversation");
+    expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
+      "keep this draft",
+    );
+  });
+
+  it("keeps the right mode switch animated across a dashboard route remount", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const firstView = render(
+      <QueryClientProvider client={queryClient}>
+        <HomeMainContent />
+      </QueryClientProvider>,
+    );
+
+    const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
+    expect(
+      within(switcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("left-1", "translate-x-0");
+
+    firstView.unmount();
+    mockDashboardModeState.value = "task";
+    mockDashboardModeTransitionState.value = {
+      id: 1,
+      from: "conversation",
+      to: "task",
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <HomeMainContent mode="task" />
+      </QueryClientProvider>,
+    );
+
+    const remountedSwitcher = screen.getByRole("tablist", {
+      name: /dashboard mode/i,
+    });
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveAttribute("data-animating", "true");
+    expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveClass("dashboard-mode-switch-indicator--animating");
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveStyle("--dashboard-mode-indicator-from: translateX(0)");
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveStyle("--dashboard-mode-indicator-to: translateX(100%)");
+    expect(
+      within(remountedSwitcher).getByTestId("dashboard-mode-switch-indicator"),
+    ).toHaveStyle("transform: translateX(100%)");
+  });
+
+  it("uses a mount-safe keyframe animation for the right mode switch indicator", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mockDashboardModeState.value = "task";
+    mockDashboardModeTransitionState.value = {
+      id: 1,
+      from: "conversation",
+      to: "task",
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <HomeMainContent mode="task" />
+      </QueryClientProvider>,
+    );
+
+    const switcher = screen.getByRole("tablist", {
+      name: /dashboard mode/i,
+    });
+    const indicator = within(switcher).getByTestId(
+      "dashboard-mode-switch-indicator",
+    );
+
+    expect(indicator).toHaveAttribute("data-animating", "true");
+    expect(indicator).toHaveClass("dashboard-mode-switch-indicator--animating");
+    expect(indicator).toHaveStyle(
+      "--dashboard-mode-indicator-from: translateX(0)",
+    );
+    expect(indicator).toHaveStyle(
+      "--dashboard-mode-indicator-to: translateX(100%)",
+    );
+    expect(indicator).toHaveStyle("transform: translateX(100%)");
+  });
+
+  it("uses the task draft copy, skill selector, and hidden agent suggestions in task mode", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    expect(
+      screen.getByRole("heading", { name: "创建一个新任务" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Agents 2")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /create video/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /deep research/i }),
+    ).not.toBeInTheDocument();
+    const skillSelector = screen.getByRole("button", {
+      name: /select skills/i,
+    });
+    expect(skillSelector).toBeInTheDocument();
+    fireEvent.pointerDown(skillSelector);
+    const firstSkill = await screen.findByRole("menuitemcheckbox", {
+      name: /draft campaign brief/i,
+    });
+    const secondSkill = screen.getByRole("menuitemcheckbox", {
+      name: /analyze metrics/i,
+    });
+    fireEvent.click(firstSkill);
+    fireEvent.click(secondSkill);
+    expect(firstSkill).toHaveAttribute("aria-checked", "true");
+    expect(secondSkill).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menu", { name: /2 skills selected/i }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(secondSkill, { key: "Escape" });
+    expect(
+      screen.getByRole("button", { name: /2 skills selected/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Run after creation" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "让 alpha 处理这个任务" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith(
+        expect.objectContaining({ botId: "bot-1" }),
+      );
+    });
+  });
+
+  it("creates a task run from the task-mode prompt and navigates to the task", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "找 20 位 KOC\n整理首轮触达建议" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith({
+        title: "找 20 位 KOC",
+        description: "找 20 位 KOC\n整理首轮触达建议",
+        botId: "bot-1",
+        executeImmediately: true,
+        triggerMode: "immediate",
+      });
+    });
+    await vi.waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/tasks/$taskId",
+        params: { taskId: "task-run-new" },
+      });
+    });
+  });
+
+  it("creates a task run without immediate execution when create-only is selected", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run after creation" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Task trigger settings" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Create only"));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(
+      screen.getByRole("button", { name: "Create only" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "整理候选达人列表" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith({
+        title: "整理候选达人列表",
+        description: "整理候选达人列表",
+        botId: "bot-1",
+        executeImmediately: false,
+        triggerMode: "create_only",
+      });
+    });
+  });
+
+  it("keeps the scheduled task trigger time in the create payload", async () => {
+    renderWithProviders(<HomeMainContent mode="task" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run after creation" }));
+    fireEvent.click(screen.getByLabelText("Schedule for a specific time"));
+    fireEvent.change(screen.getByLabelText("Execution time"), {
+      target: { value: "2026-05-21T10:30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(
+      screen.getByRole("button", { name: "Schedule for a specific time" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("描述任务目标、对象、约束和交付物"),
+      {
+        target: { value: "明天上午整理候选达人列表" },
+      },
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+    });
+
+    await vi.waitFor(() => {
+      expect(mockCreateTaskRun).toHaveBeenCalledWith({
+        title: "明天上午整理候选达人列表",
+        description: "明天上午整理候选达人列表",
+        botId: "bot-1",
+        executeImmediately: false,
+        triggerMode: "scheduled",
+        scheduledAt: "2026-05-21T10:30",
+      });
+    });
+  });
+
+  it("keeps the upgrade action in the plan capsule for free workspaces", () => {
     mockUseWorkspaceBillingSummary.mockReturnValue({
       data: {
         subscription: null,
@@ -784,8 +1206,17 @@ describe("HomeMainContent", () => {
 
     renderWithProviders(<HomeMainContent />);
 
-    expect(screen.getByText("Free plan")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    const planCreditsPill = screen.getByTestId("dashboard-plan-credits-pill");
+    expect(within(planCreditsPill).getByText("Free plan")).toBeInTheDocument();
+    expect(within(planCreditsPill).getByText("—")).toBeInTheDocument();
+    fireEvent.click(
+      within(planCreditsPill).getByRole("button", { name: "Upgrade" }),
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/subscription",
+      search: { view: "plans", source: "home" },
+    });
   });
 
   it("shows the workspace credit balance to non-managing members", () => {

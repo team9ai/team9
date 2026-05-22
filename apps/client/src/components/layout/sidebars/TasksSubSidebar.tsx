@@ -16,7 +16,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Separator } from "@/components/ui/separator";
 import {
   ContextMenu,
@@ -41,9 +41,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
+import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
+import {
+  useDeleteTopicSession,
+  useRenameTopicSession,
+} from "@/hooks/useTopicSessions";
 import { tasksApi } from "@/services/api/tasks";
 import { cn } from "@/lib/utils";
-import { appActions } from "@/stores";
+import {
+  appActions,
+  HOME_ENTRY_PATH,
+  homeActions,
+  useDashboardMode,
+} from "@/stores";
+import {
+  getDashboardModeEntryPath,
+  isDashboardModeEntryPath,
+  replaceDashboardModeEntryUrl,
+} from "@/lib/dashboard-mode";
 import type { TaskRun, TaskRunStatus } from "@/types/task";
 
 const RENAME_TASK_ERROR_MESSAGE = "保存失败，请稍后重试。";
@@ -55,15 +71,15 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
   paused: "已暂停",
   pending_action: "待处理",
   completed: "查收结果",
-  failed: "已归档",
-  stopped: "已归档",
-  timeout: "已归档",
+  failed: "失败",
+  stopped: "已停止",
+  timeout: "已超时",
 };
 
-const TASK_NEW_CONVERSATION_PATH = "/tasks/new-conversation";
-const TASK_NEW_TASK_PATH = "/tasks/new-task";
 const TASK_SIDEBAR_ACTION_CLASS =
   "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
+
+type DashboardSidebarMode = "conversation" | "task";
 
 export const TASK_SIDEBAR_MAX_VISIBLE_TASKS = 80;
 const TASK_SIDEBAR_VISIBLE_STATUSES = new Set<TaskRunStatus>([
@@ -71,6 +87,9 @@ const TASK_SIDEBAR_VISIBLE_STATUSES = new Set<TaskRunStatus>([
   "paused",
   "pending_action",
   "completed",
+  "failed",
+  "stopped",
+  "timeout",
 ]);
 
 function getTaskGroupLabel(task: TaskRun) {
@@ -84,7 +103,10 @@ function getStatusClass(status: TaskRunStatus) {
   if (status === "pending_action") {
     return "bg-blue-50 text-blue-700";
   }
-  if (status === "failed" || status === "stopped" || status === "timeout") {
+  if (status === "failed" || status === "timeout") {
+    return "bg-red-50 text-red-700";
+  }
+  if (status === "stopped") {
     return "bg-nav-hover text-nav-foreground-faint";
   }
   return "bg-blue-50 text-blue-700";
@@ -105,25 +127,56 @@ function isVisibleSidebarTask(task: TaskRun) {
   );
 }
 
+function getDashboardSidebarMode(pathname: string): DashboardSidebarMode {
+  // Agent conversations (topic sessions and legacy agent DMs) open under
+  // /channels/$channelId. When such a channel is viewed from the Home tab the
+  // sidebar must stay in conversation mode so the AI Agents list remains
+  // visible — otherwise it would flip to the task list.
+  if (pathname.startsWith("/channels")) return "conversation";
+  return pathname === HOME_ENTRY_PATH ? "conversation" : "task";
+}
+
 export function TasksSubSidebar() {
   const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
-  const params = useParams({ strict: false }) as { taskId?: string };
+  const location = useLocation();
+  const params = useParams({ strict: false }) as {
+    taskId?: string;
+    channelId?: string;
+  };
+  const dashboardMode = useDashboardMode();
   const [renamingTask, setRenamingTask] = useState<TaskRun | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const selectedTaskId = params.taskId;
+  const activeMode = dashboardMode;
+  const isConversationMode = activeMode === "conversation";
+  const isTaskMode = activeMode === "task";
+  const isDashboardEntrySelected = isDashboardModeEntryPath(location.pathname);
   const isNewConversationSelected =
-    location.pathname === TASK_NEW_CONVERSATION_PATH;
-  const isNewTaskSelected = location.pathname === TASK_NEW_TASK_PATH;
+    isConversationMode && isDashboardEntrySelected;
+  const isNewTaskSelected = isTaskMode && isDashboardEntrySelected;
   const isTaskBoardSelected =
-    location.pathname === "/tasks" || location.pathname === "/tasks/";
+    isTaskMode &&
+    (location.pathname === "/tasks" || location.pathname === "/tasks/");
+  const {
+    groups: agentGroups,
+    isLoading: isLoadingAgents,
+    loadMoreTopicSessions,
+    isLoadingMoreTopicSessions,
+  } = useAgentGroupsForSidebar(5);
+  const renameTopicSession = useRenameTopicSession();
+  const archiveTopicSession = useDeleteTopicSession();
+  const deleteTopicSession = useDeleteTopicSession();
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: () => tasksApi.list(),
   });
+
+  useEffect(() => {
+    homeActions.setDashboardMode(getDashboardSidebarMode(location.pathname));
+  }, [location.pathname]);
 
   const sidebarTasks = useMemo(
     () => tasks.filter(isVisibleSidebarTask),
@@ -179,7 +232,7 @@ export function TasksSubSidebar() {
     onSuccess: async (_result, taskId) => {
       await refreshTaskQueries(taskId);
       if (selectedTaskId === taskId) {
-        void navigate({ to: "/tasks" });
+        void navigate({ to: HOME_ENTRY_PATH });
       }
     },
   });
@@ -250,14 +303,49 @@ export function TasksSubSidebar() {
     }));
   }, [visibleTasks]);
 
+  const openDashboardEntry = (nextMode: DashboardSidebarMode) => {
+    appActions.setActiveSidebar("home");
+    homeActions.setDashboardMode(nextMode, { animate: true });
+
+    if (isDashboardModeEntryPath(location.pathname)) {
+      replaceDashboardModeEntryUrl(nextMode);
+      return;
+    }
+
+    void navigate({ to: getDashboardModeEntryPath(nextMode) });
+  };
+
   const openNewConversation = () => {
-    appActions.setActiveSidebar("tasks");
-    void navigate({ to: TASK_NEW_CONVERSATION_PATH });
+    openDashboardEntry("conversation");
   };
 
   const openNewTask = () => {
-    appActions.setActiveSidebar("tasks");
-    void navigate({ to: TASK_NEW_TASK_PATH });
+    openDashboardEntry("task");
+  };
+
+  const openConversationTopic = (agentId: string) => {
+    appActions.setActiveSidebar("home");
+    homeActions.setDashboardMode("conversation", { animate: true });
+    void navigate({
+      to: HOME_ENTRY_PATH,
+      search: { agentId },
+    });
+  };
+
+  const selectConversationMode = () => {
+    appActions.setActiveSidebar("home");
+    homeActions.setDashboardMode("conversation", { animate: true });
+    if (isDashboardModeEntryPath(location.pathname)) {
+      replaceDashboardModeEntryUrl("conversation");
+    }
+  };
+
+  const selectTaskMode = () => {
+    appActions.setActiveSidebar("home");
+    homeActions.setDashboardMode("task", { animate: true });
+    if (isDashboardModeEntryPath(location.pathname)) {
+      replaceDashboardModeEntryUrl("task");
+    }
   };
 
   return (
@@ -267,7 +355,7 @@ export function TasksSubSidebar() {
     >
       <div className="p-4 pb-2">
         <div className="px-2 py-1.5 text-lg font-semibold text-nav-foreground">
-          任务
+          首页
         </div>
       </div>
 
@@ -304,44 +392,126 @@ export function TasksSubSidebar() {
             </Link>
           </div>
 
-          <div className="px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint">
-            任务
+          <div
+            role="tablist"
+            aria-label="首页模式"
+            className="relative mx-auto mb-2 mt-2 grid w-full max-w-36 grid-cols-2 overflow-hidden rounded-xl border border-nav-border bg-nav-hover/40 p-0.5 text-xs font-medium text-nav-foreground-muted"
+          >
+            <span
+              aria-hidden="true"
+              data-testid="dashboard-sidebar-mode-indicator"
+              className={cn(
+                "pointer-events-none absolute bottom-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-lg bg-nav-active transition-[left] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                isTaskMode ? "left-1/2" : "left-0.5",
+              )}
+            />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isConversationMode}
+              onClick={selectConversationMode}
+              className={cn(
+                "relative z-10 rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
+                isConversationMode && "text-nav-foreground",
+              )}
+            >
+              对话
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isTaskMode}
+              onClick={selectTaskMode}
+              className={cn(
+                "relative z-10 rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
+                isTaskMode && "text-nav-foreground",
+              )}
+            >
+              任务
+            </button>
           </div>
 
-          {isLoading ? (
-            <p className="px-2 py-2 text-xs text-nav-foreground-faint">
-              <Loader2 className="mr-2 inline size-3.5 animate-spin" />
-              加载中
-            </p>
-          ) : groupedTasks.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-nav-foreground-faint">
-              暂无任务
-            </p>
-          ) : (
-            groupedTasks.map((group) => (
-              <div key={group.label} className="min-w-0 pb-2">
-                <div className="truncate px-2 py-1 text-sm font-medium text-nav-foreground-muted">
-                  {group.label}
+          <div
+            key={activeMode}
+            data-testid="dashboard-sidebar-mode-content"
+            className="min-w-0 animate-in fade-in-0 slide-in-from-top-1 duration-150 ease-out motion-reduce:animate-none"
+          >
+            {isConversationMode ? (
+              <>
+                <div className="px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint">
+                  AI Agents
                 </div>
-                <div className="min-w-0 space-y-px">
-                  {group.tasks.map((task) => (
-                    <TaskSidebarRow
-                      key={task.id}
-                      task={task}
-                      isSelected={selectedTaskId === task.id}
-                      onOpen={openTask}
-                      actions={actionHandlers}
-                    />
-                  ))}
+                <AgentGroupList
+                  groups={agentGroups}
+                  selectedChannelId={params.channelId}
+                  linkPrefix="/channels"
+                  isLoading={isLoadingAgents}
+                  onLoadMoreTopicSessions={loadMoreTopicSessions}
+                  isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
+                  onRenameTopicSession={(channelId, title) =>
+                    renameTopicSession.mutateAsync({ channelId, title })
+                  }
+                  onArchiveTopicSession={(channelId) =>
+                    archiveTopicSession.mutateAsync({ channelId })
+                  }
+                  onDeleteTopicSession={(channelId) =>
+                    deleteTopicSession.mutateAsync({
+                      channelId,
+                      permanent: true,
+                    })
+                  }
+                  isTopicSessionActionPending={
+                    renameTopicSession.isPending ||
+                    archiveTopicSession.isPending ||
+                    deleteTopicSession.isPending
+                  }
+                  onNewTopic={openConversationTopic}
+                />
+              </>
+            ) : (
+              <>
+                <div className="px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint">
+                  任务
                 </div>
-              </div>
-            ))
-          )}
-          {hiddenTaskCount > 0 ? (
-            <p className="px-2 py-2 text-xs text-nav-foreground-faint">
-              还有 {hiddenTaskCount} 个任务，可在任务看板查看。
-            </p>
-          ) : null}
+
+                {isLoading ? (
+                  <p className="px-2 py-2 text-xs text-nav-foreground-faint">
+                    <Loader2 className="mr-2 inline size-3.5 animate-spin" />
+                    加载中
+                  </p>
+                ) : groupedTasks.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-nav-foreground-faint">
+                    暂无任务
+                  </p>
+                ) : (
+                  groupedTasks.map((group) => (
+                    <div key={group.label} className="min-w-0 pb-2">
+                      <div className="truncate px-2 py-1 text-sm font-medium text-nav-foreground-muted">
+                        {group.label}
+                      </div>
+                      <div className="min-w-0 space-y-px">
+                        {group.tasks.map((task) => (
+                          <TaskSidebarRow
+                            key={task.id}
+                            task={task}
+                            isSelected={selectedTaskId === task.id}
+                            onOpen={openTask}
+                            actions={actionHandlers}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {hiddenTaskCount > 0 ? (
+                  <p className="px-2 py-2 text-xs text-nav-foreground-faint">
+                    还有 {hiddenTaskCount} 个任务，可在任务看板查看。
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
         </nav>
       </div>
 

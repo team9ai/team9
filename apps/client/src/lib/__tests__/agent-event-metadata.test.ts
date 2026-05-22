@@ -154,6 +154,31 @@ describe("getAgentEventMetadata", () => {
       expect(result.success).toBe(true);
     });
 
+    it("passes through aHand job monitor metadata for run_command streams", () => {
+      const result = getAgentEventMetadata(
+        {
+          agentEventType: "tool_call",
+          status: "running",
+          toolName: "run_command",
+          toolCallId: "call_123",
+          jobMonitor: {
+            provider: "ahand",
+            hubJobId: "hub-job-1",
+            deviceId: "hub-device-1",
+            team9JobId: "team9-job-1",
+          },
+        },
+        FALLBACK,
+      );
+
+      expect(result.jobMonitor).toEqual({
+        provider: "ahand",
+        hubJobId: "hub-job-1",
+        deviceId: "hub-device-1",
+        team9JobId: "team9-job-1",
+      });
+    });
+
     it("passes through a2ui surface fields", () => {
       const result = getAgentEventMetadata(
         {

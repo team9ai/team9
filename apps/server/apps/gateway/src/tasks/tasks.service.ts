@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import { ClawHiveService } from '@team9/claw-hive';
@@ -20,6 +21,7 @@ import type { CreateTaskRunDto } from './dto/create-task-run.dto.js';
 import type { UpdateTaskRunDto } from './dto/update-task-run.dto.js';
 import { ImWorkerGrpcClientService } from '../im/services/im-worker-grpc-client.service.js';
 import { TaskCastService } from '../routines/taskcast.service.js';
+import { TaskTitleGeneratorService } from './task-title-generator.service.js';
 
 const TASK_RUN_LIST_LIMIT = 200;
 const STARTABLE_STATUSES: schema.TaskRunStatus[] = ['draft', 'upcoming'];
@@ -66,6 +68,8 @@ export class TasksService {
     private readonly clawHive: ClawHiveService,
     private readonly imWorkerGrpc: ImWorkerGrpcClientService,
     private readonly taskCastService: TaskCastService,
+    @Optional()
+    private readonly taskTitleGenerator?: TaskTitleGeneratorService,
   ) {}
 
   async create(dto: CreateTaskRunDto, userId: string, tenantId: string) {
@@ -121,6 +125,8 @@ export class TasksService {
         channelId,
       })
       .returning();
+
+    this.queueTitleGeneration(run);
 
     if (this.shouldStartImmediately(dto)) {
       return this.start(run.id, userId, tenantId, {
@@ -369,6 +375,28 @@ export class TasksService {
     return updated;
   }
 
+  async activate(runId: string, userId: string, tenantId: string) {
+    await this.getRunForMutationOrThrow(runId, userId, tenantId);
+    const now = new Date();
+
+    const [updated] = await this.db
+      .update(schema.taskRuns)
+      .set({
+        archivedAt: null,
+        hiddenAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.taskRuns.id, runId),
+          eq(schema.taskRuns.tenantId, tenantId),
+        ),
+      )
+      .returning();
+
+    return updated;
+  }
+
   async delete(runId: string, userId: string, tenantId: string) {
     await this.getRunForMutationOrThrow(runId, userId, tenantId);
 
@@ -432,6 +460,17 @@ export class TasksService {
 
   private shouldStartImmediately(dto: CreateTaskRunDto): boolean {
     return dto.executeImmediately === true || dto.triggerMode === 'immediate';
+  }
+
+  private queueTitleGeneration(run: schema.TaskRun): void {
+    void this.taskTitleGenerator
+      ?.generateForRun({
+        runId: run.id,
+        expectedCurrentTitle: run.title,
+      })
+      .catch((err) => {
+        this.logger.warn(`Queued task title generation failed: ${err}`);
+      });
   }
 
   private async getRunForStartOrThrow(runId: string, tenantId: string) {

@@ -1,12 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PanelRightClose } from "lucide-react";
+import { Loader2, PanelRightClose, PanelRightOpen, Play } from "lucide-react";
 import { ChannelView } from "@/components/channel/ChannelView";
+import { HomeMainContent } from "@/components/layout/contents/HomeMainContent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { tasksApi } from "@/services/api/tasks";
-import type { TaskRunDetail, TaskRunStatus } from "@/types/task";
+import type { TaskRun, TaskRunDetail, TaskRunStatus } from "@/types/task";
 
 export const Route = createFileRoute("/_authenticated/tasks/$taskId")({
   component: TaskDetailPage,
@@ -24,17 +26,18 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
   timeout: "已超时",
 };
 
-const READ_ONLY_STATUSES: TaskRunStatus[] = [
-  "completed",
-  "failed",
-  "stopped",
-  "timeout",
-];
-
 function TaskDetailPage() {
   const { taskId } = Route.useParams();
-  const queryClient = useQueryClient();
 
+  if (taskId === "new-task") {
+    return <HomeMainContent mode="task" />;
+  }
+
+  return <TaskRunDetailPage taskId={taskId} />;
+}
+
+function TaskRunDetailPage({ taskId }: { taskId: string }) {
+  const queryClient = useQueryClient();
   const {
     data: task,
     isLoading,
@@ -45,6 +48,8 @@ function TaskDetailPage() {
     refetchInterval: (query) => (query.state.error ? false : 5000),
     retry: 0,
   });
+  const [isAgentSessionPanelOpen, setIsAgentSessionPanelOpen] = useState(false);
+  const channelId = task?.channelId ?? null;
   const { mutate: unhideTask, isPending: isUnhidingTask } = useMutation({
     mutationFn: (id: string) => tasksApi.unhide(id),
     onSuccess: async (updatedTask) => {
@@ -55,11 +60,46 @@ function TaskDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
+  const { mutate: activateTask, isPending: isActivatingTask } = useMutation({
+    mutationFn: (id: string) => tasksApi.activate(id),
+    onSuccess: async (updatedTask) => {
+      queryClient.setQueryData<TaskRunDetail>(
+        ["task", updatedTask.id],
+        (old) =>
+          old
+            ? {
+                ...old,
+                ...updatedTask,
+                deliverables: old.deliverables,
+              }
+            : { ...updatedTask, deliverables: [] },
+      );
+      queryClient.setQueryData<TaskRun[]>(["tasks"], (current) =>
+        current?.map((item) =>
+          item.id === updatedTask.id ? { ...item, ...updatedTask } : item,
+        ),
+      );
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+
+  useEffect(() => {
+    setIsAgentSessionPanelOpen(false);
+  }, [channelId, taskId]);
 
   useEffect(() => {
     if (!task?.hiddenAt || isUnhidingTask) return;
     unhideTask(task.id);
   }, [isUnhidingTask, task?.hiddenAt, task?.id, unhideTask]);
+
+  useEffect(() => {
+    if (!task) return;
+    queryClient.setQueryData<TaskRun[]>(["tasks"], (current) =>
+      current?.map((item) =>
+        item.id === task.id ? { ...item, ...task } : item,
+      ),
+    );
+  }, [queryClient, task]);
 
   if (isLoading) {
     return (
@@ -80,8 +120,27 @@ function TaskDetailPage() {
     );
   }
 
-  const channelId = task.channelId;
-  const readOnly = READ_ONLY_STATUSES.includes(task.status);
+  const isArchived = Boolean(task.archivedAt);
+  const activateArchivedTaskButton = isArchived ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => activateTask(task.id)}
+      disabled={isActivatingTask}
+      className="h-8 rounded-full bg-background px-3 text-xs"
+    >
+      {isActivatingTask ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <Play className="size-3.5" />
+      )}
+      激活任务
+    </Button>
+  ) : undefined;
+  const sessionPanelLabel = isAgentSessionPanelOpen
+    ? "关闭 Session 面板"
+    : "打开 Session 面板";
 
   return (
     <div
@@ -105,8 +164,19 @@ function TaskDetailPage() {
               {task.description ?? "等待补充任务目标、上下文和交付要求。"}
             </p>
           </div>
-          <Button variant="ghost" size="icon" aria-label="收起任务面板">
-            <PanelRightClose size={18} />
+          <Button
+            variant={isAgentSessionPanelOpen ? "secondary" : "ghost"}
+            size="icon"
+            aria-label={sessionPanelLabel}
+            aria-pressed={isAgentSessionPanelOpen}
+            title={sessionPanelLabel}
+            onClick={() => setIsAgentSessionPanelOpen((open) => !open)}
+          >
+            {isAgentSessionPanelOpen ? (
+              <PanelRightClose size={18} />
+            ) : (
+              <PanelRightOpen size={18} />
+            )}
           </Button>
         </header>
 
@@ -116,15 +186,85 @@ function TaskDetailPage() {
               key={channelId}
               channelId={channelId}
               hideHeader
-              readOnly={readOnly}
+              readOnly={isArchived}
+              readOnlyAction={activateArchivedTaskButton}
+              isAgentSessionPanelOpen={isAgentSessionPanelOpen}
+              onAgentSessionPanelOpenChange={setIsAgentSessionPanelOpen}
             />
-          ) : (
+          ) : isArchived ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              暂无执行频道
+              <div className="flex flex-col items-center gap-3">
+                <span>暂无执行频道</span>
+                {activateArchivedTaskButton}
+              </div>
             </div>
+          ) : (
+            <TaskExecutionStartPanel task={task} />
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+function TaskExecutionStartPanel({ task }: { task: TaskRunDetail }) {
+  const queryClient = useQueryClient();
+  const defaultExecutionInfo = task.description?.trim() || task.title;
+  const [executionInfo, setExecutionInfo] = useState(defaultExecutionInfo);
+  const startTask = useMutation({
+    mutationFn: () =>
+      tasksApi.start(task.id, {
+        message: executionInfo.trim() || task.title,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["task", task.id] }),
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      ]);
+    },
+  });
+
+  useEffect(() => {
+    setExecutionInfo(defaultExecutionInfo);
+  }, [defaultExecutionInfo, task.id]);
+
+  return (
+    <div className="flex h-full items-center justify-center px-8">
+      <div className="flex w-full max-w-2xl flex-col gap-4">
+        <label
+          htmlFor="task-execution-info"
+          className="text-sm font-medium text-muted-foreground"
+        >
+          本次执行信息
+        </label>
+        <Textarea
+          id="task-execution-info"
+          value={executionInfo}
+          onChange={(event) => setExecutionInfo(event.target.value)}
+          rows={5}
+          className="min-h-32 resize-none rounded-2xl border-[#ded4c8] bg-background px-4 py-3 text-sm leading-6 text-foreground shadow-none focus-visible:ring-[#b58c6a]/25"
+        />
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            onClick={() => startTask.mutate()}
+            disabled={startTask.isPending}
+            className="h-10 rounded-full bg-[#3d2413] px-5 text-sm font-medium text-white hover:bg-[#4a2d18]"
+          >
+            {startTask.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Play className="size-4" />
+            )}
+            开始执行
+          </Button>
+        </div>
+        {startTask.isError ? (
+          <p className="text-center text-sm text-destructive">
+            启动失败，请稍后重试。
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

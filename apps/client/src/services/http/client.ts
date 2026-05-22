@@ -160,6 +160,7 @@ class HttpClient {
   ): Promise<HttpResponse<T>> {
     const requestStartedAt = startupNow();
     let requestPath = getStartupPathForLog(url);
+    let abortedByExternalSignal = false;
     let requestConfig: HttpRequestConfig = {
       ...config,
       baseURL: this.baseURL,
@@ -177,10 +178,25 @@ class HttpClient {
       });
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        requestConfig.timeout || this.timeout,
-      );
+      const externalSignal = requestConfig.signal ?? undefined;
+      const abortFromExternalSignal = () => {
+        abortedByExternalSignal = true;
+        controller.abort(externalSignal?.reason);
+      };
+      if (externalSignal?.aborted) {
+        abortFromExternalSignal();
+      } else {
+        externalSignal?.addEventListener("abort", abortFromExternalSignal, {
+          once: true,
+        });
+      }
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, requestConfig.timeout || this.timeout);
+      const cleanupAbortHandlers = () => {
+        clearTimeout(timeoutId);
+        externalSignal?.removeEventListener("abort", abortFromExternalSignal);
+      };
 
       const headers = new Headers({
         ...this.defaultHeaders,
@@ -202,9 +218,7 @@ class HttpClient {
         headers,
         body,
         signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      }).finally(cleanupAbortHandlers);
       markStartup("http:response received", {
         method: requestConfig.method ?? "GET",
         path: requestPath,
@@ -234,15 +248,18 @@ class HttpClient {
       return await this.applyResponseInterceptors(httpResponse);
     } catch (error: unknown) {
       if (this.isAbortError(error)) {
-        markStartup("http:timeout", {
-          method: requestConfig.method ?? "GET",
-          path: requestPath,
-          durationMs: startupDurationMs(requestStartedAt),
-        });
+        markStartup(
+          abortedByExternalSignal ? "http:cancelled" : "http:timeout",
+          {
+            method: requestConfig.method ?? "GET",
+            path: requestPath,
+            durationMs: startupDurationMs(requestStartedAt),
+          },
+        );
         throw this.createError(
-          "Request timeout",
+          abortedByExternalSignal ? "Request cancelled" : "Request timeout",
           requestConfig,
-          "ECONNABORTED",
+          abortedByExternalSignal ? "ERR_CANCELED" : "ECONNABORTED",
         );
       }
 

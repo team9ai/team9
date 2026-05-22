@@ -117,6 +117,8 @@ export interface AgentGroupListProps {
   onDeleteTopicSession?: TopicSessionActionHandler;
   /** True while any topic-session row action mutation is in flight. */
   isTopicSessionActionPending?: boolean;
+  /** Optional override for the header new-topic action. */
+  onNewTopic?: (agentUserId: string) => void;
 }
 
 /**
@@ -147,6 +149,7 @@ export function AgentGroupList({
   onArchiveTopicSession,
   onDeleteTopicSession,
   isTopicSessionActionPending,
+  onNewTopic,
 }: AgentGroupListProps) {
   const { t } = useTranslation(["navigation", "common", "message"]);
 
@@ -194,6 +197,7 @@ export function AgentGroupList({
           onArchiveTopicSession={onArchiveTopicSession}
           onDeleteTopicSession={onDeleteTopicSession}
           isTopicSessionActionPending={isTopicSessionActionPending}
+          onNewTopic={onNewTopic}
         />
       ))}
     </div>
@@ -211,6 +215,7 @@ function AgentGroup({
   onArchiveTopicSession,
   onDeleteTopicSession,
   isTopicSessionActionPending,
+  onNewTopic,
 }: {
   group: TopicSessionGroup;
   selectedChannelId?: string;
@@ -222,6 +227,7 @@ function AgentGroup({
   onArchiveTopicSession?: TopicSessionActionHandler;
   onDeleteTopicSession?: TopicSessionActionHandler;
   isTopicSessionActionPending?: boolean;
+  onNewTopic?: (agentUserId: string) => void;
 }) {
   const navigate = useNavigate();
   const { t } = useTranslation(["navigation", "common"]);
@@ -258,6 +264,10 @@ function AgentGroup({
     // Route back to the dashboard composer with the clicked agent pre-selected
     // via search param, so the composer header reflects the correct agent
     // instead of falling back to the dashboard's last-remembered selection.
+    if (onNewTopic) {
+      onNewTopic(group.agentUserId);
+      return;
+    }
     navigateToNewTopic(navigate, group.agentUserId);
   };
 

@@ -16,6 +16,8 @@ import * as schema from '@team9/database/schemas';
 import { Folder9ClientService } from '../wikis/folder9-client.service.js';
 import {
   Folder9ApiError,
+  Folder9NetworkError,
+  type Folder9CreateTokenRequest,
   type Folder9CreateTokenResponse,
   type Folder9Permission,
 } from '../wikis/types/folder9.types.js';
@@ -127,6 +129,8 @@ export class FolderTokenService {
   private static readonly WRITE_TTL_MS = 60 * 60_000;
   /** 1h — propose mirrors write. */
   private static readonly PROPOSE_TTL_MS = 60 * 60_000;
+  /** Single short retry for transient folder9/network mint failures. */
+  private static readonly TOKEN_MINT_MAX_ATTEMPTS = 2;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -226,7 +230,7 @@ export class FolderTokenService {
 
     let minted: Folder9CreateTokenResponse;
     try {
-      minted = await this.folder9Client.createToken({
+      minted = await this.createFolder9TokenWithRetry({
         folder_id: req.folderId,
         permission: req.permission as Folder9Permission,
         name,
@@ -242,9 +246,9 @@ export class FolderTokenService {
       // 5xx + network errors → 503 so the agent-pi client sees
       // `network_error` and degrades the mount with a warning.
       this.logger.error(
-        `folder9 createToken failed for folderId=${req.folderId}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `folder9 createToken failed: ${describeFolder9MintError(err)} ` +
+          `sessionId=${req.sessionId} logicalKey=${req.logicalKey} ` +
+          `folderId=${req.folderId} permission=${req.permission}`,
       );
       throw new ServiceUnavailableException(
         'folder9 token mint failed; retry later',
@@ -552,6 +556,9 @@ export class FolderTokenService {
         if (req.userId === undefined) {
           throw new ForbiddenException('user.* requires userId');
         }
+        if (!isUuidLike(req.userId)) {
+          throw new ForbiddenException('user.* requires a valid userId');
+        }
         const isMember = await this.isUserMemberOfChannel(
           shape.channelId,
           req.userId,
@@ -651,6 +658,36 @@ export class FolderTokenService {
     return rows.length > 0;
   }
 
+  private async createFolder9TokenWithRetry(
+    req: Folder9CreateTokenRequest,
+  ): Promise<Folder9CreateTokenResponse> {
+    for (
+      let attempt = 1;
+      attempt <= FolderTokenService.TOKEN_MINT_MAX_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        return await this.folder9Client.createToken(req);
+      } catch (err) {
+        if (
+          attempt >= FolderTokenService.TOKEN_MINT_MAX_ATTEMPTS ||
+          !isRetryableFolder9MintError(err)
+        ) {
+          throw err;
+        }
+        this.logger.warn(
+          `folder9 createToken retrying after transient failure: ` +
+            `${describeFolder9MintError(err)} folderId=${req.folder_id} ` +
+            `permission=${req.permission} attempt=${attempt}`,
+        );
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      'folder9 token mint failed; retry later',
+    );
+  }
+
   /**
    * Lookup a routine constrained by both `id` and `botId` — collapses
    * "exists" + "owned by caller bot" into a single round-trip. Returns
@@ -685,4 +722,30 @@ interface BotIdentity {
   id: string;
   userId: string;
   managedAgentId: string | null;
+}
+
+function isRetryableFolder9MintError(err: unknown): boolean {
+  return (
+    err instanceof Folder9NetworkError ||
+    (err instanceof Folder9ApiError && err.status >= 500)
+  );
+}
+
+function describeFolder9MintError(err: unknown): string {
+  if (err instanceof Folder9ApiError) {
+    return `Folder9ApiError(status=${err.status}, endpoint=${err.endpoint})`;
+  }
+  if (err instanceof Folder9NetworkError) {
+    return `Folder9NetworkError(endpoint=${err.endpoint}, message=${err.message})`;
+  }
+  if (err instanceof Error) {
+    return `${err.name}: ${err.message}`;
+  }
+  return String(err);
+}
+
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }

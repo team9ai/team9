@@ -31,7 +31,6 @@ describe("mainSidebarUnlock", () => {
       "workspace",
       "activity",
       "aiStaff",
-      "routines",
       "skills",
       "application",
       "more",
@@ -62,6 +61,11 @@ describe("mainSidebarUnlock", () => {
   });
 
   it("keeps the hidden-section list stable", () => {
-    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["messages", "resources", "wiki"]);
+    expect(HIDDEN_NAV_SECTION_IDS).toEqual([
+      "messages",
+      "routines",
+      "resources",
+      "wiki",
+    ]);
   });
 });
