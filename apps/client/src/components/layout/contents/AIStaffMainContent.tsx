@@ -369,12 +369,14 @@ function MemberCard({ member }: MemberCardProps) {
 interface RecommendedStaffCardProps {
   template: RecommendedStaffTemplate;
   isInstalling: boolean;
+  isInstallBlocked: boolean;
   onInstall: (templateId: string) => void;
 }
 
 function RecommendedStaffCard({
   template,
   isInstalling,
+  isInstallBlocked,
   onInstall,
 }: RecommendedStaffCardProps) {
   const initials = template.displayName.slice(0, 2).toUpperCase();
@@ -420,8 +422,8 @@ function RecommendedStaffCard({
         <Button
           size="sm"
           variant={isUniqueInstalled ? "secondary" : "default"}
-          disabled={isUniqueInstalled || isInstalling}
-          onClick={() => onInstall(template.templateId)}
+          disabled={isUniqueInstalled || isInstallBlocked}
+          onClick={() => void onInstall(template.templateId)}
           className="shrink-0"
         >
           {isInstalling ? (
@@ -706,7 +708,10 @@ export function AIStaffMainContent() {
                           key={template.templateId}
                           template={template}
                           isInstalling={
-                            installingTemplateId === template.templateId ||
+                            installingTemplateId === template.templateId
+                          }
+                          isInstallBlocked={
+                            installingTemplateId !== null ||
                             installRecommendedStaff.isPending
                           }
                           onInstall={handleInstallRecommendedStaff}
