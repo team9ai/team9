@@ -151,11 +151,13 @@ export function TrackingModal({
               messages={messages}
               isLoading={isFetchingNextPage}
               onLoadMore={() => {
-                if (hasNextPage) fetchNextPage();
+                if (hasNextPage) return fetchNextPage();
+                return undefined;
               }}
               hasMore={hasNextPage}
               onLoadNewer={() => {
-                if (hasPreviousPage) fetchPreviousPage();
+                if (hasPreviousPage) return fetchPreviousPage();
+                return undefined;
               }}
               hasNewer={hasPreviousPage}
               isLoadingNewer={isFetchingPreviousPage}

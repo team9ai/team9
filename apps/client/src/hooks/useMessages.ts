@@ -38,6 +38,7 @@ import { useThreadScrollState } from "./useThreadScrollState";
 import { useChannelScrollStore } from "./useChannelScrollState";
 import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage } from "@/lib/http-error";
+import { getOptionalAgentEventMetadata } from "@/lib/agent-event-metadata";
 
 // --- Temp message coordination ---
 // Coordinates between HTTP onSuccess and WebSocket handleNewMessage
@@ -186,6 +187,17 @@ function filterReaction(
   return (reactions ?? []).filter(
     (reaction) => !(reaction.userId === userId && reaction.emoji === emoji),
   );
+}
+
+function getAgentEventType(message: Message): string | undefined {
+  return getOptionalAgentEventMetadata(message.metadata)?.agentEventType;
+}
+
+function shouldNotifyForMainListMessage(message: Message): boolean {
+  if (message.type === "tracking") return false;
+
+  const agentEventType = getAgentEventType(message);
+  return !agentEventType || agentEventType === "writing";
 }
 
 /**
@@ -397,8 +409,14 @@ export function useMessages(channelId: string | undefined) {
         matchedTempId,
       );
 
-      // Notify channel scroll state machine about the new message
-      useChannelScrollStore.getState().send(channelId, { type: "NEW_MESSAGE" });
+      // Notify channel scroll state only for user-facing rows. Hidden agent
+      // lifecycle/tool rows still render when present, but should not inflate
+      // the "new messages" pill while someone is reading history.
+      if (shouldNotifyForMainListMessage(message)) {
+        useChannelScrollStore
+          .getState()
+          .send(channelId, { type: "NEW_MESSAGE" });
+      }
     };
 
     const handleMessageUpdated = (message: Message) => {
@@ -943,8 +961,14 @@ export function useChannelMessages(
         matchedTempId,
       );
 
-      // Notify scroll state machine
-      useChannelScrollStore.getState().send(channelId, { type: "NEW_MESSAGE" });
+      // Notify scroll state only for user-facing rows. Hidden agent
+      // lifecycle/tool rows still render when present, but should not inflate
+      // the "new messages" pill while someone is reading history.
+      if (shouldNotifyForMainListMessage(message)) {
+        useChannelScrollStore
+          .getState()
+          .send(channelId, { type: "NEW_MESSAGE" });
+      }
     };
 
     const handleMessageUpdated = (message: Message) => {
