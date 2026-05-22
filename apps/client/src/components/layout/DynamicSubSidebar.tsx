@@ -22,12 +22,16 @@ function getSidebarType(
   pathname: string,
   activeSidebar: SidebarSection,
 ): SidebarType {
-  // For channel routes, use the stored activeSidebar to maintain context
+  // For channel routes, use the stored activeSidebar to maintain context.
   if (pathname === "/channels" || pathname === "/channels/") {
     return activeSidebar === "workspace" ? "workspace" : "home";
   }
   if (pathname.startsWith("/channels")) {
-    return "workspace";
+    // A channel opened from the Home tab (e.g. an AI Agent conversation)
+    // keeps the Home sub-sidebar so the agent list stays visible instead of
+    // snapping over to the workspace. Channels reached from the workspace
+    // keep the workspace sidebar.
+    return activeSidebar === "home" ? "home" : "workspace";
   }
 
   // Match routes to sidebar types

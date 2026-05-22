@@ -81,11 +81,21 @@ export function NavigationRail() {
           const isChannelsIndex =
             location.pathname === "/channels" ||
             location.pathname === "/channels/";
+          // Mirror getSidebarType() in DynamicSubSidebar so the highlighted
+          // nav icon matches the rendered sub-sidebar: a channel opened from
+          // the Home tab stays under "home", workspace channels under
+          // "workspace".
           const currentSection = location.pathname.startsWith("/profile")
             ? null
-            : isChannelsIndex && activeSidebar === "workspace"
-              ? "workspace"
-              : getSectionFromPath(location.pathname);
+            : isChannelsIndex
+              ? activeSidebar === "workspace"
+                ? "workspace"
+                : "home"
+              : location.pathname.startsWith("/channels")
+                ? activeSidebar === "home"
+                  ? "home"
+                  : "workspace"
+                : getSectionFromPath(location.pathname);
           const isActive = currentSection === item.id;
           const label = tNav(item.labelKey);
 

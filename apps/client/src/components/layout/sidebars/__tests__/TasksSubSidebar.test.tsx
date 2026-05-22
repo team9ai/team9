@@ -17,7 +17,7 @@ const mockRenameTopicSession = vi.fn();
 const mockArchiveTopicSession = vi.fn();
 const mockDeleteTopicSession = vi.fn();
 let pathname = HOME_ENTRY_PATH;
-let params: { taskId?: string } = {};
+let params: { taskId?: string; channelId?: string } = {};
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -274,6 +274,20 @@ describe("TasksSubSidebar", () => {
     expect(screen.getByText("Lia")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Lia"));
     expect(screen.getByText("P2 AI Agent topic")).toBeInTheDocument();
+    expect(screen.queryByText("暂无任务")).not.toBeInTheDocument();
+  });
+
+  it("stays in conversation mode when viewing an agent channel from Home", () => {
+    // Opening a topic session or agent DM navigates to /channels/$channelId.
+    // The Home sidebar must remain in conversation mode (AI Agents list)
+    // instead of flipping to the task list.
+    pathname = "/channels/agent-channel-1";
+    params = { channelId: "agent-channel-1" };
+
+    renderTasksSubSidebar();
+
+    expect(useHomeStore.getState().dashboardMode).toBe("conversation");
+    expect(screen.getByText("AI Agents")).toBeInTheDocument();
     expect(screen.queryByText("暂无任务")).not.toBeInTheDocument();
   });
 

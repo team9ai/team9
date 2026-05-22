@@ -128,6 +128,11 @@ function isVisibleSidebarTask(task: TaskRun) {
 }
 
 function getDashboardSidebarMode(pathname: string): DashboardSidebarMode {
+  // Agent conversations (topic sessions and legacy agent DMs) open under
+  // /channels/$channelId. When such a channel is viewed from the Home tab the
+  // sidebar must stay in conversation mode so the AI Agents list remains
+  // visible — otherwise it would flip to the task list.
+  if (pathname.startsWith("/channels")) return "conversation";
   return pathname === HOME_ENTRY_PATH ? "conversation" : "task";
 }
 
@@ -135,7 +140,10 @@ export function TasksSubSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
-  const params = useParams({ strict: false }) as { taskId?: string };
+  const params = useParams({ strict: false }) as {
+    taskId?: string;
+    channelId?: string;
+  };
   const dashboardMode = useDashboardMode();
   const [renamingTask, setRenamingTask] = useState<TaskRun | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
@@ -435,6 +443,7 @@ export function TasksSubSidebar() {
                 </div>
                 <AgentGroupList
                   groups={agentGroups}
+                  selectedChannelId={params.channelId}
                   linkPrefix="/channels"
                   isLoading={isLoadingAgents}
                   onLoadMoreTopicSessions={loadMoreTopicSessions}
