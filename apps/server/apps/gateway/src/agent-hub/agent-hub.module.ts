@@ -3,6 +3,7 @@ import { ClawHiveModule } from '@team9/claw-hive';
 import { RedisModule } from '@team9/redis';
 import { ApplicationsModule } from '../applications/applications.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
+import { WorkspaceModule } from '../workspace/workspace.module.js';
 import { AgentHubController } from './agent-hub.controller.js';
 import { AgentHubService } from './agent-hub.service.js';
 
@@ -10,6 +11,7 @@ import { AgentHubService } from './agent-hub.service.js';
   imports: [
     ApplicationsModule,
     forwardRef(() => ChannelsModule),
+    forwardRef(() => WorkspaceModule),
     ClawHiveModule,
     RedisModule,
   ],
