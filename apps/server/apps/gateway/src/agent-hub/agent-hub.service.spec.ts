@@ -14,6 +14,7 @@ import {
 } from '@jest/globals';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { inspect } from 'node:util';
 import { AgentHubService } from './agent-hub.service.js';
 import { InstallRecommendedStaffDto } from './dto/install-recommended-staff.dto.js';
 
@@ -818,6 +819,37 @@ describe('AgentHubService catalog', () => {
     expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
   });
 
+  it('validates mentor against active workspace membership only', async () => {
+    const query = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([{ userId: 'mentor-1' }]),
+    };
+    db.select.mockReturnValue(query);
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    staffService.createBotWithAgent.mockResolvedValue({
+      botId: 'bot-1',
+      userId: 'bot-user-1',
+      agentId: 'common-staff-bot-1',
+      displayName: 'Sales Analyst',
+    });
+
+    await service.installRecommendedStaff(
+      'tenant-1',
+      'installer-1',
+      'sales-analyst',
+      { mentorId: 'mentor-1' },
+    );
+
+    const [predicate] = query.where.mock.calls[0];
+    const renderedPredicate = inspect(predicate, { depth: 12 });
+    expect(renderedPredicate).toContain("name: 'left_at'");
+    expect(renderedPredicate).toContain("' is null'");
+  });
+
   it('installs with null short role title when generation fails', async () => {
     clawHive.listPrefabAgentTemplates.mockResolvedValue([
       makeTemplate({
@@ -970,5 +1002,16 @@ describe('AgentHubService catalog', () => {
 
     expect(errors).toEqual([]);
     expect(dto.mentorId).toBeNull();
+  });
+
+  it('rejects non-UUID mentorId DTO values when provided', async () => {
+    const dto = plainToInstance(InstallRecommendedStaffDto, {
+      mentorId: 'not-a-uuid',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.constraints).toHaveProperty('isUuid');
   });
 });
