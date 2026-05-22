@@ -47,12 +47,6 @@ import {
   usePublicChannels,
   useSetSidebarVisibility,
 } from "@/hooks/useChannels";
-import { useAgentGroupsForSidebar } from "@/hooks/useAgentGroupsForSidebar";
-import {
-  useDeleteTopicSession,
-  useRenameTopicSession,
-} from "@/hooks/useTopicSessions";
-import { AgentGroupList } from "@/components/sidebar/AgentGroupList";
 import {
   useSections,
   useMoveChannel,
@@ -288,7 +282,6 @@ export function HomeSubSidebar() {
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
 
   const [channelsExpanded, setChannelsExpanded] = useState(true);
-  const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [dmsExpanded, setDmsExpanded] = useState(true);
   const [appsExpanded, setAppsExpanded] = useState(true);
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
@@ -312,15 +305,6 @@ export function HomeSubSidebar() {
   } = useChannelsByType();
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
-  const {
-    groups: agentGroups,
-    isLoading: isLoadingAgents,
-    loadMoreTopicSessions,
-    isLoadingMoreTopicSessions,
-  } = useAgentGroupsForSidebar(5);
-  const renameTopicSession = useRenameTopicSession();
-  const archiveTopicSession = useDeleteTopicSession();
-  const deleteTopicSession = useDeleteTopicSession();
   const setSidebarVisibility = useSetSidebarVisibility();
   const { data: sections = [] } = useSections();
   const moveChannel = useMoveChannel();
@@ -431,10 +415,10 @@ export function HomeSubSidebar() {
     return grouped;
   }, [allChannels]);
 
-  // Extract users from direct channels. Bots are rendered under the
-  // "AI Agents" grouping further down (via AgentGroupList), so the
-  // flat DM list shows only human-to-human conversations here to avoid
-  // duplicating each agent in two places.
+  // Extract users from direct channels. AI agents are surfaced in the
+  // Home tab sidebar (TasksSubSidebar) rather than the workspace, so the
+  // flat DM list here filters bots out and shows only human-to-human
+  // conversations.
   const directMessageUsers = directChannels
     .filter((channel) => channel.otherUser?.userType !== "bot")
     .map((channel) => {
@@ -712,53 +696,6 @@ export function HomeSubSidebar() {
               ) : null}
             </DragOverlay>
           </DndContext>
-
-          {/* AI Agents Section — groups topic sessions per agent; the
-              agent-header click opens the legacy direct channel when one
-              exists, so no agent conversation is orphaned by the move. */}
-          <div className="mt-4">
-            <Button
-              variant="ghost"
-              onClick={() => setAgentsExpanded(!agentsExpanded)}
-              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
-            >
-              {agentsExpanded ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )}
-              <span>{tNav("aiAgents", { defaultValue: "AI Agents" })}</span>
-            </Button>
-            {agentsExpanded && (
-              <div className="ml-2 mt-1">
-                <AgentGroupList
-                  groups={agentGroups}
-                  selectedChannelId={selectedChannelId}
-                  linkPrefix="/channels"
-                  isLoading={isLoadingAgents}
-                  onLoadMoreTopicSessions={loadMoreTopicSessions}
-                  isLoadingMoreTopicSessions={isLoadingMoreTopicSessions}
-                  onRenameTopicSession={(channelId, title) =>
-                    renameTopicSession.mutateAsync({ channelId, title })
-                  }
-                  onArchiveTopicSession={(channelId) =>
-                    archiveTopicSession.mutateAsync({ channelId })
-                  }
-                  onDeleteTopicSession={(channelId) =>
-                    deleteTopicSession.mutateAsync({
-                      channelId,
-                      permanent: true,
-                    })
-                  }
-                  isTopicSessionActionPending={
-                    renameTopicSession.isPending ||
-                    archiveTopicSession.isPending ||
-                    deleteTopicSession.isPending
-                  }
-                />
-              </div>
-            )}
-          </div>
 
           {/* DMs Section */}
           <div className="mt-4">
