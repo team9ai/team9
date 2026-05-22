@@ -160,6 +160,87 @@ describe('AgentHubService catalog', () => {
     expect(clawHive.listPrefabAgentTemplates).not.toHaveBeenCalled();
   });
 
+  it('treats malformed cached template entries as missing cache and refreshes from AgentHive', async () => {
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        cachedAt: new Date(now).toISOString(),
+        templates: [null],
+      }),
+    );
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      templateId: 'sales-analyst',
+      installed: false,
+    });
+    expect(clawHive.listPrefabAgentTemplates).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns fresh AgentHive results when Redis cache write fails', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    redis.set.mockRejectedValue(new Error('redis down'));
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      templateId: 'sales-analyst',
+      installed: false,
+    });
+  });
+
+  it('rejects malformed Team9 model provider and id instead of falling back', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({
+        id: 'bad-provider',
+        metadata: {
+          team9: {
+            roleTitle: 'Bad Provider',
+            model: { provider: 123, id: 'anthropic/claude-sonnet-4.6' },
+          },
+        },
+      }),
+      makeTemplate({
+        id: 'bad-id',
+        metadata: {
+          team9: {
+            roleTitle: 'Bad Id',
+            model: { provider: 'openrouter', id: false },
+          },
+        },
+      }),
+      makeTemplate({
+        id: 'valid-template-model',
+        metadata: {
+          team9: {
+            roleTitle: 'Valid Template Model',
+          },
+        },
+      }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        templateId: 'valid-template-model',
+        roleTitle: 'Valid Template Model',
+      }),
+    ]);
+  });
+
   it('returns stale cache when AgentHive refresh fails', async () => {
     redis.get.mockResolvedValue(
       JSON.stringify({
@@ -219,5 +300,49 @@ describe('AgentHubService catalog', () => {
       installed: true,
       installedBotId: 'bot-1',
     });
+  });
+
+  it('computes installed state from Common Staff bot extra metadata fallback', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    botService.getBotsByInstalledApplicationId.mockResolvedValue([
+      {
+        botId: 'bot-extra',
+        isActive: true,
+        managedMeta: {},
+        extra: { commonStaff: { prefabTemplateId: 'sales-analyst' } },
+      },
+    ]);
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result[0]).toMatchObject({
+      installed: true,
+      installedBotId: 'bot-extra',
+    });
+  });
+
+  it('ignores inactive Common Staff bots when computing installed state', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+    botService.getBotsByInstalledApplicationId.mockResolvedValue([
+      {
+        botId: 'inactive-bot',
+        isActive: false,
+        managedMeta: { prefabTemplateId: 'sales-analyst' },
+        extra: {},
+      },
+    ]);
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result[0]).toMatchObject({
+      installed: false,
+    });
+    expect(result[0]).not.toHaveProperty('installedBotId');
   });
 });

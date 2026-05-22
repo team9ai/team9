@@ -39,24 +39,11 @@ function stringOrNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function scalarStringOrNull(value: unknown): string | null {
-  if (typeof value === 'string') return stringOrNull(value);
-  if (
-    typeof value !== 'number' &&
-    typeof value !== 'boolean' &&
-    typeof value !== 'bigint'
-  ) {
-    return null;
-  }
-
-  return stringOrNull(String(value));
-}
-
 function toModel(value: unknown) {
   if (!isObject(value)) return null;
 
-  const provider = scalarStringOrNull(value.provider);
-  const id = scalarStringOrNull(value.id);
+  const provider = stringOrNull(value.provider);
+  const id = stringOrNull(value.id);
   if (!provider || !id) return null;
 
   return { provider, id };
@@ -84,6 +71,7 @@ function getTeam9Metadata(
   const jobDescription = stringOrNull(team9.jobDescription);
   const avatarUrl = stringOrNull(team9.avatarUrl);
   const model = toModel(team9.model);
+  if (team9.model !== undefined && !model) return null;
 
   if (displayName) metadata.displayName = displayName;
   if (shortRoleTitle) metadata.shortRoleTitle = shortRoleTitle;
@@ -188,14 +176,21 @@ export class AgentHubService {
           template !== null,
       );
 
-    await this.redis.set(
-      AGENT_HUB_RECOMMENDED_STAFF_CACHE_KEY,
-      JSON.stringify({
-        cachedAt: new Date().toISOString(),
-        templates,
-      } satisfies RecommendedStaffCachePayload),
-      AGENT_HUB_RECOMMENDED_STAFF_CACHE_TTL_SECONDS,
-    );
+    try {
+      await this.redis.set(
+        AGENT_HUB_RECOMMENDED_STAFF_CACHE_KEY,
+        JSON.stringify({
+          cachedAt: new Date().toISOString(),
+          templates,
+        } satisfies RecommendedStaffCachePayload),
+        AGENT_HUB_RECOMMENDED_STAFF_CACHE_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.warn(
+        'Failed to write AgentHub recommended staff catalog cache',
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
 
     return templates;
   }
@@ -209,11 +204,11 @@ export class AgentHubService {
       if (!isObject(parsed)) return null;
       if (typeof parsed.cachedAt !== 'string') return null;
       if (!Array.isArray(parsed.templates)) return null;
+      if (!parsed.templates.every(isCachedTemplate)) return null;
 
       return {
         cachedAt: parsed.cachedAt,
-        templates:
-          parsed.templates as RecommendedStaffCachePayload['templates'],
+        templates: parsed.templates,
       };
     } catch {
       return null;
@@ -280,4 +275,35 @@ export class AgentHubService {
 
     return null;
   }
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isCachedTemplate(
+  value: unknown,
+): value is CachedRecommendedStaffTemplate {
+  if (!isObject(value)) return false;
+
+  return (
+    typeof value.templateId === 'string' &&
+    stringOrNull(value.templateId) !== null &&
+    typeof value.name === 'string' &&
+    stringOrNull(value.name) !== null &&
+    isNullableString(value.description) &&
+    typeof value.displayName === 'string' &&
+    stringOrNull(value.displayName) !== null &&
+    typeof value.roleTitle === 'string' &&
+    stringOrNull(value.roleTitle) !== null &&
+    isNullableString(value.shortRoleTitle) &&
+    isNullableString(value.persona) &&
+    isNullableString(value.jobDescription) &&
+    isNullableString(value.avatarUrl) &&
+    toModel(value.model) !== null &&
+    typeof value.blueprintId === 'string' &&
+    stringOrNull(value.blueprintId) !== null &&
+    isObject(value.componentConfigs) &&
+    typeof value.unique === 'boolean'
+  );
 }
