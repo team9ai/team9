@@ -37,14 +37,16 @@ export interface CreateStaffBotOptions {
   displayName: string;
   /** Installed application ID to link the bot */
   installedApplicationId: string;
-  /** Mentor user ID */
-  mentorId: string;
+  /** Mentor user ID. Null means this staff has no mentor. */
+  mentorId?: string | null;
   /** Avatar URL for the bot user */
   avatarUrl?: string;
   /** Model configuration */
   model: { provider: string; id: string };
   /** Bot extra data (e.g. commonStaff, personalStaff) */
   botExtra: BotExtra;
+  /** Extra provider metadata to store alongside managedMeta.agentId. */
+  managedMeta?: Record<string, unknown>;
   /** Extra component configs merged into the claw-hive registration */
   extraComponentConfigs?: Record<string, Record<string, unknown>>;
 }
@@ -328,6 +330,7 @@ export class StaffService {
       avatarUrl,
       model,
       botExtra,
+      managedMeta,
       extraComponentConfigs,
     } = options;
 
@@ -339,7 +342,7 @@ export class StaffService {
       type: 'system',
       installedApplicationId,
       generateToken: true,
-      mentorId,
+      mentorId: mentorId ?? null,
       managedProvider: 'hive',
     });
 
@@ -350,7 +353,7 @@ export class StaffService {
       await this.db
         .update(schema.bots)
         .set({
-          managedMeta: { agentId },
+          managedMeta: { agentId, ...(managedMeta ?? {}) },
           updatedAt: new Date(),
         })
         .where(eq(schema.bots.id, bot.botId));
@@ -375,7 +378,7 @@ export class StaffService {
         metadata: {
           tenantId,
           botId: bot.botId,
-          mentorId,
+          mentorId: mentorId ?? null,
         },
         model,
         componentConfigs: {
