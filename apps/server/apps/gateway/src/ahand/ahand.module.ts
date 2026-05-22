@@ -7,6 +7,7 @@ import { AuthModule } from '../auth/auth.module.js';
 import { WorkspaceModule } from '../workspace/workspace.module.js';
 
 import { AhandController } from './ahand.controller.js';
+import { AhandJobStreamController } from './ahand-job-stream.controller.js';
 import { AhandInternalController } from './ahand-internal.controller.js';
 import { AhandHubWebhookController } from './ahand-webhook.controller.js';
 import { AhandDevicesService } from './ahand.service.js';
@@ -30,6 +31,7 @@ import { AhandEventsGateway } from './ahand-events.gateway.js';
   ],
   controllers: [
     AhandController,
+    AhandJobStreamController,
     AhandInternalController,
     AhandHubWebhookController,
   ],

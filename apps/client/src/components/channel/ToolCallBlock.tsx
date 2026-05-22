@@ -20,10 +20,12 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getLabelKey } from "@/config/toolLabels";
+import { useAhandJobStream } from "@/hooks/useAhandJobStream";
 import { useFullContent } from "@/hooks/useMessages";
 import { buildToolDisplayState } from "@/lib/tool-events";
 import Prism from "@/lib/prism";
 import { sanitizeMessageHtml } from "@/lib/sanitize";
+import { useAhandJobTelemetryStore } from "@/stores/useAhandJobTelemetryStore";
 import { MessageAttachments } from "./MessageAttachments";
 import type {
   CommandExecutionDisplay,
@@ -1244,6 +1246,15 @@ export function ToolCallBlock({
   const { t, i18n } = useTranslation("channel");
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRawJson, setShowRawJson] = useState(false);
+  const jobMonitor = callMetadata.jobMonitor ?? resultMetadata?.jobMonitor;
+  useAhandJobStream(
+    jobMonitor?.hubJobId,
+    jobMonitor?.deviceId,
+    jobMonitor?.provider === "ahand",
+  );
+  const liveJob = useAhandJobTelemetryStore((state) =>
+    jobMonitor?.hubJobId ? state.jobs[jobMonitor.hubJobId] : undefined,
+  );
 
   const fullContentTargetId =
     resultMetadata?.fullContentMessageId ??
@@ -1293,7 +1304,18 @@ export function ToolCallBlock({
   const isRunning = displayState.isRunning;
   const isError = displayState.isError;
   const hasResultContent = unwrapped !== "";
-  const commandExecution = displayState.commandExecution;
+  const baseCommandExecution = displayState.commandExecution;
+  const commandExecution =
+    baseCommandExecution && liveJob
+      ? {
+          ...baseCommandExecution,
+          stdout: liveJob.stdout || baseCommandExecution.stdout,
+          stderr: liveJob.stderr || baseCommandExecution.stderr,
+          ...(liveJob.exitCode !== undefined
+            ? { exitCode: String(liveJob.exitCode) }
+            : {}),
+        }
+      : baseCommandExecution;
   const isRunCommandDisplay = !!commandExecution;
   const loadedToolNames = displayState.loadedToolNames;
   const isLoadToolsDisplay = !!loadedToolNames;

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import i18n from "@/i18n";
 import { changeLanguage } from "@/i18n/loadLanguage";
+import { useAhandJobTelemetryStore } from "@/stores/useAhandJobTelemetryStore";
 import { ToolCallBlock } from "../ToolCallBlock";
 import type {
   AgentEventMetadata,
@@ -12,6 +13,7 @@ import type {
 } from "@/types/im";
 
 const mockUseFullContent = vi.hoisted(() => vi.fn());
+const mockUseAhandJobStream = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useMessages", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useMessages")>();
@@ -20,9 +22,14 @@ vi.mock("@/hooks/useMessages", async (importOriginal) => {
     useFullContent: (...args: unknown[]) => mockUseFullContent(...args),
   };
 });
+vi.mock("@/hooks/useAhandJobStream", () => ({
+  useAhandJobStream: mockUseAhandJobStream,
+}));
 
 beforeEach(async () => {
   mockUseFullContent.mockReturnValue({ data: undefined });
+  mockUseAhandJobStream.mockClear();
+  useAhandJobTelemetryStore.getState().clearAll();
   if (i18n.language !== "en") {
     await act(async () => {
       await i18n.changeLanguage("en");
@@ -660,6 +667,44 @@ describe("ToolCallBlock", () => {
           await i18n.changeLanguage("en");
         });
       }
+    });
+
+    it("renders live aHand job stdout for monitored run_command calls", () => {
+      useAhandJobTelemetryStore
+        .getState()
+        .applyEvent("hub-job-1", "job.stdout", { chunk: "live line\n" }, "1");
+
+      render(
+        <ToolCallBlock
+          callMetadata={makeCallMeta(
+            "run_command",
+            {
+              backend: "ahand:office-linux:ff01",
+              command: "long-script.sh",
+            },
+            {
+              status: "running",
+              jobMonitor: {
+                provider: "ahand",
+                hubJobId: "hub-job-1",
+                deviceId: "hub-device-1",
+              },
+            },
+          )}
+          resultContent=""
+        />,
+      );
+
+      expect(mockUseAhandJobStream).toHaveBeenCalledWith(
+        "hub-job-1",
+        "hub-device-1",
+        true,
+      );
+
+      fireEvent.click(screen.getByText("long-script.sh"));
+
+      expect(screen.getByText("stdout")).toBeInTheDocument();
+      expect(screen.getByText("live line")).toBeInTheDocument();
     });
 
     it("renders cloud sandbox as a cloud icon with tooltip and shows backend after expansion", async () => {
