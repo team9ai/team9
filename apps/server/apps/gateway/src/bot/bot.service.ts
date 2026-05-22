@@ -63,7 +63,7 @@ export interface CreateWorkspaceBotOptions {
   generateToken?: boolean;
   mentorId?: string | null;
   managedProvider?: string;
-  managedMeta?: ManagedMeta;
+  managedMeta?: ManagedMeta | null;
 }
 
 export interface WorkspaceBotResult {
@@ -344,7 +344,8 @@ export class BotService implements OnModuleInit {
     if (
       installedApplicationId !== undefined ||
       mentorId !== undefined ||
-      managedProvider !== undefined
+      managedProvider !== undefined ||
+      managedMeta !== undefined
     ) {
       await this.db
         .update(schema.bots)
