@@ -61,9 +61,9 @@ export interface CreateWorkspaceBotOptions {
   type?: 'system' | 'custom' | 'webhook';
   installedApplicationId?: string;
   generateToken?: boolean;
-  mentorId?: string;
+  mentorId?: string | null;
   managedProvider?: string;
-  managedMeta?: ManagedMeta;
+  managedMeta?: ManagedMeta | null;
 }
 
 export interface WorkspaceBotResult {
@@ -341,14 +341,21 @@ export class BotService implements OnModuleInit {
     this.logger.log(`Created bot ${bot.botId} for workspace ${tenantId}`);
 
     // 2. Link to application, set mentor, and managed fields if provided
-    if (installedApplicationId || mentorId || managedProvider) {
+    if (
+      installedApplicationId !== undefined ||
+      mentorId !== undefined ||
+      managedProvider !== undefined ||
+      managedMeta !== undefined
+    ) {
       await this.db
         .update(schema.bots)
         .set({
-          ...(installedApplicationId && { installedApplicationId }),
-          ...(mentorId && { mentorId }),
-          ...(managedProvider && { managedProvider }),
-          ...(managedMeta && { managedMeta }),
+          ...(installedApplicationId !== undefined
+            ? { installedApplicationId }
+            : {}),
+          ...(mentorId !== undefined ? { mentorId } : {}),
+          ...(managedProvider !== undefined ? { managedProvider } : {}),
+          ...(managedMeta !== undefined ? { managedMeta } : {}),
           updatedAt: new Date(),
         })
         .where(eq(schema.bots.id, bot.botId));

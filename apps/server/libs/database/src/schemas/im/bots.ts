@@ -48,6 +48,7 @@ export interface BotExtra {
     persona?: string;
     jobDescription?: string;
     model?: { provider: string; id: string };
+    prefabTemplateId?: string;
     /**
      * Free-form identity facts surfaced to the agent via
      * `StaffProfileSnapshot.identity`. Shallow-merged by the

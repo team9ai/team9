@@ -603,6 +603,68 @@ describe('ClawHiveService', () => {
     });
   });
 
+  describe('listPrefabAgentTemplates', () => {
+    it('sends GET to /api/prefab-agent-templates with Hive auth headers', async () => {
+      const templates = [
+        {
+          id: 'sales-analyst',
+          name: 'Sales Analyst',
+          description: 'Analyzes pipeline health',
+          blueprintId: 'team9-common-staff',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          componentConfigs: {
+            'system-prompt': { prompt: 'Act as sales ops.' },
+          },
+          metadata: {
+            team9: {
+              roleTitle: 'Sales Operations Analyst',
+              shortRoleTitle: 'Sales Ops',
+              unique: true,
+            },
+          },
+        },
+      ];
+      mockFetch.mockResolvedValueOnce(jsonResponse({ templates }));
+
+      const result = await service.listPrefabAgentTemplates();
+
+      expect(result).toEqual(templates);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/prefab-agent-templates',
+        expect.objectContaining({ method: 'GET' }),
+      );
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = opts.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBe('application/json');
+      expect(headers['X-Hive-Auth']).toBe('test-token');
+      expect(headers).not.toHaveProperty('X-Hive-Tenant');
+    });
+
+    it('also accepts a bare array response for compatibility', async () => {
+      const templates = [
+        {
+          id: 'support-specialist',
+          name: 'Support Specialist',
+          blueprintId: 'team9-common-staff',
+          metadata: { team9: { roleTitle: 'Support Specialist' } },
+        },
+      ];
+      mockFetch.mockResolvedValueOnce(jsonResponse(templates));
+
+      await expect(service.listPrefabAgentTemplates()).resolves.toEqual(
+        templates,
+      );
+    });
+
+    it('throws on non-ok responses', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Upstream down', 503));
+
+      await expect(service.listPrefabAgentTemplates()).rejects.toThrow(
+        'Failed to list prefab agent templates: 503 Upstream down',
+      );
+    });
+  });
+
   // ── headers ──────────────────────────────────────────────────────────────
 
   describe('headers', () => {

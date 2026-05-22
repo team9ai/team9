@@ -37,7 +37,12 @@ import { CreateCommonStaffDialog } from "@/components/ai-staff/CreateCommonStaff
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceMembers } from "@/hooks/useWorkspace";
+import {
+  useInstallRecommendedStaff,
+  useRecommendedStaff,
+} from "@/hooks/useAgentHub";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import type { RecommendedStaffTemplate } from "@/services/api/agent-hub";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
@@ -359,6 +364,84 @@ function MemberCard({ member }: MemberCardProps) {
   );
 }
 
+// ── Recommended staff card ───────────────────────────────────────────
+
+interface RecommendedStaffCardProps {
+  template: RecommendedStaffTemplate;
+  isInstalling: boolean;
+  isInstallBlocked: boolean;
+  onInstall: (templateId: string) => void;
+}
+
+function RecommendedStaffCard({
+  template,
+  isInstalling,
+  isInstallBlocked,
+  onInstall,
+}: RecommendedStaffCardProps) {
+  const initials = template.displayName.slice(0, 2).toUpperCase();
+  const isUniqueInstalled = template.unique && template.installed;
+  const summary = template.description ?? template.jobDescription;
+
+  return (
+    <Card className="p-4 transition-all hover:shadow-md">
+      <div className="flex items-start gap-4">
+        <Avatar className="w-12 h-12">
+          {template.avatarUrl ? (
+            <AvatarImage src={template.avatarUrl} alt={template.displayName} />
+          ) : null}
+          <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {template.displayName}
+            </p>
+            {template.installed && !isUniqueInstalled && (
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                Installed
+              </Badge>
+            )}
+          </div>
+          <p className="truncate text-xs font-medium text-muted-foreground">
+            {template.roleTitle}
+          </p>
+          {summary && (
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+              {summary}
+            </p>
+          )}
+        </div>
+
+        <Button
+          size="sm"
+          variant={isUniqueInstalled ? "secondary" : "default"}
+          disabled={isUniqueInstalled || isInstallBlocked}
+          onClick={() => void onInstall(template.templateId)}
+          className="shrink-0"
+        >
+          {isInstalling ? (
+            <>
+              <Loader2 size={14} className="mr-1 animate-spin" />
+              Installing
+            </>
+          ) : isUniqueInstalled ? (
+            "Installed"
+          ) : (
+            "Install"
+          )}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 // ── Main Component ───────────────────────────────────────────────────
 
 export function AIStaffMainContent() {
@@ -368,9 +451,20 @@ export function AIStaffMainContent() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [aiStaffExpanded, setAiStaffExpanded] = useState(true);
   const [membersExpanded, setMembersExpanded] = useState(true);
+  const [installingTemplateId, setInstallingTemplateId] = useState<
+    string | null
+  >(null);
+  const [installError, setInstallError] = useState<string | null>(null);
   const [appGroupExpanded, setAppGroupExpanded] = useState<
     Record<string, boolean>
   >({});
+  const navigate = useNavigate();
+  const installRecommendedStaff = useInstallRecommendedStaff();
+  const {
+    data: recommendedStaff = [],
+    isLoading: recommendedStaffLoading,
+    error: recommendedStaffError,
+  } = useRecommendedStaff();
 
   // Fetch installed applications with bots
   const {
@@ -478,6 +572,24 @@ export function AIStaffMainContent() {
 
   const hasCreateButton = !!commonStaffApp || openClawApps.length > 0;
 
+  const handleInstallRecommendedStaff = async (templateId: string) => {
+    setInstallError(null);
+    setInstallingTemplateId(templateId);
+    try {
+      const result = await installRecommendedStaff.mutateAsync({ templateId });
+      navigate({
+        to: "/ai-staff/$staffId",
+        params: { staffId: result.botId },
+      });
+    } catch (error) {
+      setInstallError(
+        getHttpErrorMessage(error) || "Failed to install recommended staff",
+      );
+    } finally {
+      setInstallingTemplateId(null);
+    }
+  };
+
   return (
     <main className="h-full flex flex-col bg-background overflow-hidden">
       {/* Content Header */}
@@ -550,7 +662,69 @@ export function AIStaffMainContent() {
 
               <Separator />
 
-              {/* Section 2: AI Staff (grouped by app) */}
+              {/* Section 2: Recommended Staff */}
+              <div>
+                <SectionHeader
+                  title="Recommended Staff"
+                  count={recommendedStaff.length}
+                  expanded={true}
+                  onToggle={() => {}}
+                  pinned
+                />
+                <div className="pl-4">
+                  {installError && (
+                    <Card className="mb-3 border-destructive/40 p-3">
+                      <div className="flex items-center gap-2 text-sm text-destructive">
+                        <AlertCircle size={14} />
+                        <span>{installError}</span>
+                      </div>
+                    </Card>
+                  )}
+
+                  {recommendedStaffLoading ? (
+                    <Card className="p-4">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Loading recommendations</span>
+                      </div>
+                    </Card>
+                  ) : recommendedStaffError ? (
+                    <Card className="p-4">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <AlertCircle size={14} />
+                        <span>Recommended staff unavailable</span>
+                      </div>
+                    </Card>
+                  ) : recommendedStaff.length === 0 ? (
+                    <Card className="p-4 text-center border-dashed">
+                      <p className="text-sm text-muted-foreground">
+                        No recommended staff available
+                      </p>
+                    </Card>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {recommendedStaff.map((template) => (
+                        <RecommendedStaffCard
+                          key={template.templateId}
+                          template={template}
+                          isInstalling={
+                            installingTemplateId === template.templateId
+                          }
+                          isInstallBlocked={
+                            installingTemplateId !== null ||
+                            installRecommendedStaff.isPending
+                          }
+                          onInstall={handleInstallRecommendedStaff}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Section 3: AI Staff (grouped by app) */}
               <div>
                 <SectionHeader
                   title={t("aiStaffSection")}
@@ -619,7 +793,7 @@ export function AIStaffMainContent() {
 
               <Separator />
 
-              {/* Section 3: Members */}
+              {/* Section 4: Members */}
               <div>
                 <SectionHeader
                   title={t("membersSection")}
