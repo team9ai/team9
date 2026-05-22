@@ -1,12 +1,46 @@
 import { useRouterState } from "@tanstack/react-router";
+import { isDashboardModeEntryPath } from "@/lib/dashboard-mode";
 import { cn } from "@/lib/utils";
+
+function getPathnameFromHref(href: string | undefined) {
+  if (!href) return null;
+
+  try {
+    return new URL(href, "http://team9.local").pathname;
+  } catch {
+    return href.split(/[?#]/, 1)[0] || null;
+  }
+}
+
+function isDashboardModeEntryTransition({
+  fromHref,
+  toHref,
+}: {
+  fromHref: string | undefined;
+  toHref: string | undefined;
+}) {
+  const fromPath = getPathnameFromHref(fromHref);
+  const toPath = getPathnameFromHref(toHref);
+
+  return (
+    fromPath !== null &&
+    toPath !== null &&
+    fromPath !== toPath &&
+    isDashboardModeEntryPath(fromPath) &&
+    isDashboardModeEntryPath(toPath)
+  );
+}
 
 function useIsRouteChangePending() {
   return useRouterState({
     select: (state) =>
       state.status === "pending" &&
       Boolean(state.resolvedLocation) &&
-      state.location.href !== state.resolvedLocation?.href,
+      state.location.href !== state.resolvedLocation?.href &&
+      !isDashboardModeEntryTransition({
+        fromHref: state.resolvedLocation?.href,
+        toHref: state.location.href,
+      }),
   });
 }
 

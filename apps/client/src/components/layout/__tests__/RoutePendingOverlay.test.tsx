@@ -45,4 +45,16 @@ describe("RoutePendingOverlay", () => {
       document.querySelector(".route-pending-skeleton"),
     ).toBeInTheDocument();
   });
+
+  it("does not cover dashboard mode entry transitions", () => {
+    routerState = {
+      status: "pending",
+      location: { href: "/tasks/new-task" },
+      resolvedLocation: { href: "/tasks/new-conversation" },
+    };
+
+    render(<RoutePendingOverlay />);
+
+    expect(screen.queryByTestId("route-pending-overlay")).toBeNull();
+  });
 });
