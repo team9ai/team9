@@ -1,3 +1,4 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import {
   jest,
   describe,
@@ -237,6 +238,108 @@ describe('AgentHubService catalog', () => {
       expect.objectContaining({
         templateId: 'valid-template-model',
         roleTitle: 'Valid Template Model',
+      }),
+    ]);
+  });
+
+  it('rejects malformed Hive template model instead of falling back to default', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({
+        id: 'bad-template-model',
+        model: { provider: 123, id: 'x' },
+        metadata: {
+          team9: {
+            roleTitle: 'Bad Template Model',
+          },
+        },
+      }),
+      makeTemplate({
+        id: 'valid-template-model',
+        metadata: {
+          team9: {
+            roleTitle: 'Valid Template Model',
+          },
+        },
+      }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        templateId: 'valid-template-model',
+      }),
+    ]);
+  });
+
+  it('returns unavailable instead of stale cache when cachedAt is invalid and AgentHive fails', async () => {
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        cachedAt: 'not-a-date',
+        templates: [
+          {
+            templateId: 'invalid-date-template',
+            name: 'Invalid Date',
+            displayName: 'Invalid Date',
+            roleTitle: 'Invalid Date Role',
+            shortRoleTitle: null,
+            persona: null,
+            jobDescription: null,
+            avatarUrl: null,
+            description: null,
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
+            blueprintId: 'team9-common-staff',
+            componentConfigs: {},
+            unique: false,
+          },
+        ],
+      }),
+    );
+    clawHive.listPrefabAgentTemplates.mockRejectedValue(new Error('down'));
+
+    await expect(service.listRecommendedStaff('tenant-1')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('returns fresh AgentHive results when Redis cache read fails', async () => {
+    redis.get.mockRejectedValue(new Error('redis read down'));
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([makeTemplate()]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      templateId: 'sales-analyst',
+      installed: false,
+    });
+  });
+
+  it('skips Hive templates with empty id, name, or blueprintId', async () => {
+    clawHive.listPrefabAgentTemplates.mockResolvedValue([
+      makeTemplate({ id: '' }),
+      makeTemplate({ id: 'empty-name', name: '   ' }),
+      makeTemplate({ id: 'empty-blueprint', blueprintId: '' }),
+      makeTemplate({ id: 'valid-required-fields' }),
+    ]);
+    installedApplications.findByApplicationId.mockResolvedValue({
+      id: 'common-app-1',
+    });
+
+    const result = await service.listRecommendedStaff('tenant-1');
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        templateId: 'valid-required-fields',
       }),
     ]);
   });

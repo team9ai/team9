@@ -86,23 +86,26 @@ function getTeam9Metadata(
 function normalizeTemplate(
   template: HivePrefabAgentTemplate,
 ): CachedRecommendedStaffTemplate | null {
+  const templateId = stringOrNull(template.id);
+  const name = stringOrNull(template.name);
+  const blueprintId = stringOrNull(template.blueprintId);
+  if (!templateId || !name || !blueprintId) return null;
+
   const metadata = getTeam9Metadata(template);
   if (!metadata) return null;
 
-  const model =
-    metadata.model ??
-    toModel(template.model) ??
-    DEFAULT_RECOMMENDED_STAFF_MODEL;
-  if (!stringOrNull(model.provider) || !stringOrNull(model.id)) return null;
+  const model = metadata.model ?? toModel(template.model);
+  if (template.model !== undefined && !metadata.model && !model) return null;
+  const resolvedModel = model ?? DEFAULT_RECOMMENDED_STAFF_MODEL;
 
-  const displayName = metadata.displayName ?? template.name;
+  const displayName = metadata.displayName ?? name;
   const componentConfigs = isObject(template.componentConfigs)
     ? template.componentConfigs
     : {};
 
   return {
-    templateId: template.id,
-    name: template.name,
+    templateId,
+    name,
     description: stringOrNull(template.description),
     displayName,
     roleTitle: metadata.roleTitle,
@@ -110,8 +113,8 @@ function normalizeTemplate(
     persona: metadata.persona ?? null,
     jobDescription: metadata.jobDescription ?? null,
     avatarUrl: metadata.avatarUrl ?? null,
-    model,
-    blueprintId: template.blueprintId,
+    model: resolvedModel,
+    blueprintId,
     componentConfigs,
     unique: metadata.unique === true,
   };
@@ -196,13 +199,24 @@ export class AgentHubService {
   }
 
   private async readCache(): Promise<RecommendedStaffCachePayload | null> {
-    const cached = await this.redis.get(AGENT_HUB_RECOMMENDED_STAFF_CACHE_KEY);
+    let cached: string | null;
+    try {
+      cached = await this.redis.get(AGENT_HUB_RECOMMENDED_STAFF_CACHE_KEY);
+    } catch (error) {
+      this.logger.warn(
+        'Failed to read AgentHub recommended staff catalog cache',
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+
     if (!cached) return null;
 
     try {
       const parsed = JSON.parse(cached) as unknown;
       if (!isObject(parsed)) return null;
       if (typeof parsed.cachedAt !== 'string') return null;
+      if (Number.isNaN(Date.parse(parsed.cachedAt))) return null;
       if (!Array.isArray(parsed.templates)) return null;
       if (!parsed.templates.every(isCachedTemplate)) return null;
 
