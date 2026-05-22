@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { HOME_ENTRY_PATH, useAppStore } from "@/stores";
+import { HOME_ENTRY_PATH, useAppStore, useHomeStore } from "@/stores";
 import type { TaskRun } from "@/types/task";
 
 const mockNavigate = vi.fn();
@@ -186,6 +186,7 @@ describe("TasksSubSidebar", () => {
   beforeEach(() => {
     pathname = HOME_ENTRY_PATH;
     params = {};
+    window.history.replaceState(null, "", HOME_ENTRY_PATH);
     mockNavigate.mockClear();
     mockUpdateTask.mockReset();
     mockHideTask.mockReset();
@@ -202,6 +203,7 @@ describe("TasksSubSidebar", () => {
     mockArchiveTask.mockResolvedValue({ id: "run-1" });
     mockDeleteTask.mockResolvedValue(undefined);
     useAppStore.getState().reset();
+    useHomeStore.getState().reset();
   });
 
   it("labels the former task sidebar as Home", () => {
@@ -217,17 +219,28 @@ describe("TasksSubSidebar", () => {
     fireEvent.click(screen.getByText("新对话"));
 
     expect(useAppStore.getState().activeSidebar).toBe("home");
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: HOME_ENTRY_PATH,
-    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe(HOME_ENTRY_PATH);
   });
 
-  it("renders centered conversation and task tabs", () => {
+  it("renders compact conversation and task tabs below the dashboard actions", () => {
     renderTasksSubSidebar();
 
     const tablist = screen.getByRole("tablist", { name: "首页模式" });
+    const taskBoardAction = screen.getByText("任务看板");
 
-    expect(tablist).toHaveClass("mx-auto", "grid", "grid-cols-2");
+    expect(taskBoardAction.compareDocumentPosition(tablist)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(tablist).toHaveClass(
+      "mx-auto",
+      "grid",
+      "grid-cols-2",
+      "max-w-36",
+      "rounded-xl",
+      "p-0.5",
+      "text-xs",
+    );
     expect(screen.getByRole("tab", { name: "对话" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -235,6 +248,21 @@ describe("TasksSubSidebar", () => {
     expect(screen.getByRole("tab", { name: "任务" })).toHaveAttribute(
       "aria-selected",
       "false",
+    );
+  });
+
+  it("animates the sidebar mode switch affordance and content", () => {
+    renderTasksSubSidebar();
+
+    expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
+      "transition-transform",
+      "duration-200",
+    );
+    expect(screen.getByTestId("dashboard-sidebar-mode-content")).toHaveClass(
+      "animate-in",
+      "fade-in-0",
+      "slide-in-from-top-1",
+      "duration-150",
     );
   });
 
@@ -248,17 +276,48 @@ describe("TasksSubSidebar", () => {
     expect(screen.queryByText("暂无任务")).not.toBeInTheDocument();
   });
 
-  it("switches left sidebar mode through routes", () => {
+  it("switches left sidebar mode without remounting the dashboard route", () => {
     renderTasksSubSidebar();
 
     fireEvent.click(screen.getByRole("tab", { name: "任务" }));
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/tasks/new-task" });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(useHomeStore.getState().dashboardMode).toBe("task");
+    expect(screen.getByRole("tab", { name: "任务" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
+      "translate-x-full",
+    );
+    expect(screen.getByText("新对话").closest("button")).not.toHaveClass(
+      "bg-nav-active",
+    );
 
-    fireEvent.click(screen.getByText("新对话"));
-    expect(mockNavigate).toHaveBeenCalledWith({ to: HOME_ENTRY_PATH });
+    fireEvent.click(screen.getByRole("tab", { name: "对话" }));
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(useHomeStore.getState().dashboardMode).toBe("conversation");
+    expect(screen.getByRole("tab", { name: "对话" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("AI Agents")).toBeInTheDocument();
   });
 
-  it("opens a task draft page when starting a new task", () => {
+  it("switches to the task draft entry through pseudo-routing when already on the dashboard", () => {
+    renderTasksSubSidebar();
+
+    fireEvent.click(screen.getByText("新任务"));
+
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(useHomeStore.getState().dashboardMode).toBe("task");
+    expect(window.location.pathname).toBe("/tasks/new-task");
+  });
+
+  it("navigates to the task draft entry when starting from another task page", () => {
+    pathname = "/tasks/task-1";
+    window.history.replaceState(null, "", "/tasks/task-1");
+
     renderTasksSubSidebar();
 
     fireEvent.click(screen.getByText("新任务"));
@@ -282,9 +341,13 @@ describe("TasksSubSidebar", () => {
 
   it("marks the task draft entry as selected", () => {
     pathname = "/tasks/new-task";
+    window.history.replaceState(null, "", "/tasks/new-task");
 
     renderTasksSubSidebar();
 
+    expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
+      "translate-x-full",
+    );
     expect(screen.getByText("新任务").closest("button")).toHaveClass(
       "bg-nav-active",
     );

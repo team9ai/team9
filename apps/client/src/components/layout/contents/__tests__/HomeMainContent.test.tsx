@@ -14,6 +14,10 @@ const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
 const mockCreateTaskRun = vi.hoisted(() => vi.fn());
 const mockUseFileUpload = vi.hoisted(() => vi.fn());
+const mockSetDashboardMode = vi.hoisted(() => vi.fn());
+const mockDashboardModeState = vi.hoisted(() => ({
+  value: "conversation" as "conversation" | "task",
+}));
 const mockUploadState = vi.hoisted(() => ({
   uploadingFiles: [] as Array<{
     id: string;
@@ -125,6 +129,13 @@ vi.mock("@/hooks/useWorkspaceBilling", () => ({
 vi.mock("@/stores", () => ({
   HOME_ENTRY_PATH: "/tasks/new-conversation",
   TASK_ENTRY_PATH: "/tasks/new-task",
+  homeActions: {
+    setDashboardMode: (mode: "conversation" | "task") => {
+      mockDashboardModeState.value = mode;
+      mockSetDashboardMode(mode);
+    },
+  },
+  useDashboardMode: () => mockDashboardModeState.value,
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
   useUser: mockUseUser,
 }));
@@ -206,6 +217,8 @@ describe("HomeMainContent", () => {
     vi.clearAllMocks();
     localStorage.clear();
     mockUploadState.uploadingFiles = [];
+    mockDashboardModeState.value = "conversation";
+    window.history.replaceState(null, "", "/tasks/new-conversation");
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
     mockUseWorkspaceBillingSummary.mockReturnValue({
@@ -850,6 +863,8 @@ describe("HomeMainContent", () => {
 
   it("animates mode switching in place while preserving the composer draft", () => {
     renderWithProviders(<HomeMainContent />);
+    mockNavigate.mockClear();
+    mockSetDashboardMode.mockClear();
 
     const switcher = screen.getByRole("tablist", { name: /dashboard mode/i });
     expect(
@@ -861,7 +876,9 @@ describe("HomeMainContent", () => {
     });
     fireEvent.click(screen.getByRole("tab", { name: /task mode/i }));
 
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/tasks/new-task" });
+    expect(mockSetDashboardMode).toHaveBeenCalledWith("task");
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/tasks/new-task");
     expect(screen.getByRole("tab", { name: /task mode/i })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -875,9 +892,9 @@ describe("HomeMainContent", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /conversation mode/i }));
 
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/tasks/new-conversation",
-    });
+    expect(mockSetDashboardMode).toHaveBeenLastCalledWith("conversation");
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/tasks/new-conversation");
     expect(screen.getByPlaceholderText(/message dashboard/i)).toHaveValue(
       "keep this draft",
     );

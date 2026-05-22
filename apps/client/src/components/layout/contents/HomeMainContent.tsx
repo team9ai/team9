@@ -82,10 +82,12 @@ import type { WorkspaceBillingAccount } from "@/types/workspace";
 import type { AttachmentDto } from "@/types/im";
 import type { Skill } from "@/types/skill";
 import {
-  HOME_ENTRY_PATH,
-  TASK_ENTRY_PATH,
+  homeActions,
+  useDashboardMode,
   useSelectedWorkspaceId,
+  type HomeDashboardMode,
 } from "@/stores";
+import { replaceDashboardModeEntryUrl } from "@/lib/dashboard-mode";
 import { cn } from "@/lib/utils";
 
 const CONVERSATION_DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
@@ -112,7 +114,7 @@ const CONVERSATION_DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
 const SHOW_TASK_AGENT_SUGGESTIONS = false;
 const EMPTY_SKILLS: Skill[] = [];
 
-type DashboardMode = "conversation" | "task";
+type DashboardMode = HomeDashboardMode;
 
 type DashboardTaskTriggerMode = "immediate" | "scheduled" | "create_only";
 
@@ -1156,7 +1158,9 @@ export function HomeMainContent({
   const { agents } = useDashboardAgents(directChannels);
   const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
   const billingOverview = useWorkspaceBillingOverview(workspaceId ?? undefined);
+  const sharedDashboardMode = useDashboardMode();
   const [mode, setMode] = useState<DashboardMode>(initialMode);
+  const hasSyncedInitialModeRef = useRef(false);
   const isTaskMode = mode === "task";
   const skillsQuery = useSkills(undefined, { enabled: isTaskMode });
   const skills = skillsQuery.data ?? EMPTY_SKILLS;
@@ -1276,8 +1280,19 @@ export function HomeMainContent({
   }, [agentId]);
 
   useEffect(() => {
+    hasSyncedInitialModeRef.current = false;
     setMode(initialMode);
+    homeActions.setDashboardMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    if (!hasSyncedInitialModeRef.current) {
+      if (sharedDashboardMode !== initialMode) return;
+      hasSyncedInitialModeRef.current = true;
+    }
+
+    setMode(sharedDashboardMode);
+  }, [initialMode, sharedDashboardMode]);
 
   useEffect(() => {
     if (isTaskMode) {
@@ -1661,15 +1676,11 @@ export function HomeMainContent({
     setSessionModelOverride(model);
   };
 
-  const handleModeChange = useCallback(
-    (nextMode: DashboardMode) => {
-      setMode(nextMode);
-      void navigate({
-        to: nextMode === "task" ? TASK_ENTRY_PATH : HOME_ENTRY_PATH,
-      });
-    },
-    [navigate],
-  );
+  const handleModeChange = useCallback((nextMode: DashboardMode) => {
+    setMode(nextMode);
+    homeActions.setDashboardMode(nextMode);
+    replaceDashboardModeEntryUrl(nextMode);
+  }, []);
 
   return (
     <main className="dashboard-landing h-full overflow-y-auto">
