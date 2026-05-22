@@ -653,6 +653,12 @@ export function ChannelView({
     activeTab?.type === "table_view" ||
     activeTab?.type === "board_view" ||
     activeTab?.type === "calendar_view";
+  const isMessageListVisible = !isViewTab && !isFilesTab && !showOverlay;
+  const [isMessageListAtBottom, setIsMessageListAtBottom] = useState(false);
+
+  useEffect(() => {
+    setIsMessageListAtBottom(false);
+  }, [activeTabId, channelId, showOverlay]);
 
   // Clear thinking state when channel changes
   useEffect(() => {
@@ -773,8 +779,8 @@ export function ChannelView({
   // New messages are prepended to pages[0].messages, so messages[0] is the latest
   const latestMessageId = messages.length > 0 ? messages[0]?.id : null;
 
-  // Auto-mark messages as read when viewing the channel or when new messages arrive
-  // Skip for preview mode (non-members)
+  // Auto-mark messages as read only when the message list is visible and the
+  // user is at the latest position. Skip preview mode (non-members).
   // In anchored mode, only mark as read when there are no newer pages to load,
   // because messages[0] may not be the true latest message otherwise.
   useEffectOncePerKey(
@@ -782,6 +788,8 @@ export function ChannelView({
     Boolean(
       latestMessageId &&
       !isPreviewMode &&
+      isMessageListVisible &&
+      isMessageListAtBottom &&
       !hasPreviousPage &&
       !messagesLoading &&
       isValidMessageId(latestMessageId),
@@ -961,11 +969,13 @@ export function ChannelView({
             messages={messages}
             isLoading={isFetchingNextPage}
             onLoadMore={() => {
-              if (hasNextPage) fetchNextPage();
+              if (hasNextPage) return fetchNextPage();
+              return undefined;
             }}
             hasMore={hasNextPage}
             onLoadNewer={() => {
-              if (hasPreviousPage) fetchPreviousPage();
+              if (hasPreviousPage) return fetchPreviousPage();
+              return undefined;
             }}
             hasNewer={hasPreviousPage}
             isLoadingNewer={isFetchingPreviousPage}
@@ -976,6 +986,7 @@ export function ChannelView({
             thinkingStatuses={thinkingStatuses}
             members={members}
             lastReadMessageId={unreadAnchor}
+            onAtBottomChange={setIsMessageListAtBottom}
             showReadOnlyBar={showComposerReadOnlyBar}
             readOnlyLabel={readOnlyLabel}
             readOnlyAction={readOnlyAction}

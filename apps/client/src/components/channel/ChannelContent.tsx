@@ -6,15 +6,17 @@ import type { BotThinkingStatus } from "./bot-thinking-state";
 import type { ReactNode } from "react";
 import type { DeepResearchTaskMeta } from "./DeepResearchTaskCard";
 
+type MaybePromise = void | Promise<unknown>;
+
 export interface ChannelContentProps {
   // MessageList props
   channelId: string;
   channelType?: string;
   messages: Message[];
   isLoading: boolean;
-  onLoadMore: () => void;
+  onLoadMore: () => MaybePromise;
   hasMore?: boolean;
-  onLoadNewer?: () => void;
+  onLoadNewer?: () => MaybePromise;
   hasNewer?: boolean;
   isLoadingNewer?: boolean;
   highlightMessageId?: string;
@@ -29,6 +31,7 @@ export interface ChannelContentProps {
   thinkingStatuses?: readonly BotThinkingStatus[];
   members?: ChannelMember[];
   lastReadMessageId?: string;
+  onAtBottomChange?: (atBottom: boolean) => void;
 
   // MessageInput props
   onSend?: (
@@ -72,6 +75,7 @@ export function ChannelContent({
   thinkingStatuses,
   members,
   lastReadMessageId,
+  onAtBottomChange,
   onSend,
   isSendDisabled,
   inputPlaceholder,
@@ -88,7 +92,7 @@ export function ChannelContent({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <MessageList
-        key={`${channelId}:${highlightSeq ?? 0}`}
+        key={`${channelId}:${highlightSeq ?? 0}:${highlightMessageId ?? ""}`}
         channelId={channelId}
         channelType={channelType}
         messages={messages}
@@ -104,6 +108,7 @@ export function ChannelContent({
         thinkingStatuses={thinkingStatuses}
         members={members}
         lastReadMessageId={lastReadMessageId}
+        onAtBottomChange={onAtBottomChange}
         onOpenDeepResearch={onOpenDeepResearch}
       />
 

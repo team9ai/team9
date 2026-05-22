@@ -27,8 +27,9 @@ interface MessageReactionsProps {
   reactions: MessageReaction[];
   currentUserId?: string;
   channelId?: string;
-  onAddReaction: (emoji: string) => void;
-  onRemoveReaction: (emoji: string) => void;
+  onAddReaction?: (emoji: string) => void;
+  onRemoveReaction?: (emoji: string) => void;
+  readOnly?: boolean;
   /** Extra element rendered inside the reactions row, after the reaction chips and emoji-picker +. */
   trailingSlot?: React.ReactNode;
 }
@@ -39,6 +40,7 @@ export function MessageReactions({
   channelId,
   onAddReaction,
   onRemoveReaction,
+  readOnly = false,
   trailingSlot,
 }: MessageReactionsProps) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -79,6 +81,7 @@ export function MessageReactions({
   if (grouped.length === 0) return null;
 
   const handleToggle = (g: GroupedReaction) => {
+    if (readOnly || !onAddReaction || !onRemoveReaction) return;
     if (g.hasCurrentUser) {
       onRemoveReaction(g.emoji);
     } else {
@@ -87,6 +90,7 @@ export function MessageReactions({
   };
 
   const handlePickerSelect = (emoji: string) => {
+    if (!onAddReaction) return;
     onAddReaction(emoji);
     setEmojiPickerOpen(false);
   };
@@ -105,18 +109,33 @@ export function MessageReactions({
         {grouped.map((g) => (
           <Tooltip key={g.emoji}>
             <TooltipTrigger asChild>
-              <button
-                onClick={() => handleToggle(g)}
-                className={cn(
-                  "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors",
-                  g.hasCurrentUser
-                    ? "bg-info/10 border-info/40 text-info hover:bg-info/20"
-                    : "bg-muted/50 border-border hover:bg-muted",
-                )}
-              >
-                <span>{g.emoji}</span>
-                <span>{g.count}</span>
-              </button>
+              {readOnly || !onAddReaction || !onRemoveReaction ? (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border",
+                    g.hasCurrentUser
+                      ? "bg-info/10 border-info/40 text-info"
+                      : "bg-muted/50 border-border",
+                  )}
+                >
+                  <span>{g.emoji}</span>
+                  <span>{g.count}</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleToggle(g)}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors",
+                    g.hasCurrentUser
+                      ? "bg-info/10 border-info/40 text-info hover:bg-info/20"
+                      : "bg-muted/50 border-border hover:bg-muted",
+                  )}
+                >
+                  <span>{g.emoji}</span>
+                  <span>{g.count}</span>
+                </button>
+              )}
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={4}>
               {getTooltipText(g)}
@@ -124,23 +143,28 @@ export function MessageReactions({
           </Tooltip>
         ))}
 
-        <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
-          <PopoverTrigger asChild>
-            <button className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-              <SmilePlus size={12} />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="start"
-            sideOffset={8}
-            className="w-auto p-0 border-none shadow-lg"
-          >
-            <EmojiPicker onSelect={handlePickerSelect} />
-          </PopoverContent>
-        </Popover>
+        {!readOnly && onAddReaction && (
+          <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <SmilePlus size={12} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="start"
+              sideOffset={8}
+              className="w-auto p-0 border-none shadow-lg"
+            >
+              <EmojiPicker onSelect={handlePickerSelect} />
+            </PopoverContent>
+          </Popover>
+        )}
 
-        {trailingSlot}
+        {!readOnly && trailingSlot}
       </div>
     </TooltipProvider>
   );

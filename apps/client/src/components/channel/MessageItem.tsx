@@ -70,6 +70,8 @@ export interface MessageItemProps {
   unreadSubReplyCount?: number;
   /** Highlight this message (e.g., from deep link navigation) */
   isHighlighted?: boolean;
+  /** Suppress message-level mutations while still rendering readable content. */
+  readOnly?: boolean;
   /** Whether current user can delete this message (admin/owner) */
   canDelete?: boolean;
   /** Context menu handlers */
@@ -125,6 +127,7 @@ export function MessageItem({
   onReplyCountClick,
   unreadSubReplyCount,
   isHighlighted = false,
+  readOnly = false,
   canDelete,
   onReplyInThread,
   onEdit,
@@ -329,7 +332,8 @@ export function MessageItem({
   const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
 
-  const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
+  const showToolbar =
+    isHovered && !isSending && !isFailed && !isRootMessage && !readOnly;
   const hasReactions = message.reactions && message.reactions.length > 0;
   // Hover-toolbar Tags button is the entry point for creating the first
   // property too, so it must show even before any definitions exist.
@@ -342,7 +346,7 @@ export function MessageItem({
   const propertiesHaveDefs =
     supportsProperties && (propertyDefinitions?.length ?? 0) > 0;
   const showReactionInlineAdd =
-    !!hasReactions && propertiesHaveDefs && !hasAnyPropertyValue;
+    !readOnly && !!hasReactions && propertiesHaveDefs && !hasAnyPropertyValue;
 
   // Toggle reaction: remove if already reacted, add if not
   const handleReactionToggle = (emoji: string) => {
@@ -356,23 +360,24 @@ export function MessageItem({
     }
   };
 
-  const propertiesHoverSlot = propertiesAvailable ? (
-    <PropertySelector
-      channelId={message.channelId}
-      messageId={message.id}
-      currentProperties={message.properties ?? {}}
-      onSetProperty={handleSetPropertyForSlot}
-      trigger={
-        <button
-          type="button"
-          title="Properties"
-          className="flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <Tags size={16} />
-        </button>
-      }
-    />
-  ) : null;
+  const propertiesHoverSlot =
+    propertiesAvailable && !readOnly ? (
+      <PropertySelector
+        channelId={message.channelId}
+        messageId={message.id}
+        currentProperties={message.properties ?? {}}
+        onSetProperty={handleSetPropertyForSlot}
+        trigger={
+          <button
+            type="button"
+            title="Properties"
+            className="flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <Tags size={16} />
+          </button>
+        }
+      />
+    ) : null;
 
   const reactionInlineAddSlot = showReactionInlineAdd ? (
     <PropertySelector
@@ -604,17 +609,18 @@ export function MessageItem({
               message={message}
               channelId={message.channelId}
               definitions={propertyDefinitions}
-              canEdit={true}
+              canEdit={!readOnly}
             />
           )}
         <MessageRelationBar messageId={message.id} />
-        {hasReactions && onAddReaction && onRemoveReaction && (
+        {hasReactions && (
           <MessageReactions
             reactions={message.reactions!}
             currentUserId={currentUserId}
             channelId={message.channelId}
             onAddReaction={onAddReaction}
             onRemoveReaction={onRemoveReaction}
+            readOnly={readOnly || !onAddReaction || !onRemoveReaction}
             trailingSlot={reactionInlineAddSlot}
           />
         )}
