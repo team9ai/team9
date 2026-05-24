@@ -61,13 +61,15 @@ import {
   toggleExpandedRound,
 } from "./message-list-fold";
 
+type MaybePromise = void | Promise<unknown>;
+
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
-  onLoadMore: () => void;
+  onLoadMore: () => MaybePromise;
   hasMore?: boolean;
   // Load newer messages (for anchored/unread mode)
-  onLoadNewer?: () => void;
+  onLoadNewer?: () => MaybePromise;
   hasNewer?: boolean;
   isLoadingNewer?: boolean;
   // Target message ID to scroll to and highlight
@@ -84,6 +86,7 @@ interface MessageListProps {
   members?: ChannelMember[];
   // Last read message ID for unread divider positioning
   lastReadMessageId?: string;
+  onAtBottomChange?: (atBottom: boolean) => void;
   onOpenDeepResearch?: (meta: DeepResearchTaskMeta) => void;
 }
 
@@ -336,6 +339,7 @@ export function MessageList({
   thinkingStatuses = [],
   members = [],
   lastReadMessageId,
+  onAtBottomChange,
   onOpenDeepResearch,
 }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
@@ -633,10 +637,11 @@ export function MessageList({
     return listData.length - 1;
   }, [highlightMessageId, chronoMessages, firstUnreadIndex, listData.length]);
 
+  const shouldRestoreSnapshot = savedSnapshot.current && !highlightMessageId;
   const positionProps: Pick<
     ComponentProps<typeof Virtuoso>,
     "initialTopMostItemIndex" | "restoreStateFrom"
-  > = savedSnapshot.current
+  > = shouldRestoreSnapshot
     ? { restoreStateFrom: savedSnapshot.current }
     : { initialTopMostItemIndex };
 
@@ -644,7 +649,12 @@ export function MessageList({
   const handleStartReached = useCallback(() => {
     if (hasMore && !isLoading) {
       scrollStore.send(channelId, { type: "LOAD_MORE" });
-      onLoadMore();
+      void Promise.resolve()
+        .then(onLoadMore)
+        .finally(() => {
+          scrollStore.send(channelId, { type: "LOAD_COMPLETE" });
+        })
+        .catch(() => undefined);
     }
   }, [hasMore, isLoading, onLoadMore, channelId, scrollStore]);
 
@@ -664,8 +674,9 @@ export function MessageList({
       } else {
         scrollStore.send(channelId, { type: "SCROLL_AWAY" });
       }
+      onAtBottomChange?.(atBottom);
     },
-    [channelId, scrollStore],
+    [channelId, onAtBottomChange, scrollStore],
   );
 
   useEffect(() => {
@@ -979,10 +990,12 @@ export function MessageList({
               <MessageItem
                 key={message.id}
                 message={message}
+                currentUserId={currentUser?.id}
                 prevMessage={prevMessage}
                 roundStartedAt={roundStartedAt}
                 isRootMessage={true}
                 isHighlighted={isHighlighted}
+                readOnly={readOnly}
                 supportsProperties={supportsProperties}
                 onOpenDeepResearch={onOpenDeepResearch}
               />

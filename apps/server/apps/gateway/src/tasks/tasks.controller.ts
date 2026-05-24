@@ -33,16 +33,20 @@ export class TasksController {
   }
 
   @Get()
-  async list(@CurrentTenantId() tenantId: string) {
-    return this.tasksService.list(tenantId);
+  async list(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.tasksService.list(tenantId, userId);
   }
 
   @Get(':runId')
   async getById(
     @Param('runId', ParseUUIDPipe) runId: string,
     @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.tasksService.getById(runId, tenantId);
+    return this.tasksService.getById(runId, tenantId, userId);
   }
 
   @Patch(':runId')

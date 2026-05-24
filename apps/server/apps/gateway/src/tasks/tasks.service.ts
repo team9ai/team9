@@ -143,7 +143,7 @@ export class TasksService {
     tenantId: string,
     dto: StartTaskRunDto = {},
   ) {
-    const run = await this.getRunForStartOrThrow(runId, tenantId);
+    const run = await this.getRunForStartOrThrow(runId, tenantId, userId);
 
     if (run.status === 'in_progress') {
       return run;
@@ -230,16 +230,21 @@ export class TasksService {
     return activeRun;
   }
 
-  async list(tenantId: string) {
+  async list(tenantId: string, userId: string) {
     return this.db
       .select()
       .from(schema.taskRuns)
-      .where(eq(schema.taskRuns.tenantId, tenantId))
+      .where(
+        and(
+          eq(schema.taskRuns.tenantId, tenantId),
+          eq(schema.taskRuns.creatorId, userId),
+        ),
+      )
       .orderBy(desc(schema.taskRuns.createdAt))
       .limit(TASK_RUN_LIST_LIMIT);
   }
 
-  async getById(runId: string, tenantId: string) {
+  async getById(runId: string, tenantId: string, userId: string) {
     const [run] = await this.db
       .select()
       .from(schema.taskRuns)
@@ -247,6 +252,7 @@ export class TasksService {
         and(
           eq(schema.taskRuns.id, runId),
           eq(schema.taskRuns.tenantId, tenantId),
+          eq(schema.taskRuns.creatorId, userId),
         ),
       )
       .limit(1);
@@ -473,7 +479,11 @@ export class TasksService {
       });
   }
 
-  private async getRunForStartOrThrow(runId: string, tenantId: string) {
+  private async getRunForStartOrThrow(
+    runId: string,
+    tenantId: string,
+    userId: string,
+  ) {
     const [run] = await this.db
       .select()
       .from(schema.taskRuns)
@@ -481,6 +491,7 @@ export class TasksService {
         and(
           eq(schema.taskRuns.id, runId),
           eq(schema.taskRuns.tenantId, tenantId),
+          eq(schema.taskRuns.creatorId, userId),
         ),
       )
       .limit(1);

@@ -251,6 +251,45 @@ export function MessageProperties({
             const opt = options.find((o) => o.value === v);
             const label = opt?.label ?? String(v);
             const displayName = getDefDisplayName(def);
+            const tag = (
+              <PropertyTag
+                label={label}
+                color={opt?.color}
+                canDelete={canEdit}
+                onDelete={
+                  canEdit ? () => handleRemoveTagValue(def, v) : undefined
+                }
+                className={canEdit ? "cursor-pointer" : undefined}
+              />
+            );
+            const tooltipContent = (
+              <TooltipContent side="top" className="max-w-[240px]">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-medium">
+                    {displayName}: {label}
+                  </span>
+                  {def.description &&
+                    def.description.trim().toLowerCase() !==
+                      displayName.toLowerCase() && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {def.description}
+                      </span>
+                    )}
+                </div>
+              </TooltipContent>
+            );
+
+            if (!canEdit) {
+              return (
+                <Tooltip key={`${def.id}-${String(v)}-${i}`}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">{tag}</span>
+                  </TooltipTrigger>
+                  {tooltipContent}
+                </Tooltip>
+              );
+            }
+
             return (
               <Tooltip key={`${def.id}-${String(v)}-${i}`}>
                 <PropertySelector
@@ -260,36 +299,9 @@ export function MessageProperties({
                   initialDefId={def.id}
                   allowCreate={false}
                   onSetProperty={handleSetProperty}
-                  trigger={
-                    <TooltipTrigger asChild>
-                      <PropertyTag
-                        label={label}
-                        color={opt?.color}
-                        canDelete={canEdit}
-                        onDelete={
-                          canEdit
-                            ? () => handleRemoveTagValue(def, v)
-                            : undefined
-                        }
-                        className={canEdit ? "cursor-pointer" : undefined}
-                      />
-                    </TooltipTrigger>
-                  }
+                  trigger={<TooltipTrigger asChild>{tag}</TooltipTrigger>}
                 />
-                <TooltipContent side="top" className="max-w-[240px]">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-medium">
-                      {displayName}: {label}
-                    </span>
-                    {def.description &&
-                      def.description.trim().toLowerCase() !==
-                        displayName.toLowerCase() && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {def.description}
-                        </span>
-                      )}
-                  </div>
-                </TooltipContent>
+                {tooltipContent}
               </Tooltip>
             );
           });

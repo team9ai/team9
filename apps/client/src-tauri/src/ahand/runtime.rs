@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -177,6 +179,8 @@ struct ActiveSession {
 
 pub struct AhandRuntime {
     inner: Arc<Mutex<Option<ActiveSession>>>,
+    #[cfg(test)]
+    spawn_count: Arc<AtomicUsize>,
     /// Captured at the first successful `start()` call. Lets `reload()` —
     /// which doesn't have an `&AppHandle` of its own — emit
     /// `ahand-daemon-status` events from the respawned daemon's status
@@ -191,11 +195,13 @@ impl AhandRuntime {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(None)),
+            #[cfg(test)]
+            spawn_count: Arc::new(AtomicUsize::new(0)),
             cached_app_handle: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
-    /// Start a new daemon session, stopping any existing one first.
+    /// Start the daemon, reusing a live matching session when one is already active.
     pub async fn start(&self, app: &AppHandle, cfg: StartConfig) -> Result<StartResult, String> {
         // Capture the AppHandle so `reload()` can emit status events from
         // respawned daemons. The clone is cheap (an Arc bump). Poison
@@ -205,13 +211,17 @@ impl AhandRuntime {
             *h = Some(app.clone());
         }
 
-        let mut guard = self.inner.lock().await;
-
-        if let Some(prev) = guard.take() {
-            Self::shutdown_session(prev).await;
-        }
-
         let identity_dir = identity::identity_dir(app, &cfg.team9_user_id)?;
+        self.start_with_identity_dir(cfg, identity_dir, Some(app.clone()))
+            .await
+    }
+
+    async fn start_with_identity_dir(
+        &self,
+        cfg: StartConfig,
+        identity_dir: PathBuf,
+        app_handle: Option<AppHandle>,
+    ) -> Result<StartResult, String> {
         // Load the Ed25519 identity so we can compute `SHA256(pubkey)` — the
         // canonical device_id per ahand protocol § 2.1 (matches
         // `ahandd::DeviceIdentity::device_id` and the gateway's register DTO).
@@ -219,12 +229,18 @@ impl AhandRuntime {
             .map_err(|e| format!("load_or_create_identity: {e}"))?;
         let device_id = identity::device_id_from_pubkey(&id.public_key_bytes());
 
+        let mut guard = self.inner.lock().await;
+
         if let Some(prev) = guard.as_ref() {
             if should_reuse_active_session(prev, &cfg.team9_user_id, &cfg.hub_url, &device_id) {
                 return Ok(StartResult {
                     device_id: prev.hub_device_id.clone(),
                 });
             }
+        }
+
+        if let Some(prev) = guard.take() {
+            Self::shutdown_session(prev).await;
         }
 
         let startup_inputs = StartupInputs {
@@ -261,23 +277,29 @@ impl AhandRuntime {
             .and_then(|p| ahandd::config::Config::load(p).ok());
         let daemon_cfg = build_daemon_config(on_disk.as_ref(), &startup_inputs);
 
+        #[cfg(test)]
+        self.spawn_count.fetch_add(1, Ordering::SeqCst);
         let handle = ahandd::spawn(daemon_cfg.clone())
             .await
             .map_err(|e| format!("ahandd::spawn failed: {e}"))?;
 
-        let app_clone = app.clone();
         let mut status_rx = handle.subscribe_status();
         let initial = DaemonStatus::from(status_rx.borrow().clone());
-        let _ = app_clone.emit("ahand-daemon-status", &initial);
+        if let Some(app_clone) = app_handle.clone() {
+            let _ = app_clone.emit("ahand-daemon-status", &initial);
+        }
 
-        let status_forwarder = tokio::spawn(async move {
-            while status_rx.changed().await.is_ok() {
-                let s = DaemonStatus::from(status_rx.borrow().clone());
-                if app_clone.emit("ahand-daemon-status", &s).is_err() {
-                    break;
+        let status_forwarder = match app_handle {
+            Some(app_clone) => tokio::spawn(async move {
+                while status_rx.changed().await.is_ok() {
+                    let s = DaemonStatus::from(status_rx.borrow().clone());
+                    if app_clone.emit("ahand-daemon-status", &s).is_err() {
+                        break;
+                    }
                 }
-            }
-        });
+            }),
+            None => tokio::spawn(async {}),
+        };
 
         *guard = Some(ActiveSession {
             handle,
@@ -291,6 +313,11 @@ impl AhandRuntime {
         });
 
         Ok(StartResult { device_id })
+    }
+
+    #[cfg(test)]
+    fn spawn_count(&self) -> usize {
+        self.spawn_count.load(Ordering::SeqCst)
     }
 
     /// Stop the active session. Idempotent — returns Ok when nothing is running.
@@ -790,6 +817,42 @@ mod tests {
                 device_id: "device-1".into(),
             },
         ));
+    }
+
+    #[tokio::test]
+    async fn duplicate_start_reuses_active_daemon_without_respawning() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let identity_dir = tmp.path().join("identity");
+        let config_path = tmp.path().join("config.toml");
+        let cfg = StartConfig {
+            team9_user_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee".into(),
+            hub_url: "ws://127.0.0.1:9/ws".into(),
+            device_jwt: "jwt".into(),
+            jwt_expires_at: 0,
+            heartbeat_interval_seconds: 60,
+            config_path: Some(config_path),
+        };
+        let rt = AhandRuntime::new();
+
+        let first = rt
+            .start_with_identity_dir(cfg.clone(), identity_dir.clone(), None)
+            .await
+            .expect("first start should spawn daemon");
+        assert_eq!(rt.spawn_count(), 1);
+
+        let second = rt
+            .start_with_identity_dir(cfg, identity_dir, None)
+            .await
+            .expect("duplicate start should reuse active daemon");
+
+        assert_eq!(second.device_id, first.device_id);
+        assert_eq!(
+            rt.spawn_count(),
+            1,
+            "duplicate start with same user/hub/device must not respawn ahandd"
+        );
+
+        rt.stop(None).await.expect("stop daemon");
     }
 
     #[test]

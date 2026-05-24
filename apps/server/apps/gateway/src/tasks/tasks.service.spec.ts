@@ -75,6 +75,44 @@ function createSelectBuilder(result: unknown[]) {
   return chain;
 }
 
+function collectSqlConditionTokens(
+  node: unknown,
+  seen = new Set<object>(),
+): string[] {
+  if (!node || typeof node !== 'object') {
+    return [];
+  }
+
+  if (seen.has(node)) {
+    return [];
+  }
+  seen.add(node);
+
+  const record = node as Record<string, unknown>;
+  const tokens: string[] = [];
+  const constructorName = node.constructor?.name;
+
+  if (constructorName === 'StringChunk' && Array.isArray(record.value)) {
+    tokens.push(...record.value.map(String));
+  }
+
+  if (constructorName === 'Param') {
+    tokens.push(String(record.value));
+  }
+
+  if (typeof record.name === 'string') {
+    tokens.push(record.name);
+  }
+
+  if (Array.isArray(record.queryChunks)) {
+    for (const chunk of record.queryChunks) {
+      tokens.push(...collectSqlConditionTokens(chunk, seen));
+    }
+  }
+
+  return tokens;
+}
+
 describe('TasksService', () => {
   let insertedValues: unknown[];
   let updatedValues: unknown[];
@@ -297,9 +335,109 @@ describe('TasksService', () => {
     };
     db.select.mockReturnValueOnce(selectChain);
 
-    await expect(service.list('tenant-1')).resolves.toEqual([{ id: 'run-1' }]);
+    await expect(service.list('tenant-1', 'user-1')).resolves.toEqual([
+      { id: 'run-1' },
+    ]);
 
     expect(selectChain.limit).toHaveBeenCalledWith(200);
+  });
+
+  it('scopes task run list to the requesting user', async () => {
+    const selectChain = {
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue([{ id: 'run-1' }]),
+    };
+    db.select.mockReturnValueOnce(selectChain);
+
+    await (
+      service.list as unknown as (
+        tenantId: string,
+        userId: string,
+      ) => Promise<unknown[]>
+    )('tenant-1', 'user-1');
+
+    const whereCondition = selectChain.where.mock.calls[0][0];
+    expect(collectSqlConditionTokens(whereCondition)).toEqual(
+      expect.arrayContaining(['tenant_id', 'tenant-1', 'creator_id', 'user-1']),
+    );
+  });
+
+  it('scopes task detail reads to the requesting user', async () => {
+    const existingRun = {
+      id: 'run-1',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'Task',
+    };
+    const runSelectChain = {
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue([existingRun]),
+    };
+    const deliverablesSelectChain = {
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockResolvedValue([]),
+    };
+    db.select
+      .mockReturnValueOnce(runSelectChain)
+      .mockReturnValueOnce(deliverablesSelectChain);
+
+    await (
+      service.getById as unknown as (
+        runId: string,
+        tenantId: string,
+        userId: string,
+      ) => Promise<unknown>
+    )('run-1', 'tenant-1', 'user-1');
+
+    const whereCondition = runSelectChain.where.mock.calls[0][0];
+    expect(collectSqlConditionTokens(whereCondition)).toEqual(
+      expect.arrayContaining([
+        'id',
+        'run-1',
+        'tenant_id',
+        'tenant-1',
+        'creator_id',
+        'user-1',
+      ]),
+    );
+  });
+
+  it('scopes task start reads to the requesting user', async () => {
+    const existingRun = {
+      id: 'run-1',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'Task',
+      description: null,
+      status: 'upcoming',
+      botId: null,
+    };
+    const runSelectChain = {
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue([existingRun]),
+    };
+    db.select.mockReturnValueOnce(runSelectChain);
+
+    await expect(service.start('run-1', 'user-1', 'tenant-1')).rejects.toThrow(
+      'Cannot start task run without an assigned bot',
+    );
+
+    const whereCondition = runSelectChain.where.mock.calls[0][0];
+    expect(collectSqlConditionTokens(whereCondition)).toEqual(
+      expect.arrayContaining([
+        'id',
+        'run-1',
+        'tenant_id',
+        'tenant-1',
+        'creator_id',
+        'user-1',
+      ]),
+    );
   });
 
   it('renames a task run with a trimmed title', async () => {
