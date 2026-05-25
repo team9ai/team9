@@ -55,7 +55,6 @@ vi.mock("@/hooks/useSearch", () => ({
 }));
 
 vi.mock("@/lib/tauri", () => ({
-  alignMacTrafficLights: vi.fn(),
   isMacTauriApp: () => false,
 }));
 
