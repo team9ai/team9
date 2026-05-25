@@ -514,7 +514,7 @@ function DashboardModeSwitch({
         aria-selected={!isTaskMode}
         onClick={() => setMode("conversation")}
         className={cn(
-          "relative z-10 min-w-20 rounded-full px-4 py-1.5 font-medium transition-colors duration-200",
+          "relative z-10 min-w-20 cursor-pointer rounded-full px-4 py-1.5 font-medium transition-colors duration-200",
           !isTaskMode
             ? "text-[#312c27]"
             : "text-[#8d8274] hover:bg-white/45 hover:text-[#4d4339]",
@@ -528,7 +528,7 @@ function DashboardModeSwitch({
         aria-selected={isTaskMode}
         onClick={() => setMode("task")}
         className={cn(
-          "relative z-10 min-w-20 rounded-full px-4 py-1.5 font-medium transition-colors duration-200",
+          "relative z-10 min-w-20 cursor-pointer rounded-full px-4 py-1.5 font-medium transition-colors duration-200",
           isTaskMode
             ? "text-[#312c27]"
             : "text-[#8d8274] hover:bg-white/45 hover:text-[#4d4339]",

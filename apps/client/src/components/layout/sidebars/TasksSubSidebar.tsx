@@ -77,7 +77,7 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
 };
 
 const TASK_SIDEBAR_ACTION_CLASS =
-  "flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
+  "flex w-full min-w-0 max-w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
 
 type DashboardSidebarMode = "conversation" | "task";
 
@@ -411,7 +411,7 @@ export function TasksSubSidebar() {
               aria-selected={isConversationMode}
               onClick={selectConversationMode}
               className={cn(
-                "relative z-10 rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
+                "relative z-10 cursor-pointer rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
                 isConversationMode && "text-nav-foreground",
               )}
             >
@@ -423,7 +423,7 @@ export function TasksSubSidebar() {
               aria-selected={isTaskMode}
               onClick={selectTaskMode}
               className={cn(
-                "relative z-10 rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
+                "relative z-10 cursor-pointer rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
                 isTaskMode && "text-nav-foreground",
               )}
             >
