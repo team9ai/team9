@@ -541,6 +541,8 @@ export class StreamingController {
           isPinned: message.isPinned,
           parentId: message.parentId,
           createdAt: message.createdAt,
+          metadata: message.metadata ?? null,
+          attachments: message.attachments ?? [],
         },
         channel,
         sender: message.sender
