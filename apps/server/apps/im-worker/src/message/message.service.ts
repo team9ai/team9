@@ -130,6 +130,31 @@ export class MessageService {
         serverTime: Date.now(),
       };
     } catch (error) {
+      if (message.clientMsgId && this.isClientMsgIdUniqueViolation(error)) {
+        const existing = await this.findPersistedMessageByClientMsgId(
+          message.clientMsgId,
+        );
+        if (existing) {
+          await this.markAsProcessed(
+            message.clientMsgId,
+            existing.msgId,
+            existing.seqId,
+          ).catch((dedupError) => {
+            this.logger.warn(
+              `Failed to cache duplicate upstream message ${message.clientMsgId}: ${dedupError}`,
+            );
+          });
+
+          return {
+            msgId: existing.msgId,
+            clientMsgId: message.clientMsgId,
+            status: 'duplicate',
+            seqId: existing.seqId.toString(),
+            serverTime: Date.now(),
+          };
+        }
+      }
+
       this.logger.error(`Failed to process message: ${error}`);
       return {
         msgId: '',
@@ -167,6 +192,50 @@ export class MessageService {
     } catch {
       return null;
     }
+  }
+
+  private async findPersistedMessageByClientMsgId(
+    clientMsgId: string,
+  ): Promise<{ msgId: string; seqId: bigint } | null> {
+    const [message] = await this.db
+      .select({
+        msgId: schema.messages.id,
+        seqId: schema.messages.seqId,
+      })
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.clientMsgId, clientMsgId),
+          eq(schema.messages.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (!message) return null;
+
+    return {
+      msgId: message.msgId,
+      seqId: message.seqId ?? 0n,
+    };
+  }
+
+  private isClientMsgIdUniqueViolation(error: unknown): boolean {
+    const pgError = error as {
+      code?: string;
+      constraint?: string;
+      detail?: string;
+      message?: string;
+    };
+
+    if (pgError.code !== '23505') return false;
+
+    return (
+      pgError.constraint === 'idx_messages_ext_client_msg_id_active_unique' ||
+      pgError.detail?.includes('client_msg_id') === true ||
+      pgError.message?.includes(
+        'idx_messages_ext_client_msg_id_active_unique',
+      ) === true
+    );
   }
 
   /**
@@ -592,6 +661,31 @@ export class MessageService {
         timestamp,
       };
     } catch (error) {
+      if (dto.clientMsgId && this.isClientMsgIdUniqueViolation(error)) {
+        const existing = await this.findPersistedMessageByClientMsgId(
+          dto.clientMsgId,
+        );
+        if (existing) {
+          await this.markAsProcessed(
+            dto.clientMsgId,
+            existing.msgId,
+            existing.seqId,
+          ).catch((dedupError) => {
+            this.logger.warn(
+              `Failed to cache duplicate HTTP message ${dto.clientMsgId}: ${dedupError}`,
+            );
+          });
+
+          return {
+            msgId: existing.msgId,
+            seqId: existing.seqId.toString(),
+            clientMsgId: dto.clientMsgId,
+            status: 'duplicate',
+            timestamp,
+          };
+        }
+      }
+
       this.logger.error(`Failed to create message via HTTP: ${error}`);
       throw error;
     }

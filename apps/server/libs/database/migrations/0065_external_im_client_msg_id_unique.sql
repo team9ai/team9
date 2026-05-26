@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_messages_ext_client_msg_id_active_unique" ON "im_messages" USING btree ("client_msg_id") WHERE "im_messages"."client_msg_id" IS NOT NULL AND "im_messages"."is_deleted" = false AND left("im_messages"."client_msg_id", 4) = 'ext_';--> statement-breakpoint

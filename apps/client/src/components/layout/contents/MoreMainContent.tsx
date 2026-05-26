@@ -1,11 +1,12 @@
 import {
-  Settings,
-  Globe,
-  ChevronRight,
-  Users,
-  Link2,
   Check,
+  ChevronRight,
   Building2,
+  Globe,
+  Link2,
+  MessageCircle,
+  Settings,
+  Users,
   Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -24,6 +26,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
 import { NotificationPreferencesDialog } from "@/components/settings/NotificationPreferencesDialog";
 import { FontSizeDialog } from "@/components/settings/FontSizeDialog";
+import { WeixinIlinkConnectionPanel } from "@/components/settings/WeixinIlinkConnectionPanel";
+import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { useDesktopUpdater } from "@/hooks/useDesktopUpdater";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
@@ -45,6 +49,7 @@ const settingsGroups = [
     items: [
       { id: "fontSize", labelKey: "fontSize", icon: Type },
       { id: "language", labelKey: "language", icon: Globe },
+      { id: "weixin", labelKey: "weixinCard.menuLabel", icon: MessageCircle },
     ],
   },
 ];
@@ -58,13 +63,16 @@ export function MoreMainContent() {
     useState(false);
   const [isLanguageDialogOpen, setIsLanguageDialogOpen] = useState(false);
   const [isFontSizeDialogOpen, setIsFontSizeDialogOpen] = useState(false);
+  const [isWeixinDialogOpen, setIsWeixinDialogOpen] = useState(false);
   const { isLoading: isLanguageLoading } = useLanguageLoading();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
   const { currentVersion } = useDesktopUpdater();
+  const { data: currentUser } = useCurrentUser();
   const appVersion = currentVersion ?? TEAM9_APP_VERSION;
 
   // Get current selected workspace
   const { selectedWorkspaceId } = useWorkspaceStore();
+  const currentUserId = currentUser?.id;
 
   const groups = settingsGroups.map((group) => {
     if (group.titleKey !== "workspace" || !isOwnerOrAdmin) {
@@ -97,6 +105,8 @@ export function MoreMainContent() {
       setIsLanguageDialogOpen(true);
     } else if (id === "fontSize") {
       setIsFontSizeDialogOpen(true);
+    } else if (id === "weixin") {
+      setIsWeixinDialogOpen(true);
     }
   };
   return (
@@ -203,6 +213,29 @@ export function MoreMainContent() {
         open={isFontSizeDialogOpen}
         onOpenChange={setIsFontSizeDialogOpen}
       />
+
+      {/* Weixin Connection Dialog */}
+      <Dialog open={isWeixinDialogOpen} onOpenChange={setIsWeixinDialogOpen}>
+        <DialogContent className="sm:max-w-md dark:bg-card">
+          <DialogHeader>
+            <DialogTitle className="dark:text-foreground">
+              {t("weixinCard.title", "Weixin connection")}
+            </DialogTitle>
+            <DialogDescription>
+              {t(
+                "weixinCard.description",
+                "Bind Weixin to this Team9 account for external message delivery.",
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <WeixinIlinkConnectionPanel
+            enabled={isWeixinDialogOpen}
+            team9TenantId={selectedWorkspaceId}
+            team9UserId={currentUserId}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Language Dialog */}
       <Dialog

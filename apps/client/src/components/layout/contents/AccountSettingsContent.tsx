@@ -21,6 +21,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useDesktopUpdater } from "@/hooks/useDesktopUpdater";
+import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import {
   useCancelEmailChange,
   usePendingEmailChange,
@@ -28,6 +29,7 @@ import {
   useStartEmailChange,
   useUpdateCurrentUser,
 } from "@/hooks/useIMUsers";
+import { WeixinIlinkConnectionPanel } from "@/components/settings/WeixinIlinkConnectionPanel";
 import { fileApi } from "@/services/api/file";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -166,6 +168,7 @@ function getEmailChangeError(error: unknown, t: TFunction<"settings">): string {
 export function AccountSettingsContent() {
   const { t } = useTranslation("settings");
   const { data: currentUser, isLoading } = useCurrentUser();
+  const selectedWorkspaceId = useSelectedWorkspaceId();
   const {
     availableUpdate,
     currentVersion,
@@ -395,7 +398,6 @@ export function AccountSettingsContent() {
   const avatarLabel = currentUser
     ? currentUser.displayName || currentUser.username
     : t("profileCard.avatar", "Avatar");
-
   if (isLoading) {
     return (
       <main className="h-full flex flex-col overflow-hidden bg-background">
@@ -689,6 +691,28 @@ export function AccountSettingsContent() {
                 </CardContent>
               </Card>
             </form>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {t("weixinCard.title", "Weixin connection")}
+                </CardTitle>
+                <CardDescription>
+                  {t(
+                    "weixinCard.description",
+                    "Bind Weixin to this Team9 account for external message delivery.",
+                  )}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <WeixinIlinkConnectionPanel
+                  enabled={Boolean(currentUserId)}
+                  team9TenantId={selectedWorkspaceId}
+                  team9UserId={currentUserId}
+                />
+              </CardContent>
+            </Card>
 
             {isDesktopApp && (
               <Card>

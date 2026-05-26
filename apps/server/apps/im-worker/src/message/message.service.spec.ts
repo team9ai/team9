@@ -70,6 +70,7 @@ function makeHarness() {
   (service as any).logger = {
     debug: jest.fn(),
     error: jest.fn(),
+    warn: jest.fn(),
   };
 
   return {
@@ -481,6 +482,44 @@ describe('MessageService', () => {
     ).rejects.toThrow('tx failed');
 
     expect(db.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns duplicate when the DB unique index catches a raced HTTP create', async () => {
+    const { service, db, redisService, sequenceService } = makeHarness();
+    const existingMessageQuery = makeSelectChain();
+    const duplicateError = Object.assign(new Error('duplicate key value'), {
+      code: '23505',
+      constraint: 'idx_messages_ext_client_msg_id_active_unique',
+    });
+
+    redisService.get.mockResolvedValueOnce(null);
+    sequenceService.generateChannelSeq.mockResolvedValueOnce(21n);
+    db.transaction.mockRejectedValueOnce(duplicateError);
+    db.select.mockReturnValueOnce(existingMessageQuery);
+    existingMessageQuery.limit.mockResolvedValueOnce([
+      { msgId: 'msg-http-existing', seqId: 20n },
+    ]);
+
+    const response = await service.createAndPersist({
+      clientMsgId: 'client-http-raced',
+      channelId: 'channel-1',
+      senderId: 'user-1',
+      content: 'hello',
+      type: 'text',
+    });
+
+    expect(response).toEqual({
+      msgId: 'msg-http-existing',
+      seqId: '20',
+      clientMsgId: 'client-http-raced',
+      status: 'duplicate',
+      timestamp: 1710000000000,
+    });
+    expect(redisService.set).toHaveBeenCalledWith(
+      'im:dedup:client-http-raced',
+      JSON.stringify({ msgId: 'msg-http-existing', seqId: '20' }),
+      300,
+    );
   });
 
   it.each([
