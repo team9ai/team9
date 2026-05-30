@@ -4,6 +4,7 @@ const RUN_AGAINST_DEV_HUB = process.env.RUN_AGAINST_DEV_HUB === "1";
 
 const FRONTEND_URL =
   process.env.PLAYWRIGHT_FRONTEND_URL ?? "http://localhost:1420";
+const FRONTEND_PORT = new URL(FRONTEND_URL).port || "1420";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -40,6 +41,17 @@ export default defineConfig({
         runAgainstDevHub: false,
       },
     },
+    {
+      name: "channel-mock",
+      testDir: "./tests/e2e/channel",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: FRONTEND_URL,
+      },
+      metadata: {
+        mode: "mock",
+      },
+    },
     ...(RUN_AGAINST_DEV_HUB
       ? [
           {
@@ -64,8 +76,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_NO_WEBSERVER
     ? undefined
     : {
-        command:
-          "VITE_E2E_MOCK=1 pnpm exec vite --host 127.0.0.1 --port 1420 --strictPort",
+        command: `VITE_E2E_MOCK=1 pnpm exec vite --host 127.0.0.1 --port ${FRONTEND_PORT} --strictPort`,
         url: FRONTEND_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

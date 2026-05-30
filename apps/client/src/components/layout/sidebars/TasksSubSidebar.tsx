@@ -78,6 +78,8 @@ const STATUS_LABELS: Record<TaskRunStatus, string> = {
 
 const TASK_SIDEBAR_ACTION_CLASS =
   "flex w-full min-w-0 max-w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-sm font-medium text-nav-foreground-muted transition-colors hover:bg-nav-hover hover:text-nav-foreground";
+const TASK_SIDEBAR_SECTION_HEADING_CLASS =
+  "px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint";
 
 type DashboardSidebarMode = "conversation" | "task";
 
@@ -93,7 +95,7 @@ const TASK_SIDEBAR_VISIBLE_STATUSES = new Set<TaskRunStatus>([
 ]);
 
 function getTaskGroupLabel(task: TaskRun) {
-  return task.routineId ? "@ 日常" : "我的任务";
+  return task.routineId ? "@日常" : "我的任务";
 }
 
 function getStatusClass(status: TaskRunStatus) {
@@ -392,44 +394,40 @@ export function TasksSubSidebar() {
             </Link>
           </div>
 
-          <div
-            role="tablist"
-            aria-label="首页模式"
-            className="relative mx-auto mb-2 mt-2 grid w-full max-w-36 grid-cols-2 overflow-hidden rounded-xl border border-nav-border bg-nav-hover/40 p-0.5 text-xs font-medium text-nav-foreground-muted"
-          >
-            <span
-              aria-hidden="true"
-              data-testid="dashboard-sidebar-mode-indicator"
-              className={cn(
-                "pointer-events-none absolute bottom-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-lg bg-nav-active transition-[left] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                isTaskMode ? "left-1/2" : "left-0.5",
-              )}
-            />
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isConversationMode}
-              onClick={selectConversationMode}
-              className={cn(
-                "relative z-10 cursor-pointer rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
-                isConversationMode && "text-nav-foreground",
-              )}
+          {isConversationMode ? (
+            <div
+              role="tablist"
+              aria-label="首页模式"
+              className="relative mx-auto mb-2 mt-2 grid w-full max-w-36 grid-cols-2 overflow-hidden rounded-xl border border-nav-border bg-nav-hover/40 p-0.5 text-xs font-medium text-nav-foreground-muted"
             >
-              对话
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isTaskMode}
-              onClick={selectTaskMode}
-              className={cn(
-                "relative z-10 cursor-pointer rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
-                isTaskMode && "text-nav-foreground",
-              )}
-            >
-              任务
-            </button>
-          </div>
+              <span
+                aria-hidden="true"
+                data-testid="dashboard-sidebar-mode-indicator"
+                className="pointer-events-none absolute bottom-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-lg bg-nav-active transition-[left] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none left-0.5"
+              />
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isConversationMode}
+                onClick={selectConversationMode}
+                className={cn(
+                  "relative z-10 cursor-pointer rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground",
+                  isConversationMode && "text-nav-foreground",
+                )}
+              >
+                对话
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={false}
+                onClick={selectTaskMode}
+                className="relative z-10 cursor-pointer rounded-lg px-2 py-1 transition-colors duration-150 hover:text-nav-foreground"
+              >
+                任务
+              </button>
+            </div>
+          ) : null}
 
           <div
             key={activeMode}
@@ -438,7 +436,7 @@ export function TasksSubSidebar() {
           >
             {isConversationMode ? (
               <>
-                <div className="px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint">
+                <div className={TASK_SIDEBAR_SECTION_HEADING_CLASS}>
                   AI Agents
                 </div>
                 <AgentGroupList
@@ -470,10 +468,6 @@ export function TasksSubSidebar() {
               </>
             ) : (
               <>
-                <div className="px-2 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-nav-foreground-faint">
-                  任务
-                </div>
-
                 {isLoading ? (
                   <p className="px-2 py-2 text-xs text-nav-foreground-faint">
                     <Loader2 className="mr-2 inline size-3.5 animate-spin" />
@@ -486,7 +480,12 @@ export function TasksSubSidebar() {
                 ) : (
                   groupedTasks.map((group) => (
                     <div key={group.label} className="min-w-0 pb-2">
-                      <div className="truncate px-2 py-1 text-sm font-medium text-nav-foreground-muted">
+                      <div
+                        className={cn(
+                          "truncate",
+                          TASK_SIDEBAR_SECTION_HEADING_CLASS,
+                        )}
+                      >
                         {group.label}
                       </div>
                       <div className="min-w-0 space-y-px">
@@ -582,6 +581,7 @@ function TaskSidebarRow({
   actions: TaskActionHandlers;
 }) {
   const open = () => onOpen(task);
+  const showStatusBadge = task.status !== "timeout";
 
   return (
     <ContextMenu>
@@ -599,14 +599,16 @@ function TaskSidebarRow({
             className="flex min-w-0 flex-1 items-center gap-2 text-left"
           >
             <span className="min-w-0 flex-1 truncate">{task.title}</span>
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold transition-[margin] group-hover:mr-7 group-focus-within:mr-7",
-                getStatusClass(task.status),
-              )}
-            >
-              {STATUS_LABELS[task.status]}
-            </span>
+            {showStatusBadge ? (
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[0.68rem] font-semibold transition-[margin] group-hover:mr-7 group-focus-within:mr-7",
+                  getStatusClass(task.status),
+                )}
+              >
+                {STATUS_LABELS[task.status]}
+              </span>
+            ) : null}
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
