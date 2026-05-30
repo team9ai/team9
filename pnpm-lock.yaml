@@ -172,6 +172,15 @@ importers:
       "@taskcast/client":
         specifier: ^1.1.0
         version: 1.1.0(@taskcast/core@1.1.0)
+      "@team9claw/stream-display-core":
+        specifier: link:../../../../../team9-agent-pi/packages/stream-display-core
+        version: link:../../../../../team9-agent-pi/packages/stream-display-core
+      "@team9claw/stream-display-react":
+        specifier: link:../../../../../team9-agent-pi/packages/stream-display-react
+        version: link:../../../../../team9-agent-pi/packages/stream-display-react
+      "@team9claw/stream-display-ui":
+        specifier: link:../../../../../team9-agent-pi/packages/stream-display-ui
+        version: link:../../../../../team9-agent-pi/packages/stream-display-ui
       "@tauri-apps/api":
         specifier: ^2.10.1
         version: 2.10.1
