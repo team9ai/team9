@@ -173,14 +173,14 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0(@taskcast/core@1.1.0)
       "@team9claw/stream-display-core":
-        specifier: link:../../../../../team9-agent-pi/packages/stream-display-core
-        version: link:../../../../../team9-agent-pi/packages/stream-display-core
+        specifier: https://registry.npmjs.org/@team9claw/stream-display-core/-/stream-display-core-0.0.1.tgz
+        version: 0.0.1
       "@team9claw/stream-display-react":
-        specifier: link:../../../../../team9-agent-pi/packages/stream-display-react
-        version: link:../../../../../team9-agent-pi/packages/stream-display-react
+        specifier: https://registry.npmjs.org/@team9claw/stream-display-react/-/stream-display-react-0.0.1.tgz
+        version: 0.0.1(react@19.2.3)
       "@team9claw/stream-display-ui":
-        specifier: link:../../../../../team9-agent-pi/packages/stream-display-ui
-        version: link:../../../../../team9-agent-pi/packages/stream-display-ui
+        specifier: https://registry.npmjs.org/@team9claw/stream-display-ui/-/stream-display-ui-0.0.1.tgz
+        version: 0.0.1(react@19.2.3)
       "@tauri-apps/api":
         specifier: ^2.10.1
         version: 2.10.1
@@ -8606,6 +8606,28 @@ packages:
 
   "@team9/shared@file:apps/server/libs/shared":
     resolution: { directory: apps/server/libs/shared, type: directory }
+
+  "@team9claw/stream-display-core@0.0.1":
+    resolution:
+      {
+        integrity: sha512-uzvu35VdT9Vgx2Tt2F2SehOmeUGxIZTQuI56qNE+F/3kGYypNsLSkApnPvmMl+BseGNpYb+ssRP8zhvlHJAfyg==,
+      }
+
+  "@team9claw/stream-display-react@0.0.1":
+    resolution:
+      {
+        integrity: sha512-X9cRCHUeV1EkzkZW5FjMdpVcsdGd1RSNRehFaUcQziqAv5bCdln5Whi8FpNYcJWSW2YI1NGzfwXrYORQZyAC0g==,
+      }
+    peerDependencies:
+      react: ^19.0.0
+
+  "@team9claw/stream-display-ui@0.0.1":
+    resolution:
+      {
+        integrity: sha512-eR+arDC4iAxuqo4/NMubr6U9xwEh9YZ2Hn7+ZP7omQrH9wxo1LNgshf65i/JJZC3JLmAAtHShX0lmthKaRBMkA==,
+      }
+    peerDependencies:
+      react: ^19.0.0
 
   "@testing-library/dom@10.4.1":
     resolution:
@@ -23578,6 +23600,19 @@ snapshots:
     optional: true
 
   "@team9/shared@file:apps/server/libs/shared": {}
+
+  "@team9claw/stream-display-core@0.0.1": {}
+
+  "@team9claw/stream-display-react@0.0.1(react@19.2.3)":
+    dependencies:
+      "@team9claw/stream-display-core": 0.0.1
+      react: 19.2.3
+
+  "@team9claw/stream-display-ui@0.0.1(react@19.2.3)":
+    dependencies:
+      "@team9claw/stream-display-core": 0.0.1
+      "@team9claw/stream-display-react": 0.0.1(react@19.2.3)
+      react: 19.2.3
 
   "@testing-library/dom@10.4.1":
     dependencies:
