@@ -213,11 +213,13 @@ Target file systems created in `t9` so far:
 - `fs-03ce541320ea7827c` (`folder9-dev`)
 - `fs-0875869ddefaba679` (`folder9-dev-acme`)
 
-Use AWS DataSync when available. If DataSync is not already configured, run a temporary migration EC2 instance with both source and target EFS mounted over reachable networking. Copy once before write-freeze and once during write-freeze:
+Executed during the 2026-06-02 write-freeze using temporary Fargate tasks and S3 tarballs:
 
-```bash
-sudo rsync -aHAX --numeric-ids --info=progress2 /mnt/source/ /mnt/target/
-sudo find /mnt/target -maxdepth 2 -type f | head -50
-```
+- `fs-05f7f1c836631ddce` -> `fs-03ce541320ea7827c`: `folder9.tgz`, restored count `11633`
+- `fs-057baa1f60ff58b91` -> `fs-0875869ddefaba679`: `folder9-acme.tgz`, restored count `1`
+- `fs-0f3888df726d8d9f8` -> `fs-01a332c4d065de570`: `openclaw.tgz`, restored count `2015`
+- `fs-0920bb3d4db7aa843` -> `fs-08ba71f27e0f12b75`: `openclaw-extra.tgz`, restored count `268`
 
-EFS content has not yet been copied as of this runbook update. Keep folder9 app services at desired `0` until EFS data and real SSM secrets are verified.
+Temporary migration S3 buckets and inline IAM policies were removed after verification.
+CloudWatch migration logs are retained for 7 days in `/ecs/efs-migration` in both accounts.
+Keep folder9 app services at desired `0` until final app secret/runtime verification is complete.
