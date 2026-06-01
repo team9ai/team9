@@ -193,6 +193,7 @@ Copied folder9 dev SSM parameters from `ww` to `t9` after folder9 Terraform appl
 
 - `/folder9/dev/*`
 - `/folder9-dashboard/dev/*`
+- `/folder9/shared/cloudflare_dns_token`
 
 The copied `DATABASE_URL` values were rewritten from the old RDS endpoint to `openclaw-hive-dev.c89gkagwy37d.us-east-1.rds.amazonaws.com`.
 
