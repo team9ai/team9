@@ -22,6 +22,14 @@ output "db_subnet_group_name" {
   value = aws_db_subnet_group.openclaw_hive_dev.name
 }
 
+output "rds_endpoint" {
+  value = aws_db_instance.openclaw_hive_dev.address
+}
+
+output "rds_port" {
+  value = aws_db_instance.openclaw_hive_dev.port
+}
+
 output "efs_security_group_id" {
   value = aws_security_group.efs.id
 }
@@ -48,4 +56,16 @@ output "ecs_task_execution_role_arn" {
 
 output "ecs_task_role_arn" {
   value = aws_iam_role.ecs_task.arn
+}
+
+output "redis_security_group_id" {
+  value = aws_security_group.redis.id
+}
+
+output "redis_endpoint" {
+  value = aws_elasticache_serverless_cache.control_plane_dev.endpoint[0].address
+}
+
+output "redis_port" {
+  value = aws_elasticache_serverless_cache.control_plane_dev.endpoint[0].port
 }

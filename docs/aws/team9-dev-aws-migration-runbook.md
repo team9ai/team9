@@ -135,6 +135,67 @@ aws rds describe-db-instances \
   --output text
 ```
 
+Executed during the 2026-06-02 write-freeze:
+
+- Source snapshot: `openclaw-hive-dev-final-20260601173022`
+- Target encrypted snapshot: `openclaw-hive-dev-final-20260601173022-t9-encrypted`
+- Restored target RDS: `openclaw-hive-dev.c89gkagwy37d.us-east-1.rds.amazonaws.com:5432`
+- Target RDS is encrypted, PostgreSQL `16.10`, `db.t4g.micro`, `20 GiB gp3`
+- Target RDS and `control-plane-dev` Redis are imported into `infra/aws/t9-dev-core` Terraform state
+
+The old `ww` dev ECS services were scaled to desired `0` before the final S3 sync and RDS snapshot:
+
+- `openclaw-hive-dev/file-keeper-dev`
+- `openclaw-hive-dev/control-plane-dev`
+- `openclaw-hive-dev/ahand-hub-dev`
+- `openclaw-hive-dev/traefik-dev`
+- `folder9-dev/folder9-traefik-dev`
+- `folder9-dev/folder9-dashboard-dev`
+- `folder9-dev/folder9-dev`
+
+## Redis
+
+Target `t9` Redis resources:
+
+- Control plane Redis Serverless cache: `control-plane-dev-z6rr48.serverless.use1.cache.amazonaws.com:6379`
+- Control plane Redis SG: `sg-01024f55ce79e2342`
+- aHand hub Redis cluster: `ahand-hub-dev`
+
+Redis runtime data was not copied. Treat it as ephemeral cache/session data.
+
+## ECS Entrypoints
+
+Target `t9` entrypoints created during the migration:
+
+- OpenClaw Traefik dev NLB: `traefik-dev-nlb-ba679d7f5738b11f.elb.us-east-1.amazonaws.com`
+- OpenClaw Traefik dev SG: `sg-0368318519318a4ba`
+- folder9 dev NLB: `folder9-dev-nlb-b95ffda8112d744a.elb.us-east-1.amazonaws.com`
+
+The OpenClaw Traefik script prints an incorrect reminder of `*.instance.instance.claw.dev.team9.ai`.
+Use the actual desired DNS records from the dev domains instead.
+
+## ECR
+
+Copied `:dev` images from `ww` to `t9`:
+
+- `control-plane:dev`
+- `file-keeper:dev`
+- `efs-webdav:dev`
+- `ahand-hub:dev`
+- `folder9:dev`
+- `folder9-dashboard:dev`
+
+`openclaw-hive:dev` did not complete via local `docker push`; use GitHub Actions or retry from a better network path before launching workloads that require it.
+
+## SSM Parameters
+
+Copied folder9 dev SSM parameters from `ww` to `t9` after folder9 Terraform apply:
+
+- `/folder9/dev/*`
+- `/folder9-dashboard/dev/*`
+
+The copied `DATABASE_URL` values were rewritten from the old RDS endpoint to `openclaw-hive-dev.c89gkagwy37d.us-east-1.rds.amazonaws.com`.
+
 ## EFS Copy
 
 Copy these source file systems:
@@ -148,6 +209,8 @@ Target file systems created in `t9` so far:
 
 - `fs-01a332c4d065de570` (`openclaw-hive-dev`)
 - `fs-08ba71f27e0f12b75` (`openclaw-hive-dev-efs`)
+- `fs-03ce541320ea7827c` (`folder9-dev`)
+- `fs-0875869ddefaba679` (`folder9-dev-acme`)
 
 Use AWS DataSync when available. If DataSync is not already configured, run a temporary migration EC2 instance with both source and target EFS mounted over reachable networking. Copy once before write-freeze and once during write-freeze:
 
@@ -155,3 +218,5 @@ Use AWS DataSync when available. If DataSync is not already configured, run a te
 sudo rsync -aHAX --numeric-ids --info=progress2 /mnt/source/ /mnt/target/
 sudo find /mnt/target -maxdepth 2 -type f | head -50
 ```
+
+EFS content has not yet been copied as of this runbook update. Keep folder9 app services at desired `0` until EFS data and real SSM secrets are verified.
