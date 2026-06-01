@@ -33,3 +33,19 @@ output "openclaw_hive_dev_efs_id" {
 output "openclaw_hive_dev_extra_efs_id" {
   value = aws_efs_file_system.openclaw_hive_dev_efs.id
 }
+
+output "github_oidc_provider_arn" {
+  value = aws_iam_openid_connect_provider.github.arn
+}
+
+output "openclaw_hive_dev_deploy_role_arn" {
+  value = aws_iam_role.github_actions_openclaw_hive_dev_deploy.arn
+}
+
+output "ecs_task_execution_role_arn" {
+  value = aws_iam_role.ecs_task_execution.arn
+}
+
+output "ecs_task_role_arn" {
+  value = aws_iam_role.ecs_task.arn
+}
