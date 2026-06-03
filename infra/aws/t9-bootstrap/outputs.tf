@@ -17,3 +17,11 @@ output "ecr_repository_urls" {
     for name, repo in aws_ecr_repository.service : name => repo.repository_url
   }
 }
+
+output "team9_files_dev_cdn" {
+  value = {
+    alias       = local.team9_files_dev_cdn_alias
+    id          = aws_cloudfront_distribution.team9_files_dev.id
+    domain_name = aws_cloudfront_distribution.team9_files_dev.domain_name
+  }
+}

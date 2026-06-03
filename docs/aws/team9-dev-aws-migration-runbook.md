@@ -6,28 +6,86 @@
 - Target AWS account (`t9`): `149614785083`
 - Region: `us-east-1`
 
+## 2026-06-03 Cutover State
+
+The Team9 dev AWS-backed services have been migrated so that the old `ww`
+account can be shut down after retention/audit approval. Railway production
+was not modified.
+
+Runtime in `t9`:
+
+- aHand dev: `openclaw-hive-dev/ahand-hub-dev`, desired/running `1/1`,
+  task definition `ahand-hub-dev:2`
+- Shared Traefik for aHand dev: `openclaw-hive-dev/traefik-dev`,
+  desired/running `1/1`, task definition `traefik-dev:2`
+- folder9 dev: `folder9-dev/folder9-dev`, desired/running `1/1`
+- folder9 dashboard dev: `folder9-dev/folder9-dashboard-dev`,
+  desired/running `1/1`
+- folder9 Traefik dev: `folder9-dev/folder9-traefik-dev`,
+  desired/running `1/1`
+
+DNS cutover:
+
+- `ahand-hub.dev.team9.ai` -> `traefik-dev-nlb-ba679d7f5738b11f.elb.us-east-1.amazonaws.com`
+- `folder.dev.team9.ai` -> `folder9-dev-nlb-b95ffda8112d744a.elb.us-east-1.amazonaws.com`
+- `git.folder.dev.team9.ai` -> `folder9-dev-nlb-b95ffda8112d744a.elb.us-east-1.amazonaws.com`
+- `admin.folder.dev.team9.ai` -> `folder9-dev-nlb-b95ffda8112d744a.elb.us-east-1.amazonaws.com`
+- `files.dev.team9.ai` -> `d2tedyjbca4wja.cloudfront.net`
+
+The `files.dev.team9.ai` CloudFront distribution is now in `t9`:
+
+- Distribution ID: `E202H3U9IOAAUY`
+- Origin: `team9-files-dev.s3.us-east-1.amazonaws.com`
+- ACM certificate: `arn:aws:acm:us-east-1:149614785083:certificate/f5d21c68-8ca1-4258-b427-8fd0ce94fc17`
+- Access model: CloudFront OAC reads the private `team9-files-dev` bucket
+- Compatibility function strips both `/t9-development/` and `/team9-files-dev/`
+  path prefixes
+
+The old `ww` CloudFront distribution `E1TFNLFUI3702I` no longer has the
+`files.dev.team9.ai` alias.
+
+Railway `development` variables were updated and the services were restarted:
+
+- `API-Gateway`: `S3_BUCKET=team9-files-dev`, S3 access key account `149614785083`
+- `Im-worker`: `S3_BUCKET=team9-files-dev`, S3 access key account `149614785083`
+- `capability-hub`: `S3_BUCKET=team9-capability-hub-dev`, S3 access key account `149614785083`
+
+Other Railway dev URLs point to migrated dev endpoints:
+
+- `S3_PUBLIC_URL=https://files.dev.team9.ai`
+- `AHAND_HUB_URL=https://ahand-hub.dev.team9.ai`
+- `FOLDER9_API_URL=https://folder.dev.team9.ai`
+- `CAPABILITY_BASE_URL=https://gateway.capability.dev.team9.ai`
+
+OpenClaw runtime and file-keeper were intentionally not migrated. Keep them
+off unless the requirement changes.
+
 ## S3 Pre-Copy
 
 Run before write-freeze. The 2026-06-02 source inventory is under 1 GiB:
 
 - `ahand-hub-dev`: 10 objects, 84.4 KiB
-- `t9-development`: 140 objects, 118.0 MiB
-- `capability-hub`: 432 objects, 652.7 MiB
+- `t9-development`: 141 objects, 118.0 MiB after the final 2026-06-03 delta copy
+- `capability-hub`: 433 objects, 654.7 MiB after the final 2026-06-03 delta copy
 
 The migration target buckets are:
 
 - `ahand-hub-dev` -> `team9-ahand-hub-dev`
 - `t9-development` -> `team9-files-dev`
+- `capability-hub` -> `team9-capability-hub-dev`
 - `capability-hub` -> `team9-capability-hub-prod`
 
-`team9-capability-hub-dev` is created separately and starts empty because no distinct old dev source bucket was found.
+No distinct old capability-hub dev source bucket was found, so the old
+`capability-hub` bucket was copied into both `team9-capability-hub-dev` and
+`team9-capability-hub-prod`.
 
-Pre-copy was completed on 2026-06-02 and verified with matching source/target totals:
+Pre-copy was completed on 2026-06-02. Final deltas were copied on 2026-06-03
+and verified with matching source/target totals:
 
 - `team9-ahand-hub-dev`: 10 objects, 84.4 KiB
-- `team9-files-dev`: 140 objects, 118.0 MiB
-- `team9-capability-hub-prod`: 432 objects, 652.7 MiB
-- `team9-capability-hub-dev`: 0 objects, 0 Bytes
+- `team9-files-dev`: 141 objects, 118.0 MiB
+- `team9-capability-hub-dev`: 433 objects, 654.7 MiB
+- `team9-capability-hub-prod`: 433 objects, 654.7 MiB
 
 ```bash
 mkdir -p /tmp/team9-s3-migration
@@ -36,6 +94,7 @@ aws s3 sync /tmp/team9-s3-migration/ahand-hub-dev s3://team9-ahand-hub-dev --reg
 aws s3 sync s3://t9-development /tmp/team9-s3-migration/t9-development --region us-east-1 --profile ww
 aws s3 sync /tmp/team9-s3-migration/t9-development s3://team9-files-dev --region us-east-1 --profile t9
 aws s3 sync s3://capability-hub /tmp/team9-s3-migration/capability-hub --region us-east-1 --profile ww
+aws s3 sync /tmp/team9-s3-migration/capability-hub s3://team9-capability-hub-dev --region us-east-1 --profile t9
 aws s3 sync /tmp/team9-s3-migration/capability-hub s3://team9-capability-hub-prod --region us-east-1 --profile t9
 ```
 
@@ -47,6 +106,7 @@ aws s3 sync /tmp/team9-s3-migration/ahand-hub-dev s3://team9-ahand-hub-dev --reg
 aws s3 sync s3://t9-development /tmp/team9-s3-migration/t9-development --region us-east-1 --profile ww --delete
 aws s3 sync /tmp/team9-s3-migration/t9-development s3://team9-files-dev --region us-east-1 --profile t9 --delete
 aws s3 sync s3://capability-hub /tmp/team9-s3-migration/capability-hub --region us-east-1 --profile ww --delete
+aws s3 sync /tmp/team9-s3-migration/capability-hub s3://team9-capability-hub-dev --region us-east-1 --profile t9 --delete
 aws s3 sync /tmp/team9-s3-migration/capability-hub s3://team9-capability-hub-prod --region us-east-1 --profile t9 --delete
 ```
 
@@ -171,8 +231,14 @@ Target `t9` entrypoints created during the migration:
 - OpenClaw Traefik dev SG: `sg-0368318519318a4ba`
 - folder9 dev NLB: `folder9-dev-nlb-b95ffda8112d744a.elb.us-east-1.amazonaws.com`
 
-The OpenClaw Traefik script prints an incorrect reminder of `*.instance.instance.claw.dev.team9.ai`.
-Use the actual desired DNS records from the dev domains instead.
+The OpenClaw Traefik dev task definition now reads the Cloudflare token from
+SSM instead of plaintext task environment variables and uses
+`/letsencrypt/acme-t9.json` so the migrated `ww` ACME account state is not
+reused in `t9`.
+
+The OpenClaw Traefik script used to print an incorrect reminder of
+`*.instance.instance.claw.dev.team9.ai`. Use the actual desired DNS records
+from the dev domains instead.
 
 ## OpenClaw Runtime
 

@@ -1,4 +1,6 @@
 locals {
+  team9_files_dev_cdn_alias = "files.dev.team9.ai"
+
   s3_buckets = {
     team9_files_dev     = { name = "team9-files-dev", public_read = false }
     team9_files_prod    = { name = "team9-files-prod", public_read = false }
@@ -146,6 +148,113 @@ resource "aws_s3_bucket_lifecycle_configuration" "team9_files" {
       days = 1
     }
   }
+}
+
+resource "aws_acm_certificate" "team9_files_dev_cdn" {
+  domain_name       = local.team9_files_dev_cdn_alias
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_acm_certificate_validation" "team9_files_dev_cdn" {
+  certificate_arn = aws_acm_certificate.team9_files_dev_cdn.arn
+  validation_record_fqdns = [
+    for option in aws_acm_certificate.team9_files_dev_cdn.domain_validation_options :
+    option.resource_record_name
+  ]
+}
+
+resource "aws_cloudfront_origin_access_control" "team9_files_dev" {
+  name                              = "team9-files-dev-oac"
+  description                       = "OAC for the Team9 dev file bucket"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_function" "team9_files_dev_strip_bucket_prefix" {
+  name    = "team9-files-dev-strip-bucket-prefix"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = <<-EOT
+function handler(event) {
+  var req = event.request;
+  req.uri = req.uri.replace(/^\/t9-development\//, '/');
+  req.uri = req.uri.replace(/^\/team9-files-dev\//, '/');
+  return req;
+}
+EOT
+}
+
+resource "aws_cloudfront_distribution" "team9_files_dev" {
+  enabled         = true
+  is_ipv6_enabled = true
+  comment         = "CDN for Team9 dev files"
+  aliases         = [local.team9_files_dev_cdn_alias]
+  http_version    = "http2"
+  price_class     = "PriceClass_All"
+
+  origin {
+    domain_name              = aws_s3_bucket.service["team9_files_dev"].bucket_regional_domain_name
+    origin_id                = "team9-files-dev-s3"
+    origin_access_control_id = aws_cloudfront_origin_access_control.team9_files_dev.id
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "team9-files-dev-s3"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    origin_request_policy_id   = "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf"
+    response_headers_policy_id = "60669652-455b-4ae9-85a4-c4c02393f86c"
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.team9_files_dev_strip_bucket_prefix.arn
+    }
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    acm_certificate_arn      = aws_acm_certificate_validation.team9_files_dev_cdn.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
+  }
+}
+
+resource "aws_s3_bucket_policy" "team9_files_dev_cloudfront_read" {
+  bucket = aws_s3_bucket.service["team9_files_dev"].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowCloudFrontReadTeam9FilesDev"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.service["team9_files_dev"].arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.team9_files_dev.arn
+          }
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "ahand_hub_dev" {

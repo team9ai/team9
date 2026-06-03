@@ -148,6 +148,26 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "ecs_task_execution_ssm_secrets" {
+  name = "SSMSecretRead"
+  role = aws_iam_role.ecs_task_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadSharedCloudflareToken"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:GetParameters",
+        ]
+        Resource = "arn:aws:ssm:us-east-1:149614785083:parameter/folder9/shared/cloudflare_dns_token"
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role" "ecs_task" {
   name               = "ecsTaskRole"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume.json
