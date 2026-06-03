@@ -174,6 +174,20 @@ Target `t9` entrypoints created during the migration:
 The OpenClaw Traefik script prints an incorrect reminder of `*.instance.instance.claw.dev.team9.ai`.
 Use the actual desired DNS records from the dev domains instead.
 
+## OpenClaw Runtime
+
+OpenClaw runtime migration was cancelled on 2026-06-03. Do not continue the
+`openclaw-hive:dev` image copy or deploy OpenClaw control-plane/file-keeper
+services into `t9` unless the requirement changes again.
+
+Current `t9` `openclaw-hive-dev` ECS cluster services are:
+
+- `traefik-dev`: retained as shared ingress for aHand dev (`ahand-hub.dev.team9.ai`)
+- `ahand-hub-dev`: retained for the aHand dev environment
+
+There are no `t9` OpenClaw control-plane/file-keeper/instance services running.
+The old `ww` OpenClaw dev services remain scaled to desired `0`.
+
 ## ECR
 
 Copied `:dev` images from `ww` to `t9`:
@@ -186,6 +200,8 @@ Copied `:dev` images from `ww` to `t9`:
 - `folder9-dashboard:dev`
 
 `openclaw-hive:dev` did not complete via local `docker push`; use GitHub Actions or retry from a better network path before launching workloads that require it.
+This image is no longer required for the current migration scope because
+OpenClaw runtime migration has been cancelled.
 
 ## SSM Parameters
 
