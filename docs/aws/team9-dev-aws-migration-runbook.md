@@ -60,6 +60,63 @@ Other Railway dev URLs point to migrated dev endpoints:
 OpenClaw runtime and file-keeper were intentionally not migrated. Keep them
 off unless the requirement changes.
 
+## 2026-06-03 PRs and ww Dev Decommission
+
+Draft PRs created for the migration branches:
+
+- Team9: https://github.com/team9ai/team9/pull/124
+- folder9: https://github.com/team9ai/folder9/pull/9
+- aHand: https://github.com/team9ai/aHand/pull/42
+- openclaw-hive: https://github.com/weightwave/openclaw-hive/pull/2
+
+Additional `ww` dev-only shutdown actions completed after the cutover:
+
+- Removed Cloudflare DNS records that still pointed OpenClaw/file-keeper dev
+  hostnames at the old `ww` Traefik dev NLB:
+  - `file-keeper.claw.dev.team9.ai`
+  - `files-explorer.claw.dev.team9.ai`
+  - `*.fk.claw.dev.team9.ai`
+  - `*.instance.claw.dev.team9.ai`
+  - `plane.claw.dev.team9.ai`
+- Disabled the old `ww` `files.dev.team9.ai` CloudFront distribution
+  `E1TFNLFUI3702I`. It now has no aliases and `Enabled=false`.
+- Stopped the old `ww` dev RDS instance `openclaw-hive-dev`.
+
+Verified after decommission:
+
+- Cloudflare has no records pointing to the old `ww` dev NLBs or old
+  `files.dev` CloudFront domain.
+- `ww/openclaw-hive-dev` ECS services all have desired/running `0/0`.
+- `ww/folder9-dev` ECS services all have desired/running `0/0`.
+- `ww/openclaw-hive-dev` RDS status is `stopped`.
+
+Remaining `ww` dev resources that still exist for rollback/retention and can
+be deleted after the observation window:
+
+- S3 buckets: `t9-development`, `ahand-hub-dev`, `capability-hub`
+- ElastiCache Redis: `ahand-hub-dev`
+- NLBs: `traefik-dev-nlb-8cda97ce6b37e5e1`, `folder9-dev-nlb-c5c54878a223a778`
+- ECS clusters/services/task definitions for `openclaw-hive-dev` and
+  `folder9-dev`
+- Disabled CloudFront distribution `E1TFNLFUI3702I`
+- Stopped RDS instance `openclaw-hive-dev` and its old snapshots
+
+`ww` cannot be fully closed yet if production still depends on it. Current
+production blockers observed in `ww`:
+
+- `folder9-prod` ECS cluster is still running `folder9-prod`,
+  `folder9-dashboard-prod`, and `folder9-traefik-prod`.
+- `openclaw-hive` ECS cluster is still running `control-plane-prod`,
+  `file-keeper-prod`, `ahand-hub-prod`, Traefik, and a file-keeper instance.
+- RDS `openclaw-hive-prod` is still available.
+- ElastiCache Redis `ahand-hub-prod` is still available.
+- CloudFront `E210V6XIJ0X5JL` still serves `files.team9.ai`.
+- Cloudflare production records still point at `ww` prod NLBs:
+  `folder.team9.ai`, `git.folder.team9.ai`, `admin.folder.team9.ai`,
+  `plane.claw.team9.ai`, `*.instance.claw.team9.ai`,
+  `file-keeper.claw.team9.ai`, `files-explorer.claw.team9.ai`,
+  `*.fk.claw.team9.ai`, `ahand-hub.team9.ai`, and `*.claw.team9.ai`.
+
 ## S3 Pre-Copy
 
 Run before write-freeze. The 2026-06-02 source inventory is under 1 GiB:
