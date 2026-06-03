@@ -188,6 +188,17 @@ Current `t9` `openclaw-hive-dev` ECS cluster services are:
 There are no `t9` OpenClaw control-plane/file-keeper/instance services running.
 The old `ww` OpenClaw dev services remain scaled to desired `0`.
 
+On 2026-06-03, file-keeper and OpenClaw runtime were explicitly treated as
+shut down rather than migrated:
+
+- `ww/openclaw-hive-dev/file-keeper-dev`: desired `0`, running `0`
+- `ww/openclaw-hive-dev/control-plane-dev`: desired `0`, running `0`
+- `ww/openclaw-hive-dev`: no running or pending standalone tasks
+- `t9/openclaw-hive-dev`: no file-keeper, control-plane, efs-webdav, or OpenClaw instance services/task definitions
+
+Leave historical `ww` task definitions registered for audit/rollback context;
+they have no runtime cost while no ECS service or task is using them.
+
 ## ECR
 
 Copied `:dev` images from `ww` to `t9`:
