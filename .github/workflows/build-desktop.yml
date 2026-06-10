@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*" # production: v0.0.1, v1.0.0
+      - "staging*" # staging: staging0.0.1, staging1.0.0
       - "dev*" # testing: dev0.0.1, dev1.0.0
 
 env:
@@ -29,7 +30,7 @@ jobs:
             update-target: darwin-universal
 
     runs-on: macos-latest
-    environment: ${{ startsWith(github.ref_name, 'v') && 'Team9 / production' || 'Team9 / development' }}
+    environment: ${{ startsWith(github.ref_name, 'v') && 'Team9 / production' || (startsWith(github.ref_name, 'staging') && 'Team9 / staging' || 'Team9 / development') }}
 
     steps:
       - name: Checkout
@@ -47,6 +48,15 @@ jobs:
             echo "product_name=Team9" >> $GITHUB_OUTPUT
             echo "dmg_basename=Team9" >> $GITHUB_OUTPUT
             echo "tauri_extra_config=" >> $GITHUB_OUTPUT
+            echo "deep_link_scheme=team9" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == staging* ]]; then
+            echo "env_name=staging" >> $GITHUB_OUTPUT
+            echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/download/staging-latest/latest-staging.json" >> $GITHUB_OUTPUT
+            echo "manifest_name=latest-staging.json" >> $GITHUB_OUTPUT
+            echo "product_name=Team9 Staging" >> $GITHUB_OUTPUT
+            echo "dmg_basename=Team9-Staging" >> $GITHUB_OUTPUT
+            echo "tauri_extra_config=--config src-tauri/tauri.staging.conf.json" >> $GITHUB_OUTPUT
+            echo "deep_link_scheme=team9-staging" >> $GITHUB_OUTPUT
           else
             echo "env_name=development" >> $GITHUB_OUTPUT
             echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/download/dev-latest/latest-dev.json" >> $GITHUB_OUTPUT
@@ -54,6 +64,7 @@ jobs:
             echo "product_name=Team9 Dev" >> $GITHUB_OUTPUT
             echo "dmg_basename=Team9-Dev" >> $GITHUB_OUTPUT
             echo "tauri_extra_config=--config src-tauri/tauri.dev.conf.json" >> $GITHUB_OUTPUT
+            echo "deep_link_scheme=team9-dev" >> $GITHUB_OUTPUT
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           # Extract semver from tag (strip leading v or dev prefix)
@@ -97,6 +108,7 @@ jobs:
         run: |
           echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
           echo "VITE_APP_URL=${{ secrets.VITE_APP_URL }}" >> apps/client/.env.production
+          echo "VITE_DESKTOP_DEEP_LINK_SCHEME=${{ steps.env.outputs.deep_link_scheme }}" >> apps/client/.env.production
 
       - name: Set app version from tag
         run: |
@@ -135,6 +147,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TEAM9_TAURI_UPDATE_TARGET: ${{ matrix.update-target }}
+          VITE_DESKTOP_DEEP_LINK_SCHEME: ${{ steps.env.outputs.deep_link_scheme }}
 
       - name: Create DMG installer
         shell: bash
@@ -225,6 +238,8 @@ jobs:
 
           if [[ "$TAG" == v* ]]; then
             MANIFEST_NAME="latest.json"
+          elif [[ "$TAG" == staging* ]]; then
+            MANIFEST_NAME="latest-staging.json"
           else
             MANIFEST_NAME="latest-dev.json"
           fi
@@ -256,7 +271,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: artifacts/*
           generate_release_notes: true
-          prerelease: ${{ startsWith(github.ref_name, 'dev') }}
+          prerelease: ${{ startsWith(github.ref_name, 'dev') || startsWith(github.ref_name, 'staging') }}
 
       - name: Update dev-latest release
         if: startsWith(github.ref_name, 'dev')
@@ -276,5 +291,26 @@ jobs:
           gh release upload dev-latest "artifacts/latest-dev.json" --clobber
           gh release edit dev-latest \
             --notes "Auto-updated updater manifest for the dev channel. Current: ${{ github.ref_name }}" \
+            --prerelease \
+            --draft=false
+
+      - name: Update staging-latest release
+        if: startsWith(github.ref_name, 'staging')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Ensure staging-latest release exists
+          if ! gh release view staging-latest &>/dev/null; then
+            gh release create staging-latest \
+              --title "Staging Latest" \
+              --notes "Auto-updated updater manifest for the staging channel." \
+              --prerelease
+          fi
+          # Remove old manifest and upload new one
+          gh release delete-asset staging-latest latest-staging.json --yes 2>/dev/null || true
+          gh release upload staging-latest "artifacts/latest-staging.json" --clobber
+          gh release edit staging-latest \
+            --notes "Auto-updated updater manifest for the staging channel. Current: ${{ github.ref_name }}" \
             --prerelease \
             --draft=false

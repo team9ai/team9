@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Team9 Dev",
-  "identifier": "com.weight-wave.team9-client.dev",
+  "productName": "Team9 Staging",
+  "identifier": "com.weight-wave.team9-client.staging",
   "app": {
     "windows": [
       {
-        "title": "Team9 Dev",
+        "title": "Team9 Staging",
         "width": 1440,
         "height": 890,
         "minWidth": 375,
@@ -30,7 +30,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["team9-dev"]
+        "schemes": ["team9-staging"]
       }
     }
   }
