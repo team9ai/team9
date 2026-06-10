@@ -608,6 +608,8 @@ export class DeepResearchSessionsService {
         isPinned: message.isPinned,
         parentId: message.parentId,
         createdAt: message.createdAt,
+        metadata: message.metadata ?? params.metadata ?? null,
+        attachments: message.attachments ?? [],
       },
       channel: { id: params.channelId },
     });
@@ -660,6 +662,7 @@ export class DeepResearchSessionsService {
         isPinned: message.isPinned,
         parentId: message.parentId,
         createdAt: message.createdAt,
+        metadata: message.metadata ?? null,
       },
       channel: channel ?? { id: params.channelId },
       sender: undefined,

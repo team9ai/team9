@@ -11,6 +11,9 @@ import { StreamingController } from '../streaming/streaming.controller.js';
 import { FileModule } from '../../file/file.module.js';
 import { AgentTimelineController } from '../timeline/agent-timeline.controller.js';
 import { AgentTimelineService } from '../timeline/agent-timeline.service.js';
+import { InternalAuthGuard } from '../../auth/internal-auth.guard.js';
+import { ExternalMessagesInternalController } from './external-messages-internal.controller.js';
+import { ExternalImMessageRelayService } from './external-im-message-relay.service.js';
 
 @Module({
   imports: [
@@ -23,10 +26,17 @@ import { AgentTimelineService } from '../timeline/agent-timeline.service.js';
   ],
   controllers: [
     MessagesController,
+    ExternalMessagesInternalController,
     StreamingController,
     AgentTimelineController,
   ],
-  providers: [MessagesService, ImWorkerGrpcClientService, AgentTimelineService],
+  providers: [
+    MessagesService,
+    ImWorkerGrpcClientService,
+    AgentTimelineService,
+    InternalAuthGuard,
+    ExternalImMessageRelayService,
+  ],
   exports: [MessagesService, ImWorkerGrpcClientService, AgentTimelineService],
 })
 export class MessagesModule {}

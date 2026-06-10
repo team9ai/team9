@@ -742,6 +742,10 @@ describe("MessageList — round auto-fold", () => {
       expect(hiddenPlaceholder).toHaveAttribute("aria-hidden", "true");
       expect(hiddenPlaceholder?.className).toContain("min-h-px");
       expect(hiddenPlaceholder?.className).not.toContain("py-0.5");
+      expect(document.querySelector("[data-stream-view]")).toBeInTheDocument();
+      expect(
+        document.querySelector('[data-stream-item-kind="agent-message"]'),
+      ).toBeInTheDocument();
       expect(screen.getByTestId("streaming-item")).toHaveTextContent(
         "streaming reply",
       );

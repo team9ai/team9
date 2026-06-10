@@ -14,6 +14,10 @@ type TauriConfig = {
   };
 };
 
+type PackageJson = {
+  scripts?: Record<string, string>;
+};
+
 const clientRoot = resolve(__dirname, "../../..");
 
 function readConfig(name: string): TauriConfig {
@@ -22,10 +26,17 @@ function readConfig(name: string): TauriConfig {
   ) as TauriConfig;
 }
 
+function readPackageJson(): PackageJson {
+  return JSON.parse(
+    readFileSync(resolve(clientRoot, "package.json"), "utf8"),
+  ) as PackageJson;
+}
+
 describe("Tauri environment configs", () => {
-  it("declares unique package identifiers for prod, dev, and local builds", () => {
+  it("declares unique package identifiers for prod, staging, dev, and local builds", () => {
     const configs = [
       readConfig("tauri.conf.json"),
+      readConfig("tauri.staging.conf.json"),
       readConfig("tauri.dev.conf.json"),
       readConfig("tauri.local.conf.json"),
     ];
@@ -34,19 +45,57 @@ describe("Tauri environment configs", () => {
 
     expect(identifiers).toEqual([
       "com.weight-wave.team9-client",
+      "com.weight-wave.team9-client.staging",
       "com.weight-wave.team9-client.dev",
       "com.weight-wave.team9-client.local",
     ]);
     expect(new Set(identifiers).size).toBe(identifiers.length);
   });
 
-  it("declares a separate local deep-link scheme", () => {
+  it("declares separate deep-link schemes for prod, staging, dev, and local builds", () => {
     expect(
       readConfig("tauri.conf.json").plugins?.["deep-link"]?.desktop?.schemes,
     ).toEqual(["team9"]);
     expect(
+      readConfig("tauri.staging.conf.json").plugins?.["deep-link"]?.desktop
+        ?.schemes,
+    ).toEqual(["team9-staging"]);
+    expect(
+      readConfig("tauri.dev.conf.json").plugins?.["deep-link"]?.desktop
+        ?.schemes,
+    ).toEqual(["team9-dev"]);
+    expect(
       readConfig("tauri.local.conf.json").plugins?.["deep-link"]?.desktop
         ?.schemes,
     ).toEqual(["team9-local"]);
+  });
+
+  it("injects matching desktop deep-link schemes in environment build scripts", () => {
+    const scripts = readPackageJson().scripts ?? {};
+
+    expect(scripts["build:dev"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-dev",
+    );
+    expect(scripts["build:staging"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-staging",
+    );
+    expect(scripts["dev:desktop:dev"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-dev",
+    );
+    expect(scripts["build:mac:dev"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-dev",
+    );
+    expect(scripts["build:windows:dev"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-dev",
+    );
+    expect(scripts["dev:desktop:staging"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-staging",
+    );
+    expect(scripts["build:mac:staging"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-staging",
+    );
+    expect(scripts["build:windows:staging"]).toContain(
+      "VITE_DESKTOP_DEEP_LINK_SCHEME=team9-staging",
+    );
   });
 });

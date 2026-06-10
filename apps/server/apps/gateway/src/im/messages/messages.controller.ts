@@ -308,6 +308,8 @@ export class MessagesController {
           isPinned: message.isPinned,
           parentId: message.parentId,
           createdAt: message.createdAt,
+          metadata: message.metadata ?? metadata ?? null,
+          attachments: message.attachments ?? [],
         },
         channel: channel,
         sender: message.sender

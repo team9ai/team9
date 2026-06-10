@@ -1908,6 +1908,126 @@ describe('MessagesService', () => {
     });
   });
 
+  describe('sendFromExternalUser', () => {
+    let externalService: InstanceType<typeof MessagesService>;
+    let imWorker: { createMessage: jest.Mock<any> };
+    let mqService: {
+      isReady: jest.Mock<any>;
+      publishPostBroadcast: jest.Mock<any>;
+    };
+    let eventEmitterMock: { emit: jest.Mock<any> };
+    let msgResponse: MessageResponse;
+
+    beforeEach(() => {
+      imWorker = {
+        createMessage: jest.fn<any>().mockResolvedValue({
+          msgId: 'external-msg-1',
+        }),
+      };
+      mqService = {
+        isReady: jest.fn<any>().mockReturnValue(true),
+        publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+      };
+      eventEmitterMock = { emit: jest.fn<any>() };
+
+      externalService = new MessagesService(
+        db as never,
+        channelSequenceService as never,
+        messagePropertiesService as never,
+        { get: jest.fn<any>() } as never,
+        imWorker as never,
+        mqService as never,
+        eventEmitterMock as never,
+      );
+      msgResponse = makeMessageResponse({
+        id: 'external-msg-1',
+        clientMsgId: 'ext-client-msg-1',
+        channelId: 'channel-1',
+        senderId: 'user-1',
+        content: 'hello from weixin',
+        metadata: {
+          externalIm: {
+            provider: 'weixin-ilink',
+            externalMessageId: 'wx-msg-1',
+          },
+        },
+        sender: {
+          id: 'user-1',
+          username: 'alice',
+          displayName: 'Alice',
+          avatarUrl: null,
+          userType: 'human',
+          agentType: null,
+        },
+      });
+      jest
+        .spyOn(externalService, 'getMessageWithDetails')
+        .mockResolvedValue(msgResponse);
+      jest
+        .spyOn(externalService, 'mergeProperties')
+        .mockResolvedValue([msgResponse]);
+      jest
+        .spyOn(externalService, 'truncateForPreview')
+        .mockReturnValue(msgResponse);
+    });
+
+    it('persists as the Team9 user, forwards metadata, and emits metadata for relay filtering', async () => {
+      const metadata = {
+        externalIm: {
+          provider: 'weixin-ilink',
+          externalMessageId: 'wx-msg-1',
+        },
+      };
+
+      const result = await externalService.sendFromExternalUser({
+        userId: 'user-1',
+        channelId: 'channel-1',
+        content: 'hello from weixin',
+        workspaceId: 'tenant-1',
+        clientMsgId: 'ext-client-msg-1',
+        metadata,
+      });
+
+      expect(result).toEqual({
+        channelId: 'channel-1',
+        messageId: 'external-msg-1',
+        preview: msgResponse,
+      });
+      expect(imWorker.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientMsgId: 'ext-client-msg-1',
+          channelId: 'channel-1',
+          senderId: 'user-1',
+          content: 'hello from weixin',
+          workspaceId: 'tenant-1',
+          metadata,
+        }),
+      );
+      expect(mqService.publishPostBroadcast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          msgId: 'external-msg-1',
+          channelId: 'channel-1',
+          senderId: 'user-1',
+          workspaceId: 'tenant-1',
+        }),
+      );
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        'message.created',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            id: 'external-msg-1',
+            metadata,
+          }),
+          sender: expect.objectContaining({
+            id: 'user-1',
+            username: 'alice',
+            displayName: 'Alice',
+          }),
+        }),
+      );
+    });
+  });
+
   it('adds reactions without failing on conflicts', async () => {
     await expect(
       service.addReaction('message-1', 'user-1', ':+1:'),

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Team9 Staging",
+  "identifier": "com.weight-wave.team9-client.staging",
+  "app": {
+    "windows": [
+      {
+        "title": "Team9 Staging",
+        "width": 1440,
+        "height": 890,
+        "minWidth": 375,
+        "minHeight": 667,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 17
+        },
+        "hiddenTitle": true,
+        "acceptFirstMouse": true,
+        "alwaysOnTop": false,
+        "contentProtected": false,
+        "skipTaskbar": false,
+        "dragDropEnabled": false
+      }
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["team9-staging"]
+      }
+    }
+  }
+}

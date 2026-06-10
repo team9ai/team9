@@ -483,6 +483,8 @@ describe('MessagesController', () => {
           isPinned: fullMessage.isPinned,
           parentId: fullMessage.parentId,
           createdAt: fullMessage.createdAt,
+          metadata: fullMessage.metadata ?? dto.metadata ?? null,
+          attachments: fullMessage.attachments ?? [],
         },
         channel: makeChannel(),
         sender: {

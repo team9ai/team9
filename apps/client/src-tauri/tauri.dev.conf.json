@@ -16,7 +16,7 @@
         "titleBarStyle": "Overlay",
         "trafficLightPosition": {
           "x": 14,
-          "y": 31
+          "y": 17
         },
         "hiddenTitle": true,
         "acceptFirstMouse": true,
@@ -26,5 +26,12 @@
         "dragDropEnabled": false
       }
     ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["team9-dev"]
+      }
+    }
   }
 }
