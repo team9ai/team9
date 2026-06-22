@@ -29,7 +29,7 @@ import {
   useSidebarCollapsed,
   appActions,
 } from "@/stores";
-import { alignMacTrafficLights, isMacTauriApp } from "@/lib/tauri";
+import { isMacTauriApp } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useDebouncedQuickSearch } from "@/hooks/useSearch";
@@ -60,7 +60,6 @@ export function GlobalTopBar() {
   useUser();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { data: workspaces } = useUserWorkspaces();
-  const headerRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -141,37 +140,8 @@ export function GlobalTopBar() {
   const topBarButtonClassName =
     "h-7 w-7 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover";
 
-  useEffect(() => {
-    if (!isMacDesktop || !headerRef.current) return;
-
-    const header = headerRef.current;
-    let frameId = 0;
-
-    const syncTrafficLights = () => {
-      cancelAnimationFrame(frameId);
-      frameId = requestAnimationFrame(() => {
-        void alignMacTrafficLights(header.getBoundingClientRect().height).catch(
-          () => {},
-        );
-      });
-    };
-
-    syncTrafficLights();
-
-    const observer = new ResizeObserver(() => {
-      syncTrafficLights();
-    });
-    observer.observe(header);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      observer.disconnect();
-    };
-  }, [isMacDesktop]);
-
   return (
     <header
-      ref={headerRef}
       data-tauri-drag-region
       className={cn("shrink-0 bg-nav-bg", isMacDesktop ? "h-12" : "h-11")}
     >

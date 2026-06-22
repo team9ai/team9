@@ -7,9 +7,11 @@ import {
   pgEnum,
   jsonb,
   index,
+  uniqueIndex,
   bigint,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from './users.js';
 import { channels } from './channels.js';
 
@@ -75,6 +77,11 @@ export const messages = pgTable(
     // New indexes for distributed architecture
     index('idx_messages_seq_id').on(table.channelId, table.seqId),
     index('idx_messages_client_msg_id').on(table.clientMsgId),
+    uniqueIndex('idx_messages_ext_client_msg_id_active_unique')
+      .on(table.clientMsgId)
+      .where(
+        sql`${table.clientMsgId} IS NOT NULL AND ${table.isDeleted} = false AND left(${table.clientMsgId}, 4) = 'ext_'`,
+      ),
   ],
 );
 

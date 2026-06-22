@@ -361,15 +361,35 @@ export class MessagesService {
   async getMessageByClientMsgId(
     clientMsgId: string,
   ): Promise<MessageResponse | null> {
+    return this.findMessageByClientMsgId(clientMsgId, false);
+  }
+
+  async getExternalMessageByClientMsgId(
+    clientMsgId: string,
+  ): Promise<MessageResponse | null> {
+    if (!clientMsgId.startsWith('ext_')) return null;
+    return this.findMessageByClientMsgId(clientMsgId, true);
+  }
+
+  private async findMessageByClientMsgId(
+    clientMsgId: string,
+    externalOnly: boolean,
+  ): Promise<MessageResponse | null> {
+    const where = externalOnly
+      ? and(
+          eq(schema.messages.clientMsgId, clientMsgId),
+          eq(schema.messages.isDeleted, false),
+          sql`left(${schema.messages.clientMsgId}, 4) = 'ext_'`,
+        )
+      : and(
+          eq(schema.messages.clientMsgId, clientMsgId),
+          eq(schema.messages.isDeleted, false),
+        );
+
     const [message] = await this.db
       .select({ id: schema.messages.id })
       .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.clientMsgId, clientMsgId),
-          eq(schema.messages.isDeleted, false),
-        ),
-      )
+      .where(where)
       .limit(1);
 
     if (!message) return null;
@@ -1284,6 +1304,8 @@ export class MessagesService {
       fileSize: number;
     }>;
     workspaceId: string;
+    clientMsgId?: string;
+    metadata?: Record<string, unknown>;
   }): Promise<{
     channelId: string;
     messageId: string;
@@ -1299,7 +1321,7 @@ export class MessagesService {
     // as a malicious user can.
     const content = sanitizeMessageContent(params.content);
 
-    const clientMsgId = uuidv7();
+    const clientMsgId = params.clientMsgId ?? uuidv7();
     const messageType = determineMessageType(content, !!attachments?.length);
 
     const result = await this.imWorkerGrpcClientService.createMessage({
@@ -1310,6 +1332,7 @@ export class MessagesService {
       type: messageType,
       workspaceId,
       attachments,
+      metadata: params.metadata,
     });
 
     const message = await this.getMessageWithDetails(result.msgId);
@@ -1341,9 +1364,17 @@ export class MessagesService {
         isPinned: message.isPinned,
         parentId: message.parentId,
         createdAt: message.createdAt,
+        metadata: message.metadata ?? params.metadata ?? null,
+        attachments: message.attachments ?? [],
       },
       channel: { id: channelId },
-      sender: { id: botUserId },
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            username: message.sender.username,
+            displayName: message.sender.displayName,
+          }
+        : { id: botUserId },
     });
 
     // NOTE: intentionally skipping RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED publish
@@ -1353,6 +1384,98 @@ export class MessagesService {
     // dependency (MessagesService → WebsocketGateway → MessagesModule → cycle).
     // The caller (BotMessagingController) performs the broadcast using the
     // returned preview payload.
+
+    return { channelId, messageId: result.msgId, preview };
+  }
+
+  /**
+   * Persist a message authored by a real Team9 user through an internal ingress
+   * path, for example a bound Weixin account. This keeps the Team9 sender as
+   * the human user while still allowing the caller to attach external source
+   * metadata and a stable idempotency clientMsgId.
+   */
+  async sendFromExternalUser(params: {
+    userId: string;
+    channelId: string;
+    content: string;
+    attachments?: Array<{
+      fileKey?: string;
+      fileUrl?: string;
+      fileName: string;
+      mimeType: string;
+      fileSize: number;
+    }>;
+    workspaceId: string;
+    clientMsgId?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{
+    channelId: string;
+    messageId: string;
+    preview: MessageResponse;
+  }> {
+    if (!this.imWorkerGrpcClientService) {
+      throw new Error(
+        'sendFromExternalUser: imWorkerGrpcClientService is not injected',
+      );
+    }
+
+    const { userId, channelId, attachments, workspaceId } = params;
+    const content = sanitizeMessageContent(params.content);
+    const clientMsgId = params.clientMsgId ?? uuidv7();
+    const messageType = determineMessageType(content, !!attachments?.length);
+
+    const result = await this.imWorkerGrpcClientService.createMessage({
+      clientMsgId,
+      channelId,
+      senderId: userId,
+      content,
+      type: messageType,
+      workspaceId,
+      attachments,
+      metadata: params.metadata,
+    });
+
+    const message = await this.getMessageWithDetails(result.msgId);
+    const [withProps] = await this.mergeProperties([message]);
+    const preview = this.truncateForPreview(withProps);
+
+    if (this.gatewayMQService?.isReady()) {
+      const task: PostBroadcastTask = {
+        msgId: result.msgId,
+        channelId,
+        senderId: userId,
+        workspaceId,
+        broadcastAt: Date.now(),
+      };
+      this.gatewayMQService.publishPostBroadcast(task).catch((err) => {
+        this.logger.warn(
+          `sendFromExternalUser post-broadcast publish failed: ${err}`,
+        );
+      });
+    }
+
+    this.eventEmitter?.emit('message.created', {
+      message: {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        parentId: message.parentId,
+        createdAt: message.createdAt,
+        metadata: message.metadata ?? params.metadata ?? null,
+        attachments: message.attachments ?? [],
+      },
+      channel: { id: channelId },
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            username: message.sender.username,
+            displayName: message.sender.displayName,
+          }
+        : { id: userId },
+    });
 
     return { channelId, messageId: result.msgId, preview };
   }

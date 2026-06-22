@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -291,29 +297,29 @@ describe("TasksSubSidebar", () => {
     expect(screen.queryByText("暂无任务")).not.toBeInTheDocument();
   });
 
-  it("switches left sidebar mode without remounting the dashboard route", () => {
+  it("switches left sidebar mode without remounting the dashboard route", async () => {
     renderTasksSubSidebar();
 
     fireEvent.click(screen.getByRole("tab", { name: "任务" }));
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(useHomeStore.getState().dashboardMode).toBe("task");
-    expect(screen.getByRole("tab", { name: "任务" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
-      "left-1/2",
-    );
+    expect(
+      screen.queryByRole("tablist", { name: "首页模式" }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText("暂无任务")).toBeInTheDocument();
     expect(screen.getByText("新对话").closest("button")).not.toHaveClass(
       "bg-nav-active",
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "对话" }));
+    fireEvent.click(screen.getByText("新对话"));
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(useHomeStore.getState().dashboardMode).toBe("conversation");
     expect(screen.getByRole("tab", { name: "对话" })).toHaveAttribute(
       "aria-selected",
       "true",
+    );
+    expect(screen.getByText("新对话").closest("button")).toHaveClass(
+      "bg-nav-active",
     );
     expect(screen.getByText("AI Agents")).toBeInTheDocument();
   });
@@ -360,9 +366,10 @@ describe("TasksSubSidebar", () => {
 
     renderTasksSubSidebar();
 
-    expect(screen.getByTestId("dashboard-sidebar-mode-indicator")).toHaveClass(
-      "left-1/2",
-    );
+    expect(
+      screen.queryByRole("tablist", { name: "首页模式" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "任务" })).not.toBeInTheDocument();
     expect(screen.getByText("新任务").closest("button")).toHaveClass(
       "bg-nav-active",
     );
@@ -449,11 +456,66 @@ describe("TasksSubSidebar", () => {
     expect(screen.getByText("失败任务显示")).toBeInTheDocument();
     expect(screen.getByText("失败")).toBeInTheDocument();
     expect(screen.getByText("超时任务显示")).toBeInTheDocument();
-    expect(screen.getByText("已超时")).toBeInTheDocument();
+    expect(screen.queryByText("已超时")).not.toBeInTheDocument();
     expect(screen.queryByText("待执行不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("草稿不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("隐藏不显示")).not.toBeInTheDocument();
     expect(screen.queryByText("手动归档不显示")).not.toBeInTheDocument();
+  });
+
+  it("renders task group labels with the subdued section heading style", async () => {
+    pathname = "/tasks/new-task";
+    mockListTasks.mockResolvedValue([
+      makeTaskRun({
+        id: "personal-task",
+        title: "个人任务",
+        routineId: null,
+        status: "in_progress",
+      }),
+      makeTaskRun({
+        id: "routine-task",
+        title: "日常任务",
+        routineId: "routine-1",
+        status: "timeout",
+      }),
+    ]);
+
+    renderTasksSubSidebar();
+
+    await screen.findByText("个人任务");
+
+    for (const label of ["我的任务", "@日常"]) {
+      expect(screen.getByText(label)).toHaveClass(
+        "text-[0.7rem]",
+        "font-semibold",
+        "uppercase",
+        "tracking-wide",
+        "text-nav-foreground-faint",
+      );
+    }
+  });
+
+  it("omits the extra task section heading above task groups", async () => {
+    pathname = "/tasks/new-task";
+    mockListTasks.mockResolvedValue([
+      makeTaskRun({
+        id: "personal-task",
+        title: "个人任务",
+        routineId: null,
+        status: "in_progress",
+      }),
+    ]);
+
+    renderTasksSubSidebar();
+
+    await screen.findByText("个人任务");
+
+    const modeContent = screen.getByTestId("dashboard-sidebar-mode-content");
+    expect(
+      screen.queryByRole("tablist", { name: "首页模式" }),
+    ).not.toBeInTheDocument();
+    expect(within(modeContent).queryByText("任务")).not.toBeInTheDocument();
+    expect(within(modeContent).getByText("我的任务")).toBeInTheDocument();
   });
 
   it("offers task row actions from the hover menu", async () => {

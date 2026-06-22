@@ -63,6 +63,22 @@ function makeStream(
 }
 
 describe("StreamingMessageParts", () => {
+  it("renders stream parts through the shared AgentStreamView package", () => {
+    const { container } = render(
+      <StreamingMessageParts stream={makeStream()} members={[]} />,
+    );
+
+    expect(container.querySelector("[data-stream-view]")).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-stream-item-kind="thinking"]'),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-stream-item-kind="agent-message"]'),
+    ).toBeInTheDocument();
+    expect(screen.getByText("first reply")).toBeInTheDocument();
+    expect(screen.getByText("second reply")).toBeInTheDocument();
+  });
+
   it("does not render an empty streaming bubble before text arrives", () => {
     render(
       <StreamingMessageParts
@@ -79,6 +95,28 @@ describe("StreamingMessageParts", () => {
 
     expect(screen.getByText(/^Thinking/)).toBeInTheDocument();
     expect(screen.queryByText("streaming...")).not.toBeInTheDocument();
+  });
+
+  it("does not render an empty shared thinking wrapper for text-only streams", () => {
+    const { container } = render(
+      <StreamingMessageParts
+        stream={makeStream({
+          content: "plain reply",
+          thinking: "",
+          isThinking: false,
+          parts: [],
+        })}
+        members={[]}
+      />,
+    );
+
+    expect(
+      container.querySelector('[data-stream-item-kind="thinking"]'),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelectorAll('[data-stream-item-kind="agent-message"]'),
+    ).toHaveLength(1);
+    expect(screen.getByText("plain reply")).toBeInTheDocument();
   });
 
   it("renders thinking and text parts in arrival order", () => {

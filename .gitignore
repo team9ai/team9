@@ -53,6 +53,11 @@ apps/client/src-tauri/target/
 # Git worktrees
 .worktrees/
 
+# Terraform local state and provider cache
+**/.terraform/
+*.tfstate
+*.tfstate.*
+
 # Enterprise (when using submodule, this is handled by git automatically)
 # Only ignore if developing locally without submodule setup
 # enterprise/

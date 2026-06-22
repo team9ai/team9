@@ -5,6 +5,10 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseCurrentWorkspaceRole = vi.hoisted(() => vi.fn());
 const mockIsTauriApp = vi.hoisted(() => vi.fn());
 const mockTauriInvoke = vi.hoisted(() => vi.fn());
+const mockListWeixinConnections = vi.hoisted(() => vi.fn());
+const mockStartWeixinLogin = vi.hoisted(() => vi.fn());
+const mockGetWeixinLoginStatus = vi.hoisted(() => vi.fn());
+const mockCreateWeixinQrImageSrc = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -42,6 +46,23 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/hooks/useWorkspace", () => ({
   useCurrentWorkspaceRole: mockUseCurrentWorkspaceRole,
+}));
+
+vi.mock("@/hooks/useAuth", () => ({
+  useCurrentUser: () => ({
+    data: {
+      id: "user-1",
+    },
+  }),
+}));
+
+vi.mock("@/services/api/external-im-gateway", () => ({
+  createWeixinQrImageSrc: mockCreateWeixinQrImageSrc,
+  externalImGatewayApi: {
+    listWeixinIlinkConnections: mockListWeixinConnections,
+    startWeixinIlinkLogin: mockStartWeixinLogin,
+    getWeixinIlinkLoginStatus: mockGetWeixinLoginStatus,
+  },
 }));
 
 vi.mock("@/hooks/useTheme", () => ({
@@ -88,6 +109,20 @@ describe("MoreMainContent", () => {
     vi.clearAllMocks();
     mockIsTauriApp.mockReturnValue(false);
     mockTauriInvoke.mockResolvedValue("0.1.0");
+    mockListWeixinConnections.mockResolvedValue([]);
+    mockStartWeixinLogin.mockResolvedValue({
+      sessionKey: "session-1",
+      qrcode: "qr",
+      qrcodeUrl: "qr-url",
+      status: "wait",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    mockGetWeixinLoginStatus.mockResolvedValue({
+      sessionKey: "session-1",
+      status: "wait",
+      connected: false,
+    });
+    mockCreateWeixinQrImageSrc.mockResolvedValue("data:image/png;base64,qr");
   });
 
   it("shows workspace settings only for owner or admin", () => {
@@ -136,6 +171,38 @@ describe("MoreMainContent", () => {
       "invitations",
       "members",
     ]);
+  });
+
+  it("opens the Weixin connection dialog from settings and more", async () => {
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: false,
+      isAdmin: false,
+      isOwnerOrAdmin: false,
+    });
+
+    render(<MoreMainContent />);
+    fireEvent.click(screen.getByText("weixinCard.menuLabel"));
+
+    expect(await screen.findByText("Weixin connection")).toBeInTheDocument();
+    expect(mockListWeixinConnections).toHaveBeenCalled();
+  });
+
+  it("renders a generated Weixin QR image after starting login", async () => {
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: false,
+      isAdmin: false,
+      isOwnerOrAdmin: false,
+    });
+
+    render(<MoreMainContent />);
+    fireEvent.click(screen.getByText("weixinCard.menuLabel"));
+    fireEvent.click(await screen.findByText("Connect Weixin"));
+
+    const qrImage = await screen.findByRole("img", {
+      name: "Weixin login QR code",
+    });
+    expect(mockCreateWeixinQrImageSrc).toHaveBeenCalledWith("qr-url");
+    expect(qrImage).toHaveAttribute("src", "data:image/png;base64,qr");
   });
 
   it("renders the desktop app version from packaged metadata", async () => {
