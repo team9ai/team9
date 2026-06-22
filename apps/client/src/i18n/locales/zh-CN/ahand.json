@@ -142,6 +142,12 @@
       "outOfSync": "守护进程尚未应用此设置",
       "outOfSyncTooltip": "尝试关闭后再开启，或重启应用"
     },
+    "provider": {
+      "title": "浏览器实现",
+      "description": "选择 Agent 在这台 Mac 上操作浏览器的方式。",
+      "cdp": "Chrome 会话",
+      "playwright": "Playwright"
+    },
     "reloadStatus": {
       "shutdownTimeout": "守护进程关闭超时（5s）；重启可能未完全生效",
       "spawnFailedRolledBack": "新守护进程启动失败；已回滚到旧配置",

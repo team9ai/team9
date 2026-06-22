@@ -145,6 +145,12 @@
       "outOfSync": "Daemon hasn't picked up this setting yet",
       "outOfSyncTooltip": "Try toggling off and on, or restart the app"
     },
+    "provider": {
+      "title": "Browser provider",
+      "description": "Choose how agents should drive browser tasks on this Mac.",
+      "cdp": "Chrome session",
+      "playwright": "Playwright"
+    },
     "reloadStatus": {
       "shutdownTimeout": "Daemon shutdown timed out (5s); reload may have left things in a bad state",
       "spawnFailedRolledBack": "New daemon failed to start; rolled back to previous config",

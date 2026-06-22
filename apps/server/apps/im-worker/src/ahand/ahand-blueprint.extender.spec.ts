@@ -31,6 +31,7 @@ function makeDevice(overrides: Record<string, unknown> = {}) {
     isOnline: true,
     lastSeenAt: null,
     createdAt: '2026-04-22T10:00:00Z',
+    capabilities: ['exec'],
     ...overrides,
   };
 }
@@ -103,10 +104,36 @@ describe('AhandBlueprintExtender', () => {
         deviceId: 'd1',
         deviceNickname: 'MacBook',
         devicePlatform: 'macos',
+        capabilities: ['exec'],
+        browser: { enabled: true },
         callingUserId: 'u1',
         gatewayInternalUrl: 'https://gw.test',
         gatewayInternalAuthToken: 'internal-token',
         hubUrl: 'https://hub.test',
+      });
+    });
+
+    it('injects device capabilities and selected browser provider into ahand-host config', async () => {
+      control.listDevicesForUser.mockResolvedValue([
+        makeDevice({
+          hubDeviceId: 'dMac',
+          capabilities: ['exec', 'browser'],
+        }),
+      ]);
+      const { blueprint } = await extender.extend(baseBlueprint, {
+        callingUserId: 'u1',
+        clientContext: {
+          kind: 'macapp',
+          deviceId: 'dMac',
+          browser: { selectedProvider: 'cdp' },
+        },
+      });
+      const host = blueprint.components.find(
+        (c) => c.typeKey === 'ahand-host',
+      )!;
+      expect(host.config).toMatchObject({
+        capabilities: ['exec', 'browser'],
+        browser: { enabled: true, selectedProvider: 'cdp' },
       });
     });
 

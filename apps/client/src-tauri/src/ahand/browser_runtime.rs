@@ -182,6 +182,7 @@ pub struct BrowserStatus {
     pub steps: Vec<BrowserStepStatus>,
     pub enabled: bool,
     pub agent_visible: bool,
+    pub browser_providers: Vec<String>,
     pub queried_at: String,
 }
 
@@ -265,11 +266,17 @@ fn to_browser_status(
             }
         })
         .collect();
+    let browser_providers = if overall == TauriStepStatus::Ok {
+        vec!["playwright".to_string()]
+    } else {
+        Vec::new()
+    };
     BrowserStatus {
         overall,
         steps,
         enabled,
         agent_visible,
+        browser_providers,
         queried_at: chrono::Utc::now().to_rfc3339(),
     }
 }
@@ -1088,9 +1095,14 @@ mod tests {
             "agent_visible → agentVisible"
         );
         assert!(v.get("queriedAt").is_some(), "queried_at → queriedAt");
+        assert!(
+            v.get("browserProviders").is_some(),
+            "browser_providers → browserProviders"
+        );
         assert_eq!(v["overall"], "ok");
         assert_eq!(v["enabled"], true);
         assert_eq!(v["agentVisible"], true);
+        assert_eq!(v["browserProviders"], serde_json::json!(["playwright"]));
     }
 
     #[test]

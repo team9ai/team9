@@ -149,11 +149,34 @@ describe('AhandControlPlaneClient', () => {
       const res = await client.listDevicesForUser('u1');
       expect(res).toHaveLength(1);
       expect(res[0].hubDeviceId).toBe('d1');
+      expect(res[0].capabilities).toEqual([]);
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(JSON.parse(init.body as string)).toEqual({
         userId: 'u1',
         includeOffline: true,
       });
+    });
+
+    it('decodes capabilities when present', async () => {
+      fetchMock.mockResolvedValue(
+        okResponse([
+          {
+            id: 'id-1',
+            hubDeviceId: 'd1',
+            publicKey: 'pk',
+            nickname: 'A',
+            platform: 'macos',
+            hostname: null,
+            status: 'active',
+            isOnline: true,
+            lastSeenAt: null,
+            createdAt: '2026-04-22T09:00:00Z',
+            capabilities: ['exec', 'browser'],
+          },
+        ]),
+      );
+      const res = await client.listDevicesForUser('u1');
+      expect(res[0].capabilities).toEqual(['exec', 'browser']);
     });
 
     it('passes includeOffline:false', async () => {

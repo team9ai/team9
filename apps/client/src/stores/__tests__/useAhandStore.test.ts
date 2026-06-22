@@ -24,9 +24,22 @@ describe("useAhandStore", () => {
     useAhandStore
       .getState()
       .setDeviceIdForUser("u1", "dev-abc", true, "wss://hub.example.com");
+    useAhandStore.getState().setBrowserProviderForUser("u1", "cdp");
     useAhandStore.getState().setDeviceIdForUser("u1", "dev-abc", false);
     expect(useAhandStore.getState().usersEnabled["u1"].hubUrl).toBe(
       "wss://hub.example.com",
+    );
+    expect(
+      useAhandStore.getState().usersEnabled["u1"].browser?.selectedProvider,
+    ).toBe("cdp");
+  });
+
+  it("clears browser provider when the local device changes", () => {
+    useAhandStore.getState().setDeviceIdForUser("u1", "dev-old", true);
+    useAhandStore.getState().setBrowserProviderForUser("u1", "cdp");
+    useAhandStore.getState().setDeviceIdForUser("u1", "dev-new", true);
+    expect(useAhandStore.getState().getBrowserProviderForUser("u1")).toBe(
+      undefined,
     );
   });
 
@@ -88,6 +101,35 @@ describe("useAhandStore", () => {
 
   it("returns empty string fallback for unknown user", () => {
     expect(useAhandStore.getState().getHubUrlForUser("unknown")).toBe("");
+  });
+
+  // ── browser provider ────────────────────────────────────────────────────
+
+  it("stores browser provider per user", () => {
+    useAhandStore.getState().setBrowserProviderForUser("u1", "cdp");
+    useAhandStore.getState().setBrowserProviderForUser("u2", "playwright");
+    expect(useAhandStore.getState().getBrowserProviderForUser("u1")).toBe(
+      "cdp",
+    );
+    expect(useAhandStore.getState().getBrowserProviderForUser("u2")).toBe(
+      "playwright",
+    );
+  });
+
+  it("clears browser provider without removing device state", () => {
+    useAhandStore
+      .getState()
+      .setDeviceIdForUser("u1", "dev-abc", true, "wss://hub.example.com");
+    useAhandStore.getState().setBrowserProviderForUser("u1", "cdp");
+    useAhandStore.getState().setBrowserProviderForUser("u1", undefined);
+    expect(useAhandStore.getState().getBrowserProviderForUser("u1")).toBe(
+      undefined,
+    );
+    expect(useAhandStore.getState().usersEnabled["u1"]).toMatchObject({
+      enabled: true,
+      deviceId: "dev-abc",
+      hubUrl: "wss://hub.example.com",
+    });
   });
 
   // ── clearUser ───────────────────────────────────────────────────────────

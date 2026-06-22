@@ -406,7 +406,13 @@ export interface AttachmentDto {
 }
 
 export type ClientContext =
-  | { kind: "macapp"; deviceId: string | null }
+  | {
+      kind: "macapp";
+      deviceId: string | null;
+      browser?: {
+        selectedProvider?: "cdp" | "playwright";
+      };
+    }
   | { kind: "web" };
 
 export interface CreateMessageDto {

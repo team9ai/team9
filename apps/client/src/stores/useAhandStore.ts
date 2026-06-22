@@ -5,7 +5,12 @@ export interface UserAhandState {
   enabled: boolean;
   deviceId: string | null;
   hubUrl: string;
+  browser?: {
+    selectedProvider?: BrowserProvider;
+  };
 }
+
+export type BrowserProvider = "cdp" | "playwright";
 
 interface AhandStore {
   /** Keyed by team9 userId. */
@@ -13,11 +18,16 @@ interface AhandStore {
 
   getDeviceIdForUser(userId: string): string | null;
   getHubUrlForUser(userId: string): string;
+  getBrowserProviderForUser(userId: string): BrowserProvider | undefined;
   setDeviceIdForUser(
     userId: string,
     deviceId: string | null,
     enabled: boolean,
     hubUrl?: string,
+  ): void;
+  setBrowserProviderForUser(
+    userId: string,
+    provider: BrowserProvider | undefined,
   ): void;
   clearUser(userId: string): void;
 }
@@ -38,6 +48,9 @@ export const useAhandStore = create<AhandStore>()(
       getHubUrlForUser(userId) {
         return get().usersEnabled[userId]?.hubUrl ?? "";
       },
+      getBrowserProviderForUser(userId) {
+        return get().usersEnabled[userId]?.browser?.selectedProvider;
+      },
       setDeviceIdForUser(userId, deviceId, enabled, hubUrl) {
         const prev = get().usersEnabled[userId];
         set({
@@ -47,6 +60,21 @@ export const useAhandStore = create<AhandStore>()(
               enabled,
               deviceId,
               hubUrl: hubUrl ?? prev?.hubUrl ?? "",
+              browser: prev?.deviceId === deviceId ? prev?.browser : undefined,
+            },
+          },
+        });
+      },
+      setBrowserProviderForUser(userId, provider) {
+        const prev = get().usersEnabled[userId];
+        set({
+          usersEnabled: {
+            ...get().usersEnabled,
+            [userId]: {
+              enabled: prev?.enabled ?? false,
+              deviceId: prev?.deviceId ?? null,
+              hubUrl: prev?.hubUrl ?? "",
+              browser: provider ? { selectedProvider: provider } : undefined,
             },
           },
         });

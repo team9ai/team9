@@ -13,12 +13,21 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useAhandStore, type BrowserProvider } from "@/stores/useAhandStore";
+import { useUser } from "@/stores/useAppStore";
 import {
   type BrowserStepStatus,
   type ReloadFailureKind,
@@ -149,6 +158,14 @@ function overallFor(state: RuntimeUiState): TauriStepStatus {
 export function RuntimeCard() {
   const { t } = useTranslation("ahand");
   const { state, install, setEnabled } = useBrowserRuntime();
+  const currentUser = useUser();
+  const userId = currentUser?.id ?? null;
+  const selectedProvider = useAhandStore((s) =>
+    userId ? s.getBrowserProviderForUser(userId) : undefined,
+  );
+  const setBrowserProviderForUser = useAhandStore(
+    (s) => s.setBrowserProviderForUser,
+  );
   const [logDrawerOpenSignal, setLogDrawerOpenSignal] = useState(0);
 
   // Surface terminal errors via toast. Only fire once per transition into
@@ -230,6 +247,17 @@ export function RuntimeCard() {
   const enabled = state.kind === "idle" ? state.status.enabled : false;
   const agentVisible =
     state.kind === "idle" ? state.status.agentVisible : false;
+  const browserProviders = useMemo(
+    () => (state.kind === "idle" ? (state.status.browserProviders ?? []) : []),
+    [state],
+  );
+  const effectiveProvider = useMemo<BrowserProvider | undefined>(() => {
+    if (selectedProvider && browserProviders.includes(selectedProvider)) {
+      return selectedProvider;
+    }
+    if (browserProviders.includes("cdp")) return "cdp";
+    return browserProviders[0];
+  }, [browserProviders, selectedProvider]);
   const agentVisibleDisabled =
     state.kind !== "idle" || state.status.overall !== "ok";
   // Mismatch: user wants it on, daemon hasn't picked it up yet (e.g. reload
@@ -260,6 +288,16 @@ export function RuntimeCard() {
   const handleEnabledChange = (checked: boolean) => {
     void setEnabled(checked);
   };
+  const handleProviderChange = (provider: BrowserProvider) => {
+    if (!userId) return;
+    setBrowserProviderForUser(userId, provider);
+  };
+
+  useEffect(() => {
+    if (!userId || !effectiveProvider) return;
+    if (selectedProvider === effectiveProvider) return;
+    setBrowserProviderForUser(userId, effectiveProvider);
+  }, [effectiveProvider, selectedProvider, setBrowserProviderForUser, userId]);
 
   return (
     <Card>
@@ -365,6 +403,42 @@ export function RuntimeCard() {
             onCheckedChange={handleEnabledChange}
           />
         </div>
+
+        {browserProviders.length > 0 && (
+          <div className="flex items-center gap-3 border-t pt-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                {t("browser.provider.title")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("browser.provider.description")}
+              </p>
+            </div>
+            <Select
+              value={effectiveProvider}
+              onValueChange={(value) =>
+                handleProviderChange(value as BrowserProvider)
+              }
+              disabled={!userId}
+            >
+              <SelectTrigger className="w-[160px] shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {browserProviders.includes("cdp") && (
+                  <SelectItem value="cdp">
+                    {t("browser.provider.cdp")}
+                  </SelectItem>
+                )}
+                {browserProviders.includes("playwright") && (
+                  <SelectItem value="playwright">
+                    {t("browser.provider.playwright")}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Log drawer — only renders when we have lines to show */}
         <LogDrawer

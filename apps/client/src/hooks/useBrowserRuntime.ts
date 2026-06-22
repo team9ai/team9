@@ -60,6 +60,7 @@ export interface BrowserStatus {
   steps: BrowserStepStatus[];
   enabled: boolean;
   agentVisible: boolean;
+  browserProviders: Array<"cdp" | "playwright">;
   queriedAt: string;
 }
 

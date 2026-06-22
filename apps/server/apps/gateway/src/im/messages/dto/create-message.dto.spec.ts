@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { describe, it, expect, afterEach, jest } from '@jest/globals';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { AttachmentDto } from './create-message.dto.js';
+import { AttachmentDto, ClientContextDto } from './create-message.dto.js';
 
 async function findError(
   dto: AttachmentDto,
@@ -75,6 +75,27 @@ describe('AttachmentDto', () => {
     // Both validators trip when both are missing.
     expect(errs.some((e) => e.property === 'fileKey')).toBe(true);
     expect(errs.some((e) => e.property === 'fileUrl')).toBe(true);
+  });
+});
+
+describe('ClientContextDto', () => {
+  it('accepts nested browser.selectedProvider', async () => {
+    const dto = plainToInstance(ClientContextDto, {
+      kind: 'macapp',
+      deviceId: 'dev-abc',
+      browser: { selectedProvider: 'cdp' },
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it('rejects unknown browser selectedProvider', async () => {
+    const dto = plainToInstance(ClientContextDto, {
+      kind: 'macapp',
+      deviceId: 'dev-abc',
+      browser: { selectedProvider: 'firefox' },
+    });
+    const errs = await validate(dto);
+    expect(errs.some((e) => e.property === 'browser')).toBe(true);
   });
 });
 

@@ -29,6 +29,7 @@ const DeviceSchema = z.object({
   isOnline: z.boolean().nullable(),
   lastSeenAt: z.string().nullable(),
   createdAt: z.string(),
+  capabilities: z.array(z.string()).default([]),
 });
 
 const DeviceListSchema = z.array(DeviceSchema);

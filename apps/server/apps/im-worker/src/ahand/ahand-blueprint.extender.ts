@@ -13,7 +13,11 @@ import {
 // the minimal shapes the blueprint API requires.
 
 export type ClientContextRaw =
-  | { kind: 'macapp'; deviceId?: string | null }
+  | {
+      kind: 'macapp';
+      deviceId?: string | null;
+      browser?: { selectedProvider?: 'cdp' | 'playwright' };
+    }
   | { kind: 'web' }
   | null;
 
@@ -163,6 +167,7 @@ export class AhandBlueprintExtender implements OnModuleInit {
       input.clientContext,
       devices,
     );
+    const selectedProvider = this.resolveBrowserProvider(input.clientContext);
 
     const extra: ComponentEntry[] = [];
 
@@ -173,6 +178,11 @@ export class AhandBlueprintExtender implements OnModuleInit {
           deviceId: d.hubDeviceId,
           deviceNickname: d.nickname,
           devicePlatform: d.platform,
+          capabilities: d.capabilities,
+          browser: {
+            enabled: true,
+            ...(selectedProvider ? { selectedProvider } : {}),
+          },
           callingUserId: input.callingUserId,
           callingClient,
           gatewayInternalUrl: this.gatewayInternalUrl,
@@ -226,5 +236,15 @@ export class AhandBlueprintExtender implements OnModuleInit {
       deviceNickname: match.nickname,
       isAhandEnabled: match.status === 'active' && match.isOnline === true,
     };
+  }
+
+  private resolveBrowserProvider(
+    raw: ClientContextRaw,
+  ): 'cdp' | 'playwright' | undefined {
+    if (!raw || raw.kind !== 'macapp') return undefined;
+    const selected = raw.browser?.selectedProvider;
+    return selected === 'cdp' || selected === 'playwright'
+      ? selected
+      : undefined;
   }
 }

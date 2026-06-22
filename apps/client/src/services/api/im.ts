@@ -42,8 +42,14 @@ function buildClientContext(): ClientContext {
   if (!isTauriApp()) return { kind: "web" };
   const userId = useAppStore.getState().user?.id;
   if (!userId) return { kind: "macapp", deviceId: null };
-  const deviceId = useAhandStore.getState().getDeviceIdForUser(userId);
-  return { kind: "macapp", deviceId: deviceId ?? null };
+  const ahandStore = useAhandStore.getState();
+  const deviceId = ahandStore.getDeviceIdForUser(userId);
+  const selectedProvider = ahandStore.getBrowserProviderForUser(userId);
+  return {
+    kind: "macapp",
+    deviceId: deviceId ?? null,
+    ...(selectedProvider ? { browser: { selectedProvider } } : {}),
+  };
 }
 
 // Channels API

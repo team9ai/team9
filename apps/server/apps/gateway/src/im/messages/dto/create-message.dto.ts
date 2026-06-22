@@ -75,6 +75,12 @@ export class AttachmentDto {
   fileSize: number;
 }
 
+export class ClientContextBrowserDto {
+  @IsIn(['cdp', 'playwright'])
+  @IsOptional()
+  selectedProvider?: 'cdp' | 'playwright';
+}
+
 /**
  * Identifies which client originated a message, so downstream agent runtimes
  * can reason about the user's current device context (e.g. when an agent has
@@ -89,6 +95,11 @@ export class ClientContextDto {
   @IsString()
   @IsOptional()
   deviceId?: string | null;
+
+  @ValidateNested()
+  @Type(() => ClientContextBrowserDto)
+  @IsOptional()
+  browser?: ClientContextBrowserDto;
 }
 
 export class CreateMessageDto {

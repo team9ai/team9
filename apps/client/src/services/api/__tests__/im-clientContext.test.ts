@@ -61,6 +61,7 @@ describe("sendMessage clientContext injection", () => {
     } as any);
     vi.mocked(useAhandStore.getState).mockReturnValue({
       getDeviceIdForUser: () => "dev-abc",
+      getBrowserProviderForUser: () => undefined,
     } as any);
     const { messagesApi } = await import("../im");
     await messagesApi.sendMessage("ch1", { content: "hello" });
@@ -79,6 +80,7 @@ describe("sendMessage clientContext injection", () => {
     } as any);
     vi.mocked(useAhandStore.getState).mockReturnValue({
       getDeviceIdForUser: () => null,
+      getBrowserProviderForUser: () => undefined,
     } as any);
     const { messagesApi } = await import("../im");
     await messagesApi.sendMessage("ch1", { content: "hello" });
@@ -103,6 +105,29 @@ describe("sendMessage clientContext injection", () => {
     expect(http.post).toHaveBeenCalledWith(
       "/v1/im/channels/ch1/messages",
       expect.objectContaining({ clientContext: { kind: "web" } }),
+    );
+  });
+
+  it("Tauri build includes selected browser provider when available", async () => {
+    vi.mocked(isTauriApp).mockReturnValue(true);
+    vi.mocked(useAppStore.getState).mockReturnValue({
+      user: { id: "u1" },
+    } as any);
+    vi.mocked(useAhandStore.getState).mockReturnValue({
+      getDeviceIdForUser: () => "dev-abc",
+      getBrowserProviderForUser: () => "cdp",
+    } as any);
+    const { messagesApi } = await import("../im");
+    await messagesApi.sendMessage("ch1", { content: "hello" });
+    expect(http.post).toHaveBeenCalledWith(
+      "/v1/im/channels/ch1/messages",
+      expect.objectContaining({
+        clientContext: {
+          kind: "macapp",
+          deviceId: "dev-abc",
+          browser: { selectedProvider: "cdp" },
+        },
+      }),
     );
   });
 });
