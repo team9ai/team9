@@ -165,11 +165,10 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockResolvedValue({ sessionId: 'pre-created-session' }),
       getSession: jest.fn<any>().mockResolvedValue({
         sessionId: 'existing-session',
-        team9Context: { routineId: 'routine-1' },
         componentConfigs: {
           'team9-routine-creation': {
             routineId: 'routine-1',
-            team9Context: { routineId: 'routine-1' },
+            isCreationChannel: true,
           },
         },
       }),
@@ -4254,6 +4253,16 @@ describe('RoutinesService — TaskCast integration', () => {
     const BOT_USER_ID = 'bot-user-1';
     const AGENT_ID = 'agent-1';
     const CHANNEL_ID = 'channel-1';
+    const REQUIRED_ROUTINE_TEAM9_CONTEXT = {
+      source: 'team9',
+      scopeType: 'dm',
+      scopeId: CHANNEL_ID,
+      peerUserId: USER_ID,
+      routineId: ROUTINE_ID,
+      creatorUserId: USER_ID,
+      creationChannelId: CHANNEL_ID,
+      isCreationChannel: true,
+    };
 
     /**
      * Mock the sequence of DB calls that startCreationSession performs
@@ -4376,17 +4385,12 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(clawHiveService.createSession).toHaveBeenCalledWith(
         AGENT_ID,
         expect.objectContaining({
+          team9Context: expect.objectContaining(REQUIRED_ROUTINE_TEAM9_CONTEXT),
           componentConfigs: expect.objectContaining({
-            'team9-routine-creation': expect.objectContaining({
+            'team9-routine-creation': {
               routineId: ROUTINE_ID,
               isCreationChannel: true,
-              team9Context: expect.objectContaining({
-                routineId: ROUTINE_ID,
-                creatorUserId: USER_ID,
-                creationChannelId: CHANNEL_ID,
-                isCreationChannel: true,
-              }),
-            }),
+            },
           }),
         }),
         TENANT_ID,
@@ -4411,7 +4415,7 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(createSessionOrder).toBeLessThan(sendInputOrder);
     });
 
-    it('is idempotent when creationChannelId already set AND channel is routine-session', async () => {
+    it('is idempotent for the persisted context-free routine component config', async () => {
       // Step 1: getRoutineOrThrow returns a draft with both fields set
       db.limit.mockResolvedValueOnce([
         {
@@ -4421,8 +4425,8 @@ describe('RoutinesService — TaskCast integration', () => {
           botId: BOT_ID,
           status: 'draft',
           title: 'Test Draft',
-          creationChannelId: 'existing-channel',
-          creationSessionId: 'existing-session',
+          creationChannelId: CHANNEL_ID,
+          creationSessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
           folderId: 'folder-existing',
         },
       ]);
@@ -4443,12 +4447,32 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(clawHiveService.createSession).not.toHaveBeenCalled();
       expect(clawHiveService.sendInput).not.toHaveBeenCalled();
       expect(result).toEqual({
-        creationChannelId: 'existing-channel',
-        creationSessionId: 'existing-session',
+        creationChannelId: CHANNEL_ID,
+        creationSessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
       });
     });
 
-    it('repairs an existing routine-session when Hive session lacks routine context', async () => {
+    it.each([
+      {
+        label: 'routine config is missing',
+        routineConfig: undefined,
+      },
+      {
+        label: 'routine config has a mismatched routineId',
+        routineConfig: {
+          routineId: 'another-routine',
+          isCreationChannel: true,
+        },
+      },
+      {
+        label: 'legacy routine config contains nested team9Context',
+        routineConfig: {
+          routineId: ROUTINE_ID,
+          isCreationChannel: true,
+          team9Context: REQUIRED_ROUTINE_TEAM9_CONTEXT,
+        },
+      },
+    ])('repairs an existing routine-session when $label', async (testCase) => {
       db.limit.mockResolvedValueOnce([
         {
           id: ROUTINE_ID,
@@ -4478,7 +4502,11 @@ describe('RoutinesService — TaskCast integration', () => {
       ]);
       clawHiveService.getSession.mockResolvedValueOnce({
         sessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
-        componentConfigs: {},
+        componentConfigs: {
+          ...(testCase.routineConfig === undefined
+            ? {}
+            : { 'team9-routine-creation': testCase.routineConfig }),
+        },
       });
       usersService.getLocalePreferences.mockResolvedValueOnce({
         language: 'zh-CN',
@@ -4497,22 +4525,15 @@ describe('RoutinesService — TaskCast integration', () => {
           userId: USER_ID,
           sessionId: `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
           team9Context: expect.objectContaining({
-            routineId: ROUTINE_ID,
-            creatorUserId: USER_ID,
-            creationChannelId: CHANNEL_ID,
-            isCreationChannel: true,
+            ...REQUIRED_ROUTINE_TEAM9_CONTEXT,
             language: 'zh-CN',
             timeZone: 'Asia/Shanghai',
           }),
           componentConfigs: expect.objectContaining({
-            'team9-routine-creation': expect.objectContaining({
+            'team9-routine-creation': {
               routineId: ROUTINE_ID,
               isCreationChannel: true,
-              team9Context: expect.objectContaining({
-                routineId: ROUTINE_ID,
-                creationChannelId: CHANNEL_ID,
-              }),
-            }),
+            },
             'just-bash-team9-workspace': expect.objectContaining({
               folderMap: expect.objectContaining({
                 'routine.document': expect.objectContaining({
@@ -4767,12 +4788,7 @@ describe('RoutinesService — TaskCast integration', () => {
         expect.objectContaining({
           sessionId: SESSION_ID,
           userId: USER_ID,
-          team9Context: expect.objectContaining({
-            routineId: ROUTINE_ID,
-            creatorUserId: USER_ID,
-            creationChannelId: CHANNEL_ID,
-            isCreationChannel: true,
-          }),
+          team9Context: expect.objectContaining(REQUIRED_ROUTINE_TEAM9_CONTEXT),
         }),
         TENANT_ID,
       );
@@ -5211,6 +5227,7 @@ describe('RoutinesService — TaskCast integration', () => {
           team9Context: Record<string, unknown>;
         };
         expect(sessionArgs.team9Context).toMatchObject({
+          ...REQUIRED_ROUTINE_TEAM9_CONTEXT,
           language: 'zh-CN',
           timeZone: 'Asia/Shanghai',
         });
@@ -5232,6 +5249,7 @@ describe('RoutinesService — TaskCast integration', () => {
         };
         expect(sessionArgs.team9Context).not.toHaveProperty('language');
         expect(sessionArgs.team9Context).toMatchObject({
+          ...REQUIRED_ROUTINE_TEAM9_CONTEXT,
           timeZone: 'Asia/Shanghai',
         });
       });
@@ -5249,7 +5267,10 @@ describe('RoutinesService — TaskCast integration', () => {
           .calls[0][1] as {
           team9Context: Record<string, unknown>;
         };
-        expect(sessionArgs.team9Context).toMatchObject({ language: 'zh-CN' });
+        expect(sessionArgs.team9Context).toMatchObject({
+          ...REQUIRED_ROUTINE_TEAM9_CONTEXT,
+          language: 'zh-CN',
+        });
         expect(sessionArgs.team9Context).not.toHaveProperty('timeZone');
       });
 
@@ -5268,13 +5289,9 @@ describe('RoutinesService — TaskCast integration', () => {
         };
         expect(sessionArgs.team9Context).not.toHaveProperty('language');
         expect(sessionArgs.team9Context).not.toHaveProperty('timeZone');
-        // Existing fields remain intact.
-        expect(sessionArgs.team9Context).toMatchObject({
-          routineId: expect.any(String),
-          creatorUserId: expect.any(String),
-          creationChannelId: expect.any(String),
-          isCreationChannel: true,
-        });
+        expect(sessionArgs.team9Context).toMatchObject(
+          REQUIRED_ROUTINE_TEAM9_CONTEXT,
+        );
       });
 
       it('rolls back claim + channel when getLocalePreferences rejects', async () => {

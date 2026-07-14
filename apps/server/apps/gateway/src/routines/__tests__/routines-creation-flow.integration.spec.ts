@@ -612,6 +612,10 @@ describe('Routine Creation Flow — integration', () => {
         userId: USER_ID,
         sessionId: SESSION_ID,
         team9Context: expect.objectContaining({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: CHANNEL_ID,
+          peerUserId: USER_ID,
           routineId: ROUTINE_ID,
           creatorUserId: USER_ID,
           creationChannelId: CHANNEL_ID,
@@ -619,17 +623,10 @@ describe('Routine Creation Flow — integration', () => {
           language: 'zh-CN',
         }),
         componentConfigs: expect.objectContaining({
-          'team9-routine-creation': expect.objectContaining({
+          'team9-routine-creation': {
             routineId: ROUTINE_ID,
             isCreationChannel: true,
-            team9Context: expect.objectContaining({
-              routineId: ROUTINE_ID,
-              creatorUserId: USER_ID,
-              creationChannelId: CHANNEL_ID,
-              isCreationChannel: true,
-              language: 'zh-CN',
-            }),
-          }),
+          },
         }),
       }),
       TENANT_ID,
