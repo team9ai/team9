@@ -1359,6 +1359,10 @@ export class RoutinesService {
     locale: { language?: string | null; timeZone?: string | null };
   }): Record<string, unknown> {
     return {
+      source: 'team9',
+      scopeType: 'dm',
+      scopeId: params.channelId,
+      peerUserId: params.userId,
       routineId: params.routineId,
       creatorUserId: params.userId,
       creationChannelId: params.channelId,
@@ -1372,13 +1376,11 @@ export class RoutinesService {
     routineId: string;
     tenantId: string;
     routineFolderId: string;
-    team9Context: Record<string, unknown>;
   }): Record<string, Record<string, unknown>> {
     return {
       'team9-routine-creation': {
         routineId: params.routineId,
         isCreationChannel: true,
-        team9Context: params.team9Context,
       },
       'just-bash-team9-workspace': {
         folderMap: {
@@ -1409,23 +1411,19 @@ export class RoutinesService {
   ): boolean {
     if (!session) return true;
 
-    const sessionContext = session.team9Context as
-      | Record<string, unknown>
-      | undefined;
-    const hasSessionContext = sessionContext?.routineId === routineId;
-
     const componentConfigs = session.componentConfigs as
       | Record<string, Record<string, unknown>>
       | undefined;
     const routineConfig = componentConfigs?.['team9-routine-creation'];
-    const routineConfigContext = routineConfig?.team9Context as
-      | Record<string, unknown>
-      | undefined;
-    const hasRoutineComponentContext =
+    const hasLegacyContext =
+      routineConfig !== undefined &&
+      Object.keys(routineConfig).includes('team9Context');
+    const hasRoutineComponentConfig =
       routineConfig?.routineId === routineId &&
-      routineConfigContext?.routineId === routineId;
+      routineConfig?.isCreationChannel === true &&
+      !hasLegacyContext;
 
-    return !hasSessionContext || !hasRoutineComponentContext;
+    return !hasRoutineComponentConfig;
   }
 
   private async repairRoutineCreationHiveSessionIfNeeded(params: {
@@ -1477,7 +1475,6 @@ export class RoutinesService {
           routineId: params.routineId,
           tenantId: params.tenantId,
           routineFolderId,
-          team9Context,
         }),
       },
       params.tenantId,
@@ -1731,7 +1728,6 @@ export class RoutinesService {
         routineId,
         tenantId,
         routineFolderId,
-        team9Context,
       });
 
       await this.clawHiveService.createSession(

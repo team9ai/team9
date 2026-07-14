@@ -216,12 +216,26 @@ export class ClawHiveService {
     },
     tenantId?: string,
   ): Promise<{ sessionId: string }> {
+    const { team9Context, ...sessionParams } = params;
+    const body =
+      team9Context == null
+        ? sessionParams
+        : {
+            ...sessionParams,
+            applicationContexts: {
+              team9: {
+                schemaVersion: 1,
+                payload: team9Context,
+              },
+            },
+          };
+
     const res = await fetch(
       `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}/sessions`,
       {
         method: 'POST',
         headers: this.headers(tenantId),
-        body: JSON.stringify(params),
+        body: JSON.stringify(body),
       },
     );
     if (!res.ok) {

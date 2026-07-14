@@ -231,6 +231,30 @@ describe('ClawHiveService', () => {
           body: JSON.stringify({ userId: 'user-1' }),
         }),
       );
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+      expect(body).toEqual({ userId: 'user-1' });
+      expect(Object.keys(body)).toEqual(['userId']);
+    });
+
+    it('omits application contexts when runtime team9Context is null', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 's1' }));
+      const params = {
+        userId: 'u1',
+        team9Context: null,
+      } as unknown as Parameters<
+        InstanceType<typeof ClawHiveService>['createSession']
+      >[1];
+
+      await service.createSession('agent-1', params);
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+      expect(body).toEqual({ userId: 'u1' });
+      expect(Object.keys(body)).toEqual(['userId']);
+      expect(body).not.toHaveProperty('applicationContexts');
+      expect(body).not.toHaveProperty('team9Context');
     });
 
     it('URL-encodes agent IDs with special characters', async () => {
@@ -266,7 +290,7 @@ describe('ClawHiveService', () => {
       expect(headers['X-Hive-Tenant']).toBeUndefined();
     });
 
-    it('forwards team9Context in the request body', async () => {
+    it('serializes team9Context under the versioned application context', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 's1' }));
 
       const team9Context = {
@@ -285,7 +309,17 @@ describe('ClawHiveService', () => {
 
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(opts.body as string) as Record<string, unknown>;
-      expect(body.team9Context).toEqual(team9Context);
+      expect(body).toEqual({
+        userId: 'u1',
+        applicationContexts: {
+          team9: {
+            schemaVersion: 1,
+            payload: team9Context,
+          },
+        },
+      });
+      expect(Object.keys(body)).toEqual(['userId', 'applicationContexts']);
+      expect(body).not.toHaveProperty('team9Context');
     });
 
     it('returns the sessionId from the response', async () => {
