@@ -3,6 +3,7 @@ export enum AIProvider {
   CLAUDE = 'claude',
   GEMINI = 'gemini',
   OPENROUTER = 'openrouter',
+  ATLASCLOUD = 'atlascloud',
 }
 
 // Claude (Anthropic) Models
@@ -62,16 +63,32 @@ export type OpenRouterModel =
   | (typeof OPENROUTER_MODELS)[number]
   | (string & {});
 
+// Atlas Cloud Models
+export const ATLASCLOUD_MODELS = [
+  'deepseek-ai/deepseek-v4-pro',
+  'deepseek-ai/deepseek-v4-flash',
+  'qwen/qwen3.5-flash',
+] as const;
+export type AtlasCloudModel =
+  | (typeof ATLASCLOUD_MODELS)[number]
+  | (string & {});
+
 // Model arrays by provider for runtime validation
 export const MODELS_BY_PROVIDER: Record<AIProvider, readonly string[]> = {
   [AIProvider.CLAUDE]: CLAUDE_MODELS,
   [AIProvider.OPENAI]: OPENAI_MODELS,
   [AIProvider.GEMINI]: GEMINI_MODELS,
   [AIProvider.OPENROUTER]: OPENROUTER_MODELS,
+  [AIProvider.ATLASCLOUD]: ATLASCLOUD_MODELS,
 };
 
 // Union of all AI models
-export type AIModel = ClaudeModel | OpenAIModel | GeminiModel | OpenRouterModel;
+export type AIModel =
+  | ClaudeModel
+  | OpenAIModel
+  | GeminiModel
+  | OpenRouterModel
+  | AtlasCloudModel;
 
 // Type mapping: Provider -> Model type
 export type ModelForProvider<T extends AIProvider> = T extends AIProvider.CLAUDE
@@ -82,7 +99,9 @@ export type ModelForProvider<T extends AIProvider> = T extends AIProvider.CLAUDE
       ? GeminiModel
       : T extends AIProvider.OPENROUTER
         ? OpenRouterModel
-        : string;
+        : T extends AIProvider.ATLASCLOUD
+          ? AtlasCloudModel
+          : string;
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';

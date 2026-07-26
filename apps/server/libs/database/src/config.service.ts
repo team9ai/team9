@@ -121,7 +121,9 @@ export class ConfigService {
   /**
    * Get AI provider configuration
    */
-  getAIProviderConfig(provider: 'openai' | 'claude' | 'gemini' | 'openrouter') {
+  getAIProviderConfig(
+    provider: 'openai' | 'claude' | 'gemini' | 'openrouter' | 'atlascloud',
+  ) {
     switch (provider) {
       case 'openai':
         return {
@@ -160,6 +162,19 @@ export class ConfigService {
             process.env.OPENROUTER_TITLE,
           ),
         };
+      case 'atlascloud':
+        return {
+          apiKey: this.get(
+            ConfigKey.ATLASCLOUD_API_KEY,
+            process.env.ATLASCLOUD_API_KEY || process.env.ATLAS_CLOUD_API_KEY,
+          ),
+          baseURL: this.get(
+            ConfigKey.ATLASCLOUD_API_BASE,
+            process.env.ATLASCLOUD_API_BASE ||
+              process.env.ATLAS_CLOUD_API_BASE ||
+              'https://api.atlascloud.ai/v1',
+          ),
+        };
     }
   }
 
@@ -167,7 +182,7 @@ export class ConfigService {
    * Check if AI provider is configured
    */
   isAIProviderConfigured(
-    provider: 'openai' | 'claude' | 'gemini' | 'openrouter',
+    provider: 'openai' | 'claude' | 'gemini' | 'openrouter' | 'atlascloud',
   ): boolean {
     const config = this.getAIProviderConfig(provider);
     return !!config.apiKey;
