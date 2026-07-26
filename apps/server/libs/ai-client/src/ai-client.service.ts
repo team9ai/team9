@@ -9,6 +9,7 @@ import { OpenAIProvider } from './providers/openai.provider.js';
 import { ClaudeProvider } from './providers/claude.provider.js';
 import { GeminiProvider } from './providers/gemini.provider.js';
 import { OpenRouterProvider } from './providers/openrouter.provider.js';
+import { AtlasCloudProvider } from './providers/atlascloud.provider.js';
 
 @Injectable()
 export class AiClientService {
@@ -20,12 +21,14 @@ export class AiClientService {
     private readonly claudeProvider: ClaudeProvider,
     private readonly geminiProvider: GeminiProvider,
     private readonly openRouterProvider: OpenRouterProvider,
+    private readonly atlasCloudProvider: AtlasCloudProvider,
   ) {
     this.providers = new Map<AIProvider, IAIProviderAdapter>([
       [AIProvider.OPENAI, this.openAIProvider],
       [AIProvider.CLAUDE, this.claudeProvider],
       [AIProvider.GEMINI, this.geminiProvider],
       [AIProvider.OPENROUTER, this.openRouterProvider],
+      [AIProvider.ATLASCLOUD, this.atlasCloudProvider],
     ]);
   }
 

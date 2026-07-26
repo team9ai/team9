@@ -5,6 +5,7 @@ import { OpenAIProvider } from './providers/openai.provider.js';
 import { ClaudeProvider } from './providers/claude.provider.js';
 import { GeminiProvider } from './providers/gemini.provider.js';
 import { OpenRouterProvider } from './providers/openrouter.provider.js';
+import { AtlasCloudProvider } from './providers/atlascloud.provider.js';
 
 @Global()
 @Module({
@@ -14,6 +15,7 @@ import { OpenRouterProvider } from './providers/openrouter.provider.js';
     ClaudeProvider,
     GeminiProvider,
     OpenRouterProvider,
+    AtlasCloudProvider,
     AiClientService,
   ],
   exports: [AiClientService],

@@ -17,6 +17,10 @@ export enum ConfigKey {
   OPENROUTER_API_KEY = 'OPENROUTER_API_KEY',
   OPENROUTER_REFERER = 'OPENROUTER_REFERER',
   OPENROUTER_TITLE = 'OPENROUTER_TITLE',
+
+  // Atlas Cloud Configuration
+  ATLASCLOUD_API_KEY = 'ATLASCLOUD_API_KEY',
+  ATLASCLOUD_API_BASE = 'ATLASCLOUD_API_BASE',
 }
 
 /**
@@ -57,5 +61,14 @@ export const ConfigMetadata: Record<
   [ConfigKey.OPENROUTER_TITLE]: {
     description: 'OpenRouter X-Title header',
     isSecret: false,
+  },
+  [ConfigKey.ATLASCLOUD_API_KEY]: {
+    description: 'Atlas Cloud API key',
+    isSecret: true,
+  },
+  [ConfigKey.ATLASCLOUD_API_BASE]: {
+    description: 'Atlas Cloud OpenAI-compatible API base URL',
+    isSecret: false,
+    defaultValue: 'https://api.atlascloud.ai/v1',
   },
 };
