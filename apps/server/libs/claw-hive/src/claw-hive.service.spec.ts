@@ -82,6 +82,49 @@ describe('ClawHiveService', () => {
     });
   });
 
+  describe('getWorkerFleetReadiness', () => {
+    it('loads generic queue and resolver readiness with hive auth', async () => {
+      const readiness = {
+        queueProtocolVersion: {
+          minimum: 2,
+          incompatibleWorkerIds: [],
+        },
+        resolverCapabilityVersion: {
+          minimum: '1.0.0',
+          versions: { '1.0.0': 3 },
+        },
+        readyForQueueV2: true,
+        rolloutGates: {
+          protocolV2AssignmentEnabled: false,
+          retryPromotionEnabled: false,
+          operatorMutationEnabled: false,
+        },
+      };
+      mockFetch.mockResolvedValueOnce(jsonResponse(readiness));
+
+      await expect(service.getWorkerFleetReadiness()).resolves.toEqual(
+        readiness,
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/workers/readiness',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'X-Hive-Auth': 'test-token',
+          }),
+        }),
+      );
+    });
+
+    it('fails closed when the readiness endpoint is unavailable', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Unavailable', 503));
+
+      await expect(service.getWorkerFleetReadiness()).rejects.toThrow(
+        'Failed to load worker fleet readiness: 503',
+      );
+    });
+  });
+
   // ── registerAgent ────────────────────────────────────────────────────────
 
   describe('registerAgent', () => {

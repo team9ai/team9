@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import type { HiveWorkerFleetReadiness } from '@team9/claw-hive';
 import {
   STAFF_MODEL_CATALOG,
   STAFF_MODEL_CATALOG_VERSION,
   isUnsafeModelValue,
   type DynamicModelCapability,
+  type StaffModelCatalogEntry,
 } from './staff-model-catalog.js';
 import {
   ModelSwitchNotAllowedException,
@@ -29,8 +31,42 @@ const APPLICATION_CAPABILITIES = new Map<string, DynamicModelCapability>([
   ['common-staff', 'staff'],
   ['personal-staff', 'staff'],
 ]);
+
+function parseSemanticVersion(
+  value: string,
+): readonly [number, number, number] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/.exec(value);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function resolverVersionSatisfies(actual: string, minimum: string): boolean {
+  const actualParts = parseSemanticVersion(actual);
+  const minimumParts = parseSemanticVersion(minimum);
+  if (!actualParts || !minimumParts) return false;
+  for (let index = 0; index < 3; index += 1) {
+    if (actualParts[index] !== minimumParts[index]) {
+      return actualParts[index] > minimumParts[index];
+    }
+  }
+  return true;
+}
+
 @Injectable()
 export class ModelPolicyService {
+  getRuntimeCatalog(
+    readiness: HiveWorkerFleetReadiness,
+  ): readonly StaffModelCatalogEntry[] {
+    return STAFF_MODEL_CATALOG.filter(
+      (entry) =>
+        entry.enabled &&
+        resolverVersionSatisfies(
+          readiness.resolverCapabilityVersion.minimum,
+          entry.minimumResolverCapabilityVersion,
+        ),
+    );
+  }
+
   assertDynamicSwitchAllowed(
     applicationId: string | null | undefined,
   ): DynamicModelCapability {

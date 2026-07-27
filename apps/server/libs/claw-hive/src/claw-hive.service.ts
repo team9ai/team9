@@ -79,6 +79,23 @@ export interface HiveSessionStatusResponse {
   ownedBy: string | null;
 }
 
+export interface HiveWorkerFleetReadiness {
+  queueProtocolVersion: {
+    minimum: number;
+    incompatibleWorkerIds: string[];
+  };
+  resolverCapabilityVersion: {
+    minimum: string;
+    versions: Record<string, number>;
+  };
+  readyForQueueV2: boolean;
+  rolloutGates: {
+    protocolV2AssignmentEnabled: boolean;
+    retryPromotionEnabled: boolean;
+    operatorMutationEnabled: boolean;
+  };
+}
+
 @Injectable()
 export class ClawHiveService {
   private readonly logger = new Logger(ClawHiveService.name);
@@ -97,6 +114,17 @@ export class ClawHiveService {
     } catch {
       return false;
     }
+  }
+
+  async getWorkerFleetReadiness(): Promise<HiveWorkerFleetReadiness> {
+    const res = await fetch(`${this.baseUrl}/api/workers/readiness`, {
+      method: 'GET',
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to load worker fleet readiness: ${res.status}`);
+    }
+    return res.json() as Promise<HiveWorkerFleetReadiness>;
   }
 
   async listPrefabAgentTemplates(): Promise<HivePrefabAgentTemplate[]> {
