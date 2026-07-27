@@ -51,6 +51,9 @@ export interface BotInfo {
   managedProvider: string | null;
   managedMeta: ManagedMeta | null;
   isActive: boolean;
+  installedApplicationId: string | null;
+  applicationId: string | null;
+  tenantId: string | null;
 }
 
 export interface CreateWorkspaceBotOptions {
@@ -282,6 +285,9 @@ export class BotService implements OnModuleInit {
       managedProvider: newBot.managedProvider,
       managedMeta: newBot.managedMeta,
       isActive: newBot.isActive,
+      installedApplicationId: newBot.installedApplicationId,
+      applicationId: null,
+      tenantId: null,
     };
 
     this.eventEmitter.emit('bot.created', botInfo);
@@ -469,9 +475,16 @@ export class BotService implements OnModuleInit {
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
+        installedApplicationId: schema.bots.installedApplicationId,
+        applicationId: schema.installedApplications.applicationId,
+        tenantId: schema.installedApplications.tenantId,
       })
       .from(schema.bots)
       .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .where(eq(schema.users.id, userId))
       .limit(1);
 
@@ -897,9 +910,16 @@ export class BotService implements OnModuleInit {
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
+        installedApplicationId: schema.bots.installedApplicationId,
+        applicationId: schema.installedApplications.applicationId,
+        tenantId: schema.installedApplications.tenantId,
       })
       .from(schema.bots)
       .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .where(eq(schema.bots.id, botId))
       .limit(1);
 

@@ -35,6 +35,7 @@ import {
   WS_EVENTS,
   type ChannelModelChangedEvent,
 } from '../websocket/events/events.constants.js';
+import { ModelPolicyService } from '../../model-policy/model-policy.service.js';
 
 class ModelRefDto implements HiveModelRef {
   @IsString()
@@ -80,6 +81,7 @@ export class ChannelModelController {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly jwtService: JwtService,
+    private readonly modelPolicy: ModelPolicyService,
   ) {
     this.hiveBaseUrl = env.CLAW_HIVE_API_URL ?? 'http://localhost:4100';
     this.hiveAuthToken = env.CLAW_HIVE_AUTH_TOKEN ?? '';
@@ -91,7 +93,7 @@ export class ChannelModelController {
     @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<ChannelModelResponse> {
-    const target = await this.channelsService.resolveModelSwitchTarget(
+    const target = await this.channelsService.resolveModelTarget(
       channelId,
       userId,
     );
@@ -146,21 +148,25 @@ export class ChannelModelController {
       channelId,
       userId,
     );
+    const approvedModel = this.modelPolicy.assertModelAllowed(
+      target.capability,
+      dto.model,
+    );
 
     // `session.model_override` is handled by agent-pi's worker as a pure
     // state mutation — it does NOT run the agent or generate a reply. See
     // claw-hive-worker/src/session-factory.ts (dispatch on session.model_override).
     await this.clawHiveService.changeSessionModel(
       target.sessionId,
-      dto.model,
+      approvedModel,
       target.tenantId ?? undefined,
     );
 
     const changedAt = new Date().toISOString();
     const event: ChannelModelChangedEvent = {
       channelId,
-      botId: target.bot.botUserId,
-      model: dto.model,
+      botId: target.botUserId,
+      model: approvedModel,
       source: 'dynamic',
       changedBy: userId,
       changedAt,
@@ -173,9 +179,9 @@ export class ChannelModelController {
 
     return {
       channelId,
-      model: dto.model,
+      model: approvedModel,
       source: 'dynamic',
-      override: dto.model,
+      override: approvedModel,
     };
   }
 
@@ -215,14 +221,9 @@ export class ChannelModelController {
       return;
     }
 
-    let target: Awaited<
-      ReturnType<ChannelsService['resolveModelSwitchTarget']>
-    >;
+    let target: Awaited<ReturnType<ChannelsService['resolveModelTarget']>>;
     try {
-      target = await this.channelsService.resolveModelSwitchTarget(
-        channelId,
-        userId,
-      );
+      target = await this.channelsService.resolveModelTarget(channelId, userId);
     } catch (err) {
       if (err instanceof ForbiddenException) {
         res.status(403).json({ error: err.message });

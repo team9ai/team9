@@ -24,6 +24,8 @@ import {
   type HiveModelRef,
 } from '@team9/claw-hive';
 import { BotService } from './bot.service.js';
+import { ModelPolicyService } from '../model-policy/model-policy.service.js';
+import { ModelPolicyTargetInvalidException } from '../model-policy/model-policy.errors.js';
 
 class ModelRefDto implements HiveModelRef {
   @IsString()
@@ -56,6 +58,7 @@ export class BotModelController {
   constructor(
     private readonly botService: BotService,
     private readonly clawHiveService: ClawHiveService,
+    private readonly modelPolicy: ModelPolicyService,
   ) {}
 
   @Get(':botId/model')
@@ -86,6 +89,22 @@ export class BotModelController {
     @Body() dto: UpdateBotModelDto,
   ): Promise<BotModelResponse> {
     const { bot, agentId } = await this.requireManagedHiveBot(botId);
+    if (
+      !bot.installedApplicationId ||
+      !bot.applicationId ||
+      !['common-staff', 'personal-staff', 'base-model-staff'].includes(
+        bot.applicationId,
+      )
+    ) {
+      throw new ModelPolicyTargetInvalidException();
+    }
+    const capability = this.modelPolicy.assertDynamicSwitchAllowed(
+      bot.applicationId,
+    );
+    const approvedModel = this.modelPolicy.assertModelAllowed(
+      capability,
+      dto.model,
+    );
 
     // Write authorization: only the bot's mentor or owner can change the
     // default model. Workspace admin override is left for a follow-up.
@@ -121,7 +140,7 @@ export class BotModelController {
         botId: bot.botId,
         mentorId: bot.mentorId,
       },
-      model: dto.model,
+      model: approvedModel,
     });
 
     // Keep team9's local bot snapshot (`bots.extra.commonStaff.model` /
@@ -130,14 +149,14 @@ export class BotModelController {
     // authoritative source for runtime resolution.
     const next = { ...(bot.extra ?? {}) };
     if (next.commonStaff) {
-      next.commonStaff = { ...next.commonStaff, model: dto.model };
+      next.commonStaff = { ...next.commonStaff, model: approvedModel };
     }
     if (next.personalStaff) {
-      next.personalStaff = { ...next.personalStaff, model: dto.model };
+      next.personalStaff = { ...next.personalStaff, model: approvedModel };
     }
     await this.botService.updateBotExtra(bot.botId, next);
 
-    return { botId: bot.botId, agentId, model: dto.model };
+    return { botId: bot.botId, agentId, model: approvedModel };
   }
 
   private async requireManagedHiveBot(botId: string): Promise<{

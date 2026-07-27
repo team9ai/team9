@@ -45,6 +45,12 @@ import {
   resolveEffectiveMembership,
   type ChannelRole,
 } from './effective-membership.js';
+import {
+  ModelManageForbiddenException,
+  ModelPolicyTargetInvalidException,
+} from '../../model-policy/model-policy.errors.js';
+import { ModelPolicyService } from '../../model-policy/model-policy.service.js';
+import type { DynamicModelCapability } from '../../model-policy/staff-model-catalog.js';
 
 // Minimal interface needed from BotService to avoid a runtime circular import.
 // The concrete implementation is injected via the 'BOT_SERVICE' token, which is
@@ -200,6 +206,7 @@ export class ChannelsService {
     private readonly channelMemberCacheService: ChannelMemberCacheService,
     private readonly tabsService: TabsService,
     private readonly moduleRef: ModuleRef,
+    private readonly modelPolicy: ModelPolicyService,
   ) {}
 
   // BotService is looked up lazily via ModuleRef instead of injected in the
@@ -1957,6 +1964,34 @@ export class ChannelsService {
     throw new ForbiddenException('Access denied');
   }
 
+  async assertModelManageAccess(
+    channelId: string,
+    userId: string,
+  ): Promise<void> {
+    const channel = await this.findById(channelId);
+    if (!channel) throw new ModelManageForbiddenException();
+
+    if (channel.type === 'direct') {
+      const role = await this.getMemberRole(channelId, userId);
+      if (role && !(await this.isBot(userId))) return;
+      throw new ModelManageForbiddenException();
+    }
+
+    if (
+      channel.type === 'routine-session' ||
+      channel.type === 'topic-session'
+    ) {
+      const role = await this.getEffectiveRole(
+        channelId,
+        userId,
+        channel.tenantId,
+      );
+      if (role === 'owner' || role === 'admin') return;
+    }
+
+    throw new ModelManageForbiddenException();
+  }
+
   /**
    * Resolve the target of a channel-level model switch.
    *
@@ -1969,14 +2004,17 @@ export class ChannelsService {
    * Returns the bot + agent-pi session id, or throws ForbiddenException.
    * Used by the channel-model GET/PATCH/SSE endpoints.
    */
-  async resolveModelSwitchTarget(
+  async resolveModelTarget(
     channelId: string,
     requesterId: string,
   ): Promise<{
     tenantId: string | null;
     agentId: string;
     sessionId: string;
-    bot: { botUserId: string };
+    botId: string;
+    botUserId: string;
+    installedApplicationId: string | null;
+    applicationId: string | null;
   }> {
     const channel = await this.findById(channelId);
     if (!channel) {
@@ -1997,9 +2035,12 @@ export class ChannelsService {
 
     const botRows = await this.db
       .select({
+        botId: schema.bots.id,
         userId: schema.channelMembers.userId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
+        installedApplicationId: schema.bots.installedApplicationId,
+        applicationId: schema.installedApplications.applicationId,
       })
       .from(schema.channelMembers)
       .innerJoin(
@@ -2009,6 +2050,10 @@ export class ChannelsService {
       .innerJoin(
         schema.bots,
         eq(schema.bots.userId, schema.channelMembers.userId),
+      )
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
       )
       .where(
         and(
@@ -2041,7 +2086,39 @@ export class ChannelsService {
       tenantId,
       agentId,
       sessionId,
-      bot: { botUserId: bot.userId },
+      botId: bot.botId,
+      botUserId: bot.userId,
+      installedApplicationId: bot.installedApplicationId,
+      applicationId: bot.applicationId,
+    };
+  }
+
+  async resolveModelSwitchTarget(
+    channelId: string,
+    requesterId: string,
+  ): Promise<
+    Awaited<ReturnType<ChannelsService['resolveModelTarget']>> & {
+      capability: DynamicModelCapability;
+    }
+  > {
+    const target = await this.resolveModelTarget(channelId, requesterId);
+    await this.assertModelManageAccess(channelId, requesterId);
+
+    if (
+      !target.installedApplicationId ||
+      !target.applicationId ||
+      !['common-staff', 'personal-staff', 'base-model-staff'].includes(
+        target.applicationId,
+      )
+    ) {
+      throw new ModelPolicyTargetInvalidException();
+    }
+
+    return {
+      ...target,
+      capability: this.modelPolicy.assertDynamicSwitchAllowed(
+        target.applicationId,
+      ),
     };
   }
 
