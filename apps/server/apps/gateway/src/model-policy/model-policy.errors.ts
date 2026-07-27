@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 export class UnsupportedModelException extends BadRequestException {
@@ -40,6 +41,26 @@ export class ModelPolicyTargetInvalidException extends ConflictException {
       statusCode: 409,
       code: 'model_policy_target_invalid',
       message: 'The model policy target is invalid',
+    });
+  }
+}
+
+export class ModelChangeAuditUnavailableException extends ServiceUnavailableException {
+  constructor() {
+    super({
+      statusCode: 503,
+      code: 'model_change_audit_unavailable',
+      message: 'Model change audit storage is unavailable',
+    });
+  }
+}
+
+export class ModelChangeIdempotencyConflictException extends ConflictException {
+  constructor() {
+    super({
+      statusCode: 409,
+      code: 'idempotency_conflict',
+      message: 'The idempotency key was already used for another request',
     });
   }
 }
