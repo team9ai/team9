@@ -28,6 +28,15 @@ export const modelChangeOutbox = pgTable(
     claimToken: uuid('claim_token'),
     claimUntil: timestamp('claim_until'),
     safeErrorCode: varchar('safe_error_code', { length: 128 }),
+    publishedAt: timestamp('published_at'),
+    publicationClaimToken: uuid('publication_claim_token'),
+    publicationClaimUntil: timestamp('publication_claim_until'),
+    publicationRetryCount: integer('publication_retry_count')
+      .default(0)
+      .notNull(),
+    publicationSafeErrorCode: varchar('publication_safe_error_code', {
+      length: 128,
+    }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -35,6 +44,11 @@ export const modelChangeOutbox = pgTable(
     uniqueIndex('uq_model_change_outbox_attempt').on(table.attemptId),
     index('idx_model_change_outbox_due').on(table.status, table.nextAttemptAt),
     index('idx_model_change_outbox_claim').on(table.status, table.claimUntil),
+    index('idx_model_change_outbox_publication').on(
+      table.status,
+      table.publishedAt,
+      table.publicationClaimUntil,
+    ),
   ],
 );
 

@@ -64,3 +64,13 @@ export class ModelChangeIdempotencyConflictException extends ConflictException {
     });
   }
 }
+
+export class ModelChangeUnavailableException extends ServiceUnavailableException {
+  constructor() {
+    super({
+      statusCode: 503,
+      code: 'model_change_unavailable',
+      message: 'The model change could not be dispatched',
+    });
+  }
+}

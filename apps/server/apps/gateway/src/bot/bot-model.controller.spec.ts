@@ -1,5 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { ModelPolicyService } from '../model-policy/model-policy.service.js';
+import {
+  ModelPolicyTargetInvalidException,
+  ModelSwitchNotAllowedException,
+  UnsupportedModelException,
+} from '../model-policy/model-policy.errors.js';
 import { BotModelController } from './bot-model.controller.js';
 
 const allowedModel = {
@@ -29,14 +33,14 @@ function bot(applicationId: string | null) {
   };
 }
 
-function setup(applicationId: string | null) {
+function setup(applicationId: string | null = 'common-staff') {
   const botService = {
-    getBotById: jest.fn().mockResolvedValue(bot(applicationId)),
-    isActiveTenantMember: jest.fn().mockResolvedValue(true),
-    updateBotExtra: jest.fn().mockResolvedValue(undefined),
+    getBotById: jest.fn<any>().mockResolvedValue(bot(applicationId)),
+    isActiveTenantMember: jest.fn<any>().mockResolvedValue(true),
+    updateBotExtra: jest.fn<any>(),
   };
   const clawHive = {
-    getAgent: jest.fn().mockResolvedValue({
+    getAgent: jest.fn<any>().mockResolvedValue({
       id: 'agent-1',
       name: 'Bot',
       blueprintId: 'team9-common-staff',
@@ -44,20 +48,31 @@ function setup(applicationId: string | null) {
       tenantId: 'tenant-1',
       metadata: { tenantId: 'tenant-1' },
     }),
-    updateAgent: jest.fn().mockResolvedValue(undefined),
+    updateAgent: jest.fn<any>(),
+  };
+  const modelChanges = {
+    requestBotModelChange: jest.fn<any>().mockResolvedValue({
+      state: 'pending',
+      attemptId: 'attempt-1',
+    }),
+  };
+  const response = {
+    status: jest.fn<any>().mockReturnThis(),
   };
   return {
     botService,
     clawHive,
+    modelChanges,
+    response,
     controller: new BotModelController(
       botService as never,
       clawHive as never,
-      new ModelPolicyService(),
+      modelChanges as never,
     ),
   };
 }
 
-describe('BotModelController policy', () => {
+describe('BotModelController durable mutation flow', () => {
   it('keeps fixed-bot model reads available', async () => {
     const { controller } = setup('base-model-staff');
 
@@ -68,68 +83,84 @@ describe('BotModelController policy', () => {
     });
   });
 
-  it('rejects dynamic changes for fixed base-model bots', async () => {
-    const { controller, clawHive, botService } = setup('base-model-staff');
+  it('returns 202 while the durable bot-default mutation is pending', async () => {
+    const { controller, response, modelChanges, clawHive, botService } =
+      setup();
 
     await expect(
-      controller.updateModel('user-1', 'bot-1', { model: allowedModel }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'model_switch_not_allowed' }),
+      controller.updateModel(
+        'user-1',
+        'bot-1',
+        { model: allowedModel },
+        'request-1',
+        response as never,
+      ),
+    ).resolves.toEqual({
+      attemptId: 'attempt-1',
+      idempotencyKey: 'request-1',
+      statusUrl: '/api/v1/model-changes/attempt-1',
+    });
+    expect(response.status).toHaveBeenCalledWith(202);
+    expect(modelChanges.requestBotModelChange).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      botId: 'bot-1',
+      idempotencyKey: 'request-1',
+      model: allowedModel,
     });
     expect(clawHive.updateAgent).not.toHaveBeenCalled();
     expect(botService.updateBotExtra).not.toHaveBeenCalled();
   });
 
-  it.each([null, 'unknown'])(
-    'fails closed for application identity %p',
-    async (applicationId) => {
-      const { controller, clawHive } = setup(applicationId);
+  it('returns 200 only after processor-confirmed Hive and snapshot updates', async () => {
+    const { controller, response, modelChanges, clawHive, botService } =
+      setup();
+    modelChanges.requestBotModelChange.mockResolvedValueOnce({
+      state: 'dispatched',
+      attemptId: 'attempt-1',
+      model: allowedModel,
+    });
 
-      await expect(
-        controller.updateModel('user-1', 'bot-1', { model: allowedModel }),
-      ).rejects.toMatchObject({
-        response: expect.objectContaining({
-          code: 'model_policy_target_invalid',
-        }),
-      });
-      expect(clawHive.updateAgent).not.toHaveBeenCalled();
-    },
-  );
+    await expect(
+      controller.updateModel(
+        'user-1',
+        'bot-1',
+        { model: allowedModel },
+        'request-1',
+        response as never,
+      ),
+    ).resolves.toMatchObject({
+      botId: 'bot-1',
+      agentId: 'agent-1',
+      model: allowedModel,
+      attemptId: 'attempt-1',
+    });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(clawHive.updateAgent).not.toHaveBeenCalled();
+    expect(botService.updateBotExtra).not.toHaveBeenCalled();
+  });
 
   it.each([
-    { provider: 'custom', id: 'gpt-4' },
-    { provider: 'anthropic', id: 'claude-3-opus' },
-    { provider: 'http://evil.com', id: 'test' },
+    new ModelSwitchNotAllowedException(),
+    new ModelPolicyTargetInvalidException(),
+    new UnsupportedModelException(),
   ])(
-    'rejects unsupported pair %# before Hive or local mutation',
-    async (model) => {
-      const { controller, clawHive, botService } = setup('common-staff');
+    'never performs controller-owned writes after rejection',
+    async (error) => {
+      const { controller, response, modelChanges, clawHive, botService } =
+        setup();
+      modelChanges.requestBotModelChange.mockRejectedValueOnce(error);
 
       await expect(
-        controller.updateModel('user-1', 'bot-1', { model }),
-      ).rejects.toMatchObject({
-        response: expect.objectContaining({ code: 'unsupported_model' }),
-      });
+        controller.updateModel(
+          'user-1',
+          'bot-1',
+          { model: allowedModel },
+          'request-1',
+          response as never,
+        ),
+      ).rejects.toBe(error);
       expect(clawHive.updateAgent).not.toHaveBeenCalled();
       expect(botService.updateBotExtra).not.toHaveBeenCalled();
     },
   );
-
-  it('passes only the approved pair to Hive and the local snapshot', async () => {
-    const { controller, clawHive, botService } = setup('common-staff');
-
-    await expect(
-      controller.updateModel('user-1', 'bot-1', { model: allowedModel }),
-    ).resolves.toMatchObject({ model: allowedModel });
-    expect(clawHive.updateAgent).toHaveBeenCalledWith(
-      'agent-1',
-      expect.objectContaining({ model: allowedModel }),
-    );
-    expect(botService.updateBotExtra).toHaveBeenCalledWith(
-      'bot-1',
-      expect.objectContaining({
-        commonStaff: expect.objectContaining({ model: allowedModel }),
-      }),
-    );
-  });
 });

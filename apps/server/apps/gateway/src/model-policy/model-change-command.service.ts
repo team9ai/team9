@@ -1,4 +1,5 @@
 import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -6,8 +7,9 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { v7 as uuidv7 } from 'uuid';
-import { BotService } from '../bot/bot.service.js';
+import type { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
+import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
 import {
   ModelChangeAuditUnavailableException,
   ModelChangeIdempotencyConflictException,
@@ -19,10 +21,15 @@ import {
   type ApprovedModelRef,
   type RequestedModelRef,
 } from './model-policy.service.js';
+import { ModelChangeOutboxProcessor } from './model-change-outbox.processor.js';
 
 export type ModelChangeRequestResult =
   | { state: 'pending'; attemptId: string }
-  | { state: 'dispatched'; attemptId: string }
+  | {
+      state: 'dispatched';
+      attemptId: string;
+      model: { provider: string; id: string };
+    }
   | { state: 'failed'; attemptId: string }
   | { state: 'rejected'; attemptId: string; reasonCode: string };
 
@@ -76,7 +83,14 @@ function stateFromExisting(
     };
   }
   if (existing.dispatchStatus === 'dispatched') {
-    return { state: 'dispatched', attemptId: existing.id };
+    return {
+      state: 'dispatched',
+      attemptId: existing.id,
+      model: {
+        provider: existing.requestedProvider,
+        id: existing.requestedModelId,
+      },
+    };
   }
   if (existing.dispatchStatus === 'failed') {
     return { state: 'failed', attemptId: existing.id };
@@ -90,14 +104,25 @@ export class ModelChangeCommandService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly channels: ChannelsService,
-    private readonly bots: BotService,
     private readonly modelPolicy: ModelPolicyService,
+    private readonly moduleRef: ModuleRef,
+    private readonly outboxProcessor: ModelChangeOutboxProcessor,
   ) {}
 
   async requestChannelModelChange(
     request: ChannelModelChangeRequest,
   ): Promise<ModelChangeRequestResult> {
     const normalized = this.normalizedRequest(request.model);
+    let auditTarget: {
+      tenantId?: string | null;
+      channelId: string;
+      botId?: string;
+      botUserId?: string;
+      installedApplicationId?: string | null;
+      applicationId?: string | null;
+      sessionId?: string | null;
+      capability?: string;
+    } = { channelId: request.channelId };
     const existing = await this.findExisting(request.idempotencyKey);
     if (existing) {
       this.assertSameRequest(existing, request.actorUserId, {
@@ -108,32 +133,47 @@ export class ModelChangeCommandService {
     }
 
     try {
-      const target = await this.channels.resolveModelSwitchTarget(
+      const target = await this.channels.resolveModelManageTarget(
         request.channelId,
         request.actorUserId,
       );
+      auditTarget = {
+        tenantId: target.tenantId,
+        channelId: request.channelId,
+        botId: target.botId,
+        botUserId: target.botUserId,
+        installedApplicationId: target.installedApplicationId,
+        applicationId: target.applicationId,
+        sessionId: target.sessionId,
+      };
+      const capability = this.modelPolicy.assertDynamicSwitchAllowed(
+        target.applicationId,
+      );
+      auditTarget.capability = capability;
       const approved = this.modelPolicy.assertModelAllowed(
-        target.capability,
+        capability,
         request.model,
       );
-      return await this.persistAccepted({
+      const persisted = await this.persistAccepted({
         request,
         approved,
         target: {
           tenantId: target.tenantId,
           channelId: request.channelId,
           botId: target.botId,
+          botUserId: target.botUserId,
           installedApplicationId: target.installedApplicationId,
           applicationId: target.applicationId,
           sessionId: target.sessionId,
         },
       });
+      return await this.confirmDispatch(persisted, approved);
     } catch (error) {
       if (error instanceof ModelChangeAuditUnavailableException) throw error;
       await this.persistRejected({
         request,
         normalized,
-        channelId: request.channelId,
+        ...auditTarget,
         reasonCode: exceptionCode(error),
       });
       throw error;
@@ -144,6 +184,14 @@ export class ModelChangeCommandService {
     request: BotModelChangeRequest,
   ): Promise<ModelChangeRequestResult> {
     const normalized = this.normalizedRequest(request.model);
+    let auditTarget: {
+      tenantId?: string | null;
+      botId: string;
+      botUserId?: string;
+      installedApplicationId?: string | null;
+      applicationId?: string | null;
+      capability?: string;
+    } = { botId: request.botId };
     const existing = await this.findExisting(request.idempotencyKey);
     if (existing) {
       this.assertSameRequest(existing, request.actorUserId, {
@@ -155,6 +203,15 @@ export class ModelChangeCommandService {
 
     try {
       const bot = await this.bots.getBotById(request.botId);
+      if (bot) {
+        auditTarget = {
+          tenantId: bot.tenantId,
+          botId: request.botId,
+          botUserId: bot.userId,
+          installedApplicationId: bot.installedApplicationId,
+          applicationId: bot.applicationId,
+        };
+      }
       if (
         !bot ||
         bot.managedProvider !== 'hive' ||
@@ -181,27 +238,30 @@ export class ModelChangeCommandService {
       const capability = this.modelPolicy.assertDynamicSwitchAllowed(
         bot.applicationId,
       );
+      auditTarget.capability = capability;
       const approved = this.modelPolicy.assertModelAllowed(
         capability,
         request.model,
       );
-      return await this.persistAccepted({
+      const persisted = await this.persistAccepted({
         request,
         approved,
         target: {
           tenantId: bot.tenantId,
           botId: bot.botId,
+          botUserId: bot.userId,
           installedApplicationId: bot.installedApplicationId,
           applicationId: bot.applicationId,
           sessionId: null,
         },
       });
+      return await this.confirmDispatch(persisted, approved);
     } catch (error) {
       if (error instanceof ModelChangeAuditUnavailableException) throw error;
       await this.persistRejected({
         request,
         normalized,
-        botId: request.botId,
+        ...auditTarget,
         reasonCode: exceptionCode(error),
       });
       throw error;
@@ -259,6 +319,7 @@ export class ModelChangeCommandService {
       tenantId: string | null;
       channelId?: string;
       botId: string;
+      botUserId: string;
       installedApplicationId: string | null;
       applicationId: string | null;
       sessionId: string | null;
@@ -276,6 +337,7 @@ export class ModelChangeCommandService {
           tenantId: input.target.tenantId,
           channelId: input.target.channelId,
           botId: input.target.botId,
+          botUserId: input.target.botUserId,
           installedApplicationId: input.target.installedApplicationId,
           applicationId: input.target.applicationId,
           sessionId: input.target.sessionId,
@@ -294,6 +356,25 @@ export class ModelChangeCommandService {
         });
       });
     } catch {
+      try {
+        const existing = await this.findExisting(input.request.idempotencyKey);
+        if (existing) {
+          this.assertSameRequest(existing, input.request.actorUserId, {
+            ...(input.target.channelId
+              ? { channelId: input.target.channelId }
+              : { botId: input.target.botId }),
+            model: {
+              provider: input.approved.provider,
+              id: input.approved.id,
+            },
+          });
+          return stateFromExisting(existing);
+        }
+      } catch (error) {
+        if (error instanceof ModelChangeIdempotencyConflictException) {
+          throw error;
+        }
+      }
       throw new ModelChangeAuditUnavailableException();
     }
     return { state: 'pending', attemptId };
@@ -304,6 +385,12 @@ export class ModelChangeCommandService {
     normalized: { provider: string; id: string };
     channelId?: string;
     botId?: string;
+    botUserId?: string;
+    tenantId?: string | null;
+    installedApplicationId?: string | null;
+    applicationId?: string | null;
+    sessionId?: string | null;
+    capability?: string;
     reasonCode: string;
   }): Promise<void> {
     try {
@@ -315,14 +402,73 @@ export class ModelChangeCommandService {
         correlationId: input.request.correlationId?.slice(0, 128),
         channelId: input.channelId,
         botId: input.botId,
+        botUserId: input.botUserId,
+        tenantId: input.tenantId,
+        installedApplicationId: input.installedApplicationId,
+        applicationId: input.applicationId,
+        sessionId: input.sessionId,
         requestedProvider: input.normalized.provider,
         requestedModelId: input.normalized.id,
+        capability: input.capability,
         decision: 'rejected',
         reasonCode: input.reasonCode,
         dispatchStatus: 'not_applicable',
       });
     } catch {
+      try {
+        const existing = await this.findExisting(input.request.idempotencyKey);
+        if (existing) {
+          this.assertSameRequest(existing, input.request.actorUserId, {
+            ...(input.channelId
+              ? { channelId: input.channelId }
+              : { botId: input.botId }),
+            model: input.normalized,
+          });
+          if (
+            existing.decision === 'rejected' &&
+            existing.reasonCode === input.reasonCode
+          ) {
+            return;
+          }
+        }
+      } catch (error) {
+        if (error instanceof ModelChangeIdempotencyConflictException) {
+          throw error;
+        }
+      }
       throw new ModelChangeAuditUnavailableException();
     }
+  }
+
+  private async confirmDispatch(
+    persisted: ModelChangeRequestResult,
+    approved: ApprovedModelRef,
+  ): Promise<ModelChangeRequestResult> {
+    if (persisted.state !== 'pending') return persisted;
+    try {
+      const state = await this.outboxProcessor.tryDispatch(persisted.attemptId);
+      return state === 'dispatched'
+        ? {
+            state,
+            attemptId: persisted.attemptId,
+            model: {
+              provider: approved.provider,
+              id: approved.id,
+            },
+          }
+        : { state, attemptId: persisted.attemptId };
+    } catch {
+      // The durable row already exists. An immediate-claim failure is not a
+      // failed mutation: the periodic processor can safely retry it.
+      return persisted;
+    }
+  }
+
+  private get bots(): Pick<BotService, 'getBotById' | 'isActiveTenantMember'> {
+    return this.moduleRef.get<
+      Pick<BotService, 'getBotById' | 'isActiveTenantMember'>
+    >(BOT_SERVICE_TOKEN, {
+      strict: false,
+    });
   }
 }

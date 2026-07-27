@@ -32,7 +32,7 @@ function setup() {
       .mockImplementation(async (callback) => callback(db)),
   };
   const channels = {
-    resolveModelSwitchTarget: jest.fn<any>().mockResolvedValue({
+    resolveModelManageTarget: jest.fn<any>().mockResolvedValue({
       tenantId: 'tenant-1',
       agentId: 'agent-1',
       sessionId: 'session-1',
@@ -47,17 +47,25 @@ function setup() {
     getBotById: jest.fn<any>(),
     isActiveTenantMember: jest.fn<any>(),
   };
+  const moduleRef = {
+    get: jest.fn(() => bots),
+  };
+  const outboxProcessor = {
+    tryDispatch: jest.fn<any>().mockResolvedValue('pending'),
+  };
   const service = new ModelChangeCommandService(
     db as never,
     channels as never,
-    bots as never,
     new ModelPolicyService(),
+    moduleRef as never,
+    outboxProcessor as never,
   );
   return {
     service,
     db,
     channels,
     bots,
+    outboxProcessor,
     inserted,
     setExisting(value: Record<string, unknown>) {
       existing = value;
@@ -71,9 +79,15 @@ function setup() {
 describe('ModelChangeCommandService', () => {
   it('persists a rejected decision before rethrowing the policy error', async () => {
     const { service, channels, inserted } = setup();
-    channels.resolveModelSwitchTarget.mockRejectedValueOnce(
-      new ModelSwitchNotAllowedException(),
-    );
+    channels.resolveModelManageTarget.mockResolvedValueOnce({
+      tenantId: 'tenant-1',
+      agentId: 'agent-1',
+      sessionId: 'session-1',
+      botId: 'bot-1',
+      botUserId: 'bot-user-1',
+      installedApplicationId: 'installed-1',
+      applicationId: 'base-model-staff',
+    });
 
     await expect(
       service.requestChannelModelChange({
@@ -92,6 +106,9 @@ describe('ModelChangeCommandService', () => {
       decision: 'rejected',
       reasonCode: 'model_switch_not_allowed',
       dispatchStatus: 'not_applicable',
+      tenantId: 'tenant-1',
+      applicationId: 'base-model-staff',
+      botUserId: 'bot-user-1',
     });
   });
 
@@ -126,6 +143,24 @@ describe('ModelChangeCommandService', () => {
     });
   });
 
+  it('returns dispatched only after the outbox processor confirms it', async () => {
+    const { service, outboxProcessor } = setup();
+    outboxProcessor.tryDispatch.mockResolvedValueOnce('dispatched');
+
+    await expect(
+      service.requestChannelModelChange({
+        actorUserId: 'user-1',
+        channelId: 'channel-1',
+        idempotencyKey: 'request-1',
+        model: allowedModel,
+      }),
+    ).resolves.toMatchObject({
+      state: 'dispatched',
+      attemptId: expect.any(String),
+      model: allowedModel,
+    });
+  });
+
   it('returns an existing identical attempt without another insert', async () => {
     const { service, channels, inserted, setExisting } = setup();
     setExisting({
@@ -147,7 +182,7 @@ describe('ModelChangeCommandService', () => {
         model: allowedModel,
       }),
     ).resolves.toEqual({ state: 'pending', attemptId: 'attempt-1' });
-    expect(channels.resolveModelSwitchTarget).not.toHaveBeenCalled();
+    expect(channels.resolveModelManageTarget).not.toHaveBeenCalled();
     expect(inserted).toHaveLength(0);
   });
 
@@ -179,7 +214,7 @@ describe('ModelChangeCommandService', () => {
 
   it('fails closed with 503 when rejection audit storage is unavailable', async () => {
     const { service, channels, failInserts } = setup();
-    channels.resolveModelSwitchTarget.mockRejectedValueOnce(
+    channels.resolveModelManageTarget.mockRejectedValueOnce(
       new ModelSwitchNotAllowedException(),
     );
     failInserts(new Error('database down'));

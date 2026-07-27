@@ -11,8 +11,7 @@ import {
   UseGuards,
   NotFoundException,
   ForbiddenException,
-  Inject,
-  forwardRef,
+  Headers,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
@@ -30,12 +29,13 @@ import type { JwtPayload } from '@team9/auth';
 import { env } from '@team9/shared';
 import { ClawHiveService, type HiveModelRef } from '@team9/claw-hive';
 import { ChannelsService } from './channels.service.js';
-import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { ModelChangeCommandService } from '../../model-policy/model-change-command.service.js';
+import { ModelChangeUnavailableException } from '../../model-policy/model-policy.errors.js';
 import {
-  WS_EVENTS,
-  type ChannelModelChangedEvent,
-} from '../websocket/events/events.constants.js';
-import { ModelPolicyService } from '../../model-policy/model-policy.service.js';
+  modelChangeStatusUrl,
+  normalizeModelChangeIdempotencyKey,
+  throwStoredModelChangeRejection,
+} from '../../model-policy/model-change-http.js';
 
 class ModelRefDto implements HiveModelRef {
   @IsString()
@@ -69,6 +69,16 @@ interface ChannelModelResponse {
   override: HiveModelRef | null;
 }
 
+interface PendingChannelModelChangeResponse {
+  attemptId: string;
+  idempotencyKey: string;
+  statusUrl: string;
+}
+
+type ChannelModelMutationResponse =
+  | (ChannelModelResponse & PendingChannelModelChangeResponse)
+  | PendingChannelModelChangeResponse;
+
 @Controller({ path: 'im/channels', version: '1' })
 export class ChannelModelController {
   private readonly logger = new Logger(ChannelModelController.name);
@@ -78,10 +88,8 @@ export class ChannelModelController {
   constructor(
     private readonly channelsService: ChannelsService,
     private readonly clawHiveService: ClawHiveService,
-    @Inject(forwardRef(() => WebsocketGateway))
-    private readonly websocketGateway: WebsocketGateway,
     private readonly jwtService: JwtService,
-    private readonly modelPolicy: ModelPolicyService,
+    private readonly modelChanges: ModelChangeCommandService,
   ) {
     this.hiveBaseUrl = env.CLAW_HIVE_API_URL ?? 'http://localhost:4100';
     this.hiveAuthToken = env.CLAW_HIVE_AUTH_TOKEN ?? '';
@@ -141,47 +149,40 @@ export class ChannelModelController {
     @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: UpdateChannelModelDto,
-  ): Promise<ChannelModelResponse> {
-    // DTO shape is enforced by the global ValidationPipe + class-validator
-    // decorators on UpdateChannelModelDto — no manual null-check needed.
-    const target = await this.channelsService.resolveModelSwitchTarget(
+    @Headers('idempotency-key') requestedIdempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ChannelModelMutationResponse> {
+    const idempotencyKey = normalizeModelChangeIdempotencyKey(
+      requestedIdempotencyKey,
+    );
+    const result = await this.modelChanges.requestChannelModelChange({
+      actorUserId: userId,
       channelId,
-      userId,
-    );
-    const approvedModel = this.modelPolicy.assertModelAllowed(
-      target.capability,
-      dto.model,
-    );
+      idempotencyKey,
+      model: dto.model,
+    });
+    const statusUrl = modelChangeStatusUrl(result.attemptId);
 
-    // `session.model_override` is handled by agent-pi's worker as a pure
-    // state mutation — it does NOT run the agent or generate a reply. See
-    // claw-hive-worker/src/session-factory.ts (dispatch on session.model_override).
-    await this.clawHiveService.changeSessionModel(
-      target.sessionId,
-      approvedModel,
-      target.tenantId ?? undefined,
-    );
+    if (result.state === 'rejected') {
+      throwStoredModelChangeRejection(result.reasonCode);
+    }
+    if (result.state === 'failed') {
+      throw new ModelChangeUnavailableException();
+    }
+    if (result.state === 'pending') {
+      response.status(202);
+      return { attemptId: result.attemptId, idempotencyKey, statusUrl };
+    }
 
-    const changedAt = new Date().toISOString();
-    const event: ChannelModelChangedEvent = {
-      channelId,
-      botId: target.botUserId,
-      model: approvedModel,
-      source: 'dynamic',
-      changedBy: userId,
-      changedAt,
-    };
-    await this.websocketGateway.sendToChannelMembers(
-      channelId,
-      WS_EVENTS.CHANNEL.MODEL_CHANGED,
-      event,
-    );
-
+    response.status(200);
     return {
       channelId,
-      model: approvedModel,
+      model: result.model,
       source: 'dynamic',
-      override: approvedModel,
+      override: result.model,
+      attemptId: result.attemptId,
+      idempotencyKey,
+      statusUrl,
     };
   }
 

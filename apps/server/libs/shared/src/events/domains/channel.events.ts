@@ -258,6 +258,8 @@ export interface ChannelUnarchivedEvent {
  * @direction Server -> Channel Members
  */
 export interface ChannelModelChangedEvent {
+  /** Stable model-change attempt identity for retry de-duplication */
+  attemptId: string;
   /** Channel ID */
   channelId: string;
   /** Bot user ID the session belongs to (the managed hive bot in this DM) */

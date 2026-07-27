@@ -2101,6 +2101,20 @@ export class ChannelsService {
       capability: DynamicModelCapability;
     }
   > {
+    const target = await this.resolveModelManageTarget(channelId, requesterId);
+
+    return {
+      ...target,
+      capability: this.modelPolicy.assertDynamicSwitchAllowed(
+        target.applicationId,
+      ),
+    };
+  }
+
+  async resolveModelManageTarget(
+    channelId: string,
+    requesterId: string,
+  ): Promise<Awaited<ReturnType<ChannelsService['resolveModelTarget']>>> {
     const target = await this.resolveModelTarget(channelId, requesterId);
     await this.assertModelManageAccess(channelId, requesterId);
 
@@ -2113,13 +2127,7 @@ export class ChannelsService {
     ) {
       throw new ModelPolicyTargetInvalidException();
     }
-
-    return {
-      ...target,
-      capability: this.modelPolicy.assertDynamicSwitchAllowed(
-        target.applicationId,
-      ),
-    };
+    return target;
   }
 
   async isBot(userId: string): Promise<boolean> {

@@ -331,9 +331,9 @@ export class ClawHiveService {
   async changeSessionModel(
     sessionId: string,
     model: { provider: string; id: string },
-    tenantId?: string,
-  ): Promise<void> {
-    await this.sendInput(
+    options: { tenantId?: string; idempotencyKey: string },
+  ): Promise<{ messageId: string }> {
+    const response = await this.sendInput(
       sessionId,
       {
         type: 'session.model_override',
@@ -341,8 +341,14 @@ export class ClawHiveService {
         timestamp: new Date().toISOString(),
         payload: { model },
       },
-      tenantId,
+      options.tenantId,
+      30_000,
+      options.idempotencyKey,
     );
+    if (response.messageId !== options.idempotencyKey) {
+      throw new Error('Hive returned an unexpected model-change message ID');
+    }
+    return { messageId: response.messageId };
   }
 
   async sendInput(
@@ -355,7 +361,8 @@ export class ClawHiveService {
     },
     tenantId?: string,
     timeoutMs = 30_000,
-  ): Promise<{ messages: unknown[] }> {
+    messageId?: string,
+  ): Promise<{ messageId?: string; messages?: unknown[] }> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -364,7 +371,10 @@ export class ClawHiveService {
         {
           method: 'POST',
           headers: this.headers(tenantId),
-          body: JSON.stringify({ event }),
+          body: JSON.stringify({
+            event,
+            ...(messageId ? { messageId } : {}),
+          }),
           signal: controller.signal,
         },
       );

@@ -40,6 +40,10 @@ export const modelChangeAttempts = pgTable(
     botId: uuid('bot_id').references(() => bots.id, {
       onDelete: 'set null',
     }),
+    // Durable event identity: intentionally no FK/ON DELETE action. If the
+    // bot user is removed after Hive dispatch but before websocket repair,
+    // the outbox must retain the original recipient identity.
+    botUserId: uuid('bot_user_id'),
     installedApplicationId: uuid('installed_application_id').references(
       () => installedApplications.id,
       { onDelete: 'set null' },

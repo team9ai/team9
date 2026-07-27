@@ -82,6 +82,7 @@ describe('model change audit and outbox schemas', () => {
       expect.arrayContaining([
         'idx_model_change_outbox_due',
         'idx_model_change_outbox_claim',
+        'idx_model_change_outbox_publication',
       ]),
     );
   });
@@ -97,6 +98,11 @@ describe('model change audit and outbox schemas', () => {
         'claimToken',
         'claimUntil',
         'safeErrorCode',
+        'publishedAt',
+        'publicationClaimToken',
+        'publicationClaimUntil',
+        'publicationRetryCount',
+        'publicationSafeErrorCode',
         'createdAt',
         'updatedAt',
       ]),

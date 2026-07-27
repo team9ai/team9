@@ -553,6 +553,76 @@ describe('ClawHiveService', () => {
       const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
       expect(opts.signal).toBeInstanceOf(AbortSignal);
     });
+
+    it('forwards a stable client message ID for durable retries', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ messageId: 'attempt-123', sessionId }),
+      );
+
+      await service.sendInput(
+        sessionId,
+        event,
+        'tenant-123',
+        30_000,
+        'attempt-123',
+      );
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(opts.body as string)).toEqual({
+        event,
+        messageId: 'attempt-123',
+      });
+    });
+  });
+
+  describe('changeSessionModel', () => {
+    it('uses the attempt ID as the Hive queue message ID', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          sessionId: 'session-1',
+          messageId: 'attempt-123',
+        }),
+      );
+
+      await expect(
+        service.changeSessionModel(
+          'session-1',
+          { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          { tenantId: 'tenant-1', idempotencyKey: 'attempt-123' },
+        ),
+      ).resolves.toEqual({ messageId: 'attempt-123' });
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(opts.body as string)).toMatchObject({
+        event: {
+          type: 'session.model_override',
+          payload: {
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
+          },
+        },
+        messageId: 'attempt-123',
+      });
+      expect((opts.headers as Record<string, string>)['X-Hive-Tenant']).toBe(
+        'tenant-1',
+      );
+    });
+
+    it('fails closed when Hive does not confirm the stable message ID', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ sessionId: 'session-1', messageId: 'different-id' }),
+      );
+
+      await expect(
+        service.changeSessionModel(
+          'session-1',
+          { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          { idempotencyKey: 'attempt-123' },
+        ),
+      ).rejects.toThrow('Hive returned an unexpected model-change message ID');
+    });
   });
 
   // ── interruptSession ─────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import { ModelSwitchNotAllowedException } from '../../model-policy/model-policy.errors.js';
-import { ModelPolicyService } from '../../model-policy/model-policy.service.js';
+import {
+  ModelSwitchNotAllowedException,
+  UnsupportedModelException,
+} from '../../model-policy/model-policy.errors.js';
 import { ChannelModelController } from './channel-model.controller.js';
 
 const allowedModel = {
@@ -21,7 +23,6 @@ const target = {
 function setup() {
   const channels = {
     resolveModelTarget: jest.fn<any>().mockResolvedValue(target),
-    resolveModelSwitchTarget: jest.fn<any>().mockResolvedValue(target),
   };
   const clawHive = {
     getSession: jest.fn<any>().mockResolvedValue({
@@ -36,26 +37,32 @@ function setup() {
       },
     }),
     getAgent: jest.fn<any>(),
-    changeSessionModel: jest.fn<any>().mockResolvedValue(undefined),
+    changeSessionModel: jest.fn<any>(),
   };
-  const websocket = {
-    sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+  const modelChanges = {
+    requestChannelModelChange: jest.fn<any>().mockResolvedValue({
+      state: 'pending',
+      attemptId: 'attempt-1',
+    }),
+  };
+  const response = {
+    status: jest.fn<any>().mockReturnThis(),
   };
   return {
     channels,
     clawHive,
-    websocket,
+    modelChanges,
+    response,
     controller: new ChannelModelController(
       channels as never,
       clawHive as never,
-      websocket as never,
       {} as never,
-      new ModelPolicyService(),
+      modelChanges as never,
     ),
   };
 }
 
-describe('ChannelModelController policy', () => {
+describe('ChannelModelController durable mutation flow', () => {
   it('uses the read-only resolver for model reads', async () => {
     const { controller, channels } = setup();
 
@@ -66,62 +73,96 @@ describe('ChannelModelController policy', () => {
       override: null,
     });
     expect(channels.resolveModelTarget).toHaveBeenCalled();
-    expect(channels.resolveModelSwitchTarget).not.toHaveBeenCalled();
   });
 
-  it('rejects fixed bots before Hive dispatch or websocket success', async () => {
-    const { controller, channels, clawHive, websocket } = setup();
-    channels.resolveModelSwitchTarget.mockRejectedValueOnce(
-      new ModelSwitchNotAllowedException(),
-    );
+  it('returns 202 for a durable pending attempt without direct Hive or websocket fanout', async () => {
+    const { controller, response, modelChanges, clawHive } = setup();
 
     await expect(
-      controller.updateModel('user-1', 'channel-1', {
-        model: allowedModel,
-      }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'model_switch_not_allowed' }),
+      controller.updateModel(
+        'user-1',
+        'channel-1',
+        { model: allowedModel },
+        'request-1',
+        response as never,
+      ),
+    ).resolves.toEqual({
+      attemptId: 'attempt-1',
+      idempotencyKey: 'request-1',
+      statusUrl: '/api/v1/model-changes/attempt-1',
+    });
+    expect(response.status).toHaveBeenCalledWith(202);
+    expect(modelChanges.requestChannelModelChange).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      channelId: 'channel-1',
+      idempotencyKey: 'request-1',
+      model: allowedModel,
     });
     expect(clawHive.changeSessionModel).not.toHaveBeenCalled();
-    expect(websocket.sendToChannelMembers).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 only after processor-confirmed dispatch', async () => {
+    const { controller, response, modelChanges, clawHive } = setup();
+    modelChanges.requestChannelModelChange.mockResolvedValueOnce({
+      state: 'dispatched',
+      attemptId: 'attempt-1',
+      model: allowedModel,
+    });
+
+    await expect(
+      controller.updateModel(
+        'user-1',
+        'channel-1',
+        { model: allowedModel },
+        'request-1',
+        response as never,
+      ),
+    ).resolves.toMatchObject({
+      channelId: 'channel-1',
+      model: allowedModel,
+      attemptId: 'attempt-1',
+    });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(clawHive.changeSessionModel).not.toHaveBeenCalled();
   });
 
   it.each([
-    { provider: 'custom', id: 'gpt-4' },
-    { provider: 'anthropic', id: 'claude-3-opus' },
-    { provider: 'http://evil.com', id: 'test' },
-  ])('rejects unsupported pair %# before Hive dispatch', async (model) => {
-    const { controller, clawHive, websocket } = setup();
+    new ModelSwitchNotAllowedException(),
+    new UnsupportedModelException(),
+  ])(
+    'does not bypass command rejection with direct dispatch',
+    async (error) => {
+      const { controller, response, modelChanges, clawHive } = setup();
+      modelChanges.requestChannelModelChange.mockRejectedValueOnce(error);
 
-    await expect(
-      controller.updateModel('user-1', 'channel-1', { model }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'unsupported_model' }),
-    });
-    expect(clawHive.changeSessionModel).not.toHaveBeenCalled();
-    expect(websocket.sendToChannelMembers).not.toHaveBeenCalled();
-  });
+      await expect(
+        controller.updateModel(
+          'user-1',
+          'channel-1',
+          { model: allowedModel },
+          'request-1',
+          response as never,
+        ),
+      ).rejects.toBe(error);
+      expect(clawHive.changeSessionModel).not.toHaveBeenCalled();
+    },
+  );
 
-  it('dispatches and emits only the approved catalog pair', async () => {
-    const { controller, clawHive, websocket } = setup();
+  it('generates and returns a bounded fallback idempotency key', async () => {
+    const { controller, response, modelChanges } = setup();
 
-    await expect(
-      controller.updateModel('user-1', 'channel-1', {
-        model: {
-          provider: ' openrouter ',
-          id: ' anthropic/claude-sonnet-4.6 ',
-        },
-      }),
-    ).resolves.toMatchObject({ model: allowedModel });
-    expect(clawHive.changeSessionModel).toHaveBeenCalledWith(
-      'session-1',
-      allowedModel,
-      'tenant-1',
-    );
-    expect(websocket.sendToChannelMembers).toHaveBeenCalledWith(
+    const result = await controller.updateModel(
+      'user-1',
       'channel-1',
-      expect.any(String),
-      expect.objectContaining({ model: allowedModel }),
+      { model: allowedModel },
+      undefined,
+      response as never,
+    );
+
+    expect(result.idempotencyKey).toEqual(expect.any(String));
+    expect(result.idempotencyKey.length).toBeLessThanOrEqual(128);
+    expect(modelChanges.requestChannelModelChange).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: result.idempotencyKey }),
     );
   });
 });

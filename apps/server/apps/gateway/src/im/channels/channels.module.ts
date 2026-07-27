@@ -7,6 +7,13 @@ import { WebsocketModule } from '../websocket/websocket.module.js';
 import { PropertiesModule } from '../properties/properties.module.js';
 import { ViewsModule } from '../views/views.module.js';
 import { ClawHiveModule } from '@team9/claw-hive';
+import { ModelChangeCommandService } from '../../model-policy/model-change-command.service.js';
+import {
+  ModelChangeOutboxProcessor,
+  ModelChangeOutboxStore,
+  PostgresModelChangeOutboxStore,
+} from '../../model-policy/model-change-outbox.processor.js';
+import { ModelChangeAttemptController } from '../../model-policy/model-change-attempt.controller.js';
 
 @Module({
   imports: [
@@ -16,8 +23,20 @@ import { ClawHiveModule } from '@team9/claw-hive';
     forwardRef(() => ViewsModule),
     ClawHiveModule,
   ],
-  controllers: [ChannelsController, ChannelModelController],
-  providers: [ChannelsService],
-  exports: [ChannelsService],
+  controllers: [
+    ChannelsController,
+    ChannelModelController,
+    ModelChangeAttemptController,
+  ],
+  providers: [
+    ChannelsService,
+    ModelChangeCommandService,
+    ModelChangeOutboxProcessor,
+    {
+      provide: ModelChangeOutboxStore,
+      useClass: PostgresModelChangeOutboxStore,
+    },
+  ],
+  exports: [ChannelsService, ModelChangeCommandService],
 })
 export class ChannelsModule {}
