@@ -250,6 +250,7 @@ export interface ChannelUnarchivedEvent {
 
 /** Channel session model changed event */
 export interface ChannelModelChangedEvent {
+  attemptId: string;
   channelId: string;
   botId: string;
   model: { provider: string; id: string };

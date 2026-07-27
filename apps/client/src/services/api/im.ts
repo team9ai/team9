@@ -38,6 +38,35 @@ import { normalizeMessage, normalizeMessages } from "./normalize-reactions";
 
 export const CHANNEL_DETAIL_TIMEOUT_MS = 8_000;
 
+export interface PendingModelChangeResult {
+  state: "pending";
+  attemptId: string;
+  idempotencyKey: string;
+  statusUrl: string;
+}
+
+export interface DispatchedModelChangeResult {
+  state: "dispatched";
+  attemptId: string;
+  idempotencyKey: string;
+  statusUrl: string;
+  model: { provider: string; id: string };
+}
+
+export type ModelChangeMutationResult =
+  | PendingModelChangeResult
+  | DispatchedModelChangeResult;
+
+export interface ModelChangeAttempt {
+  attemptId: string;
+  state: "pending" | "dispatched" | "failed" | "rejected";
+  reasonCode?: string;
+  safeErrorCode?: string;
+  createdAt: string;
+  updatedAt: string;
+  dispatchedAt: string | null;
+}
+
 function buildClientContext(): ClientContext {
   if (!isTauriApp()) return { kind: "web" };
   const userId = useAppStore.getState().user?.id;
@@ -248,18 +277,78 @@ export const channelsApi = {
   updateChannelModel: async (
     channelId: string,
     model: { provider: string; id: string },
-  ): Promise<{
-    channelId: string;
-    model: { provider: string; id: string };
-    source: "agent_default" | "session_initial" | "dynamic";
-    override: { provider: string; id: string } | null;
-  }> => {
+    idempotencyKey?: string,
+  ): Promise<ModelChangeMutationResult> => {
     const response = await http.patch<{
-      channelId: string;
+      attemptId: string;
+      idempotencyKey: string;
+      statusUrl: string;
+      model?: { provider: string; id: string };
+    }>(
+      `/v1/im/channels/${channelId}/model`,
+      { model },
+      idempotencyKey
+        ? { headers: { "Idempotency-Key": idempotencyKey } }
+        : undefined,
+    );
+    return response.status === 202
+      ? { state: "pending", ...response.data }
+      : {
+          state: "dispatched",
+          ...response.data,
+          model: response.data.model ?? model,
+        };
+  },
+};
+
+export const imBotsApi = {
+  getModel: async (
+    botId: string,
+  ): Promise<{
+    botId: string;
+    agentId: string;
+    model: { provider: string; id: string };
+  }> => {
+    const response = await http.get<{
+      botId: string;
+      agentId: string;
       model: { provider: string; id: string };
-      source: "agent_default" | "session_initial" | "dynamic";
-      override: { provider: string; id: string } | null;
-    }>(`/v1/im/channels/${channelId}/model`, { model });
+    }>(`/v1/im/bots/${botId}/model`);
+    return response.data;
+  },
+
+  updateModel: async (
+    botId: string,
+    model: { provider: string; id: string },
+    idempotencyKey?: string,
+  ): Promise<ModelChangeMutationResult> => {
+    const response = await http.patch<{
+      attemptId: string;
+      idempotencyKey: string;
+      statusUrl: string;
+      model?: { provider: string; id: string };
+    }>(
+      `/v1/im/bots/${botId}/model`,
+      { model },
+      idempotencyKey
+        ? { headers: { "Idempotency-Key": idempotencyKey } }
+        : undefined,
+    );
+    return response.status === 202
+      ? { state: "pending", ...response.data }
+      : {
+          state: "dispatched",
+          ...response.data,
+          model: response.data.model ?? model,
+        };
+  },
+};
+
+export const modelChangesApi = {
+  getAttempt: async (attemptId: string): Promise<ModelChangeAttempt> => {
+    const response = await http.get<ModelChangeAttempt>(
+      `/v1/model-changes/${encodeURIComponent(attemptId)}`,
+    );
     return response.data;
   },
 };
@@ -777,6 +866,8 @@ export const syncApi = {
 // Combined IM API export
 export const imApi = {
   channels: channelsApi,
+  bots: imBotsApi,
+  modelChanges: modelChangesApi,
   messages: messagesApi,
   users: imUsersApi,
   sync: syncApi,

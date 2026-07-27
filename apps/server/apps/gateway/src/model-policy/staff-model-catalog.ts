@@ -64,6 +64,23 @@ export const STAFF_MODEL_CATALOG = [
   entry('moonshotai/kimi-k2.6', 'Kimi K2.6', 'other'),
 ] as const satisfies readonly StaffModelCatalogEntry[];
 
+export function getDefaultStaffModel(
+  capability: DynamicModelCapability,
+): StaffModelCatalogEntry {
+  const model = STAFF_MODEL_CATALOG.find(
+    (entry) =>
+      entry.enabled &&
+      entry.default === true &&
+      entry.capabilities.includes(capability),
+  );
+  if (!model) {
+    throw new Error(
+      `Staff model catalog has no enabled default for ${capability}`,
+    );
+  }
+  return model;
+}
+
 export function validateStaffModelCatalog(
   catalog: readonly StaffModelCatalogEntry[],
 ): void {

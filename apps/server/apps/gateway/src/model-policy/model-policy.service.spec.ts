@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
 import {
+  getDefaultStaffModel,
   STAFF_MODEL_CATALOG,
   validateStaffModelCatalog,
 } from './staff-model-catalog.js';
@@ -16,6 +17,14 @@ function errorCode(error: unknown): string | undefined {
 
 describe('ModelPolicyService', () => {
   const service = new ModelPolicyService();
+
+  it('resolves provisioning defaults from the validated server catalog', () => {
+    expect(getDefaultStaffModel('staff')).toMatchObject({
+      provider: 'openrouter',
+      default: true,
+      capabilities: ['staff'],
+    });
+  });
 
   it.each(STAFF_MODEL_CATALOG)(
     'accepts the exact $provider/$id staff catalog pair',

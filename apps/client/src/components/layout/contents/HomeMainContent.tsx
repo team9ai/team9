@@ -68,11 +68,11 @@ import {
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import {
-  COMMON_STAFF_MODELS,
-  DEFAULT_STAFF_MODEL,
   formatStaffModelDisplayLabel,
+  type StaffModel,
   type StaffModelFamily,
 } from "@/lib/common-staff-models";
+import { useStaffModelCatalog } from "@/hooks/useStaffModelCatalog";
 import {
   DEFAULT_DEEP_RESEARCH_CONFIG,
   buildDeepResearchRequestMetadata,
@@ -143,11 +143,13 @@ function getAgentModelLabel(
   agent: DashboardAgent | null,
   model: DashboardAgentModel | null,
   fallbackLabel: string,
+  models: StaffModel[],
+  defaultModel: StaffModel | null,
 ) {
   if (!agent) return fallbackLabel;
 
   if (model) {
-    const matchedModel = COMMON_STAFF_MODELS.find(
+    const matchedModel = models.find(
       (candidate) =>
         candidate.provider === model.provider && candidate.id === model.id,
     );
@@ -156,7 +158,7 @@ function getAgentModelLabel(
   }
 
   if (agent.canSwitchModel && agent.agentModelFamily === null) {
-    return DEFAULT_STAFF_MODEL.label;
+    return defaultModel?.label ?? fallbackLabel;
   }
 
   const productKey =
@@ -172,7 +174,7 @@ function getAgentModelLabel(
   }
 
   if (agent.canSwitchModel) {
-    return DEFAULT_STAFF_MODEL.label;
+    return defaultModel?.label ?? fallbackLabel;
   }
 
   return fallbackLabel;
@@ -189,7 +191,14 @@ function DashboardModelControl({
   fallbackLabel: string;
   onSelectModel: (model: DashboardAgentModel) => void;
 }) {
-  const currentLabel = getAgentModelLabel(agent, model, fallbackLabel);
+  const modelCatalog = useStaffModelCatalog();
+  const currentLabel = getAgentModelLabel(
+    agent,
+    model,
+    fallbackLabel,
+    modelCatalog.models,
+    modelCatalog.defaultModel,
+  );
   const displayCurrentLabel = formatStaffModelDisplayLabel(currentLabel);
   const currentModelLogoIdentity = model
     ? { ...model, label: currentLabel }
@@ -198,10 +207,10 @@ function DashboardModelControl({
   const agentModelFamily: StaffModelFamily | null =
     agent?.agentModelFamily ?? null;
   const availableModels = agentModelFamily
-    ? COMMON_STAFF_MODELS.filter((m) => m.family === agentModelFamily)
-    : COMMON_STAFF_MODELS;
+    ? modelCatalog.models.filter((m) => m.family === agentModelFamily)
+    : modelCatalog.models;
 
-  if (!agent?.canSwitchModel) {
+  if (!agent?.canSwitchModel || !modelCatalog.canMutate) {
     return (
       <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] dark:border-white/10 dark:bg-white/[0.08] dark:text-[#d8d0c5]">
         <StaffModelProviderLogo

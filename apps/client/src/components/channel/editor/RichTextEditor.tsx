@@ -23,10 +23,7 @@ import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { ArrowUp, ChevronDown, Loader2 } from "lucide-react";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
-import {
-  COMMON_STAFF_MODELS,
-  formatStaffModelDisplayLabel,
-} from "@/lib/common-staff-models";
+import { formatStaffModelDisplayLabel } from "@/lib/common-staff-models";
 import { StaffModelProviderLogo } from "@/components/ai-staff/StaffModelProviderLogo";
 import {
   DropdownMenu,
@@ -578,25 +575,29 @@ export function RichTextEditor({
                         onValueChange={(value) => {
                           const [provider, id] = value.split("::");
                           if (!provider || !id) return;
-                          void botModelSwitch.updateModel({ provider, id });
+                          void botModelSwitch
+                            .updateModel({ provider, id })
+                            .catch(() => undefined);
                         }}
                       >
-                        {COMMON_STAFF_MODELS.filter((model) =>
-                          botModelSwitch.agentModelFamily
-                            ? model.family === botModelSwitch.agentModelFamily
-                            : true,
-                        ).map((model) => (
-                          <DropdownMenuRadioItem
-                            key={`${model.provider}::${model.id}`}
-                            value={`${model.provider}::${model.id}`}
-                            className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
-                          >
-                            <StaffModelProviderLogo model={model} />
-                            <span className="inline-flex max-w-[calc(100vw-4rem)] items-center truncate">
-                              {formatStaffModelDisplayLabel(model.label)}
-                            </span>
-                          </DropdownMenuRadioItem>
-                        ))}
+                        {botModelSwitch.models
+                          .filter((model) =>
+                            botModelSwitch.agentModelFamily
+                              ? model.family === botModelSwitch.agentModelFamily
+                              : true,
+                          )
+                          .map((model) => (
+                            <DropdownMenuRadioItem
+                              key={`${model.provider}::${model.id}`}
+                              value={`${model.provider}::${model.id}`}
+                              className="!cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-[0.82rem] font-medium leading-none text-[#30343b] transition-colors data-[highlighted]:bg-[#f7f3ee] data-[highlighted]:text-[#30343b] data-[state=checked]:bg-[#f3ece4] data-[state=checked]:text-[#7b5e47] [&>span:first-child]:hidden"
+                            >
+                              <StaffModelProviderLogo model={model} />
+                              <span className="inline-flex max-w-[calc(100vw-4rem)] items-center truncate">
+                                {formatStaffModelDisplayLabel(model.label)}
+                              </span>
+                            </DropdownMenuRadioItem>
+                          ))}
                       </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>

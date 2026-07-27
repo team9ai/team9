@@ -38,11 +38,8 @@ import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
-import {
-  COMMON_STAFF_MODELS,
-  DEFAULT_STAFF_MODEL,
-  type StaffModel,
-} from "@/lib/common-staff-models";
+import type { StaffModel } from "@/lib/common-staff-models";
+import { useStaffModelCatalog } from "@/hooks/useStaffModelCatalog";
 import { useTranslation } from "react-i18next";
 import { StaffBadgeCard, StaffBadgeCardSkeleton } from "./StaffBadgeCard";
 
@@ -75,6 +72,7 @@ export function CreateCommonStaffDialog({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createDirectChannel = useCreateDirectChannel();
+  const modelCatalog = useStaffModelCatalog();
 
   // Whether to show agent type selection
   const hasCommonStaff = !!appId;
@@ -169,7 +167,8 @@ export function CreateCommonStaffDialog({
   const [roleTitle, setRoleTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [mentorId, setMentorId] = useState("");
-  const [model, setModel] = useState<StaffModel>(DEFAULT_STAFF_MODEL);
+  const [model, setModel] = useState<StaffModel | null>(null);
+  const selectedModel = model ?? modelCatalog.defaultModel;
   const [persona, setPersona] = useState("");
   const [personaPrompt, setPersonaPrompt] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -218,6 +217,20 @@ export function CreateCommonStaffDialog({
     if (open && currentUser?.id) setMentorId(currentUser.id);
   }, [open, currentUser?.id]);
 
+  useEffect(() => {
+    if (!open || !modelCatalog.defaultModel) return;
+    setModel((current) =>
+      current &&
+      modelCatalog.models.some(
+        (candidate) =>
+          candidate.provider === current.provider &&
+          candidate.id === current.id,
+      )
+        ? current
+        : modelCatalog.defaultModel,
+    );
+  }, [open, modelCatalog.defaultModel, modelCatalog.models]);
+
   // Reset form on close
   const resetForm = useCallback(() => {
     setAgentType(hasCommonStaff ? "common-staff" : "openclaw");
@@ -227,7 +240,7 @@ export function CreateCommonStaffDialog({
     setRoleTitle("");
     setJobDescription("");
     setMentorId("");
-    setModel(DEFAULT_STAFF_MODEL);
+    setModel(null);
     setPersona("");
     setPersonaPrompt("");
     setAvatarUrl(null);
@@ -305,16 +318,18 @@ export function CreateCommonStaffDialog({
 
   // Submit mutation
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.applications.createCommonStaff(appId!, {
+    mutationFn: () => {
+      if (!selectedModel) throw new Error("Model catalog is unavailable");
+      return api.applications.createCommonStaff(appId!, {
         displayName,
         roleTitle: roleTitle || undefined,
         mentorId: mentorId || undefined,
         persona: persona || undefined,
         jobDescription: jobDescription || undefined,
-        model: { provider: model.provider, id: model.id },
+        model: { provider: selectedModel.provider, id: selectedModel.id },
         avatarUrl: avatarUrl || undefined,
-      }),
+      });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
@@ -334,12 +349,14 @@ export function CreateCommonStaffDialog({
 
   // Agentic submit mutation
   const agenticMutation = useMutation({
-    mutationFn: () =>
-      api.applications.createCommonStaff(appId!, {
+    mutationFn: () => {
+      if (!selectedModel) throw new Error("Model catalog is unavailable");
+      return api.applications.createCommonStaff(appId!, {
         mentorId: mentorId || undefined,
-        model: { provider: model.provider, id: model.id },
+        model: { provider: selectedModel.provider, id: selectedModel.id },
         agenticBootstrap: true,
-      }),
+      });
+    },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
@@ -437,6 +454,7 @@ export function CreateCommonStaffDialog({
       );
       if (!candidate)
         throw new Error(t("createStaff.errorNoCandidateSelected"));
+      if (!selectedModel) throw new Error("Model catalog is unavailable");
       const edited =
         selectedCandidate != null
           ? editedCandidates[selectedCandidate]
@@ -446,7 +464,7 @@ export function CreateCommonStaffDialog({
         roleTitle: edited?.roleTitle ?? candidate.roleTitle,
         persona: edited?.persona ?? candidate.persona,
         mentorId: mentorId || undefined,
-        model: { provider: model.provider, id: model.id },
+        model: { provider: selectedModel.provider, id: selectedModel.id },
       });
     },
     onSuccess: (data) => {
@@ -712,9 +730,10 @@ export function CreateCommonStaffDialog({
             {t("createStaff.modelLabel")}
           </label>
           <Select
-            value={model.id}
+            value={selectedModel?.id ?? ""}
+            disabled={!modelCatalog.canMutate}
             onValueChange={(id) => {
-              const found = COMMON_STAFF_MODELS.find((m) => m.id === id);
+              const found = modelCatalog.models.find((m) => m.id === id);
               if (found) setModel(found);
             }}
           >
@@ -722,7 +741,7 @@ export function CreateCommonStaffDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {COMMON_STAFF_MODELS.map((m) => (
+              {modelCatalog.models.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.label}
                 </SelectItem>
@@ -873,7 +892,7 @@ export function CreateCommonStaffDialog({
             undefined
           }
           persona={persona}
-          modelLabel={model.label}
+          modelLabel={selectedModel?.label ?? ""}
         />
       </div>
     </div>
@@ -887,9 +906,10 @@ export function CreateCommonStaffDialog({
           {t("createStaff.modelLabel")}
         </label>
         <Select
-          value={model.id}
+          value={selectedModel?.id ?? ""}
+          disabled={!modelCatalog.canMutate}
           onValueChange={(id) => {
-            const found = COMMON_STAFF_MODELS.find((m) => m.id === id);
+            const found = modelCatalog.models.find((m) => m.id === id);
             if (found) setModel(found);
           }}
         >
@@ -897,7 +917,7 @@ export function CreateCommonStaffDialog({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {COMMON_STAFF_MODELS.map((m) => (
+            {modelCatalog.models.map((m) => (
               <SelectItem key={m.id} value={m.id}>
                 {m.label}
               </SelectItem>
@@ -1015,7 +1035,7 @@ export function CreateCommonStaffDialog({
                 undefined
               }
               persona={edited?.persona ?? selC.persona}
-              modelLabel={model.label}
+              modelLabel={selectedModel?.label ?? ""}
             />
           </div>
         )}
@@ -1042,9 +1062,10 @@ export function CreateCommonStaffDialog({
               {t("createStaff.modelLabel")}
             </label>
             <Select
-              value={model.id}
+              value={selectedModel?.id ?? ""}
+              disabled={!modelCatalog.canMutate}
               onValueChange={(id) => {
-                const found = COMMON_STAFF_MODELS.find((m) => m.id === id);
+                const found = modelCatalog.models.find((m) => m.id === id);
                 if (found) setModel(found);
               }}
             >
@@ -1052,7 +1073,7 @@ export function CreateCommonStaffDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {COMMON_STAFF_MODELS.map((m) => (
+                {modelCatalog.models.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.label}
                   </SelectItem>
@@ -1178,7 +1199,9 @@ export function CreateCommonStaffDialog({
               mode === "agentic" ? (
                 <Button
                   onClick={() => agenticMutation.mutate()}
-                  disabled={agenticMutation.isPending}
+                  disabled={
+                    agenticMutation.isPending || !modelCatalog.canMutate
+                  }
                 >
                   {agenticMutation.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -1188,7 +1211,11 @@ export function CreateCommonStaffDialog({
               ) : mode === "recruitment" ? (
                 <Button
                   onClick={() => recruitmentMutation.mutate()}
-                  disabled={!canSubmit || recruitmentMutation.isPending}
+                  disabled={
+                    !canSubmit ||
+                    recruitmentMutation.isPending ||
+                    !modelCatalog.canMutate
+                  }
                 >
                   {recruitmentMutation.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -1198,7 +1225,11 @@ export function CreateCommonStaffDialog({
               ) : (
                 <Button
                   onClick={() => createMutation.mutate()}
-                  disabled={!canSubmit || createMutation.isPending}
+                  disabled={
+                    !canSubmit ||
+                    createMutation.isPending ||
+                    !modelCatalog.canMutate
+                  }
                 >
                   {createMutation.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />

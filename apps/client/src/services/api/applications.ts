@@ -158,6 +158,25 @@ export interface UpdateCommonStaffDto {
   dmOutboundPolicy?: DmOutboundPolicy;
 }
 
+export interface StaffModelCatalogEntry {
+  provider: string;
+  id: string;
+  displayKey: string;
+  label: string;
+  family: "anthropic" | "openai" | "google" | "other";
+  enabled: boolean;
+  capabilities: ["staff"];
+  minimumResolverCapabilityVersion: string;
+  default?: boolean;
+}
+
+export interface StaffModelCatalogResponse {
+  catalogVersion: string;
+  runtimeReady: boolean;
+  models: StaffModelCatalogEntry[];
+  etag?: string;
+}
+
 // Common Staff types
 export interface CommonStaffBotInfo {
   botId: string;
@@ -258,6 +277,15 @@ export interface OpenClawDeviceInfo {
 }
 
 export const applicationsApi = {
+  getStaffModelCatalog: async (): Promise<StaffModelCatalogResponse> => {
+    const response =
+      await http.get<Omit<StaffModelCatalogResponse, "etag">>(
+        "/v1/models/staff",
+      );
+    const etag = response.headers.get("etag") ?? undefined;
+    return { ...response.data, ...(etag ? { etag } : {}) };
+  },
+
   // Get all available applications
   getApplications: async (): Promise<Application[]> => {
     const response = await http.get<Application[]>("/v1/applications");
