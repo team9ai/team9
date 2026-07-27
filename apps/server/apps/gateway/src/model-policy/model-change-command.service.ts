@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import {
   DATABASE_CONNECTION,
@@ -6,6 +6,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { appMetrics } from '@team9/observability';
 import { v7 as uuidv7 } from 'uuid';
 import type { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
@@ -72,6 +73,43 @@ function exceptionCode(error: unknown): string {
     : 'model_policy_internal_error';
 }
 
+function applicationMetricBucket(
+  value: string | null | undefined,
+): 'common-staff' | 'personal-staff' | 'base-model' | 'other' {
+  if (value === 'common-staff' || value === 'personal-staff') return value;
+  return value?.startsWith('base-model-') ? 'base-model' : 'other';
+}
+
+function providerMetricBucket(value: string): 'openrouter' | 'other' {
+  return value === 'openrouter' ? 'openrouter' : 'other';
+}
+
+const METRIC_REASON_CODES = new Set([
+  'accepted',
+  'model_switch_not_allowed',
+  'unsupported_model',
+  'model_manage_forbidden',
+  'model_policy_target_invalid',
+  'idempotency_conflict',
+  'model_policy_internal_error',
+]);
+
+function reasonMetricBucket(value: string): string {
+  return METRIC_REASON_CODES.has(value) ? value : 'other';
+}
+
+function recordMetric(action: () => void): void {
+  try {
+    action();
+  } catch {
+    // A telemetry backend failure must not alter a durable command outcome.
+  }
+}
+
+function correlationLogValue(value: string | undefined): string {
+  return value ? boundedAuditValue(value, 128) : 'none';
+}
+
 function stateFromExisting(
   existing: ExistingAttempt,
 ): ModelChangeRequestResult {
@@ -100,6 +138,8 @@ function stateFromExisting(
 
 @Injectable()
 export class ModelChangeCommandService {
+  private readonly logger = new Logger(ModelChangeCommandService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
@@ -355,6 +395,19 @@ export class ModelChangeCommandService {
           status: 'pending',
         });
       });
+      recordMetric(() => {
+        appMetrics.modelChangeDecisionsTotal.add(1, {
+          decision: 'accepted',
+          reason: 'accepted',
+          application: applicationMetricBucket(input.target.applicationId),
+          provider: providerMetricBucket(input.approved.provider),
+        });
+      });
+      this.logger.debug(
+        `model-change accepted attemptId=${attemptId} correlationId=${correlationLogValue(
+          input.request.correlationId,
+        )}`,
+      );
     } catch {
       try {
         const existing = await this.findExisting(input.request.idempotencyKey);
@@ -375,6 +428,16 @@ export class ModelChangeCommandService {
           throw error;
         }
       }
+      recordMetric(() => {
+        appMetrics.modelChangeAuditFailuresTotal.add(1, {
+          decision: 'accepted',
+        });
+      });
+      this.logger.error(
+        `model-change audit unavailable correlationId=${correlationLogValue(
+          input.request.correlationId,
+        )} decision=accepted`,
+      );
       throw new ModelChangeAuditUnavailableException();
     }
     return { state: 'pending', attemptId };
@@ -393,9 +456,10 @@ export class ModelChangeCommandService {
     capability?: string;
     reasonCode: string;
   }): Promise<void> {
+    const attemptId = uuidv7();
     try {
       await this.db.insert(schema.modelChangeAttempts).values({
-        id: uuidv7(),
+        id: attemptId,
         idempotencyKey: input.request.idempotencyKey.slice(0, 128),
         actorUserId: input.request.actorUserId,
         authSessionId: input.request.authSessionId?.slice(0, 128),
@@ -414,6 +478,19 @@ export class ModelChangeCommandService {
         reasonCode: input.reasonCode,
         dispatchStatus: 'not_applicable',
       });
+      recordMetric(() => {
+        appMetrics.modelChangeDecisionsTotal.add(1, {
+          decision: 'rejected',
+          reason: reasonMetricBucket(input.reasonCode),
+          application: applicationMetricBucket(input.applicationId),
+          provider: providerMetricBucket(input.normalized.provider),
+        });
+      });
+      this.logger.debug(
+        `model-change rejected attemptId=${attemptId} correlationId=${correlationLogValue(
+          input.request.correlationId,
+        )} reasonCode=${input.reasonCode}`,
+      );
     } catch {
       try {
         const existing = await this.findExisting(input.request.idempotencyKey);
@@ -436,6 +513,16 @@ export class ModelChangeCommandService {
           throw error;
         }
       }
+      recordMetric(() => {
+        appMetrics.modelChangeAuditFailuresTotal.add(1, {
+          decision: 'rejected',
+        });
+      });
+      this.logger.error(
+        `model-change audit unavailable correlationId=${correlationLogValue(
+          input.request.correlationId,
+        )} decision=rejected reasonCode=${input.reasonCode}`,
+      );
       throw new ModelChangeAuditUnavailableException();
     }
   }

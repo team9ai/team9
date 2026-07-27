@@ -16,6 +16,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import { v7 as uuidv7 } from 'uuid';
 import type { BotService } from '../bot/bot.service.js';
 import { BOT_SERVICE_TOKEN } from '../im/channels/channels.service.js';
@@ -46,6 +47,8 @@ export interface ModelChangeOutboxWorkItem {
   sessionId: string | null;
   requestedProvider: string;
   requestedModelId: string;
+  correlationId: string | null;
+  createdAt: Date;
 }
 
 export interface ModelChangePublicationWorkItem extends Omit<
@@ -156,7 +159,9 @@ export class PostgresModelChangeOutboxStore extends ModelChangeOutboxStore {
         a.application_id AS "applicationId",
         a.session_id AS "sessionId",
         a.requested_provider AS "requestedProvider",
-        a.requested_model_id AS "requestedModelId"
+        a.requested_model_id AS "requestedModelId",
+        a.correlation_id AS "correlationId",
+        a.created_at AS "createdAt"
     `);
     const claimed = Array.from(
       rows as unknown as Iterable<ModelChangeOutboxWorkItem>,
@@ -218,7 +223,9 @@ export class PostgresModelChangeOutboxStore extends ModelChangeOutboxStore {
         a.application_id AS "applicationId",
         a.session_id AS "sessionId",
         a.requested_provider AS "requestedProvider",
-        a.requested_model_id AS "requestedModelId"
+        a.requested_model_id AS "requestedModelId",
+        a.correlation_id AS "correlationId",
+        a.created_at AS "createdAt"
     `);
     const [claimed] = Array.from(
       rows as unknown as Iterable<ModelChangeOutboxWorkItem>,
@@ -389,7 +396,9 @@ export class PostgresModelChangeOutboxStore extends ModelChangeOutboxStore {
         a.application_id AS "applicationId",
         a.session_id AS "sessionId",
         a.requested_provider AS "requestedProvider",
-        a.requested_model_id AS "requestedModelId"
+        a.requested_model_id AS "requestedModelId",
+        a.correlation_id AS "correlationId",
+        a.created_at AS "createdAt"
     `);
     return Array.from(
       rows as unknown as Iterable<ModelChangePublicationWorkItem>,
@@ -486,6 +495,68 @@ function classifyDispatchError(error: unknown): ClassifiedDispatchError {
 function retryAt(now: Date, retryCount: number): Date {
   const delay = Math.min(1_000 * 2 ** retryCount, MAX_BACKOFF_MS);
   return new Date(now.getTime() + delay);
+}
+
+function applicationMetricBucket(
+  value: string | null,
+): 'common-staff' | 'personal-staff' | 'base-model' | 'other' {
+  if (value === 'common-staff' || value === 'personal-staff') return value;
+  return value?.startsWith('base-model-') ? 'base-model' : 'other';
+}
+
+function providerMetricBucket(value: string): 'openrouter' | 'other' {
+  return value === 'openrouter' ? 'openrouter' : 'other';
+}
+
+function dispatchErrorMetricBucket(value: string): string {
+  if (
+    [
+      'hive_protocol_error',
+      'hive_timeout',
+      'hive_unavailable',
+      'model_change_target_invalid',
+      'model_change_target_agent_missing',
+      'websocket_unavailable',
+    ].includes(value) ||
+    /^hive_http_\d{3}$/.test(value)
+  ) {
+    return value;
+  }
+  return 'other';
+}
+
+function recordMetric(action: () => void): void {
+  try {
+    action();
+  } catch {
+    // Dispatch state must not depend on telemetry availability.
+  }
+}
+
+function recordRetryAge(
+  item: Pick<
+    ModelChangeOutboxWorkItem,
+    'createdAt' | 'applicationId' | 'requestedProvider'
+  >,
+  now: Date,
+  stage: 'dispatch' | 'publication',
+): void {
+  const createdAt = new Date(item.createdAt).getTime();
+  const ageMs = Number.isFinite(createdAt)
+    ? Math.max(0, now.getTime() - createdAt)
+    : 0;
+  recordMetric(() => {
+    appMetrics.modelChangeRetryAgeMs.record(ageMs, {
+      stage,
+      application: applicationMetricBucket(item.applicationId),
+      provider: providerMetricBucket(item.requestedProvider),
+    });
+  });
+}
+
+function safeLogId(value: string | null): string {
+  if (!value) return 'none';
+  return value.replace(/[^0-9A-Za-z._:/-]/g, '?').slice(0, 128);
 }
 
 @Injectable()
@@ -596,10 +667,28 @@ export class ModelChangeOutboxProcessor
       const classified = classifyDispatchError(error);
       const exhausted =
         item.retryCount + 1 >= MODEL_CHANGE_MAX_DISPATCH_ATTEMPTS;
+      const terminal = classified.terminal || exhausted;
+      recordMetric(() => {
+        appMetrics.modelChangeDispatchFailuresTotal.add(1, {
+          stage: 'dispatch',
+          safe_error_code: dispatchErrorMetricBucket(classified.safeCode),
+          terminal: String(terminal),
+          application: applicationMetricBucket(item.applicationId),
+          provider: providerMetricBucket(item.requestedProvider),
+        });
+      });
+      this.logger.warn(
+        `model-change dispatch failed attemptId=${safeLogId(
+          item.attemptId,
+        )} correlationId=${safeLogId(
+          item.correlationId,
+        )} safeErrorCode=${classified.safeCode} terminal=${String(terminal)}`,
+      );
       if (classified.terminal || exhausted) {
         await this.store.markFailed(item, classified.safeCode, new Date());
         return 'failed';
       }
+      recordRetryAge(item, now, 'dispatch');
       await this.store.markRetry(
         item,
         classified.safeCode,
@@ -683,6 +772,23 @@ export class ModelChangeOutboxProcessor
       );
       await this.store.markPublished(item, new Date());
     } catch {
+      recordMetric(() => {
+        appMetrics.modelChangeDispatchFailuresTotal.add(1, {
+          stage: 'publication',
+          safe_error_code: 'websocket_unavailable',
+          terminal: 'false',
+          application: applicationMetricBucket(item.applicationId),
+          provider: providerMetricBucket(item.requestedProvider),
+        });
+      });
+      recordRetryAge(item, now, 'publication');
+      this.logger.warn(
+        `model-change publication failed attemptId=${safeLogId(
+          item.attemptId,
+        )} correlationId=${safeLogId(
+          item.correlationId,
+        )} safeErrorCode=websocket_unavailable terminal=false`,
+      );
       await this.store.releasePublication(
         item,
         'websocket_unavailable',

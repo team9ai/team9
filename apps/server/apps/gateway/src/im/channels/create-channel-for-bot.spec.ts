@@ -49,6 +49,8 @@ jest.unstable_mockModule('@team9/database', () => ({
 const { ChannelsService, BOT_SERVICE_TOKEN } =
   await import('./channels.service.js');
 const { DATABASE_CONNECTION } = await import('@team9/database');
+const { ModelPolicyService } =
+  await import('../../model-policy/model-policy.service.js');
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { RedisService } from '@team9/redis';
@@ -143,6 +145,7 @@ describe('ChannelsService.createChannelForBot', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChannelsService,
+        ModelPolicyService,
         { provide: DATABASE_CONNECTION, useValue: db },
         {
           provide: RedisService,

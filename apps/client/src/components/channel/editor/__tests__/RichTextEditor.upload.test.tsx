@@ -10,6 +10,40 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { RichTextEditor } from "../RichTextEditor";
 import type { UploadingFile } from "@/hooks/useFileUpload";
+import type { StaffModel } from "@/lib/common-staff-models";
+
+const serverCatalogModels: StaffModel[] = [
+  {
+    provider: "openrouter",
+    id: "anthropic/claude-opus-4.7",
+    label: "Claude Opus 4.7",
+    family: "anthropic",
+  },
+  {
+    provider: "openrouter",
+    id: "anthropic/claude-sonnet-4.6",
+    label: "Claude Sonnet 4.6",
+    family: "anthropic",
+    default: true,
+  },
+  ...[
+    ["openai/gpt-5.5", "GPT-5.5", "openai"],
+    ["openai/gpt-5.4", "GPT-5.4", "openai"],
+    ["openai/gpt-5.4-mini", "GPT-5.4 Mini", "openai"],
+    ["google/gemini-3.5-flash", "Gemini 3.5 Flash", "google"],
+    ["google/gemini-3.1-pro-preview", "Gemini 3.1 Pro (Preview)", "google"],
+    ["google/gemini-3-flash-preview", "Gemini 3 Flash (Preview)", "google"],
+    ["deepseek/deepseek-v4-pro", "DeepSeek V4 Pro", "other"],
+    ["qwen/qwen3.6-plus", "Qwen 3.6 Plus", "other"],
+    ["z-ai/glm-5.1", "GLM 5.1", "other"],
+    ["moonshotai/kimi-k2.6", "Kimi K2.6", "other"],
+  ].map(([id, label, family]) => ({
+    provider: "openrouter",
+    id,
+    label,
+    family: family as StaffModel["family"],
+  })),
+];
 
 function renderWithQuery(ui: ReactElement) {
   const client = new QueryClient({
@@ -108,6 +142,7 @@ describe("RichTextEditor — upload vs disabled", () => {
             currentModelLabel: "Gemini 3.1 Pro (Preview)",
             currentModel: { provider: "google", id: "gemini-3.1-pro" },
             agentModelFamily: null,
+            models: serverCatalogModels,
             updateModel: vi.fn(),
           } as any
         }

@@ -1,5 +1,6 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ModuleRef } from '@nestjs/core';
+import { appMetrics } from '@team9/observability';
 import {
   ModelChangeOutboxProcessor,
   ModelChangeOutboxStore,
@@ -21,6 +22,8 @@ const baseItem: ModelChangeOutboxWorkItem = {
   sessionId: 'hive/tenant/agent/channel/channel-1',
   requestedProvider: 'openrouter',
   requestedModelId: 'anthropic/claude-sonnet-4.6',
+  correlationId: 'correlation-1',
+  createdAt: new Date('2026-07-16T00:00:00.000Z'),
 };
 
 class MemoryOutboxStore extends ModelChangeOutboxStore {
@@ -151,6 +154,10 @@ function setup(store = new MemoryOutboxStore()) {
 }
 
 describe('ModelChangeOutboxProcessor', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('lets only one of two processors claim and dispatch the same row', async () => {
     const shared = new MemoryOutboxStore();
     const first = setup(shared);
@@ -185,6 +192,34 @@ describe('ModelChangeOutboxProcessor', () => {
       });
     }
     expect(store.dispatchStatus).toBe('dispatched');
+  });
+
+  it('records bounded dispatch failures and retry age', async () => {
+    const failureAdd = jest.fn();
+    const retryRecord = jest.fn();
+    jest
+      .spyOn(appMetrics, 'modelChangeDispatchFailuresTotal', 'get')
+      .mockReturnValue({ add: failureAdd } as never);
+    jest
+      .spyOn(appMetrics, 'modelChangeRetryAgeMs', 'get')
+      .mockReturnValue({ record: retryRecord } as never);
+    const { processor, hive } = setup();
+    hive.changeSessionModel.mockRejectedValueOnce(new Error('ECONNRESET'));
+
+    await processor.processOnce(new Date('2026-07-16T00:01:00.000Z'));
+
+    expect(failureAdd).toHaveBeenCalledWith(1, {
+      stage: 'dispatch',
+      safe_error_code: 'hive_unavailable',
+      terminal: 'false',
+      application: 'common-staff',
+      provider: 'openrouter',
+    });
+    expect(retryRecord).toHaveBeenCalledWith(60_000, {
+      stage: 'dispatch',
+      application: 'common-staff',
+      provider: 'openrouter',
+    });
   });
 
   it('recovers an expired claim after a process crashes before Hive', async () => {

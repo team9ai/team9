@@ -1,5 +1,6 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { HttpException } from '@nestjs/common';
+import { appMetrics } from '@team9/observability';
 import {
   getDefaultStaffModel,
   STAFF_MODEL_CATALOG,
@@ -17,6 +18,10 @@ function errorCode(error: unknown): string | undefined {
 
 describe('ModelPolicyService', () => {
   const service = new ModelPolicyService();
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   it('resolves provisioning defaults from the validated server catalog', () => {
     expect(getDefaultStaffModel('staff')).toMatchObject({
@@ -88,6 +93,35 @@ describe('ModelPolicyService', () => {
       }
     },
   );
+
+  it('emits bounded fixed-bot and unsupported-pair counters', () => {
+    const fixedAdd = jest.fn();
+    const unsupportedAdd = jest.fn();
+    jest
+      .spyOn(appMetrics, 'modelChangeFixedBotRejectionsTotal', 'get')
+      .mockReturnValue({ add: fixedAdd } as never);
+    jest
+      .spyOn(appMetrics, 'modelChangeUnsupportedTotal', 'get')
+      .mockReturnValue({ add: unsupportedAdd } as never);
+
+    expect(() =>
+      service.assertDynamicSwitchAllowed('base-model-staff'),
+    ).toThrow();
+    expect(() =>
+      service.assertModelAllowed('staff', {
+        provider: 'attacker-controlled-provider',
+        id: 'unknown/model',
+      }),
+    ).toThrow();
+
+    expect(fixedAdd).toHaveBeenCalledWith(1, {
+      application: 'base-model',
+    });
+    expect(unsupportedAdd).toHaveBeenCalledWith(1, {
+      capability: 'staff',
+      provider: 'other',
+    });
+  });
 
   it('rejects duplicate pairs, multiple defaults, and unsafe entries', () => {
     expect(() =>

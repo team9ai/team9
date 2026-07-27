@@ -21,6 +21,7 @@ const mockCreateTopicSessionMutate = vi.hoisted(() => vi.fn());
 const mockUseCreateTopicSession = vi.hoisted(() => vi.fn());
 const mockCreateTaskRun = vi.hoisted(() => vi.fn());
 const mockUseFileUpload = vi.hoisted(() => vi.fn());
+const mockGetStaffModelCatalog = vi.hoisted(() => vi.fn());
 const mockSetDashboardMode = vi.hoisted(() => vi.fn());
 const mockDashboardModeState = vi.hoisted(() => ({
   value: "conversation" as "conversation" | "task",
@@ -197,6 +198,14 @@ vi.mock("@/services/api/tasks", () => ({
   },
 }));
 
+vi.mock("@/services/api", () => ({
+  api: {
+    applications: {
+      getStaffModelCatalog: mockGetStaffModelCatalog,
+    },
+  },
+}));
+
 import { HomeMainContent } from "../HomeMainContent";
 
 function makeCompletedUpload({
@@ -262,6 +271,62 @@ describe("HomeMainContent", () => {
     window.history.replaceState(null, "", "/tasks/new-conversation");
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
+    mockGetStaffModelCatalog.mockResolvedValue({
+      catalogVersion: "2026-07-16.1",
+      runtimeReady: true,
+      models: [
+        {
+          provider: "openrouter",
+          id: "anthropic/claude-opus-4.7",
+          displayKey: "staff-model.anthropic/claude-opus-4.7",
+          label: "Claude Opus 4.7",
+          family: "anthropic",
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+        },
+        {
+          provider: "openrouter",
+          id: "anthropic/claude-sonnet-4.6",
+          displayKey: "staff-model.anthropic/claude-sonnet-4.6",
+          label: "Claude Sonnet 4.6",
+          family: "anthropic",
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+          default: true,
+        },
+        ...[
+          ["openai/gpt-5.5", "GPT-5.5", "openai"],
+          ["openai/gpt-5.4", "GPT-5.4", "openai"],
+          ["openai/gpt-5.4-mini", "GPT-5.4 Mini", "openai"],
+          ["google/gemini-3.5-flash", "Gemini 3.5 Flash", "google"],
+          [
+            "google/gemini-3.1-pro-preview",
+            "Gemini 3.1 Pro (Preview)",
+            "google",
+          ],
+          [
+            "google/gemini-3-flash-preview",
+            "Gemini 3 Flash (Preview)",
+            "google",
+          ],
+          ["deepseek/deepseek-v4-pro", "DeepSeek V4 Pro", "other"],
+          ["qwen/qwen3.6-plus", "Qwen 3.6 Plus", "other"],
+          ["z-ai/glm-5.1", "GLM 5.1", "other"],
+          ["moonshotai/kimi-k2.6", "Kimi K2.6", "other"],
+        ].map(([id, label, family]) => ({
+          provider: "openrouter",
+          id,
+          displayKey: `staff-model.${id}`,
+          label,
+          family,
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+        })),
+      ],
+    });
     mockUseWorkspaceBillingSummary.mockReturnValue({
       data: {
         subscription: {
@@ -783,7 +848,9 @@ describe("HomeMainContent", () => {
 
     // The composer model trigger shows the family default label
     // (Claude Sonnet 4.6) because no override is selected yet.
-    const trigger = screen.getByRole("button", { name: /claude sonnet 4\.6/i });
+    const trigger = await screen.findByRole("button", {
+      name: /claude sonnet 4\.6/i,
+    });
     fireEvent.pointerDown(trigger);
 
     // Both Anthropic models present.
@@ -806,18 +873,18 @@ describe("HomeMainContent", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the model picker button for switchable agents", () => {
+  it("shows the model picker button for switchable agents", async () => {
     renderWithProviders(<HomeMainContent />);
 
     expect(
-      screen.getByRole("button", { name: /gpt-4.1/i }),
+      await screen.findByRole("button", { name: /gpt-4.1/i }),
     ).toBeInTheDocument();
   });
 
-  it("keeps dashboard composer controls styled for dark mode", () => {
+  it("keeps dashboard composer controls styled for dark mode", async () => {
     renderWithProviders(<HomeMainContent />);
 
-    expect(screen.getByRole("button", { name: /gpt-4.1/i })).toHaveClass(
+    expect(await screen.findByRole("button", { name: /gpt-4.1/i })).toHaveClass(
       "dark:border-white/10",
       "dark:bg-white/[0.08]",
       "dark:text-[#d8d0c5]",
@@ -835,7 +902,9 @@ describe("HomeMainContent", () => {
   it("keeps the dashboard model menu visually minimal", async () => {
     renderWithProviders(<HomeMainContent />);
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: /gpt-4.1/i }));
+    fireEvent.pointerDown(
+      await screen.findByRole("button", { name: /gpt-4.1/i }),
+    );
 
     expect(await screen.findByText("Gemini 3.1 Pro")).toBeInTheDocument();
     expect(screen.getByText("Gemini 3.5 Flash")).toBeInTheDocument();

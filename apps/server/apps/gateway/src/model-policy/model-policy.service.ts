@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { HiveWorkerFleetReadiness } from '@team9/claw-hive';
+import { appMetrics } from '@team9/observability';
 import {
   STAFF_MODEL_CATALOG,
   STAFF_MODEL_CATALOG_VERSION,
@@ -52,6 +53,18 @@ function resolverVersionSatisfies(actual: string, minimum: string): boolean {
   return true;
 }
 
+function providerMetricBucket(value: unknown): 'openrouter' | 'other' {
+  return value === 'openrouter' ? 'openrouter' : 'other';
+}
+
+function recordMetric(action: () => void): void {
+  try {
+    action();
+  } catch {
+    // Observability must never weaken or block policy enforcement.
+  }
+}
+
 @Injectable()
 export class ModelPolicyService {
   getRuntimeCatalog(
@@ -74,7 +87,16 @@ export class ModelPolicyService {
       throw new ModelSwitchNotAllowedException();
     }
     const capability = APPLICATION_CAPABILITIES.get(applicationId);
-    if (!capability) throw new ModelSwitchNotAllowedException();
+    if (!capability) {
+      if (applicationId.startsWith('base-model-')) {
+        recordMetric(() => {
+          appMetrics.modelChangeFixedBotRejectionsTotal.add(1, {
+            application: 'base-model',
+          });
+        });
+      }
+      throw new ModelSwitchNotAllowedException();
+    }
     return capability;
   }
 
@@ -82,8 +104,20 @@ export class ModelPolicyService {
     capability: DynamicModelCapability,
     requested: RequestedModelRef,
   ): ApprovedModelRef {
-    const provider = this.normalizeValue(requested.provider, 128);
-    const id = this.normalizeValue(requested.id, 256);
+    let provider: string;
+    let id: string;
+    try {
+      provider = this.normalizeValue(requested.provider, 128);
+      id = this.normalizeValue(requested.id, 256);
+    } catch (error) {
+      recordMetric(() => {
+        appMetrics.modelChangeUnsupportedTotal.add(1, {
+          capability,
+          provider: providerMetricBucket(requested.provider),
+        });
+      });
+      throw error;
+    }
     const entry = STAFF_MODEL_CATALOG.find(
       (candidate) =>
         candidate.enabled &&
@@ -92,7 +126,15 @@ export class ModelPolicyService {
         candidate.id === id,
     );
 
-    if (!entry) throw new UnsupportedModelException();
+    if (!entry) {
+      recordMetric(() => {
+        appMetrics.modelChangeUnsupportedTotal.add(1, {
+          capability,
+          provider: providerMetricBucket(provider),
+        });
+      });
+      throw new UnsupportedModelException();
+    }
 
     const approved = {
       provider: entry.provider,
