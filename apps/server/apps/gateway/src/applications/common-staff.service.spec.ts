@@ -44,6 +44,7 @@ import type {
 } from './dto/generate-persona.dto.js';
 import { DmOutboundPolicyDto } from './dto/dm-outbound-policy.dto.js';
 import { validate } from 'class-validator';
+import { ModelPolicyService } from '../model-policy/model-policy.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -326,6 +327,7 @@ describe('CommonStaffService', () => {
       providers: [
         StaffService,
         CommonStaffService,
+        ModelPolicyService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
         { provide: ClawHiveService, useValue: clawHiveService },
@@ -364,6 +366,26 @@ describe('CommonStaffService', () => {
   // ── createStaff ──────────────────────────────────────────────────────────────
 
   describe('createStaff', () => {
+    it.each([
+      { provider: 'custom', id: 'gpt-4' },
+      { provider: 'anthropic', id: 'claude-3-opus' },
+      { provider: 'http://evil.com', id: 'test' },
+    ])('rejects unsupported model %# before mutation', async (model) => {
+      await expect(
+        service.createStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeCreateDto({ model }),
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'unsupported_model' }),
+      });
+
+      expect(staffService.createBotWithAgent).not.toHaveBeenCalled();
+      expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
+    });
+
     it('creates bot with correct parameters', async () => {
       const dto = makeCreateDto();
       await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
@@ -951,6 +973,27 @@ describe('CommonStaffService', () => {
       db.enqueue([{ installedApplicationId: INSTALLED_APP_ID }]);
     });
 
+    it.each([
+      { provider: 'custom', id: 'gpt-4' },
+      { provider: 'anthropic', id: 'claude-3-opus' },
+      { provider: 'http://evil.com', id: 'test' },
+    ])('rejects unsupported model %# before mutation', async (model) => {
+      await expect(
+        service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          BOT_ID,
+          makeUpdateDto({ model }),
+          OWNER_ID,
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'unsupported_model' }),
+      });
+
+      expect(botService.updateBotExtra).not.toHaveBeenCalled();
+      expect(clawHiveService.updateAgent).not.toHaveBeenCalled();
+    });
+
     it('updates bot display name when provided', async () => {
       const dto = makeUpdateDto({ displayName: 'New Name' });
       await service.updateStaff(
@@ -1152,7 +1195,7 @@ describe('CommonStaffService', () => {
     it('syncs to claw-hive after update', async () => {
       const dto = makeUpdateDto({
         displayName: 'New Name',
-        model: { provider: 'openrouter', id: 'openai/gpt-4o' },
+        model: { provider: 'openrouter', id: 'openai/gpt-5.5' },
       });
       await service.updateStaff(
         INSTALLED_APP_ID,
@@ -1167,7 +1210,7 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           tenantId: TENANT_ID,
           name: 'New Name',
-          model: { provider: 'openrouter', id: 'openai/gpt-4o' },
+          model: { provider: 'openrouter', id: 'openai/gpt-5.5' },
         }),
       );
     });

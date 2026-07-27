@@ -4,6 +4,8 @@ import {
   IsBoolean,
   IsDefined,
   IsNotEmpty,
+  Matches,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -12,10 +14,14 @@ import { DmOutboundPolicyDto } from './dm-outbound-policy.dto.js';
 class ModelDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/)
+  @MaxLength(128)
   provider: string;
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/)
+  @MaxLength(256)
   id: string;
 }
 

@@ -39,6 +39,7 @@ import type {
   GeneratePersonaDto,
   GenerateAvatarDto,
 } from './dto/generate-persona.dto.js';
+import { ModelPolicyService } from '../model-policy/model-policy.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -145,7 +146,7 @@ const makeBotResult = () => ({
 const makeCreateDto = (
   overrides: Partial<CreatePersonalStaffDto> = {},
 ): CreatePersonalStaffDto => ({
-  model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+  model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
   ...overrides,
 });
 
@@ -166,7 +167,10 @@ const makeExistingBot = (overrides: Record<string, unknown> = {}) => ({
   extra: {
     personalStaff: {
       persona: 'Friendly helper',
-      model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+      model: {
+        provider: 'openrouter',
+        id: 'anthropic/claude-sonnet-4.6',
+      },
       visibility: { allowMention: false, allowDirectMessage: false },
     },
   },
@@ -281,6 +285,7 @@ describe('PersonalStaffService', () => {
       providers: [
         StaffService,
         PersonalStaffService,
+        ModelPolicyService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
         { provide: ClawHiveService, useValue: clawHiveService },
@@ -394,6 +399,26 @@ describe('PersonalStaffService', () => {
   // ── createStaff ──────────────────────────────────────────────────────────────
 
   describe('createStaff', () => {
+    it.each([
+      { provider: 'custom', id: 'gpt-4' },
+      { provider: 'anthropic', id: 'claude-3-opus' },
+      { provider: 'http://evil.com', id: 'test' },
+    ])('rejects unsupported model %# before mutation', async (model) => {
+      await expect(
+        service.createStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeCreateDto({ model }),
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'unsupported_model' }),
+      });
+
+      expect(botService.createWorkspaceBot).not.toHaveBeenCalled();
+      expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
+    });
+
     beforeEach(() => {
       // Default: findPersonalStaffBot returns no existing bot (limit returns empty)
       db.limit.mockResolvedValue([]);
@@ -974,6 +999,26 @@ describe('PersonalStaffService', () => {
       db.limit.mockResolvedValue([makeExistingBot()]);
     });
 
+    it.each([
+      { provider: 'custom', id: 'gpt-4' },
+      { provider: 'anthropic', id: 'claude-3-opus' },
+      { provider: 'http://evil.com', id: 'test' },
+    ])('rejects unsupported model %# before mutation', async (model) => {
+      await expect(
+        service.updateStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeUpdateDto({ model }),
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'unsupported_model' }),
+      });
+
+      expect(botService.updateBotExtra).not.toHaveBeenCalled();
+      expect(clawHiveService.updateAgent).not.toHaveBeenCalled();
+    });
+
     it('delegates to staffService.updateBotAndAgent with correct params', async () => {
       const dto = makeUpdateDto({ displayName: 'Updated PA' });
       await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
@@ -1007,7 +1052,10 @@ describe('PersonalStaffService', () => {
         expect.objectContaining({
           personalStaff: expect.objectContaining({
             persona: 'New persona',
-            model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
             visibility: { allowMention: false, allowDirectMessage: false },
           }),
         }),
@@ -1031,7 +1079,7 @@ describe('PersonalStaffService', () => {
     });
 
     it('updates model when provided', async () => {
-      const newModel = { provider: 'openai', id: 'gpt-4o' };
+      const newModel = { provider: 'openrouter', id: 'openai/gpt-5.5' };
       const dto = makeUpdateDto({ model: newModel });
       await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
@@ -1106,7 +1154,10 @@ describe('PersonalStaffService', () => {
           openclaw: { agentId: 'oc-1' },
           personalStaff: {
             persona: 'Old',
-            model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
             visibility: { allowMention: false, allowDirectMessage: false },
           },
         },
@@ -1182,8 +1233,8 @@ describe('PersonalStaffService', () => {
               personalStaff: {
                 persona: 'Friendly helper',
                 model: {
-                  provider: 'anthropic',
-                  id: 'claude-3-5-sonnet-20241022',
+                  provider: 'openrouter',
+                  id: 'anthropic/claude-sonnet-4.6',
                 },
                 visibility: { allowMention: false, allowDirectMessage: false },
               },

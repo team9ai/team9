@@ -94,12 +94,18 @@ export class ModelPolicyService {
 
     if (!entry) throw new UnsupportedModelException();
 
-    return Object.freeze({
+    const approved = {
       provider: entry.provider,
       id: entry.id,
-      catalogVersion: STAFF_MODEL_CATALOG_VERSION,
-      capability,
-    }) as ApprovedModelRef;
+    } as ApprovedModelRef;
+    Object.defineProperties(approved, {
+      catalogVersion: {
+        value: STAFF_MODEL_CATALOG_VERSION,
+        enumerable: false,
+      },
+      capability: { value: capability, enumerable: false },
+    });
+    return Object.freeze(approved);
   }
 
   private normalizeValue(value: unknown, maxLength: number): string {
