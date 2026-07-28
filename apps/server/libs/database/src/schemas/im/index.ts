@@ -26,4 +26,6 @@ export * from './channel-tabs.js';
 export * from './message-relations.js';
 export * from './ahand-devices.js';
 export * from './hive-send-failures.js';
+export * from './model-change-attempts.js';
+export * from './model-change-outbox.js';
 export * from './relations.js';

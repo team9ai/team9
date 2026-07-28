@@ -8,83 +8,24 @@ export interface StaffModel {
   default?: boolean;
 }
 
-export const COMMON_STAFF_MODELS: StaffModel[] = [
-  {
-    provider: "openrouter",
-    id: "anthropic/claude-opus-4.7",
-    label: "Claude Opus 4.7",
-    family: "anthropic",
-  },
-  {
-    provider: "openrouter",
-    id: "anthropic/claude-sonnet-4.6",
-    label: "Claude Sonnet 4.6",
-    family: "anthropic",
-    default: true,
-  },
-  {
-    provider: "openrouter",
-    id: "openai/gpt-5.5",
-    label: "GPT-5.5",
-    family: "openai",
-  },
-  {
-    provider: "openrouter",
-    id: "openai/gpt-5.4",
-    label: "GPT-5.4",
-    family: "openai",
-  },
-  {
-    provider: "openrouter",
-    id: "openai/gpt-5.4-mini",
-    label: "GPT-5.4 Mini",
-    family: "openai",
-  },
-  {
-    provider: "openrouter",
-    id: "google/gemini-3.5-flash",
-    label: "Gemini 3.5 Flash",
-    family: "google",
-  },
-  {
-    provider: "openrouter",
-    id: "google/gemini-3.1-pro-preview",
-    label: "Gemini 3.1 Pro (Preview)",
-    family: "google",
-  },
-  {
-    provider: "openrouter",
-    id: "google/gemini-3-flash-preview",
-    label: "Gemini 3 Flash (Preview)",
-    family: "google",
-  },
-  {
-    provider: "openrouter",
-    id: "deepseek/deepseek-v4-pro",
-    label: "DeepSeek V4 Pro",
-    family: "other",
-  },
-  {
-    provider: "openrouter",
-    id: "qwen/qwen3.6-plus",
-    label: "Qwen 3.6 Plus",
-    family: "other",
-  },
-  {
-    provider: "openrouter",
-    id: "z-ai/glm-5.1",
-    label: "GLM 5.1",
-    family: "other",
-  },
-  {
-    provider: "openrouter",
-    id: "moonshotai/kimi-k2.6",
-    label: "Kimi K2.6",
-    family: "other",
-  },
-];
+export function getDefaultStaffModel(models: StaffModel[]): StaffModel {
+  const value = models.find((model) => model.default);
+  if (!value) throw new Error("Server catalog has no default model");
+  return value;
+}
 
-export const DEFAULT_STAFF_MODEL = COMMON_STAFF_MODELS.find((m) => m.default)!;
+export function findStaffModel(
+  models: StaffModel[],
+  model: { provider: string; id: string } | null | undefined,
+): StaffModel | null {
+  if (!model) return null;
+  return (
+    models.find(
+      (candidate) =>
+        candidate.provider === model.provider && candidate.id === model.id,
+    ) ?? null
+  );
+}
 
 export function formatStaffModelDisplayLabel(label: string) {
   return label.replace(/\s*\(Preview\)/g, "").replace(/\s+Preview$/, "");

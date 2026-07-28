@@ -8,7 +8,10 @@ import {
   ForbiddenException,
   NotFoundException,
   ParseUUIDPipe,
+  Headers,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Type } from 'class-transformer';
 import {
   IsObject,
@@ -24,6 +27,13 @@ import {
   type HiveModelRef,
 } from '@team9/claw-hive';
 import { BotService } from './bot.service.js';
+import { ModelChangeCommandService } from '../model-policy/model-change-command.service.js';
+import { ModelChangeUnavailableException } from '../model-policy/model-policy.errors.js';
+import {
+  modelChangeStatusUrl,
+  normalizeModelChangeIdempotencyKey,
+  throwStoredModelChangeRejection,
+} from '../model-policy/model-change-http.js';
 
 class ModelRefDto implements HiveModelRef {
   @IsString()
@@ -50,12 +60,23 @@ interface BotModelResponse {
   model: HiveModelRef;
 }
 
+interface PendingBotModelChangeResponse {
+  attemptId: string;
+  idempotencyKey: string;
+  statusUrl: string;
+}
+
+type BotModelMutationResponse =
+  | (BotModelResponse & PendingBotModelChangeResponse)
+  | PendingBotModelChangeResponse;
+
 @Controller({ path: 'im/bots', version: '1' })
 @UseGuards(AuthGuard)
 export class BotModelController {
   constructor(
     private readonly botService: BotService,
     private readonly clawHiveService: ClawHiveService,
+    private readonly modelChanges: ModelChangeCommandService,
   ) {}
 
   @Get(':botId/model')
@@ -84,60 +105,41 @@ export class BotModelController {
     @CurrentUser('sub') userId: string,
     @Param('botId', ParseUUIDPipe) botId: string,
     @Body() dto: UpdateBotModelDto,
-  ): Promise<BotModelResponse> {
-    const { bot, agentId } = await this.requireManagedHiveBot(botId);
-
-    // Write authorization: only the bot's mentor or owner can change the
-    // default model. Workspace admin override is left for a follow-up.
-    if (bot.mentorId !== userId && bot.ownerId !== userId) {
-      throw new ForbiddenException(
-        'Only the bot mentor or owner can change its default model',
-      );
-    }
-
-    // Pull the existing agent snapshot so we can preserve its metadata
-    // (especially `tenantId`, which `updateAgent` requires).
-    const agent = await this.clawHiveService.getAgent(agentId);
-    if (!agent) throw new NotFoundException('Agent not registered on hive');
-
-    const tenantId = this.resolveAgentTenantId(agent);
-    if (!tenantId) {
-      throw new ForbiddenException('Agent is not attached to a tenant');
-    }
-
-    // mentor/owner must also still be an active tenant member — blocks the
-    // "ex-member is still named as mentor on the row" edge case.
-    if (!(await this.botService.isActiveTenantMember(userId, tenantId))) {
-      throw new ForbiddenException(
-        'Requester is not an active member of this workspace',
-      );
-    }
-
-    await this.clawHiveService.updateAgent(agentId, {
-      tenantId,
-      metadata: {
-        ...(agent.metadata ?? {}),
-        tenantId,
-        botId: bot.botId,
-        mentorId: bot.mentorId,
-      },
+    @Headers('idempotency-key') requestedIdempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<BotModelMutationResponse> {
+    const idempotencyKey = normalizeModelChangeIdempotencyKey(
+      requestedIdempotencyKey,
+    );
+    const result = await this.modelChanges.requestBotModelChange({
+      actorUserId: userId,
+      botId,
+      idempotencyKey,
       model: dto.model,
     });
+    const statusUrl = modelChangeStatusUrl(result.attemptId);
 
-    // Keep team9's local bot snapshot (`bots.extra.commonStaff.model` /
-    // `personalStaff.model`) in sync with agent-pi. The local copy is a
-    // cache used by StaffProfileSnapshot bootstrap — agent-pi remains the
-    // authoritative source for runtime resolution.
-    const next = { ...(bot.extra ?? {}) };
-    if (next.commonStaff) {
-      next.commonStaff = { ...next.commonStaff, model: dto.model };
+    if (result.state === 'rejected') {
+      throwStoredModelChangeRejection(result.reasonCode);
     }
-    if (next.personalStaff) {
-      next.personalStaff = { ...next.personalStaff, model: dto.model };
+    if (result.state === 'failed') {
+      throw new ModelChangeUnavailableException();
     }
-    await this.botService.updateBotExtra(bot.botId, next);
+    if (result.state === 'pending') {
+      response.status(202);
+      return { attemptId: result.attemptId, idempotencyKey, statusUrl };
+    }
 
-    return { botId: bot.botId, agentId, model: dto.model };
+    const { bot, agentId } = await this.requireManagedHiveBot(botId);
+    response.status(200);
+    return {
+      botId: bot.botId,
+      agentId,
+      model: result.model,
+      attemptId: result.attemptId,
+      idempotencyKey,
+      statusUrl,
+    };
   }
 
   private async requireManagedHiveBot(botId: string): Promise<{

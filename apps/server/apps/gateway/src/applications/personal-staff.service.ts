@@ -32,6 +32,7 @@ import {
   PERSONAL_STAFF_ROLE_TITLE,
   PERSONAL_STAFF_JOB_DESCRIPTION,
 } from './personal-staff.constants.js';
+import { ModelPolicyService } from '../model-policy/model-policy.service.js';
 
 export type { StaffBotResult as PersonalStaffResult };
 
@@ -84,6 +85,7 @@ export class PersonalStaffService {
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly staffService: StaffService,
     private readonly usersService: UsersService,
+    private readonly modelPolicy: ModelPolicyService,
   ) {}
 
   /**
@@ -215,6 +217,11 @@ export class PersonalStaffService {
     ownerId: string,
     dto: CreatePersonalStaffDto,
   ): Promise<StaffBotResult> {
+    const approvedModel = this.modelPolicy.assertModelAllowed(
+      'staff',
+      dto.model,
+    );
+
     // 1. Verify app type
     await this.verifyPersonalStaffApp(installedApplicationId, tenantId);
 
@@ -237,7 +244,7 @@ export class PersonalStaffService {
     const extra: BotExtra = {
       personalStaff: {
         persona: dto.persona,
-        model: dto.model,
+        model: approvedModel,
         ...(dto.displayName?.trim()
           ? { identity: { name: dto.displayName.trim() } }
           : {}),
@@ -259,7 +266,7 @@ export class PersonalStaffService {
         installedApplicationId,
         mentorId: ownerId, // Always the owner
         avatarUrl: dto.avatarUrl,
-        model: dto.model,
+        model: approvedModel,
         botExtra: extra,
         extraComponentConfigs: {
           'team9-staff-profile': {},
@@ -529,6 +536,11 @@ export class PersonalStaffService {
     ownerId: string,
     dto: UpdatePersonalStaffDto,
   ) {
+    const approvedModel =
+      dto.model === undefined
+        ? undefined
+        : this.modelPolicy.assertModelAllowed('staff', dto.model);
+
     // 1. Verify app type
     await this.verifyPersonalStaffApp(installedApplicationId, tenantId);
 
@@ -567,7 +579,7 @@ export class PersonalStaffService {
             }
           : {}),
         ...(dto.persona !== undefined ? { persona: dto.persona } : {}),
-        ...(dto.model !== undefined ? { model: dto.model } : {}),
+        ...(approvedModel !== undefined ? { model: approvedModel } : {}),
         ...(dto.visibility !== undefined
           ? {
               visibility: {
@@ -595,7 +607,7 @@ export class PersonalStaffService {
       tenantId,
       displayName: dto.displayName,
       avatarUrl: dto.avatarUrl,
-      model: dto.model,
+      model: approvedModel,
       botExtra: updatedExtra,
       currentMentorId: ownerId, // Mentor is always the owner
     });

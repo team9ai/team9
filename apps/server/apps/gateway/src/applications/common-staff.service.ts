@@ -21,6 +21,7 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { StaffService, type StaffBotResult } from './staff.service.js';
 import { UsersService } from '../im/users/users.service.js';
+import { ModelPolicyService } from '../model-policy/model-policy.service.js';
 import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
@@ -64,6 +65,7 @@ export class CommonStaffService {
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly staffService: StaffService,
     private readonly usersService: UsersService,
+    private readonly modelPolicy: ModelPolicyService,
   ) {}
 
   /**
@@ -82,6 +84,11 @@ export class CommonStaffService {
     ownerId: string,
     dto: CreateCommonStaffDto,
   ): Promise<StaffBotResult> {
+    const approvedModel = this.modelPolicy.assertModelAllowed(
+      'staff',
+      dto.model,
+    );
+
     // 1. Verify app is common-staff type
     const app = await this.installedApplicationsService.findById(
       installedApplicationId,
@@ -153,7 +160,7 @@ export class CommonStaffService {
         shortRoleTitle,
         persona: dto.persona,
         jobDescription: dto.jobDescription,
-        model: dto.model,
+        model: approvedModel,
         ...(explicitDisplayName
           ? { identity: { name: explicitDisplayName } }
           : {}),
@@ -169,7 +176,7 @@ export class CommonStaffService {
       installedApplicationId,
       mentorId: effectiveMentorId,
       avatarUrl: dto.avatarUrl,
-      model: dto.model,
+      model: approvedModel,
       botExtra: extra,
       extraComponentConfigs: {
         'team9-staff-profile': {},
@@ -292,6 +299,11 @@ export class CommonStaffService {
     dto: UpdateCommonStaffDto,
     actorUserId: string,
   ): Promise<void> {
+    const approvedModel =
+      dto.model === undefined
+        ? undefined
+        : this.modelPolicy.assertModelAllowed('staff', dto.model);
+
     // 1. Verify app is common-staff type
     const app = await this.installedApplicationsService.findById(
       installedApplicationId,
@@ -399,7 +411,7 @@ export class CommonStaffService {
         ...(dto.jobDescription !== undefined
           ? { jobDescription: dto.jobDescription }
           : {}),
-        ...(dto.model !== undefined ? { model: dto.model } : {}),
+        ...(approvedModel !== undefined ? { model: approvedModel } : {}),
       },
       ...(nextPolicy !== undefined
         ? {
@@ -420,7 +432,7 @@ export class CommonStaffService {
       displayName: dto.displayName,
       mentorId: dto.mentorId,
       avatarUrl: dto.avatarUrl,
-      model: dto.model,
+      model: approvedModel,
       botExtra: updatedExtra,
       currentMentorId: bot.mentorId ?? null,
     });

@@ -45,16 +45,12 @@ import type {
   GenerateWorkspaceOnboardingDto,
   UpdateWorkspaceOnboardingDto,
 } from './dto/index.js';
+import { getDefaultStaffModel } from '../model-policy/staff-model-catalog.js';
 
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
 });
-
-const DEFAULT_STAFF_MODEL = {
-  provider: 'openrouter',
-  id: 'anthropic/claude-sonnet-4.6',
-} as const;
 
 const ONBOARDING_CHANNEL_COUNT = 4;
 
@@ -573,6 +569,11 @@ export class OnboardingService {
   ) {
     const main = agents?.main;
     if (!main) return;
+    const defaultCatalogEntry = getDefaultStaffModel('staff');
+    const defaultModel = {
+      provider: defaultCatalogEntry.provider,
+      id: defaultCatalogEntry.id,
+    };
 
     let app = await this.installedApplicationsService.findByApplicationId(
       workspaceId,
@@ -609,7 +610,7 @@ export class OnboardingService {
       await this.personalStaffService.updateStaff(app.id, workspaceId, userId, {
         displayName,
         persona: main.description,
-        model: DEFAULT_STAFF_MODEL,
+        model: defaultModel,
       });
       await this.personalStaffService.triggerBootstrapForExistingStaff(
         app.id,
@@ -622,7 +623,7 @@ export class OnboardingService {
     await this.personalStaffService.createStaff(app.id, workspaceId, userId, {
       displayName,
       persona: main.description,
-      model: DEFAULT_STAFF_MODEL,
+      model: defaultModel,
       agenticBootstrap: true,
     });
   }
@@ -634,6 +635,11 @@ export class OnboardingService {
   ) {
     const children = agents?.children ?? [];
     if (children.length === 0) return;
+    const defaultCatalogEntry = getDefaultStaffModel('staff');
+    const defaultModel = {
+      provider: defaultCatalogEntry.provider,
+      id: defaultCatalogEntry.id,
+    };
 
     let app = await this.installedApplicationsService.findByApplicationId(
       workspaceId,
@@ -675,7 +681,7 @@ export class OnboardingService {
       await this.commonStaffService.createStaff(app.id, workspaceId, userId, {
         roleTitle: child.name.trim(),
         mentorId: userId,
-        model: DEFAULT_STAFF_MODEL,
+        model: defaultModel,
         agenticBootstrap: true,
       });
 

@@ -5,12 +5,18 @@ import { createElement } from "react";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 
 const mockGetInstalled = vi.hoisted(() => vi.fn());
+const mockGetCatalog = vi.hoisted(() => vi.fn());
+const mockUpdateBotModel = vi.hoisted(() => vi.fn());
+const mockGetAttempt = vi.hoisted(() => vi.fn());
 vi.mock("@/services/api", () => ({
   api: {
     applications: {
       getInstalledApplicationsWithBots: mockGetInstalled,
-      updateCommonStaff: vi.fn(),
-      updatePersonalStaff: vi.fn(),
+      getStaffModelCatalog: mockGetCatalog,
+    },
+    im: {
+      bots: { updateModel: mockUpdateBotModel },
+      modelChanges: { getAttempt: mockGetAttempt },
     },
   },
 }));
@@ -55,6 +61,43 @@ describe("useBotModelSwitch · agentModelFamily", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseWorkspaceId.mockReturnValue("workspace-1");
+    mockGetCatalog.mockResolvedValue({
+      catalogVersion: "2026-07-16.1",
+      runtimeReady: true,
+      models: [
+        {
+          provider: "openrouter",
+          id: "anthropic/claude-sonnet-4.6",
+          displayKey: "staff-model.anthropic/claude-sonnet-4.6",
+          label: "Claude Sonnet 4.6",
+          family: "anthropic",
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+          default: true,
+        },
+        {
+          provider: "openrouter",
+          id: "openai/gpt-5.4",
+          displayKey: "staff-model.openai/gpt-5.4",
+          label: "GPT-5.4",
+          family: "openai",
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+        },
+        {
+          provider: "openrouter",
+          id: "anthropic/claude-opus-4.7",
+          displayKey: "staff-model.anthropic/claude-opus-4.7",
+          label: "Claude Opus 4.7",
+          family: "anthropic",
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+        },
+      ],
+    });
   });
 
   it.each([
@@ -89,8 +132,7 @@ describe("useBotModelSwitch · agentModelFamily", () => {
       await waitFor(() =>
         expect(result.current.agentModelFamily).toBe(expectedFamily),
       );
-      // canSwitchModel stays false for base-model via useBotModelSwitch itself;
-      // channel-level switching is enabled separately via useChannelModel.
+      // Fixed base-model bots stay read-only even when the runtime is ready.
       expect(result.current.canSwitchModel).toBe(false);
     },
   );
@@ -159,6 +201,64 @@ describe("useBotModelSwitch · agentModelFamily", () => {
 
     await waitFor(() => expect(result.current.canSwitchModel).toBe(true));
     expect(result.current.agentModelFamily).toBeNull();
+  });
+
+  it("disables common-staff switching when the runtime is not ready", async () => {
+    mockGetCatalog.mockResolvedValue({
+      catalogVersion: "2026-07-16.1",
+      runtimeReady: false,
+      models: [
+        {
+          provider: "openrouter",
+          id: "anthropic/claude-sonnet-4.6",
+          displayKey: "staff-model.anthropic/claude-sonnet-4.6",
+          label: "Claude Sonnet 4.6",
+          family: "anthropic",
+          enabled: true,
+          capabilities: ["staff"],
+          minimumResolverCapabilityVersion: "1.0.0",
+          default: true,
+        },
+      ],
+    });
+    mockGetInstalled.mockResolvedValue([
+      makeApp({
+        applicationId: "common-staff",
+        bots: [
+          {
+            botId: "bot-common",
+            userId: "bot-user-common",
+            username: "common_bot",
+            displayName: "Common",
+            roleTitle: null,
+            persona: null,
+            jobDescription: null,
+            avatarUrl: null,
+            model: {
+              provider: "openrouter",
+              id: "anthropic/claude-sonnet-4.6",
+            },
+            mentorId: null,
+            mentorDisplayName: null,
+            mentorAvatarUrl: null,
+            isActive: true,
+            createdAt: "2026-04-07T00:00:00.000Z",
+            managedMeta: { agentId: "common-staff-agent-xyz" },
+          },
+        ],
+      }),
+    ]);
+
+    const { result } = renderHook(() => useBotModelSwitch("bot-user-common"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.applicationId).toBe("common-staff");
+      expect(result.current.models).toHaveLength(1);
+    });
+    expect(result.current.runtimeReady).toBe(false);
+    expect(result.current.canSwitchModel).toBe(false);
   });
 
   it("returns null family when base-model agentId does not match any known preset", async () => {

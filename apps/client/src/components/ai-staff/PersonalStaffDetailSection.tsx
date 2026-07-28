@@ -51,7 +51,7 @@ import { cn } from "@/lib/utils";
 import type { DmOutboundPolicy } from "@/types/bot-dm-policy";
 import type { UserOption } from "@/components/ai-staff/MultiUserPicker";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
-import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
+import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import { formatDateTime } from "@/lib/date-format";
 import type {
   PersonalStaffListBotInfo,
@@ -85,6 +85,7 @@ export function PersonalStaffDetailSection({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createDirectChannel = useCreateDirectChannel();
+  const botModelSwitch = useBotModelSwitch(bot.userId);
 
   // Avatar popover state
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false);
@@ -121,12 +122,10 @@ export function PersonalStaffDetailSection({
   const isRunning = bot.isActive;
   const appId = app.id;
 
-  // Current model value
-  const effectiveModel = bot.model ?? {
-    provider: "anthropic",
-    id: "claude-sonnet-4-6",
-  };
-  const currentModelValue = `${effectiveModel.provider}::${effectiveModel.id}`;
+  const effectiveModel = bot.model ?? botModelSwitch.currentModel;
+  const currentModelValue = effectiveModel
+    ? `${effectiveModel.provider}::${effectiveModel.id}`
+    : "";
 
   // Update mutation
   const updateMutation = useMutation({
@@ -195,10 +194,10 @@ export function PersonalStaffDetailSection({
     const [provider, id] = value.split("::");
     if (!provider || !id) return;
     setSavingField("model");
-    updateMutation.mutate(
-      { model: { provider, id } },
-      { onSettled: () => setSavingField(null) },
-    );
+    void botModelSwitch
+      .updateModel({ provider, id })
+      .catch(() => undefined)
+      .finally(() => setSavingField(null));
   };
 
   const handleAvatarSelect = (presetUrl: string) => {
@@ -576,13 +575,15 @@ export function PersonalStaffDetailSection({
                 <Select
                   value={currentModelValue}
                   onValueChange={handleModelChange}
-                  disabled={savingField === "model"}
+                  disabled={
+                    savingField === "model" || !botModelSwitch.canSwitchModel
+                  }
                 >
                   <SelectTrigger className="w-52 h-8 text-sm">
                     <SelectValue placeholder="Select model..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {COMMON_STAFF_MODELS.map((m) => (
+                    {botModelSwitch.models.map((m) => (
                       <SelectItem
                         key={`${m.provider}::${m.id}`}
                         value={`${m.provider}::${m.id}`}

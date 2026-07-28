@@ -53,6 +53,7 @@ import { AccountModule } from './account/account.module.js';
 import { AhandModule } from './ahand/ahand.module.js';
 import { AgentTempTokenModule } from './agent-temp-token/agent-temp-token.module.js';
 import { AgentHubModule } from './agent-hub/agent-hub.module.js';
+import { ModelPolicyModule } from './model-policy/model-policy.module.js';
 
 @Module({
   imports: [
@@ -100,6 +101,7 @@ import { AgentHubModule } from './agent-hub/agent-hub.module.js';
     AgentTempTokenModule,
     AgentHubModule,
     AhandModule,
+    ModelPolicyModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

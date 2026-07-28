@@ -50,10 +50,6 @@ import {
   syncBotThinkingStatusesWithMessages,
 } from "./bot-thinking-state";
 import type { BotThinkingStatus } from "./bot-thinking-state";
-import {
-  COMMON_STAFF_MODELS,
-  DEFAULT_STAFF_MODEL,
-} from "@/lib/common-staff-models";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -382,23 +378,32 @@ export function ChannelView({
     if (!isBotDm) return undefined;
     if (channelModel.isError || !channelModel.data) return undefined;
     const current = channelModel.data.model;
-    const matched = COMMON_STAFF_MODELS.find(
+    const matched = botModelSwitch.models.find(
       (m) => m.provider === current.provider && m.id === current.id,
     );
-    const label = matched?.label ?? current.id ?? DEFAULT_STAFF_MODEL.label;
+    const label = matched?.label ?? current.id;
     return {
       currentModel: current,
       currentModelLabel: label,
-      canSwitchModel: true,
+      canSwitchModel: botModelSwitch.canSwitchModel,
       applicationId: null as string | null,
       installedApplicationId: null as string | null,
       botId: null as string | null,
       agentModelFamily: botModelSwitch.agentModelFamily,
+      models: botModelSwitch.models,
+      runtimeReady: botModelSwitch.runtimeReady,
       isUpdating: channelModel.isUpdating,
       updateModel: (model: { provider: string; id: string }): Promise<void> =>
         channelModel.updateModel(model).then(() => undefined),
     };
-  }, [isBotDm, channelModel, botModelSwitch.agentModelFamily]);
+  }, [
+    isBotDm,
+    channelModel,
+    botModelSwitch.agentModelFamily,
+    botModelSwitch.canSwitchModel,
+    botModelSwitch.models,
+    botModelSwitch.runtimeReady,
+  ]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {

@@ -27,6 +27,13 @@ let _routinesLazyProvisionTotal: Counter | null = null;
 let _routinesLazyProvisionDurationMs: Histogram | null = null;
 let _routinesCreateFolder9FailureTotal: Counter | null = null;
 let _routinesCompleteCreationValidationFailureTotal: Counter | null = null;
+let _modelChangeDecisionsTotal: Counter | null = null;
+let _modelChangeFixedBotRejectionsTotal: Counter | null = null;
+let _modelChangeUnsupportedTotal: Counter | null = null;
+let _modelChangeAuditFailuresTotal: Counter | null = null;
+let _modelChangeDispatchFailuresTotal: Counter | null = null;
+let _modelChangeRetryAgeMs: Histogram | null = null;
+let _modelCatalogReadinessTotal: Counter | null = null;
 
 export const appMetrics = {
   get wsConnections(): UpDownCounter {
@@ -86,6 +93,101 @@ export const appMetrics = {
       });
     }
     return _hiveSendFailures;
+  },
+
+  /**
+   * Durable model-change policy decisions. Attribute values must remain
+   * bounded buckets: decision, reason, application, and provider.
+   */
+  get modelChangeDecisionsTotal(): Counter {
+    if (!_modelChangeDecisionsTotal) {
+      _modelChangeDecisionsTotal = getMeter().createCounter(
+        'model_change.decisions_total',
+        {
+          description:
+            'Durably recorded model-change decisions by bounded policy buckets',
+        },
+      );
+    }
+    return _modelChangeDecisionsTotal;
+  },
+
+  get modelChangeFixedBotRejectionsTotal(): Counter {
+    if (!_modelChangeFixedBotRejectionsTotal) {
+      _modelChangeFixedBotRejectionsTotal = getMeter().createCounter(
+        'model_change.fixed_bot_rejections_total',
+        {
+          description: 'Dynamic model changes rejected for fixed bots',
+        },
+      );
+    }
+    return _modelChangeFixedBotRejectionsTotal;
+  },
+
+  get modelChangeUnsupportedTotal(): Counter {
+    if (!_modelChangeUnsupportedTotal) {
+      _modelChangeUnsupportedTotal = getMeter().createCounter(
+        'model_change.unsupported_total',
+        {
+          description:
+            'Unsupported model pairs rejected by capability and provider bucket',
+        },
+      );
+    }
+    return _modelChangeUnsupportedTotal;
+  },
+
+  get modelChangeAuditFailuresTotal(): Counter {
+    if (!_modelChangeAuditFailuresTotal) {
+      _modelChangeAuditFailuresTotal = getMeter().createCounter(
+        'model_change.audit_failures_total',
+        {
+          description:
+            'Model-change requests failed closed because durable audit storage was unavailable',
+        },
+      );
+    }
+    return _modelChangeAuditFailuresTotal;
+  },
+
+  get modelChangeDispatchFailuresTotal(): Counter {
+    if (!_modelChangeDispatchFailuresTotal) {
+      _modelChangeDispatchFailuresTotal = getMeter().createCounter(
+        'model_change.dispatch_failures_total',
+        {
+          description:
+            'Model-change dispatch and publication failures by bounded error bucket',
+        },
+      );
+    }
+    return _modelChangeDispatchFailuresTotal;
+  },
+
+  get modelChangeRetryAgeMs(): Histogram {
+    if (!_modelChangeRetryAgeMs) {
+      _modelChangeRetryAgeMs = getMeter().createHistogram(
+        'model_change.retry_age_ms',
+        {
+          description:
+            'Age of a model-change attempt when a dispatch or publication retry is scheduled',
+          unit: 'ms',
+        },
+      );
+    }
+    return _modelChangeRetryAgeMs;
+  },
+
+  get modelCatalogReadinessTotal(): Counter {
+    if (!_modelCatalogReadinessTotal) {
+      _modelCatalogReadinessTotal = getMeter().createCounter(
+        'model_catalog.readiness_total',
+        {
+          description:
+            'Staff model catalog readiness observations by bounded outcome',
+        },
+      );
+    }
+    return _modelCatalogReadinessTotal;
   },
 
   // ── Routine → folder9 migration metrics (gateway routines.* paths) ──

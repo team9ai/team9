@@ -2,15 +2,20 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
-import {
-  COMMON_STAFF_MODELS,
-  DEFAULT_STAFF_MODEL,
-  type StaffModelFamily,
-} from "@/lib/common-staff-models";
+import type { StaffModelFamily } from "@/lib/common-staff-models";
 import {
   BASE_MODEL_PRODUCT_FAMILY,
   getBaseModelProductKey,
 } from "@/lib/base-model-agent";
+import {
+  invalidateStaffModelCatalog,
+  useStaffModelCatalog,
+} from "./useStaffModelCatalog";
+import {
+  createModelChangeIdempotencyKey,
+  isUnsupportedModelError,
+  waitForModelChangeAttempt,
+} from "./model-change-mutation";
 
 interface BotModelInfo {
   currentModel: { provider: string; id: string } | null;
@@ -29,6 +34,7 @@ interface BotModelInfo {
 export function useBotModelSwitch(botUserId: string | null) {
   const workspaceId = useSelectedWorkspaceId();
   const queryClient = useQueryClient();
+  const modelCatalog = useStaffModelCatalog();
 
   const { data: installedApps } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
@@ -63,12 +69,11 @@ export function useBotModelSwitch(botUserId: string | null) {
               null)
             : null;
         const matchedModel = model
-          ? COMMON_STAFF_MODELS.find(
+          ? modelCatalog.models.find(
               (m) => m.provider === model.provider && m.id === model.id,
             )
           : null;
-        const label =
-          matchedModel?.label ?? model?.id ?? DEFAULT_STAFF_MODEL.label;
+        const label = matchedModel?.label ?? model?.id ?? "";
 
         let agentModelFamily: StaffModelFamily | null = null;
         if (app.applicationId === "base-model-staff") {
@@ -101,26 +106,28 @@ export function useBotModelSwitch(botUserId: string | null) {
       botId: null,
       agentModelFamily: null,
     };
-  }, [installedApps, botUserId]);
+  }, [installedApps, botUserId, modelCatalog.models]);
 
   const updateModelMutation = useMutation({
     mutationFn: async (model: { provider: string; id: string }) => {
-      if (!botInfo.canSwitchModel || !botInfo.installedApplicationId) {
+      if (!botInfo.canSwitchModel || !modelCatalog.canMutate) {
         throw new Error("This bot does not support model switching");
       }
-
-      if (botInfo.applicationId === "common-staff") {
-        if (!botInfo.botId) throw new Error("Missing bot ID");
-        await api.applications.updateCommonStaff(
-          botInfo.installedApplicationId,
+      if (!botInfo.botId) throw new Error("Missing bot ID");
+      try {
+        const result = await api.im.bots.updateModel(
           botInfo.botId,
-          { model },
+          model,
+          createModelChangeIdempotencyKey(),
         );
-      } else if (botInfo.applicationId === "personal-staff") {
-        await api.applications.updatePersonalStaff(
-          botInfo.installedApplicationId,
-          { model },
-        );
+        if (result.state === "pending") {
+          await waitForModelChangeAttempt(result.attemptId);
+        }
+      } catch (error) {
+        if (isUnsupportedModelError(error)) {
+          await invalidateStaffModelCatalog(queryClient);
+        }
+        throw error;
       }
     },
     onSettled: () => {
@@ -134,6 +141,9 @@ export function useBotModelSwitch(botUserId: string | null) {
 
   return {
     ...botInfo,
+    canSwitchModel: botInfo.canSwitchModel && modelCatalog.canMutate,
+    models: modelCatalog.models,
+    runtimeReady: modelCatalog.runtimeReady,
     isUpdating: updateModelMutation.isPending,
     updateModel: (model: { provider: string; id: string }) =>
       updateModelMutation.mutateAsync(model),

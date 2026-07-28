@@ -18,6 +18,7 @@ import { ChannelMemberCacheService } from '../shared/channel-member-cache.servic
 import { TabsService } from '../views/tabs.service.js';
 import { BOT_SERVICE_TOKEN } from './channels.service.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { ModelPolicyService } from '../../model-policy/model-policy.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ describe('ChannelsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChannelsService,
+        ModelPolicyService,
         { provide: DATABASE_CONNECTION, useValue: db },
         {
           provide: RedisService,
@@ -105,6 +107,155 @@ describe('ChannelsService', () => {
     }).compile();
 
     service = module.get<ChannelsService>(ChannelsService);
+  });
+
+  describe('resolveModelSwitchTarget policy', () => {
+    const channel = {
+      id: 'channel-1',
+      tenantId: 'tenant-1',
+      type: 'direct',
+    };
+
+    beforeEach(() => {
+      jest.spyOn(service, 'findById').mockResolvedValue(channel as never);
+      jest.spyOn(service, 'assertReadAccess').mockResolvedValue(undefined);
+      jest
+        .spyOn(service, 'assertModelManageAccess')
+        .mockResolvedValue(undefined);
+    });
+
+    it.each(['common-staff', 'personal-staff'])(
+      'resolves %s with staff capability',
+      async (applicationId) => {
+        db.where.mockResolvedValueOnce([
+          {
+            botId: 'bot-1',
+            userId: 'bot-user-1',
+            managedProvider: 'hive',
+            managedMeta: { agentId: 'agent-1' },
+            installedApplicationId: 'installed-1',
+            applicationId,
+          },
+        ] as never);
+
+        await expect(
+          service.resolveModelSwitchTarget('channel-1', 'user-1'),
+        ).resolves.toMatchObject({
+          botId: 'bot-1',
+          applicationId,
+          capability: 'staff',
+        });
+      },
+    );
+
+    it('rejects a fixed base-model application before dispatch', async () => {
+      db.where.mockResolvedValueOnce([
+        {
+          botId: 'bot-1',
+          userId: 'bot-user-1',
+          managedProvider: 'hive',
+          managedMeta: { agentId: 'agent-1' },
+          installedApplicationId: 'installed-1',
+          applicationId: 'base-model-staff',
+        },
+      ] as never);
+
+      await expect(
+        service.resolveModelSwitchTarget('channel-1', 'user-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'model_switch_not_allowed',
+        }),
+      });
+    });
+
+    it.each([null, 'unknown-application'])(
+      'fails closed for application identity %p',
+      async (applicationId) => {
+        db.where.mockResolvedValueOnce([
+          {
+            botId: 'bot-1',
+            userId: 'bot-user-1',
+            managedProvider: 'hive',
+            managedMeta: { agentId: 'agent-1' },
+            installedApplicationId:
+              applicationId === null ? null : 'installed-1',
+            applicationId,
+          },
+        ] as never);
+
+        await expect(
+          service.resolveModelSwitchTarget('channel-1', 'user-1'),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({
+            code: 'model_policy_target_invalid',
+          }),
+        });
+      },
+    );
+  });
+
+  describe('assertModelManageAccess', () => {
+    it('allows an active human participant in a direct channel', async () => {
+      jest.spyOn(service, 'findById').mockResolvedValue({
+        id: 'channel-1',
+        tenantId: 'tenant-1',
+        type: 'direct',
+      } as never);
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('member');
+      jest.spyOn(service, 'isBot').mockResolvedValue(false);
+
+      await expect(
+        service.assertModelManageAccess('channel-1', 'user-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a bot identity and a non-member in a direct channel', async () => {
+      jest.spyOn(service, 'findById').mockResolvedValue({
+        id: 'channel-1',
+        tenantId: 'tenant-1',
+        type: 'direct',
+      } as never);
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('member');
+      jest.spyOn(service, 'isBot').mockResolvedValue(true);
+
+      await expect(
+        service.assertModelManageAccess('channel-1', 'bot-user-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'model_manage_forbidden' }),
+      });
+    });
+
+    it.each(['owner', 'admin'] as const)(
+      'allows a %s on a session channel',
+      async (role) => {
+        jest.spyOn(service, 'findById').mockResolvedValue({
+          id: 'channel-1',
+          tenantId: 'tenant-1',
+          type: 'routine-session',
+        } as never);
+        jest.spyOn(service, 'getEffectiveRole').mockResolvedValue(role);
+
+        await expect(
+          service.assertModelManageAccess('channel-1', 'user-1'),
+        ).resolves.toBeUndefined();
+      },
+    );
+
+    it('rejects an ordinary session-channel member', async () => {
+      jest.spyOn(service, 'findById').mockResolvedValue({
+        id: 'channel-1',
+        tenantId: 'tenant-1',
+        type: 'topic-session',
+      } as never);
+      jest.spyOn(service, 'getEffectiveRole').mockResolvedValue('member');
+
+      await expect(
+        service.assertModelManageAccess('channel-1', 'user-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'model_manage_forbidden' }),
+      });
+    });
   });
 
   // ── sendSystemMessage ───────────────────────────────────────────────

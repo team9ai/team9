@@ -1,121 +1,60 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  COMMON_STAFF_MODELS,
-  DEFAULT_STAFF_MODEL,
+  findStaffModel,
   formatStaffModelDisplayLabel,
-  type StaffModelFamily,
+  getDefaultStaffModel,
+  type StaffModel,
 } from "./common-staff-models";
-import { BASE_MODEL_PRODUCT_FAMILY } from "./base-model-agent";
 
-describe("COMMON_STAFF_MODELS", () => {
-  it("labels every model with a family so picker filters can't silently miss any", () => {
-    for (const model of COMMON_STAFF_MODELS) {
-      expect(model.family).toBeDefined();
-      expect(["anthropic", "openai", "google", "other"]).toContain(
-        model.family,
-      );
-    }
+const serverModels: StaffModel[] = [
+  {
+    provider: "openrouter",
+    id: "anthropic/claude-sonnet-4.6",
+    label: "Claude Sonnet 4.6",
+    family: "anthropic",
+    default: true,
+  },
+  {
+    provider: "openrouter",
+    id: "google/gemini-3-flash-preview",
+    label: "Gemini 3 Flash (Preview)",
+    family: "google",
+  },
+];
+
+describe("staff model presentation helpers", () => {
+  it("selects the default only from the supplied server catalog", () => {
+    expect(getDefaultStaffModel(serverModels)).toEqual(serverModels[0]);
   });
 
-  it("keeps the anthropic/openai/google prefix consistent with the declared family", () => {
-    for (const model of COMMON_STAFF_MODELS) {
-      const [prefix] = model.id.split("/");
-      const expected =
-        prefix === "anthropic" || prefix === "openai" || prefix === "google"
-          ? (prefix as StaffModelFamily)
-          : "other";
-      expect({ id: model.id, family: model.family }).toEqual({
-        id: model.id,
-        family: expected,
-      });
-    }
+  it("fails closed when the server catalog has no default", () => {
+    expect(() =>
+      getDefaultStaffModel(serverModels.map((model) => ({ ...model }))),
+    ).not.toThrow();
+    expect(() =>
+      getDefaultStaffModel(
+        serverModels.map(({ default: _default, ...model }) => model),
+      ),
+    ).toThrow("Server catalog has no default model");
   });
 
-  it("default model is resolvable and carries a family", () => {
-    expect(DEFAULT_STAFF_MODEL).toBeDefined();
-    expect(DEFAULT_STAFF_MODEL.family).toBe("anthropic");
-  });
-
-  it("includes the current GPT and DeepSeek OpenRouter entries", () => {
-    expect(COMMON_STAFF_MODELS).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          provider: "openrouter",
-          id: "openai/gpt-5.5",
-          label: "GPT-5.5",
-          family: "openai",
-        }),
-        expect.objectContaining({
-          provider: "openrouter",
-          id: "deepseek/deepseek-v4-pro",
-          label: "DeepSeek V4 Pro",
-          family: "other",
-        }),
-      ]),
-    );
-  });
-
-  it("uses tool-capable GPT and Gemini models in the picker", () => {
-    expect(COMMON_STAFF_MODELS).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          provider: "openrouter",
-          id: "openai/gpt-5.4",
-          label: "GPT-5.4",
-          family: "openai",
-        }),
-        expect.objectContaining({
-          provider: "openrouter",
-          id: "google/gemini-3.5-flash",
-          label: "Gemini 3.5 Flash",
-          family: "google",
-        }),
-        expect.objectContaining({
-          provider: "openrouter",
-          id: "google/gemini-3-flash-preview",
-          label: "Gemini 3 Flash (Preview)",
-          family: "google",
-        }),
-      ]),
-    );
-    expect(formatStaffModelDisplayLabel("Gemini 3 Flash (Preview)")).toBe(
-      "Gemini 3 Flash",
-    );
-    expect(formatStaffModelDisplayLabel("Gemini 3.5 Flash")).toBe(
-      "Gemini 3.5 Flash",
-    );
-  });
-
-  it("filtering by agentModelFamily keeps only matching models (strict filter)", () => {
-    const family = BASE_MODEL_PRODUCT_FAMILY.claude;
-    const filtered = COMMON_STAFF_MODELS.filter((m) => m.family === family);
-    expect(filtered.length).toBeGreaterThan(0);
-    for (const model of filtered) {
-      expect(model.family).toBe("anthropic");
-      expect(model.id.startsWith("anthropic/")).toBe(true);
-    }
-  });
-
-  it("maps each base-model preset to the expected family", () => {
-    expect(BASE_MODEL_PRODUCT_FAMILY.claude).toBe("anthropic");
-    expect(BASE_MODEL_PRODUCT_FAMILY.chatgpt).toBe("openai");
-    expect(BASE_MODEL_PRODUCT_FAMILY.gemini).toBe("google");
-  });
-
-  it("every base-model preset family has at least one matching model (so the dropdown is never empty)", () => {
-    for (const family of Object.values(BASE_MODEL_PRODUCT_FAMILY)) {
-      const count = COMMON_STAFF_MODELS.filter(
-        (m) => m.family === family,
-      ).length;
-      expect(count).toBeGreaterThan(0);
-    }
+  it("matches provider and model ID as one exact pair", () => {
+    expect(
+      findStaffModel(serverModels, {
+        provider: "openrouter",
+        id: "anthropic/claude-sonnet-4.6",
+      }),
+    ).toEqual(serverModels[0]);
+    expect(
+      findStaffModel(serverModels, {
+        provider: "anthropic",
+        id: "anthropic/claude-sonnet-4.6",
+      }),
+    ).toBeNull();
   });
 
   it("formats picker display labels without preview suffixes", () => {
-    expect(formatStaffModelDisplayLabel("Gemini 3.1 Pro (Preview)")).toBe(
-      "Gemini 3.1 Pro",
-    );
-    expect(formatStaffModelDisplayLabel("Gemini 3 Flash Preview")).toBe(
+    expect(formatStaffModelDisplayLabel("Gemini 3 Flash (Preview)")).toBe(
       "Gemini 3 Flash",
     );
     expect(formatStaffModelDisplayLabel("Claude Sonnet 4.6")).toBe(

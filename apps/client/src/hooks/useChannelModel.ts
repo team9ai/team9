@@ -5,6 +5,12 @@ import wsService from "@/services/websocket";
 import type { ChannelModelChangedEvent } from "@/types/ws-events";
 import { getValidAccessToken } from "@/services/auth-session";
 import { API_BASE_URL } from "@/constants/api-base-url";
+import { invalidateStaffModelCatalog } from "./useStaffModelCatalog";
+import {
+  createModelChangeIdempotencyKey,
+  isUnsupportedModelError,
+  waitForModelChangeAttempt,
+} from "./model-change-mutation";
 
 export interface ChannelModelState {
   model: { provider: string; id: string };
@@ -58,8 +64,26 @@ export function useChannelModel(
   const mutation = useMutation({
     mutationFn: async (model: { provider: string; id: string }) => {
       if (!channelId) throw new Error("channelId is required");
-      const r = await api.im.channels.updateChannelModel(channelId, model);
-      return { model: r.model, source: r.source, override: r.override };
+      try {
+        const result = await api.im.channels.updateChannelModel(
+          channelId,
+          model,
+          createModelChangeIdempotencyKey(),
+        );
+        if (result.state === "pending") {
+          await waitForModelChangeAttempt(result.attemptId);
+        }
+        return {
+          model,
+          source: "dynamic" as const,
+          override: model,
+        };
+      } catch (error) {
+        if (isUnsupportedModelError(error)) {
+          await invalidateStaffModelCatalog(queryClient);
+        }
+        throw error;
+      }
     },
     onSuccess: (next) => {
       queryClient.setQueryData<ChannelModelState>(queryKey, next);

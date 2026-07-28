@@ -463,6 +463,20 @@
       "when": 1779753600000,
       "tag": "0065_external_im_client_msg_id_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1785132102165,
+      "tag": "0066_model_change_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1785133434041,
+      "tag": "0067_model_change_publication",
+      "breakpoints": true
     }
   ]
 }
