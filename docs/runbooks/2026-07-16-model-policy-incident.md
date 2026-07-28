@@ -20,24 +20,15 @@ keeps account/credit abuse containment separate from model-policy enforcement.
 
 ## Pre-deployment checks
 
-1. Deploy the agent-pi/hive build that accepts caller-provided `messageId`,
-   deduplicates it atomically, and advertises generic resolver capability
-   version `>= 1.0.0`.
-2. Query hive readiness using the existing service credential. Do not paste the
-   credential or full response into an incident ticket.
-
-   ```bash
-   curl -fsS \
-     -H "Authorization: Bearer $CLAW_HIVE_AUTH_TOKEN" \
-     "$CLAW_HIVE_API_URL/api/workers/readiness"
-   ```
-
-3. Require:
-   - `queueProtocolVersion.minimum == 2`
-   - `queueProtocolVersion.incompatibleWorkerIds` is empty
-   - `resolverCapabilityVersion.minimum >= 1.0.0`
-   - `readyForQueueV2 == true`
-
+1. Deploy the agent-pi/hive build that accepts caller-provided `messageId` and
+   deduplicates it atomically.
+2. Verify the deployed agent-pi source/release contains every enabled Team9
+   `openrouter` pair in its local registry, then run one idempotency smoke:
+   submit the same harmless model-change input twice with the same
+   caller-provided `messageId` and confirm both responses return that ID while
+   only one logical queue entry exists.
+3. Do not query `/api/workers/readiness`: the current agent-pi API does not
+   expose that endpoint, and Team9 owns the product allowlist.
 4. Keep `MODEL_CHANGE_OUTBOX_ENABLED=false`. Server policy enforcement and
    durable audit still work with dispatch disabled.
 
@@ -73,7 +64,7 @@ Do not enable the outbox if either migration or any required index is missing.
 
 ## Rollout order
 
-1. Agent-pi/hive readiness first.
+1. Agent-pi registry and idempotent-`messageId` smoke first.
 2. Database migrations.
 3. Gateway with server catalog, fixed-bot rejection, durable command path, and
    `MODEL_CHANGE_OUTBOX_ENABLED=false`.
@@ -85,8 +76,8 @@ Do not enable the outbox if either migration or any required index is missing.
    - unsupported dynamic pair: `400 unsupported_model`
    - catalog-valid staff pair: durable `202` with `attemptId`
 
-6. Set `MODEL_CHANGE_OUTBOX_ENABLED=true` only after all agent-pi workers satisfy
-   the message-id/idempotency and resolver gates.
+6. Set `MODEL_CHANGE_OUTBOX_ENABLED=true` only after the deployed agent-pi
+   release passes the message-id/idempotency and enabled-model smoke.
 7. Verify the valid attempt reaches `dispatched`, the agent-pi input uses the
    same attempt ID, and at most one `channel_model_changed` event is published.
 8. Deploy the client that consumes the authenticated server catalog.
@@ -127,9 +118,8 @@ WHERE status = 'processing'
   AND (claim_until IS NULL OR claim_until <= now());
 ```
 
-Page if audit failures are non-zero, catalog readiness becomes false, dispatch
-retry age keeps rising, or expired claims do not recover on the next processor
-tick.
+Page if audit failures are non-zero, catalog delivery fails, dispatch retry age
+keeps rising, or expired claims do not recover on the next processor tick.
 
 ## Containment and evidence
 
@@ -160,7 +150,7 @@ policy rollout.
    evidence and allow safe replay after recovery.
 3. If the client has a compatibility problem, roll back only the client. The
    server continues to reject fixed/unsupported mutations.
-4. Repair agent-pi readiness, then re-enable the outbox and confirm old pending
-   rows reuse their existing attempt IDs.
+4. Repair agent-pi model resolution or idempotent enqueue, then re-enable the
+   outbox and confirm old pending rows reuse their existing attempt IDs.
 5. To retire a model, disable it in the Team9 catalog first, wait until clients
    stop selecting it, and remove the agent-pi resolver only afterward.

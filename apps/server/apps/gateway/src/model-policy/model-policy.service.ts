@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import type { HiveWorkerFleetReadiness } from '@team9/claw-hive';
 import { appMetrics } from '@team9/observability';
 import {
   STAFF_MODEL_CATALOG,
@@ -33,26 +32,6 @@ const APPLICATION_CAPABILITIES = new Map<string, DynamicModelCapability>([
   ['personal-staff', 'staff'],
 ]);
 
-function parseSemanticVersion(
-  value: string,
-): readonly [number, number, number] | null {
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/.exec(value);
-  if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
-function resolverVersionSatisfies(actual: string, minimum: string): boolean {
-  const actualParts = parseSemanticVersion(actual);
-  const minimumParts = parseSemanticVersion(minimum);
-  if (!actualParts || !minimumParts) return false;
-  for (let index = 0; index < 3; index += 1) {
-    if (actualParts[index] !== minimumParts[index]) {
-      return actualParts[index] > minimumParts[index];
-    }
-  }
-  return true;
-}
-
 function providerMetricBucket(value: unknown): 'openrouter' | 'other' {
   return value === 'openrouter' ? 'openrouter' : 'other';
 }
@@ -67,17 +46,8 @@ function recordMetric(action: () => void): void {
 
 @Injectable()
 export class ModelPolicyService {
-  getRuntimeCatalog(
-    readiness: HiveWorkerFleetReadiness,
-  ): readonly StaffModelCatalogEntry[] {
-    return STAFF_MODEL_CATALOG.filter(
-      (entry) =>
-        entry.enabled &&
-        resolverVersionSatisfies(
-          readiness.resolverCapabilityVersion.minimum,
-          entry.minimumResolverCapabilityVersion,
-        ),
-    );
+  getCatalog(): readonly StaffModelCatalogEntry[] {
+    return STAFF_MODEL_CATALOG.filter((entry) => entry.enabled);
   }
 
   assertDynamicSwitchAllowed(

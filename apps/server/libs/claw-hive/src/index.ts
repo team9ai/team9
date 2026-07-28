@@ -7,6 +7,5 @@ export {
   type HiveSessionComponentItem,
   type HiveSessionComponentsResponse,
   type HiveSessionStatusResponse,
-  type HiveWorkerFleetReadiness,
 } from './claw-hive.service.js';
 export { ClawHiveModule } from './claw-hive.module.js';

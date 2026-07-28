@@ -9,12 +9,10 @@ export interface StaffModelCatalogEntry {
   readonly family: StaffModelFamily;
   readonly enabled: boolean;
   readonly capabilities: readonly DynamicModelCapability[];
-  readonly minimumResolverCapabilityVersion: string;
   readonly default?: boolean;
 }
 
 export const STAFF_MODEL_CATALOG_VERSION = '2026-07-16.1';
-export const STAFF_MODEL_RESOLVER_CAPABILITY_VERSION = '1.0.0';
 
 const urlLikeModelValue = /^[a-z][a-z0-9+.-]*:\/\//i;
 
@@ -42,7 +40,6 @@ function entry(
     family,
     enabled: true,
     capabilities: ['staff'],
-    minimumResolverCapabilityVersion: STAFF_MODEL_RESOLVER_CAPABILITY_VERSION,
     ...options,
   };
 }

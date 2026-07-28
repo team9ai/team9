@@ -79,12 +79,12 @@ The checks are intentionally separate. A valid catalog model is still forbidden 
 
 Current capability matrix:
 
-| Application | Create/update model | Channel dynamic switch | Policy |
-|---|---:|---:|---|
-| `common-staff` | Yes | Yes | Staff catalog |
-| `personal-staff` | Yes | Yes | Staff catalog |
-| `base-model-staff` | No user choice | No | Fixed code-owned preset |
-| Other/unknown Hive bot | No by default | No | Fail closed |
+| Application            | Create/update model | Channel dynamic switch | Policy                  |
+| ---------------------- | ------------------: | ---------------------: | ----------------------- |
+| `common-staff`         |                 Yes |                    Yes | Staff catalog           |
+| `personal-staff`       |                 Yes |                    Yes | Staff catalog           |
+| `base-model-staff`     |      No user choice |                     No | Fixed code-owned preset |
+| Other/unknown Hive bot |       No by default |                     No | Fail closed             |
 
 If future applications need different catalogs, the capability value becomes a named catalog key rather than a boolean. Unknown application IDs have no capability until explicitly registered.
 
@@ -127,7 +127,6 @@ The catalog entry includes:
 - family/grouping metadata for UI;
 - enabled state;
 - permitted capability keys;
-- minimum generic agent-pi resolver capability version;
 - default marker, with exactly one default per capability.
 
 Server startup validates uniqueness, default cardinality, length bounds, and prohibited characters. Invalid catalog configuration prevents startup rather than silently opening policy.
@@ -180,16 +179,16 @@ Controller decorators alone are insufficient because services can be called from
 
 Recommended stable errors:
 
-| Condition | HTTP status | Error code |
-|---|---:|---|
-| Malformed model object | 400 | `invalid_model_ref` |
-| Well-formed but unsupported pair | 400 | `unsupported_model` |
-| Bot/application cannot switch dynamically | 403 | `model_switch_not_allowed` |
-| User lacks channel/application access | 403 | existing access code |
-| Reader lacks model-management authority | 403 | `model_manage_forbidden` |
-| Persisted bot/application linkage inconsistent | 409 | `model_policy_target_invalid` |
-| Unexpected resolver/storage failure | 500 | `model_policy_internal_error` |
-| agent-pi dispatch unavailable | existing 5xx mapping | `model_change_unavailable` |
+| Condition                                      |          HTTP status | Error code                    |
+| ---------------------------------------------- | -------------------: | ----------------------------- |
+| Malformed model object                         |                  400 | `invalid_model_ref`           |
+| Well-formed but unsupported pair               |                  400 | `unsupported_model`           |
+| Bot/application cannot switch dynamically      |                  403 | `model_switch_not_allowed`    |
+| User lacks channel/application access          |                  403 | existing access code          |
+| Reader lacks model-management authority        |                  403 | `model_manage_forbidden`      |
+| Persisted bot/application linkage inconsistent |                  409 | `model_policy_target_invalid` |
+| Unexpected resolver/storage failure            |                  500 | `model_policy_internal_error` |
+| agent-pi dispatch unavailable                  | existing 5xx mapping | `model_change_unavailable`    |
 
 Responses must not echo arbitrary attacker strings without JSON-safe escaping and length limits.
 
@@ -226,16 +225,31 @@ Alert on repeated rejected mutations by one account/session or URL-like model ID
 
 ## Runtime Compatibility Contract
 
-Team9's catalog remains the product allowlist; agent-pi exposes only an authenticated generic resolver capability/build version. Deployment automation verifies every eligible worker is at or above a catalog entry's minimum resolver version before Team9 can enable that entry.
+Team9's catalog remains the product allowlist. Agent-pi owns only generic model
+resolution and must not know Team9 bot/application policy. The current agent-pi
+API does not expose a worker-fleet resolver-readiness endpoint, so Team9 must
+not depend on `/api/workers/readiness` or a poison-queue protocol version to
+serve its catalog.
+
+Compatibility is an explicit release contract: before Team9 enables a model,
+the corresponding agent-pi release must contain that exact
+`openrouter` provider/model pair in its local registry (or otherwise resolve it
+through the generic OpenRouter resolver), and the model-change input endpoint
+must accept and atomically deduplicate a caller-provided `messageId`.
 
 Changes follow an expand/contract order:
 
-1. Add/verify generic runtime resolution across the agent-pi fleet.
+1. Add and test generic runtime resolution in agent-pi, then deploy it across
+   the fleet.
 2. Enable the Team9 catalog entry.
 3. To remove support, disable the Team9 entry and wait until clients/queued mutations can no longer select it.
 4. Remove the generic runtime capability from agent-pi last.
 
-Failure of the readiness check keeps the Team9 entry disabled. The generic signal must not expose Team9 tenant entitlements, pricing, bot types, or allowlist decisions.
+The authenticated Team9 catalog endpoint returns the Team9-owned enabled set
+without a live agent-pi call. Deployment verification, contract tests, and an
+end-to-end model-change smoke prevent catalog/runtime drift. No agent-pi
+endpoint exposes Team9 tenant entitlements, pricing, bot types, or allowlist
+decisions.
 
 ## Immediate Account and Session Containment
 
@@ -266,7 +280,8 @@ Layer 4 is not a substitute for layers 2–3. It contains future producer bugs o
 
 ## Compatibility and Rollout
 
-1. Verify the current agent-pi fleet advertises the generic resolver capability required by every initially enabled catalog entry.
+1. Verify the deployed agent-pi build accepts caller-provided `messageId` and
+   resolves every initially enabled Team9 catalog pair.
 2. Add the shared/server catalog, policy, model-change attempt/outbox schema, and tests without changing the client.
 3. Enforce policy in common/personal staff create/update flows.
 4. Add application identity to the channel switch resolver and reject fixed/unknown bots.

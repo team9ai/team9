@@ -12,7 +12,11 @@
 
 ## Dependencies and scope
 
-The outbox dispatcher depends on agent-pi's queue `enqueueOnce` contract accepting a caller-supplied idempotency key. Deploy agent-pi generic resolver readiness and idempotent enqueue support before enabling this dispatcher. The Team9 catalog never moves into agent-pi.
+The outbox dispatcher depends on agent-pi's queue `enqueueOnce` contract
+accepting a caller-supplied idempotency key. Deploy and smoke-test agent-pi's
+idempotent enqueue and generic model resolution before enabling this
+dispatcher. The Team9 catalog never moves into agent-pi, and Team9 does not
+depend on a worker-readiness endpoint that agent-pi does not expose.
 
 This plan covers all current user-controlled model mutation surfaces:
 
@@ -30,7 +34,7 @@ Credit, registration, IP/device, and rate-limit work remains deferred.
 - Add migration `apps/server/libs/database/migrations/0066_model_change_attempts.sql` plus Drizzle metadata.
 - Modify channel/bot model controllers and channel target resolution.
 - Modify common/personal staff services and DTOs.
-- Modify `@team9/claw-hive` client for readiness and idempotent model changes.
+- Modify `@team9/claw-hive` client for idempotent model changes.
 - Replace the client-only catalog constant with an authenticated query hook and pure presentation helpers.
 
 ### Task 1: Build and validate the authoritative server catalog
@@ -98,7 +102,6 @@ export interface StaffModelCatalogEntry {
   family: "anthropic" | "openai" | "google" | "other";
   enabled: boolean;
   capabilities: readonly DynamicModelCapability[];
-  minimumResolverCapabilityVersion: string;
   default?: boolean;
 }
 
@@ -120,7 +123,7 @@ git add apps/server/apps/gateway/src/model-policy
 git commit -m "feat(gateway): add authoritative staff model policy"
 ```
 
-### Task 2: Expose a read-only versioned catalog and verify agent-pi readiness
+### Task 2: Expose a read-only versioned Team9 catalog
 
 **Files:**
 
@@ -128,55 +131,38 @@ git commit -m "feat(gateway): add authoritative staff model policy"
 - Create: `apps/server/apps/gateway/src/model-policy/staff-model-catalog.controller.ts`
 - Create: `apps/server/apps/gateway/src/model-policy/staff-model-catalog.controller.spec.ts`
 - Modify: `apps/server/apps/gateway/src/app.module.ts`
-- Modify: `apps/server/libs/claw-hive/src/claw-hive.service.ts`
-- Modify: `apps/server/libs/claw-hive/src/claw-hive.service.spec.ts`
 
-- [ ] **Step 1: Write endpoint and readiness tests**
+- [ ] **Step 1: Write endpoint ownership tests**
 
-Assert authenticated `GET /v1/models/staff` returns only enabled entries, one default, `catalogVersion`, and an ETag. Assert a disabled entry stays hidden when any eligible agent-pi worker reports a lower resolver capability version. Assert no response contains tenant entitlements or provider credentials.
+Assert authenticated `GET /v1/models/staff` returns only enabled Team9 entries,
+one default, `catalogVersion`, and an ETag without making a live agent-pi
+request. Assert no response contains tenant entitlements or provider
+credentials.
 
-- [ ] **Step 2: Run and confirm 404/missing-client failures**
+- [ ] **Step 2: Run and confirm the missing-route failure**
 
 Run:
 
 ```bash
 pnpm --filter @team9/gateway test -- --runInBand src/model-policy/staff-model-catalog.controller.spec.ts
-NODE_OPTIONS='--experimental-vm-modules' pnpm -C apps/server exec jest --config libs/claw-hive/jest.config.cjs --runInBand --runTestsByPath libs/claw-hive/src/claw-hive.service.spec.ts
 ```
 
-Expected: FAIL because the route and readiness client do not exist.
+Expected: FAIL because the route does not exist.
 
-- [ ] **Step 3: Add the generic readiness client**
-
-```ts
-export interface HiveWorkerFleetReadiness {
-  resolverCapabilityVersion: { minimum: string; versions: Record<string, number> };
-  queueProtocolVersion: { minimum: number; incompatibleWorkerIds: string[] };
-  readyForQueueV2: boolean;
-}
-
-async getWorkerFleetReadiness(): Promise<HiveWorkerFleetReadiness> {
-  return this.getJson('/api/workers/readiness');
-}
-```
-
-The policy service enables a catalog entry only when the fleet minimum satisfies `minimumResolverCapabilityVersion`. A readiness outage fails closed for mutation; the read endpoint may return the last server catalog with `runtimeReady: false` so the UI disables selection.
-
-- [ ] **Step 4: Add the global module and endpoint**
+- [ ] **Step 3: Add the global module and endpoint**
 
 Make `ModelPolicyModule` global so channel, bot, and application services share one policy instance without new circular imports. Export `ModelPolicyService` and later command/outbox services. Protect the endpoint with `AuthGuard`.
 
-- [ ] **Step 5: Pass tests and commit**
+- [ ] **Step 4: Pass tests and commit**
 
 Run:
 
 ```bash
 pnpm --filter @team9/gateway test -- --runInBand src/model-policy/staff-model-catalog.controller.spec.ts
-NODE_OPTIONS='--experimental-vm-modules' pnpm -C apps/server exec jest --config libs/claw-hive/jest.config.cjs --runInBand --runTestsByPath libs/claw-hive/src/claw-hive.service.spec.ts
 ```
 
 ```bash
-git add apps/server/apps/gateway/src/model-policy apps/server/apps/gateway/src/app.module.ts apps/server/libs/claw-hive/src/claw-hive.service.ts apps/server/libs/claw-hive/src/claw-hive.service.spec.ts
+git add apps/server/apps/gateway/src/model-policy apps/server/apps/gateway/src/app.module.ts
 git commit -m "feat(gateway): expose runtime-ready model catalog"
 ```
 
@@ -624,11 +610,20 @@ Expected: PASS after Tasks 1–9.
 
 - [ ] **Step 3: Add security metrics without high-cardinality payloads**
 
-Count decisions by reason/application/provider, fixed-bot rejections, unsupported pairs, audit failures, dispatch failures, retry age, and catalog/runtime readiness. Include attempt/correlation IDs in logs, never raw body/JWT/cookie/prompt/provider credentials.
+Count decisions by reason/application/provider, fixed-bot rejections,
+unsupported pairs, audit failures, dispatch failures, retry age, and catalog
+delivery. Include attempt/correlation IDs in logs, never raw
+body/JWT/cookie/prompt/provider credentials.
 
 - [ ] **Step 4: Write rollout and containment runbook**
 
-Include: verify agent-pi generic resolver readiness first; apply migration; deploy server enforcement before client; enable outbox only after agent-pi idempotency; disable Team9 entries before later runtime removal. Record incident evidence/account/session containment separately, including that network-source attribution is unavailable. Explicitly mark credit/registration abuse as deferred.
+Include: verify the deployed agent-pi build resolves every enabled pair and
+supports caller-provided idempotency first; apply migration; deploy server
+enforcement before client; enable outbox only after an agent-pi idempotency
+smoke; disable Team9 entries before later runtime removal. Record incident
+evidence/account/session containment separately, including that network-source
+attribution is unavailable. Explicitly mark credit/registration abuse as
+deferred.
 
 - [ ] **Step 5: Run repository verification**
 
@@ -653,7 +648,8 @@ git commit -m "test(security): lock fixed bots to server policy"
 
 ## Deployment checklist
 
-- [ ] Agent-pi fleet advertises the required generic resolver and queue protocol versions.
+- [ ] The deployed agent-pi build resolves every enabled pair and atomically
+      deduplicates caller-provided `messageId`.
 - [ ] Migration `0066_model_change_attempts.sql` is applied and indexes verified.
 - [ ] Server catalog/policy ships with outbox disabled; all mutation routes reject arbitrary pairs immediately.
 - [ ] Staff create/update and both PATCH routes are verified in production logs.
