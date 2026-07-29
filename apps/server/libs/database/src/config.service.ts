@@ -121,7 +121,9 @@ export class ConfigService {
   /**
    * Get AI provider configuration
    */
-  getAIProviderConfig(provider: 'openai' | 'claude' | 'gemini' | 'openrouter') {
+  getAIProviderConfig(
+    provider: 'openai' | 'claude' | 'gemini' | 'openrouter' | 'minimax',
+  ) {
     switch (provider) {
       case 'openai':
         return {
@@ -160,6 +162,17 @@ export class ConfigService {
             process.env.OPENROUTER_TITLE,
           ),
         };
+      case 'minimax':
+        return {
+          apiKey: this.get(
+            ConfigKey.MINIMAX_API_KEY,
+            process.env.MINIMAX_API_KEY,
+          ),
+          baseURL: this.get(
+            ConfigKey.MINIMAX_API_BASE,
+            process.env.MINIMAX_API_BASE || 'https://api.minimax.io/v1',
+          ),
+        };
     }
   }
 
@@ -167,7 +180,7 @@ export class ConfigService {
    * Check if AI provider is configured
    */
   isAIProviderConfigured(
-    provider: 'openai' | 'claude' | 'gemini' | 'openrouter',
+    provider: 'openai' | 'claude' | 'gemini' | 'openrouter' | 'minimax',
   ): boolean {
     const config = this.getAIProviderConfig(provider);
     return !!config.apiKey;

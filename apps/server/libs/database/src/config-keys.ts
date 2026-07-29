@@ -17,6 +17,10 @@ export enum ConfigKey {
   OPENROUTER_API_KEY = 'OPENROUTER_API_KEY',
   OPENROUTER_REFERER = 'OPENROUTER_REFERER',
   OPENROUTER_TITLE = 'OPENROUTER_TITLE',
+
+  // MiniMax Configuration
+  MINIMAX_API_KEY = 'MINIMAX_API_KEY',
+  MINIMAX_API_BASE = 'MINIMAX_API_BASE',
 }
 
 /**
@@ -57,5 +61,14 @@ export const ConfigMetadata: Record<
   [ConfigKey.OPENROUTER_TITLE]: {
     description: 'OpenRouter X-Title header',
     isSecret: false,
+  },
+  [ConfigKey.MINIMAX_API_KEY]: {
+    description: 'MiniMax API key',
+    isSecret: true,
+  },
+  [ConfigKey.MINIMAX_API_BASE]: {
+    description: 'MiniMax OpenAI-compatible API base URL',
+    isSecret: false,
+    defaultValue: 'https://api.minimax.io/v1',
   },
 };

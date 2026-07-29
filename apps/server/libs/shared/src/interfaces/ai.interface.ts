@@ -10,7 +10,7 @@ export interface AIMessage {
  * AI Completion Request interface
  */
 export interface AICompletionRequest {
-  provider: 'openai' | 'claude' | 'gemini' | 'openrouter';
+  provider: 'openai' | 'claude' | 'gemini' | 'openrouter' | 'minimax';
   model: string;
   messages: AIMessage[];
   temperature?: number;
@@ -41,4 +41,5 @@ export enum AIProvider {
   CLAUDE = 'claude',
   GEMINI = 'gemini',
   OPENROUTER = 'openrouter',
+  MINIMAX = 'minimax',
 }

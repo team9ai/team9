@@ -3,6 +3,7 @@ export enum AIProvider {
   CLAUDE = 'claude',
   GEMINI = 'gemini',
   OPENROUTER = 'openrouter',
+  MINIMAX = 'minimax',
 }
 
 // Claude (Anthropic) Models
@@ -62,16 +63,26 @@ export type OpenRouterModel =
   | (typeof OPENROUTER_MODELS)[number]
   | (string & {});
 
+// MiniMax Models
+export const MINIMAX_MODELS = ['MiniMax-M3', 'MiniMax-M2.7'] as const;
+export type MinimaxModel = (typeof MINIMAX_MODELS)[number] | (string & {});
+
 // Model arrays by provider for runtime validation
 export const MODELS_BY_PROVIDER: Record<AIProvider, readonly string[]> = {
   [AIProvider.CLAUDE]: CLAUDE_MODELS,
   [AIProvider.OPENAI]: OPENAI_MODELS,
   [AIProvider.GEMINI]: GEMINI_MODELS,
   [AIProvider.OPENROUTER]: OPENROUTER_MODELS,
+  [AIProvider.MINIMAX]: MINIMAX_MODELS,
 };
 
 // Union of all AI models
-export type AIModel = ClaudeModel | OpenAIModel | GeminiModel | OpenRouterModel;
+export type AIModel =
+  | ClaudeModel
+  | OpenAIModel
+  | GeminiModel
+  | OpenRouterModel
+  | MinimaxModel;
 
 // Type mapping: Provider -> Model type
 export type ModelForProvider<T extends AIProvider> = T extends AIProvider.CLAUDE
@@ -82,7 +93,9 @@ export type ModelForProvider<T extends AIProvider> = T extends AIProvider.CLAUDE
       ? GeminiModel
       : T extends AIProvider.OPENROUTER
         ? OpenRouterModel
-        : string;
+        : T extends AIProvider.MINIMAX
+          ? MinimaxModel
+          : string;
 
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
