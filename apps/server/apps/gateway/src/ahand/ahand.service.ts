@@ -174,7 +174,15 @@ export class AhandDevicesService {
         .returning();
       inserted = row;
     } catch (e) {
-      // Map postgres unique constraint violation to ConflictException
+      // Hub-keying invariant: ahand-hub keys devices by `id TEXT PRIMARY KEY`
+      // (no per-user partitioning — see team9ai/aHand devices migration). In a
+      // concurrent-register race the loser's hub.registerDevice() at step 1
+      // already returns HTTP 409, which AhandHubClient re-throws as
+      // ConflictException before reaching this try block, so 23505 is
+      // unreachable in that case. It can still fire on a retry where the
+      // gateway crashed after step 1 (hub OK) but before step 2 (DB OK); the
+      // hub.deleteDevice compensation below is safe because deviceId is
+      // globally unique — it can only target the caller's own hub binding.
       if ((e as { code?: string }).code === '23505') {
         // Compensate hub registration since the device is already in DB
         await this.hub.deleteDevice(input.hubDeviceId).catch((err) => {
